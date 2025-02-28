@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="MyBusFinder 3.0">
+    <link rel="canonical" href="https://mybusfinder.sudtransports.fr/">
+    <link rel="apple-touch-icon" href="logo.png">
+    <title>My Bus Finder 3.0</title>
+    <style>
+        @font-face {
+            font-family: 'League Spartan';
+            src: url('src/leaguespartan.ttf') format('truetype');
+        }
+        
+        :root {
+            --primary-color: #0056b3;
+            --secondary-color: #004494;
+            --text-color: #ffffff;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+            --card-bg: rgba(0, 0, 0, 0.6);
+            --card-highlight: rgba(255, 255, 255, 0.1);
+            --transition-bezier: cubic-bezier(0.25, 1.5, 0.5, 1);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'League Spartan', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            min-height: 100vh;
+            background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.7)), url('src/image.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: var(--text-color);
+        }
+
+        .portal-wrapper {
+            text-align: center;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .logo {
+            margin-bottom: 20px;
+        }
+
+        .logo img {
+            width: 180px;
+            height: auto;
+            cursor: pointer;
+            transition: transform 0.5s var(--transition-bezier), filter 0.3s ease-out, opacity 0.5s var(--transition-bezier);
+            transform: translateY(50px);
+            opacity: 0;
+            filter: blur(10px);
+        }
+
+        .logo img.slide-down {
+            transform: translateY(0);
+            opacity: 1;
+            filter: blur(0);
+        }
+
+        .portal-header {
+            margin-bottom: 20px;
+            transform: translateY(30px);
+            opacity: 0;
+            filter: blur(10px);
+            transition: all 0.5s var(--transition-bezier);
+        }
+        
+        .portal-header.slide-down {
+            transform: translateY(0);
+            opacity: 1;
+            filter: blur(0);
+        }
+        
+        .portal-header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .portal-header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .location-container {
+            background: rgba(0, 68, 148, 0.8);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transform: translateY(40px);
+            opacity: 0;
+            filter: blur(10px);
+            transition: all 0.5s var(--transition-bezier);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .location-container.slide-down {
+            transform: translateY(0);
+            opacity: 1;
+            filter: blur(0);
+        }
+        
+        .location-container.slide-up {
+            transform: translateY(-20px);
+            opacity: 0;
+            height: 0;
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+        
+        .location-title {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        
+        .location-title i {
+            margin-right: 8px;
+            font-size: 20px;
+        }
+        
+        .suggested-network {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s var(--transition-bezier);
+        }
+        
+        .suggested-network:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: scale(0.98);
+    }
+        
+        .suggested-network img {
+            width: 40px;
+            height: 40px;
+            margin-right: 15px;
+            border-radius: 50%;
+            background: transparent;
+            padding: 3px;
+            filter: brightness(0) invert(1);
+        }
+        
+        .suggested-network-info {
+            text-align: left;
+        }
+        
+        .suggested-network-info h3 {
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        
+        .suggested-network-info p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .show-all-button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 10px 20px;
+            margin-top: 15px;
+            cursor: pointer;
+            font-family: 'League Spartan', sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s var(--transition-bezier);
+            opacity: 0;
+            transform: translateY(20px);
+            filter: blur(5px);
+        }
+
+        .show-all-button.slide-down {
+            opacity: 1;
+            transform: translateY(0);
+            filter: blur(0);
+        }
+
+        .show-all-button:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0.98);
+        }
+
+        .show-all-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .countdown {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            position: relative;
+            margin-right: 8px;
+        }
+
+        .countdown svg {
+            transform: rotate(-90deg);
+            width: 20px;
+            height: 20px;
+        }
+
+        .countdown-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.2);
+            stroke-width: 2;
+        }
+
+        .countdown-progress {
+            fill: none;
+            stroke: white;
+            stroke-width: 2;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.1s linear;
+        }
+
+        .portal-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            background: var(--card-bg);
+            transition: transform 0.5s var(--transition-bezier), 
+                        opacity 0.3s ease-out, 
+                        filter 0.3s ease-out;
+            transform: translateY(60px); 
+            opacity: 0;
+            filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: none;
+        }
+    
+        .portal-container.slide-down {
+            transform: translateY(0);
+            opacity: 1;
+            filter: blur(0);
+            display: flex;
+        }
+
+        .search-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .search-container input {
+            width: 100%;
+            padding: 15px 20px 15px 50px;
+            font-size: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            background: rgba(0, 0, 0, 0.4);
+            color: #fff;
+            outline: none;
+            transition: all 0.3s var(--transition-bezier);
+        }
+
+        .search-container i {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 18px;
+        }
+
+        .search-container input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+            font-style: italic;
+        }
+
+        .search-container input:focus {
+            border-color: var(--primary-color);
+            background: rgba(0, 0, 0, 0.6);
+            box-shadow: 0 0 15px rgba(0, 86, 179, 0.5);
+        }
+
+        .networks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            width: 100%;
+        }
+
+        .network-button {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: all 0.3s var(--transition-bezier);
+            text-align: left;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transform: translateY(20px);
+            opacity: 0;
+            filter: blur(5px);
+        }
+        
+        .network-button.slide-down {
+            transform: translateY(0);
+            opacity: 1;
+            filter: blur(0);
+        }
+
+        .network-button:hover {
+        transform: scale(0.98) !important;
+        background: rgba(0, 86, 179, 0.3);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        border-color: rgba(255, 255, 255, 0.2);
+        transition: all 0.3s var(--transition-bezier);
+    }
+
+        .network-button img {
+            width: 60px;
+            height: 60px;
+            margin-right: 15px;
+            border-radius: 12px;
+            padding: 5px;
+            background: transparent;
+            object-fit: contain;
+            filter: brightness(0) invert(1);
+        }
+
+        .network-info {
+            flex: 1;
+        }
+
+        .network-button span.network-name {
+            display: block;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .network-button span.network-region {
+            display: block;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .oldver {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-style: italic;
+            cursor: pointer;
+            transition: all 0.5s var(--transition-bezier);
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(100px); 
+            opacity: 0;
+            filter: blur(10px);
+        }
+
+        .oldver:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    transform: scale(0.98) !important;
+}
+
+        .oldver.slide-down {
+            transform: translateY(0);
+            opacity: 1;
+            filter: blur(0);
+        }
+        
+        .no-results {
+            padding: 20px;
+            text-align: center;
+            font-style: italic;
+            opacity: 0.7;
+            display: none;
+        }
+        
+        .loading-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s var(--transition-bezier), transform 0.3s var(--transition-bezier);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+        
+        .back-to-top.visible {
+            opacity: 1;
+        }
+        
+        .back-to-top:hover {
+    transform: scale(0.95);
+    background: var(--secondary-color);
+}
+        @media (max-width: 768px) {
+            .portal-wrapper {
+                padding: 15px;
+            }
+            
+            .networks-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo img {
+                width: 140px;
+            }
+            
+            .portal-header h1 {
+                font-size: 24px;
+            }
+        }
+
+        @keyframes locationSuccess {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(0, 200, 83, 0.7);
+    }
+    50% {
+        transform: scale(1.1);
+        box-shadow: 0 0 30px 10px rgba(0, 200, 83, 0.5);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(0, 200, 83, 0);
+    }
+}
+
+.location-container.success-animation {
+    animation: locationSuccess 0.8s cubic-bezier(0.25, 1.5, 0.5, 1);
+    background: rgba(0, 150, 70, 0.8);
+    transition: background 0.5s var(--transition-bezier);
+}
+
+.success-icon {
+    display: inline-block;
+    color: #00ff7f;
+    font-size: 18px;
+    transform: scale(0);
+    opacity: 0;
+    transition: all 0.5s var(--transition-bezier);
+}
+
+.success-icon.animate {
+    transform: scale(1);
+    opacity: 1;
+}
+
+.success-particles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.particle {
+    position: absolute;
+    background: #00ff7f;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 1;
+}
+.back-button {
+    display: flex;
+    align-items: center;
+    padding: 10px 10px 10px 15px;
+    background: rgba(0, 68, 148, 0.8);
+    color: white;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s var(--transition-bezier);
+    width: fit-content;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.back-button i {
+    margin-right: 8px;
+}
+
+.back-button:hover {
+    background: var(--secondary-color);
+    transform: scale(0.98);
+}
+
+.favorite-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.2);
+    margin-left: 10px;
+    cursor: pointer;
+    transition: all 0.3s var(--transition-bezier);
+}
+
+.favorite-btn:hover {
+    background: rgba(0, 0, 0, 0.4);
+    transform: scale(1.1);
+}
+
+.favorite-btn i {
+    font-size: 18px;
+    color: #FFD700;
+    transition: all 0.3s var(--transition-bezier);
+}
+
+.star-animation {
+    animation: starPulse 0.8s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+@keyframes starPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.5); }
+    100% { transform: scale(1); }
+}
+
+.sort-favorites-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+
+.sort-favorites-container label {
+    margin-left: 10px;
+    cursor: pointer;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 45px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--primary-color);
+}
+
+input:checked + .slider:before {
+    transform: translateX(21px);
+}
+
+:root.dark-theme {
+    --primary-color: #1976D2;
+    --secondary-color: #135EA3;
+    --card-bg: rgba(0, 0, 0, 0.8);
+    --card-highlight: rgba(255, 255, 255, 0.05);
+}
+
+.theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s var(--transition-bezier);
+    z-index: 10;
+}
+
+.theme-toggle:hover {
+    transform: scale(0.95);
+    background: var(--secondary-color);
+}
+
+body.dark-theme {
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.9)), url('src/image.jpg') no-repeat center center fixed;
+}
+
+.recent-searches {
+    margin: 10px 0 20px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    display: none;
+}
+
+.recent-searches h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+}
+
+.recent-searches h3 i {
+    margin-right: 8px;
+}
+
+.recent-search-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.recent-search-item {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+}
+
+.recent-search-item span {
+    margin-right: 10px;
+}
+
+.recent-search-item button {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.recent-search-item button:hover {
+    opacity: 1;
+}
+
+.clear-recent-searches {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.3s ease;
+}
+
+.clear-recent-searches:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.highlight-search {
+    animation: highlight 1s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+@keyframes highlight {
+    0% { box-shadow: 0 0 0 0 rgba(0, 86, 179, 0.7); }
+    50% { box-shadow: 0 0 20px 5px rgba(0, 86, 179, 0.5); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 86, 179, 0); }
+}
+
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div id="portal-wrapper" class="portal-wrapper">
+        <div class="logo">
+            <img src="src/logow.png" alt="Logo MyBusFinder">
+        </div>
+        
+        <div class="portal-header">
+            <h1>My Bus Finder fait peau neuve</h1>
+            <p>Votre compagnon de mobilité pour mieux se déplacer</p>
+        </div>
+        
+        <div class="location-container" id="location-container">
+            <div class="location-title">
+                <i class="fas fa-location-dot"></i>
+                <h2>Réseau à proximité</h2>
+            </div>
+            <p id="location-status"><span class="loading-indicator"></span> Recherche de votre position...</p>
+            <div id="suggested-network" style="display: none;"></div>
+            <button id="show-all-button" class="show-all-button">
+                <i class="fas fa-list"></i> <p>Voir tous les réseaux disponibles</p>
+            </button>
+        </div>
+
+        <div class="portal-container" id="portal-container">
+
+            <div class="back-button" id="back-button" onclick="hideAllNetworks()">
+                <i class="fas fa-arrow-left"></i>
+            </div>
+            <div class="search-container">
+
+                
+                <i class="fas fa-search"></i>
+                <input 
+                    type="text" 
+                    id="network-search" 
+                    placeholder="Rechercher un réseau par nom ou ville..." 
+                    oninput="filterNetworks()">
+            </div>
+            <div id="recent-searches" class="recent-searches"></div>
+            
+            <div class="networks-grid" id="networks-grid">
+            </div>
+            
+            <div class="no-results" id="no-results">
+                Aucun réseau ne correspond à votre recherche..
+            </div>
+        </div>
+        
+        <div class="oldver" onclick="location.href='https://sudtransports.fr/busfinder'">
+            <i class="fas fa-history"></i> Anciennes versions
+        </div>
+<div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
+    <i class="fas fa-moon"></i>
+</div>
+    </div>
+    
+    <div class="back-to-top" id="back-to-top" onclick="scrollToTop()">
+        <i class="fas fa-arrow-up"></i>
+    </div>
+    <script src="toastjs.js"></script>       
+
+    <script>
+        let networks = [];
+        
+        document.addEventListener("DOMContentLoaded", () => {
+            setTimeout(() => {
+                loadNetworks();
+                    }, 100);
+
+            const savedTheme = localStorage.getItem('mbf_theme');
+if (savedTheme === 'dark') {
+    document.body.classList.add('dark-theme');
+    document.documentElement.classList.add('dark-theme');
+    document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-sun"></i>';
+}
+            
+            const showAllButton = document.getElementById("show-all-button");
+    if (showAllButton) {
+        showAllButton.disabled = true;
+        showAllButton.innerHTML = `
+            <span class="countdown">
+                <svg viewBox="0 0 24 24">
+                    <circle class="countdown-bg" cx="12" cy="12" r="10"></circle>
+                    <circle class="countdown-progress" cx="12" cy="12" r="10" stroke-dasharray="62.8" stroke-dashoffset="0"></circle>
+                </svg>
+            </span>
+            <p>Voir tous les réseaux disponibles</p>
+        `;
+    }
+
+   setTimeout(() => {
+        const logo = document.querySelector(".logo img");
+        if (logo) logo.classList.add("slide-down");
+        
+        setTimeout(() => {
+            const header = document.querySelector(".portal-header");
+            if (header) header.classList.add("slide-down");
+            
+            setTimeout(() => {
+                const locationContainer = document.querySelector(".location-container");
+                if (locationContainer) locationContainer.classList.add("slide-down");
+                
+                requestLocation();
+                
+                setTimeout(() => {
+                    const showAllButton = document.getElementById("show-all-button");
+                    if (showAllButton) showAllButton.classList.add("slide-down");
+                    
+                    startCountdown(3);
+                    
+                    setTimeout(() => {
+                        const oldver = document.querySelector(".oldver");
+                        if (oldver) oldver.classList.add("slide-down");
+                    }, 100);
+                }, 100);
+            }, 100);
+        }, 100);
+    }, 300);
+    
+    window.addEventListener('scroll', () => {
+        const backToTop = document.getElementById('back-to-top');
+        if (window.scrollY > 300) {
+            backToTop.classList.add('visible');
+        } else {
+            backToTop.classList.remove('visible');
+        }
+    });
+    
+    document.getElementById("show-all-button").addEventListener("click", showAllNetworks);
+});
+
+function showRecentSearches() {
+    const recentSearchesContainer = document.getElementById('recent-searches');
+    if (!recentSearchesContainer) return;
+    
+    const searches = JSON.parse(localStorage.getItem('mbf_recent_searches') || '[]');
+    
+    if (searches.length === 0) {
+        recentSearchesContainer.style.display = 'none';
+        return;
+    }
+    
+    recentSearchesContainer.style.display = 'block';
+    recentSearchesContainer.innerHTML = '<h3><i class="fas fa-history"></i> Recherches récentes</h3>';
+    
+    const searchList = document.createElement('div');
+    searchList.className = 'recent-search-list';
+    
+    searches.slice(0, 5).forEach(term => {
+        const searchItem = document.createElement('div');
+        searchItem.className = 'recent-search-item';
+        searchItem.innerHTML = `
+            <span>${term}</span>
+            <button onclick="applyRecentSearch('${term}')"><i class="fas fa-search"></i></button>
+        `;
+        searchList.appendChild(searchItem);
+    });
+    
+    const clearButton = document.createElement('button');
+    clearButton.className = 'clear-recent-searches';
+    clearButton.innerHTML = 'Effacer l\'historique';
+    clearButton.onclick = clearRecentSearches;
+    
+    recentSearchesContainer.appendChild(searchList);
+    recentSearchesContainer.appendChild(clearButton);
+}
+
+function applyRecentSearch(term) {
+    const searchInput = document.getElementById('network-search');
+    searchInput.value = term;
+    filterNetworks();
+    
+    searchInput.classList.add('highlight-search');
+    setTimeout(() => searchInput.classList.remove('highlight-search'), 1000);
+}
+
+function clearRecentSearches() {
+    localStorage.removeItem('mbf_recent_searches');
+    document.getElementById('recent-searches').style.display = 'none';
+}
+
+function filterNetworks() {
+    const searchInput = document.getElementById('network-search');
+    const searchTerm = searchInput.value.toLowerCase();
+    const networkElements = document.querySelectorAll('.network-button');
+    const noResults = document.getElementById('no-results');
+    let hasResults = false;
+    
+    if (searchTerm.length >= 3) {
+        saveRecentSearch(searchTerm);
+    }
+    
+    networkElements.forEach(network => {
+        const networkName = network.querySelector('.network-name').innerText.toLowerCase();
+        const networkRegion = network.querySelector('.network-region').innerText.toLowerCase();
+        const location = network.getAttribute('data-location').toLowerCase();
+        
+        if (networkName.includes(searchTerm) || networkRegion.includes(searchTerm) || location.includes(searchTerm)) {
+            network.style.display = 'flex';
+            hasResults = true;
+        } else {
+            network.style.display = 'none';
+        }
+    });
+    
+    noResults.style.display = hasResults ? 'none' : 'block';
+}
+
+function saveRecentSearch(term) {
+    let searches = JSON.parse(localStorage.getItem('mbf_recent_searches') || '[]');
+    
+    if (!searches.includes(term)) {
+        searches.unshift(term); 
+        searches = searches.slice(0, 10); 
+        localStorage.setItem('mbf_recent_searches', JSON.stringify(searches));
+    }
+}
+
+function toggleTheme() {
+    const body = document.body;
+    const root = document.documentElement;
+    const themeToggle = document.getElementById('theme-toggle');
+    
+    if (body.classList.contains('dark-theme')) {
+        body.classList.remove('dark-theme');
+        root.classList.remove('dark-theme');
+        themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+        localStorage.setItem('mbf_theme', 'light');
+    } else {
+        body.classList.add('dark-theme');
+        root.classList.add('dark-theme');
+        themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+        localStorage.setItem('mbf_theme', 'dark');
+    }
+}
+
+function hideAllNetworks() {
+    const container = document.getElementById("portal-container");
+    container.classList.remove("slide-down");
+    
+    const locationContainer = document.getElementById("location-container");
+    locationContainer.classList.remove("slide-up");
+    locationContainer.classList.add("slide-down");
+    
+    const networks = document.querySelectorAll('.network-button');
+    networks.forEach(network => {
+        network.classList.remove("slide-down");
+    });
+    
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+}
+
+function toggleFavorite(event, networkId) {
+    event.stopPropagation(); 
+    
+    let favorites = JSON.parse(localStorage.getItem('mbf_favorites') || '[]');
+    
+    if (favorites.includes(networkId)) {
+        favorites = favorites.filter(id => id !== networkId);
+        document.querySelector(`[data-favorite="${networkId}"]`).innerHTML = '<i class="far fa-star"></i>';
+        sortNetworksByFavorites();
+    } else {
+        favorites.push(networkId);
+        document.querySelector(`[data-favorite="${networkId}"]`).innerHTML = '<i class="fas fa-star"></i>';
+        sortNetworksByFavorites();
+
+        
+        const starEl = document.querySelector(`[data-favorite="${networkId}"] i`);
+        starEl.classList.add('star-animation');
+        setTimeout(() => {
+            starEl.classList.remove('star-animation');
+            sortNetworksByFavorites();
+        }, 1000);
+    }
+    
+    localStorage.setItem('mbf_favorites', JSON.stringify(favorites));
+    
+
+}
+
+function isFavorite(networkId) {
+    const favorites = JSON.parse(localStorage.getItem('mbf_favorites') || '[]');
+    return favorites.includes(networkId);
+}
+
+function sortNetworksByFavorites() {
+    const networksGrid = document.getElementById('networks-grid');
+    const networkElements = Array.from(networksGrid.querySelectorAll('.network-button'));
+    const favorites = JSON.parse(localStorage.getItem('mbf_favorites') || '[]');
+    
+    networkElements.sort((a, b) => {
+        const aId = a.getAttribute('data-id');
+        const bId = b.getAttribute('data-id');
+        const aIsFav = favorites.includes(aId);
+        const bIsFav = favorites.includes(bId);
+        
+        if (aIsFav && !bIsFav) return -1;
+        if (!aIsFav && bIsFav) return 1;
+        return 0;
+    });
+    
+    networkElements.forEach(el => networksGrid.appendChild(el));
+}
+
+function startCountdown(seconds) {
+    const showAllButton = document.getElementById("show-all-button");
+    const countdownCircle = document.querySelector(".countdown-progress");
+    const circumference = 62.8; 
+    
+    let timeLeft = seconds;
+    
+    countdownCircle.style.strokeDasharray = circumference;
+    countdownCircle.style.strokeDashoffset = "0";
+    
+    const interval = setInterval(() => {
+        timeLeft -= 0.1;
+        
+        const offset = circumference * (1 - (timeLeft / seconds));
+        countdownCircle.style.strokeDashoffset = offset;
+        
+        if (timeLeft <= 0) {
+            clearInterval(interval);
+            showAllButton.disabled = false;
+            showAllButton.innerHTML = `<i class="fas fa-list"></i> <p>Voir tous les réseaux disponibles</p>`;
+        }
+    }, 100);
+}        
+        function loadNetworks() {
+            fetch('networks.txt')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Impossible de charger le fichier networks.txt');
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    processNetworksData(data);
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement des réseaux:', error);
+                    const demoData = `Aucun réseau trouvé,Antartica,Un bug est survenu lors de : networks 404 (Not Found)`;
+                    processNetworksData(demoData);
+                });
+        }
+        
+        async function processNetworksData(data) {
+            const lines = data.split('\n').filter(line => line.trim() !== '');
+            const networksGrid = document.getElementById('networks-grid');
+            networksGrid.innerHTML = '';
+            
+            networks = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const [name, city, region, logoPath, url] = line.split(',').map(item => item.trim());
+                
+                const coords = await getCoordinatesFromCityName(city);
+                
+                const network = {
+                    id: name.toLowerCase().replace(/\s+/g, ''),
+                    name: name,
+                    location: city,
+                    region: region,
+                    url: url || '#',
+                    logo: logoPath || 'src/default-logo.png',
+                    lat: coords.lat,
+                    lon: coords.lon
+                };
+                
+                networks.push(network);
+                
+                const networkElement = document.createElement('div');
+                networkElement.className = 'network-button';
+                networkElement.setAttribute('data-location', city);
+                networkElement.setAttribute('data-coords', `${coords.lat},${coords.lon}`);
+                networkElement.setAttribute('data-id', network.id);
+                networkElement.onclick = function() { location.href = network.url; };
+
+                networkElement.innerHTML = `
+                    <img src="${network.logo}" alt="${name}">
+                    <div class="network-info">
+                        <span class="network-name">${name}</span>
+                        <span class="network-region">${region}</span>
+                    </div>
+                    <div class="favorite-btn" data-favorite="${network.id}" onclick="toggleFavorite(event, '${network.id}')">
+                        <i class="${isFavorite(network.id) ? 'fas' : 'far'} fa-star"></i>
+                    </div>
+                `;
+                
+                networksGrid.appendChild(networkElement);
+            }
+        }
+        
+        async function getCoordinatesFromCityName(cityName) {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityName)},France`);
+                const data = await response.json();
+                
+                if (data && data.length > 0) {
+                    return {
+                        lat: parseFloat(data[0].lat),
+                        lon: parseFloat(data[0].lon)
+                    };
+                }
+            } catch (error) {
+                console.error('Erreur lors de la récupération des coordonnées:', error);
+            }
+            
+            const defaultCoords = {
+                'cannes': { lat: 43.552847, lon: 7.017369 },
+                'toulon': { lat: 43.124228, lon: 5.928000 },
+                'bordeaux': { lat: 44.837789, lon: -0.579180 },
+                'rouen': { lat: 49.443232, lon: 1.099971 },
+                'paris': { lat: 48.856614, lon: 2.3522219 },
+                'marseille': { lat: 43.296482, lon: 5.369780 },
+                'lyon': { lat: 45.764043, lon: 4.835659 }
+            };
+            
+            const normalizedCity = cityName.toLowerCase();
+            
+            return defaultCoords[normalizedCity] || { lat: 46.603354, lon: 1.888334 }; 
+        }
+        
+        function showAllNetworks() {
+
+            showRecentSearches();
+
+            const locationContainer = document.getElementById("location-container");
+            locationContainer.classList.add("slide-up");
+            
+            const container = document.getElementById("portal-container");
+            container.classList.add("slide-down");
+            
+            const networks = document.querySelectorAll('.network-button');
+            networks.forEach((network, index) => {
+                setTimeout(() => {
+                    network.classList.add("slide-down");
+                }, index * 50); 
+            });
+            
+            setTimeout(() => {
+                document.getElementById('network-search').focus();
+            }, 500);
+        }
+        
+        function filterNetworks() {
+            const searchInput = document.getElementById('network-search').value.toLowerCase();
+            const networkElements = document.querySelectorAll('.network-button');
+            const noResults = document.getElementById('no-results');
+            let hasResults = false;
+            
+            networkElements.forEach(network => {
+                const networkName = network.querySelector('.network-name').innerText.toLowerCase();
+                const networkRegion = network.querySelector('.network-region').innerText.toLowerCase();
+                const location = network.getAttribute('data-location').toLowerCase();
+                
+                if (networkName.includes(searchInput) || networkRegion.includes(searchInput) || location.includes(searchInput)) {
+                    network.style.display = 'flex';
+                    hasResults = true;
+                } else {
+                    network.style.display = 'none';
+                }
+            });
+            
+            noResults.style.display = hasResults ? 'none' : 'block';
+        }
+        
+        function requestLocation() {
+            const locationStatus = document.getElementById('location-status');
+            
+            if (navigator.geolocation) {
+                locationStatus.innerHTML = '<span class="loading-indicator"></span> Recherche de votre position...';
+                
+                navigator.geolocation.getCurrentPosition(
+                    position => handleLocationSuccess(position),
+                    error => handleLocationError(error),
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            } else {
+                locationStatus.textContent = "La géolocalisation n'est pas prise en charge par votre navigateur";
+                document.getElementById("show-all-button").classList.add("slide-down");
+            }
+        }
+        
+        function handleLocationSuccess(position) {
+    const locationStatus = document.getElementById('location-status');
+    const suggestedNetworkDiv = document.getElementById('suggested-network');
+    const locationContainer = document.getElementById('location-container');
+    
+    const userLat = position.coords.latitude;
+    const userLon = position.coords.longitude;
+    
+    const nearestNetwork = findNearestNetwork(userLat, userLon);
+    
+    if (nearestNetwork) {
+        setTimeout(() => {
+            locationContainer.classList.add('success-animation');
+            
+            createSuccessParticles(locationContainer);
+            
+            locationStatus.innerHTML = `<i class="fas fa-check-circle success-icon"></i> Ville la plus proche compatible   <strong>${nearestNetwork.location}</strong>`;
+            
+            setTimeout(() => {
+                const successIcon = document.querySelector('.success-icon');
+                if (successIcon) successIcon.classList.add('animate');
+            }, 500);
+            
+            suggestedNetworkDiv.innerHTML = `
+                <div class="suggested-network" onclick="location.href='${nearestNetwork.url}'">
+                    <img src="${nearestNetwork.logo}" alt="${nearestNetwork.name}">
+                    <div class="suggested-network-info">
+                        <h3>${nearestNetwork.name}</h3>
+                        <p>à environ ${nearestNetwork.distance.toFixed(1)} km de vous</p>
+                    </div>
+                </div>
+            `;
+            
+            suggestedNetworkDiv.style.display = 'block';
+            suggestedNetworkDiv.style.opacity = '0';
+            suggestedNetworkDiv.style.transform = 'translateY(20px)';
+            suggestedNetworkDiv.style.filter = 'blur(5px)';
+            
+            setTimeout(() => {
+                suggestedNetworkDiv.style.transition = 'all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
+                suggestedNetworkDiv.style.opacity = '1';
+                suggestedNetworkDiv.style.transform = 'translateY(0)';
+                suggestedNetworkDiv.style.filter = 'blur(0)';
+            }, 100);
+            
+            document.getElementById("show-all-button").classList.add("slide-down");
+        }, 500); 
+    } else {
+        locationStatus.textContent = "Mince ! Je n'ai pas réussi à déterminer où vous êtes actuellement.";
+    }
+}
+
+function createSuccessParticles(container) {
+    const particlesContainer = document.createElement('div');
+    particlesContainer.className = 'success-particles';
+    container.appendChild(particlesContainer);
+    
+    const rect = container.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    
+    for (let i = 0; i < 70; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        
+        const size = Math.random() * 5 + 45;
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
+        
+        particle.style.left = `${centerX}px`;
+        particle.style.top = `${centerY}px`;
+        
+        particlesContainer.appendChild(particle);
+        
+        const angle = Math.random() * Math.PI * 2; 
+        const distance = 50 + Math.random() * 100; 
+        const duration = 0.5 + Math.random() * 0.5; 
+        
+        const endX = centerX + Math.cos(angle) * distance;
+        const endY = centerY + Math.sin(angle) * distance;
+        
+        setTimeout(() => {
+            particle.style.transition = `all ${duration}s cubic-bezier(0.25, 1.5, 0.5, 1)`;
+            particle.style.transform = `translate(${endX - centerX}px, ${endY - centerY}px)`;
+            particle.style.opacity = '0';
+        }, 10);
+        
+        setTimeout(() => {
+            particle.remove();
+        }, duration * 1000 + 100);
+    }
+    
+    setTimeout(() => {
+        particlesContainer.remove();
+    }, 2000);
+}
+
+function handleLocationError(error) {
+    const locationStatus = document.getElementById('location-status');
+    
+    switch(error.code) {
+        case error.PERMISSION_DENIED:
+            locationStatus.innerHTML = '<i class="fas fa-ban"></i> Vous avez refusé la géolocalisation';
+            break;
+        case error.POSITION_UNAVAILABLE:
+            locationStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Position indisponible';
+            break;
+        case error.TIMEOUT:
+            locationStatus.innerHTML = '<i class="fas fa-clock"></i> Délai d\'attente dépassé';
+            break;
+        default:
+            locationStatus.innerHTML = '<i class="fas fa-exclamation-circle"></i> Erreur inconnue';
+            break;
+    }
+    
+    document.getElementById("show-all-button").disabled = false;
+    document.getElementById("show-all-button").classList.add("slide-down");
+}
+        
+        function findNearestNetwork(userLat, userLon) {
+            if (networks.length === 0) return null;
+            
+            let nearestNetwork = null;
+            let minDistance = Infinity;
+            
+            networks.forEach(network => {
+                const distance = calculateDistance(userLat, userLon, network.lat, network.lon);
+                network.distance = distance;
+                
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestNetwork = network;
+                }
+            });
+            
+            return minDistance < 100 ? nearestNetwork : null;
+        }
+        
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; 
+            const dLat = deg2rad(lat2 - lat1);
+            const dLon = deg2rad(lon2 - lon1);
+            
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2); 
+                
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            const distance = R * c; 
+            
+            return distance;
+        }
+        
+        function deg2rad(deg) {
+            return deg * (Math.PI/180);
+        }
+        
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+    </script>
+</body>
+</html>
