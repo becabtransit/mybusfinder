@@ -1,0 +1,3314 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="default">
+	<meta name="apple-mobile-web-app-title" content="MyBusFinder Réseau Mistral">
+	<link rel="canonical" href="https://sudtransports.fr/toulon">
+	<link rel="apple-touch-icon" href="src/logo.png">
+    <title>MyBusFinder Réseau Mistral</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/protobufjs/6.11.2/protobuf.min.js"></script>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js" charset="utf-8"></script>
+	<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5815761294049475"
+			crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+        <style>
+        html, body {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+            font-family: 'League Spartan', sans-serif;
+            background-color: #f4f4f4; 
+            color: #333; 
+            transition: background-color 0.5s ease; 
+        }
+
+        @font-face {
+            font-family: 'League Spartan';
+            src: url('src/fonts/leaguespartan.ttf') format('truetype');
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+			
+			
+        .update-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    opacity: 95%;
+    height: 100%;
+    display: none; 
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+	background-color: rgba(255, 255, 255, 0.5); 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+    overflow-y: hidden;
+}
+
+.popup-content {
+    background: white;
+    width: 100%;
+    height: 100%;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    position: relative;
+}
+
+
+.timepopup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    opacity: 95%;
+    height: 100%;
+    display: none; 
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+	background-color: rgba(255, 255, 255, 0.5); 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background-color: transparent;
+  box-shadow: none !important;
+  border-radius: 15px;
+  padding: 0px 0px 0px 0px;
+  transform: scale(0.8) translateY(20px); 
+  opacity: 0; 
+  filter: blur(13px); 
+  transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+  transform-origin: center bottom;
+}
+
+.leaflet-popup-content-wrapper.show, .leaflet-popup-tip.show {
+  transform: scale(1) translateY(0); 
+  opacity: 1; 
+  filter: blur(0); 
+  backdrop-filter: blur(8px); 
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.leaflet-popup-content-wrapper.hide, .leaflet-popup-tip.hide {
+  transform: scale(0.8) translateY(20px); 
+  opacity: 0; 
+  filter: blur(5px); 
+  transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
+}
+
+.leaflet-popup-content {
+  margin: 0px 
+}
+
+
+.leaflet-popup-close-button {
+visibility: hidden;
+}
+
+.popup-zoom-in {
+    transform: scale(1) translateY(0px); 
+    opacity: 1;
+}
+
+.popup-zoom-out {
+    transform: scale(0.9) translateY(20px); 
+    opacity: 0;
+}
+
+
+#service-alerts-banner {
+    transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+#menubtm {
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+}
+
+
+#alerts-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.836); 
+    z-index: 1000;
+    display: none;
+}
+
+#alerts-menu {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #ffffff; 
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(255, 255, 255, 0.5);
+    max-height: 80%;
+    width: 90%;
+    max-width: 500px;
+    z-index: 1001;
+    overflow-y: auto;
+    opacity: 0; /* Commence invisible */
+}
+
+@keyframes fadeInPopupSvc {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -20%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+@keyframes fadeOutPopupSvc {
+    from {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+    to {
+        opacity: 0;
+        transform: translate(-50%, -20%);
+    }
+}
+
+@keyframes fadeInPopup {
+    from {
+        opacity: 0;
+        transform: translate(0%, 30%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(0%, 0%);
+    }
+}
+
+@keyframes fadeOutPopup {
+    from {
+        opacity: 1;
+        transform: translate(0%, -30%);
+    }
+    to {
+        opacity: 0;
+        transform: translate(0%, 0%);
+    }
+}
+
+/* Barre de défilement pour PC */
+.custom-scrollbar::-webkit-scrollbar {
+    height: 8px; /* Hauteur pour les barres horizontales */
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #888;
+    border-radius: 10px;
+    border: 2px solid #f1f1f1;
+}
+
+/* Ajustement pour la compatibilité mobile */
+.custom-scrollbar {
+    -webkit-overflow-scrolling: touch; /* Permet un défilement fluide sur iOS */
+}
+
+			
+.popup-content h2 {
+    font-size: 24px;
+    font-family: 'League Spartan', sans-serif;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+#update-notes {
+    font-family: 'League Spartan', sans-serif;
+    font-size: 16px;
+    color: #555;
+    line-height: 1;
+}
+
+#update-notes li {
+    margin-bottom: 10px;
+}
+
+
+
+#menu {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    background-color: #0F056B77;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 10px;
+    border-radius: 0px 0px 0px 0px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 1);
+    z-index: 1000;
+    height: 98vh; 
+    overflow-y: auto;
+    opacity: 0.9;
+    transition: all 0.3s ease;
+    display: none;
+}
+
+
+
+
+
+        .ripple {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ripple::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            transform: scale(0);
+            opacity: 0;
+            animation: ripple-animation 0.6s linear forwards;
+        }
+
+        @keyframes ripple-animation {
+            to {
+                transform: scale(4);
+                opacity: 1;
+            }
+        }
+
+        ul {
+    padding: 0;
+    margin: 0;
+    list-style-type: none;
+    padding-inline-start: 0;
+}
+
+
+        .menu-item {
+            cursor: pointer;
+            padding: 6px;
+            transition: background-color 0.3s ease; 
+            border-radius: 5px;
+            z-index: 100000;
+        }
+
+        .menu-item:hover {
+            background-color: #0000001f; 
+            animation: jspcommentlappelercettekeyframe 0.1s linear forwards;
+        }
+
+        .linesection {
+            cursor: pointer;
+        }
+
+        @keyframes jspcommentlappelercettekeyframe {
+            to {
+                transform: scale(0.95);
+            }
+        }
+
+        .popup-content {
+            font-family: 'League Spartan', sans-serif;
+            font-size: 12px;
+            line-height: 1.1;
+        }
+
+        .popup-header {
+            padding: 5px;
+            border-radius: 10px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+
+#alerts-menu {
+    background-color: rgba(255, 255, 255, 0.911); 
+    backdrop-filter: blur(5px); 
+}
+
+#alerts-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1000;
+    opacity: 95%;
+    justify-content: center;
+    align-items: center;
+	background-color: rgba(255, 255, 255, 0.5); 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+}
+
+
+@keyframes textFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0); 
+    }
+}
+
+.loading-animation {
+    font-family: 'League Spartan', sans-serif;
+    font-size: 50px;  
+    font-weight: bold;
+    background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0); 
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: gradientTextAnimation 3s ease infinite; 
+}
+
+
+/* Effet de pulsation sur les boutons d'action */
+.share-btn, .donate-btn {
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@keyframes slideInBounce {
+    0% {
+        right: -100%; 
+    }
+    100% {
+        right: 0; 
+    }
+}
+
+#menu {
+    animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+}
+
+@keyframes bounceIn {
+    0% {
+        transform: scale(0.9);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Animation de fondu avec zoom pour les popups */
+.popup-content, .popup-content1, .popup1 {
+    animation: zoomFadeIn 0.6s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
+}
+
+@keyframes zoomFadeIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+        filter: blur(13px); 
+
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        filter: blur(0); 
+    }
+}
+
+
+.marker-icon {
+    animation: zoomInOut 2s infinite;
+}
+
+@keyframes zoomInOut {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.13); }
+}
+
+
+span[style*="padding: 5px 10px;"] {
+    animation: badgePulse 1.5s infinite;
+}
+@keyframes badgePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Effet de fondu sur le texte défilant horizontalement */
+#nextStopsContent div {
+    animation: fadeInScroll 0.3s ease-in;
+	display: inherit;
+}
+@keyframes fadeInScroll {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.marker-icon:hover {
+    animation: hoverBounce 0.3s ease-in-out;
+}
+@keyframes hoverBounce {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.glass-effect {
+    position: relative;
+    overflow: hidden;
+}
+
+.glass-effect::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -140%;
+    width: 140%;
+    height: 100%;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transform: skewX(-25deg);
+}
+
+.glass-effect.animate::before {
+    animation: glass-slide 1s ease forwards;
+}
+
+@keyframes glass-slide {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 150%;
+    }
+}
+			
+@keyframes gradientTextAnimation {
+    0% {
+        background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0);
+    }
+    50% {
+        background: linear-gradient(45deg, #ffffff, #f0f0f0, #ffffff);
+    }
+    100% {
+        background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0);
+    }
+}
+
+:root {
+  --base_scale: 3vh;
+  --floor: 15vh;
+  --color: #836ee5;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+#loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #000000;
+  background-size: cover;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  z-index: 10000;
+}
+
+.shapes-container {
+  width: 100%;
+  overflow: hidden;
+}
+
+shape {
+  position: absolute;
+  display: block;
+  left: 50%;
+  bottom: 0;
+  margin-left: calc(-1 * (var(--base_scale) / 2));
+  margin-bottom: var(--floor);
+  transform-origin: center;
+}
+
+shape.circle {
+  width: var(--base_scale);
+  height: var(--base_scale);
+  background: var(--color);
+  border-radius: 50%;
+}
+
+shape.semi-circle {
+  width: var(--base_scale);
+  height: calc(var(--base_scale) * 2);
+  background: var(--color);
+  border-bottom-right-radius: calc(var(--base_scale) * 2);
+  border-top-right-radius: calc(var(--base_scale) * 2);
+}
+
+shape.square {
+  width: var(--base_scale);
+  height: var(--base_scale);
+  background: var(--color);
+}
+
+shape.bounce-up {
+  animation: bounceUp 600ms cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+}
+
+shape.bounce-down {
+  animation: bounceDown 600ms cubic-bezier(0.6, 0.04, 0.98, 0.335) forwards;
+}
+
+@keyframes bounceUp {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    transform: translateY(-30vh) rotate(180deg);
+  }
+}
+
+@keyframes bounceDown {
+  0% {
+    transform: translateY(-30vh) rotate(180deg);
+  }
+  100% {
+    transform: translateY(0) rotate(360deg);
+  }
+}
+
+#stop-suggestions li {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #ddd;
+}
+
+#stop-suggestions li:hover {
+    background-color: #f4f4f4;
+}
+
+
+#loading-text {
+  margin-top: 20px;
+  font-size: 18px;
+  color: black;
+  animation: fadeIn 1.5s ease forwards;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filtre {
+    display: flex;
+    position: absolute;
+    bottom: 10px;
+    left: 50%; /* Positionne le centre de l'élément au milieu */
+    transform: translateX(-50%) translateY(-100%);
+    opacity: 0; 
+    filter: blur(5px); 
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+    padding: 10px 15px;
+    border: none;
+    list-style: none;
+    margin: 0;
+    z-index: 10000;
+    background-color: #0F056B77;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); /* Ombre noire */
+    border-radius: 18px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    
+}
+
+.filtre-texte {
+    color: #ffffff;
+}
+
+.menubottom-ul {
+    display: flex;
+    position: absolute;
+    bottom: 10px;
+    left: 50%; /* Positionne le centre de l'élément au milieu */
+    transform: translateX(-50%);
+    padding: 12px;
+    border: none;
+    list-style: none;
+    margin: 0;
+    z-index: 10000;
+    padding: 0;
+    background-color: #0F056B77;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); /* Ombre noire */
+    border-radius: 18px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    
+}
+
+.menubottom ul li {
+    margin: 0 8px; /* Espacement entre les éléments */
+}
+
+        .menubottom ul li a {
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            font-size: 20px;
+            font-family: League Spartan;
+            text-decoration: none;
+            height: 70px;
+            width: 70px;
+            position: relative;
+            transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+                }
+
+        .menubottom ul li a .icon {
+            position: relative;
+            font-size: 20px;
+            transition: transform 0.2s ease-in-out;
+            transition: .5s;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .menubottom ul li a .title {
+    margin-bottom: 8px; /* Positionne le titre en dessous de l'icône */
+    font-size: 14px;
+    text-align: center;
+    opacity: 1; /* Toujours visible */
+    transition: none; /* Pas de transition pour l'apparition */
+}
+
+.menubottom ul li a:hover .icon {
+    transform: scale(1.1); /* L'icône grandit légèrement au survol */
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+        .menubottom ul li a:active {
+    transform: scaleX(90%)scaleY(90%); /* Enfoncement vers le bas */
+    background-color: rgba(255, 255, 255, 0); /* Effet visuel au clic */
+}
+
+
+@keyframes barFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(60px); 
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0); 
+    }
+}
+
+
+			
+.next-stops-container {
+	max-height: 100px;
+    padding: 10px;
+    background: #f9f9f9;
+    border-top: 1px solid #ddd;
+    position: relative;
+}
+
+.next-stops-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.next-stops-content {
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+    padding-inline-start: 0;
+    list-style-type: none; 
+    overflow-y: auto;
+}
+
+.popup {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: fadeInPopup 0.5s forwards;
+    background-color: #ffffff; 
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(255, 255, 255, 0.5);
+    max-height: 80%;
+    width: 90%;
+    max-width: 500px;
+    z-index: 1001;
+    overflow-y: auto;
+    opacity: 0; 
+        }
+
+        .popup-content {
+            text-align: center;
+        }
+
+        .close-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #333;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+.close-btn:hover {
+    background-color: #555;
+}
+
+        .textpop h4 {
+    margin-bottom: 0.3rem;
+}
+
+.textpop h1 {
+    margin-top: 0;
+}
+
+
+
+.slide-down {
+  transform: translateY(0); 
+  opacity: 1; 
+  filter: blur(0); 
+  backdrop-filter: blur(8px); 
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.logoscr {
+  transform: translateY(100px); 
+  opacity: 0; 
+  filter: blur(5px); 
+  transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+}
+
+.popup-slide {
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.popup-slide-hidden {
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+    transform: translateX(-30%);
+    opacity: 0;
+}
+
+.popup-slide-right {
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+    transform: translateX(30%);
+    opacity: 0;
+}
+
+.popup-slide-active {
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+    transform: translateX(0);
+    opacity: 1;
+}
+
+
+
+.schedule-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 5px 0;
+    padding: 5px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.schedule-row span {
+    font-weight: bold;
+    color: #333;
+}
+
+
+.logoscrapp {
+  transform: translateY(0); 
+  opacity: 1; 
+  filter: blur(0); 
+}
+
+.logoscrappp {
+  transform: scale(0.8); 
+  filter: blur(0); 
+}
+
+.logoscrapppp {
+  opacity: 0; 
+}
+
+@media (max-width: 600px) {
+    #logoscr {
+      width: 50%;  
+      max-width: 200px;  
+    }
+  }
+
+  @media (min-width: 1200px) {
+    #logoscr {
+      width: 10%;  
+      max-width: 400px;  
+    }
+  }
+
+.slide-up {
+  transform: translateY(-100%); 
+  opacity: 0; 
+  filter: blur(5px); 
+  transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
+}
+
+.slide-downb {
+  transform: translateY(0) translateX(-50%);
+  opacity: 1; 
+  filter: blur(0); 
+  backdrop-filter: blur(8px); 
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.slide-upb {
+  transform: translateY(100%) translateX(-50%);
+  opacity: 0; 
+  filter: blur(5px); 
+  transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
+}
+
+
+.slide-downc {
+  transform: translateY(-220%) translateX(-50%);
+  opacity: 1; 
+  filter: blur(0); 
+  backdrop-filter: blur(8px); 
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.slide-upc {
+  transform: translateY(100%) translateX(-50%);
+  opacity: 0; 
+  filter: blur(5px); 
+  transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
+}
+
+#popup1::-webkit-scrollbar {
+        width: 8px;
+    }
+    #popup1::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    #popup1::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 10px;
+    }
+    #popup1::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+
+
+@keyframes loadingBarAnimation {
+    0% {
+        width: 0%;
+    }
+    50% {
+        width: 100%;
+    }
+    100% {
+        width: 100%;
+    }
+}
+
+
+        .marker-icon:hover {
+        transform: scale(0.8);
+        transition: transform 0.2s ease;
+        }
+
+      
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        @keyframes zoomOut {
+            from {
+                transform: scale(1);
+                opacity: 1;
+            }
+            to {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+
+@keyframes fadeColors {
+    0% { background-color: rgb(0, 0, 0); }
+    25% { background-color: rgb(0, 0, 168); }
+    50% { background-color: rgb(0, 158, 158); }
+    75% { background-color: rgb(155, 155, 0); }
+    100% { background-color: rgb(0, 0, 0); }
+}
+
+.logobkg {
+  transition: opacity 0.3s ease-out;
+}
+.loading-screen-fade {
+    animation: fadeColors 1s ease-in; /* 3s pour la durée de transition */
+}
+
+#webview-frame {
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+}
+
+.vehicle-thumbnail {
+    width: 100px;
+    height: 60px;
+    margin-left: auto;
+    border-radius: 5px;
+    background-color: rgba(255, 255, 255, 0.2);
+    padding: 2px;
+}
+
+.vehicle-model {
+    display: flex;
+    align-items: right;
+    justify-content: flex-end;
+    flex-direction: column;
+}
+
+
+    </style>
+
+</head>
+<body>
+<!--          _   __                         ________                                                                          -->
+<!--         //   ) )                __     /__  ___/                                                                          -->
+<!--        ((                  ___ / /       / /   __      ___       __      ___      ___      ___      __    __  ___  ___    -->
+<!--          \\     //   / / //   ) /       / /  //  ) ) //   ) ) //   ) ) ((   ) ) //   ) ) //   ) ) //  ) )  / /   ((   ) ) -->
+<!--            ) ) //   / / //   / /       / /  //      //   / / //   / /   \ \    //___/ / //   / / //       / /     \ \     -->
+<!--     ((___ / / ((___( ( ((___/ /       / /  //      ((___( ( //   / / //   ) ) //       ((___/ / //       / /   //   ) )   -->
+<!--                                                          Code ayant pour entière propriété Sud Transports/Bechir Abidi    -->
+<!--                                                                Réutilisation non autorisée sauf en cas de dérogation !    -->
+
+<div class="filtre" id="filtre">
+    <span class="filtre-texte">Réinitialiser les filtres</span>
+</div>
+
+ <div class="menubottom">
+        <ul id="menubtm" class="menubottom-ul">
+            <li>
+                <a href="https://mybusfinder.sudtransports.fr/"><span class="icon"><img src="src/menu.png" style="width: 40px; height: 40px;"></img></span> <span
+                        class="title">Menu</span></a>
+            </li>
+            <li>
+                <a onclick="loadGtfsData().then(() => showLines());" id="clock"><span class="icon"><img src="src/horloge.png" style="width: 40px; height: 40px;"></img></span> <span
+                        class="title">Horaires</span></a>
+            </li>
+            <li>
+                <a id="menubutton"><span class="icon"><img src="src/bus.png" style="width: 40px; height: 40px;"></img></span> <span
+                        class="title">Réseau</span></a>
+            </li>
+            <li>
+                <a onclick="showUpdatePopup('histovec.html');" id="histovecbutton"><span class="icon"><img src="src/histovec.png" style="width: 40px; height: 40px;"></img></span> <span
+                        class="title">Histovec</span></a>
+            </li>
+        </ul>
+</div>
+	
+
+
+
+	<amp-auto-ads type="adsense"
+        data-ad-client="ca-pub-5815761294049475">
+</amp-auto-ads>
+<div id="service-alerts-banner" style="
+    width: 100%;
+    background-color: #0F056B77;
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+    font-weight: bold;
+    padding: 10px 0;
+    font-family: 'League Spartan', sans-serif;
+    font-size: 16px;
+    overflow: hidden;
+    white-space: nowrap;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    display: none;
+    cursor: pointer;
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+    transform-origin: center bottom;
+"><span id="service-alerts-text" style="padding-left: 100%; display: inline-block;"></span>
+</div>
+
+<div id="alerts-overlay"></div>
+
+<div id="alerts-menu">
+    <button id="close-alerts-menu" class="close-btn">✖</button>
+    <h2>🚨 Actualités transport</h2>
+    <div id="alerts-content"></div>
+</div>
+
+<div id="popup2" class="timepopup">
+<div id="popup1" class="popup1" style="position:fixed; top:0%; left:0%; right:0%; bottom:0%; background: rgb(255, 255, 255); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); overflow:auto; z-index:1000000; backdrop-filter: blur(8px);">
+    <button onclick="closePopup()" style="position:absolute; top:3px; right:3px; background:transparent; border:none; font-size:24px; cursor:pointer; color:#333; z-index: 20000000;">✖</button>
+    <div id="popup-content1" class="popup-slide popup-slide-active" style="padding:20px; font-family: 'League Spartan', sans-serif;">
+        <h2 style="font-size:22px; font-weight:bold; color:#333; margin-bottom:10px;">Horaires des bus</h2>
+        <div style="border-top:1px solid #ddd; padding-top:10px;">
+            <p style="margin:0; font-size:16px; line-height:1.5; color:#555;">
+                Sélectionnez une ligne, une destination et un arrêt pour voir les horaires.
+            </p>
+        </div>
+        <div id="schedule-container" style="margin-top:15px; max-height:300px; overflow-y:auto; scrollbar-width: thin; scrollbar-color: #888 #f1f1f1;">
+        </div>
+    </div>
+</div>
+</div>
+
+
+
+    <div id="map"></div>
+    <div id="alerts-overlay"></div>
+    <div id="menu"></div>
+    <div id="update-popup" class="update-popup">
+        <div class="popup-content">
+            <button id="close-popup" class="close-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <iframe id="webview-frame" src="" frameborder="0"></iframe>
+        </div>
+    </div>
+                
+
+
+	
+	
+    <script async custom-element="amp-auto-ads"
+        src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
+</script>
+
+
+	
+<div id="loading-screen" class="logobkg">
+    <img id="logoscr" class="logoscr" src="src/whitelogo.png" style="display: block; margin: 0 auto; max-width: 50%; height: auto;"/>
+</div>
+  
+
+ <script src="src/js/toastjs.js"></script>       
+
+<script>
+async function getSetvar() {
+    try {
+        const response5 = await fetch('setvar/settings/theme/maincolor.txt');
+        const setvar5 = await response5.text();  
+        const colorbkg = setvar5.trim();
+
+        const response = await fetch('setvar/settings/map/defaultzoom.txt');
+        const setvar = await response.text();
+        const view = setvar.trim();  
+
+        const response1 = await fetch('setvar/settings/gtfs/slicelinecolor.txt');
+        const setvar1 = await response1.text();  
+        const slicelinecolor = setvar1.trim(); 
+
+        const response2 = await fetch('setvar/settings/gtfs/slicerouteid.txt');
+        const setvar2 = await response2.text();  
+        const routeid = setvar2.trim(); 
+
+        const response3 = await fetch('setvar/settings/gtfs/sliceroutelongname.txt');
+        const setvar3 = await response3.text();  
+        const longname = setvar3.trim(); 
+
+        const response4 = await fetch('setvar/settings/gtfs/sliceroutecolor.txt');
+        const setvar4 = await response4.text();  
+        const color = setvar4.trim(); 
+
+        return { colorbkg, view, slicelinecolor, routeid, longname, color };
+
+    } catch (error) {
+        console.error('Erreur chargement setvar ! ', error);
+    }
+}
+
+getSetvar();
+
+
+
+
+async function setColors() {
+    const data = await getSetvar();
+    if (data) {
+        document.getElementById("service-alerts-banner").style.backgroundColor = `${data.colorbkg}77`;
+        document.getElementById("menubtm").style.backgroundColor = `${data.colorbkg}77`;
+        document.getElementById("menu").style.backgroundColor = `${data.colorbkg}77`;
+    }
+}
+setColors();
+
+setTimeout(() => {
+    const logoscr = document.getElementById('logoscr');
+    logoscr.classList.add('logoscrapp');
+    }, 10); 
+
+    
+
+        var map = L.map('map', {
+    zoomControl: false 
+}).setView([43.125463, 5.930077], 13);
+		L.popup({
+        closeButton: false
+		})
+        L.control.locate().addTo(map);
+
+        map.on('popupopen', function (e) {
+    const popupWrapper = e.popup._wrapper; 
+
+    popupWrapper.classList.remove('popup-zoom-out', 'popup-zoom-in');
+
+    setTimeout(() => {
+        popupWrapper.classList.add('popup-zoom-in');
+    }, 10); 
+});
+
+map.on('popupclose', function (e) {
+    const popupWrapper = e.popup._wrapper; 
+
+    popupWrapper.classList.remove('popup-zoom-in');
+    popupWrapper.classList.add('popup-zoom-out');
+
+    popupWrapper.addEventListener(
+        'transitionend',
+        () => {
+            popupWrapper.classList.remove('popup-zoom-out');
+        },
+        { once: true }
+    );
+});
+
+
+
+        const markers = {};
+		        const lineTerminusMap = {
+            'LINE-1': { '0': 'Terminus A', '1': 'Terminus C' },
+            'LINE-2': { '0': 'Terminus B', '1': 'Terminus D' }
+        };
+        const stopNameMap = {};
+        const lineColors = {};
+        const lineName = {};
+        const stopIds = [];
+        let selectedLine = null;
+        let geoJsonLines = []; 
+        let tripUpdates = {};
+        let loadingInterval;
+        function randomDelay(min = 500, max = 1500) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+        function showLoadingScreen() {
+    const loadingScreen = document.getElementById('loading-screen');
+    loadingScreen.style.display = 'flex';
+
+
+    loadingInterval = setInterval(() => {
+        
+
+    }, 1000);
+}
+		
+function isMobileDevice() {
+            return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        }
+
+        function isStandalone() {
+            return window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+        }
+
+        function showSmartphonePopup() {
+            const popup = document.getElementById('smartphone-popup');
+            popup.style.display = 'flex';
+        }
+
+        function closeSmartphonePopup() {
+            const popup = document.getElementById('smartphone-popup');
+            popup.style.display = 'none';
+        }
+
+        var audio = new Audio("src/sounds/musique.mp3"); 
+
+function showUpdatePopup(link) {
+    const popup = document.getElementById('update-popup');
+    const iframe = document.getElementById('webview-frame');
+    iframe.src = link; 
+    popup.style.display = 'flex'; 
+
+
+    const menubottom1 = document.getElementById('menubtm');
+
+
+    const menu = document.getElementById('menu');
+            const banner = document.getElementById('service-alerts-banner');
+            const menubotom = document.getElementById('menubottom');
+            banner.classList.remove('slide-down');
+            banner.classList.add('slide-up');
+            menubottom1.classList.remove('slide-downb');
+            menubottom1.classList.add('slide-upb');
+            if (selectedLine) {
+        const filtre = document.getElementById('filtre');
+        filtre.classList.add('slide-upc');
+        filtre.classList.remove('slide-downc');
+        resetMapView();
+        }
+
+            banner.addEventListener('transitionend', () => {
+            if (banner.classList.contains('slide-up')) {
+            banner.style.display = 'none'; 
+            menubottom1.style.display = 'none';
+            }
+            }, { once: true });
+
+
+}
+
+
+
+function closeUpdatePopup() {
+    const popup = document.getElementById('update-popup');
+    const iframe = document.getElementById('webview-frame');
+    iframe.src = ""; 
+    popup.style.display = 'none'; 
+    
+    
+    const menubottom1 = document.getElementById('menubtm');
+
+
+    const banner = document.getElementById('service-alerts-banner');
+            menu.style.display = 'none'; 
+            isMenuVisible = false; 
+            banner.style.display = 'block';
+            menubottom1.style.display = 'flex';
+    setTimeout(() => {
+        banner.classList.remove('slide-up');
+        banner.classList.add('slide-down');
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
+    }, 10);
+    if (!audio.paused) {
+        audio.pause();
+        audio.currentTime = 0;
+    }
+
+}
+
+
+function musique() {
+    if (audio.paused) {
+        audio.play();
+    }
+}
+
+
+document.getElementById('close-popup').addEventListener('click', closeUpdatePopup);
+
+
+
+        window.onload = function() {
+
+            const closeSmartphoneButton = document.getElementById('close-smartphone-popup');
+            const closeUpdateButton = document.getElementById('close-popup');
+
+            if (closeSmartphoneButton) {
+                closeSmartphoneButton.addEventListener('click', closeSmartphonePopup);
+            }
+
+            if (closeUpdateButton) {
+                closeUpdateButton.addEventListener('click', closeUpdatePopup);
+            }
+
+            const shareButton = document.getElementById('share-button');
+            if (shareButton) {
+                shareButton.addEventListener('click', openShareMenu);
+            }
+        };
+
+        function openShareMenu() {
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            if (isIOS) {
+                alert("Pour ajouter cette application à votre écran d'accueil, cliquez sur l'icône de partage (carré avec une flèche vers le haut) puis sélectionnez Ajouter à l'écran d'accueil.");
+            } else {
+                alert("Pour ajouter cette application à votre écran d'accueil, appuyez sur les 3 points situés en haut à droite de votre navigateur, puis sélectionnez Ajouter à l'écran d'accueil.");
+            }
+        }
+
+document.getElementById('close-popup').addEventListener('click', closeUpdatePopup);
+
+
+
+
+function hideLoadingScreen() {
+    setTimeout(() => {
+        const loadingScreen = document.getElementById('loading-screen');
+        loadingScreen.classList.add('loading-screen-fade');
+
+
+        setTimeout(() => {
+            const logoscr = document.getElementById('logoscr');
+            logoscr.classList.add('logoscrappp');
+            loadingScreen.classList.add('logoscrapppp');
+
+
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+
+            }, 300);
+        }, 900);
+    }, 100);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('vehiclesLoaded', hideLoadingScreen);
+});
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+const doc = document;
+
+
+
+    showLoadingScreen();
+
+
+
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+
+        async function loadLineColors() {
+
+            const data = await getSetvar();
+            if (data) {
+            const response = await fetch('gtfs/routes.txt');
+            const text = await response.text();
+            const lines = text.split('\n').slice(`${data.slicelinecolor}`);
+            lines.forEach(line => {
+                const columns = line.split(',');
+                const routeId = columns[`${data.routeid}`];
+				const routeLongName = `#${columns[`${data.longname}`]}`;
+                const routeColor = `#${columns[`${data.color}`]}`;
+				let cleanedLineName = routeLongName
+  			  .replace("#", "")
+                lineColors[routeId] = routeColor;
+				lineName[routeId] = cleanedLineName;
+				
+            });
+        }
+        }
+		
+        async function loadStopIds() {
+            const response = await fetch('gtfs/netex/stop-palmtransports.xml');
+            const text = await response.text();
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(text, "text/xml");
+
+            const stops = xmlDoc.getElementsByTagName('stop');
+            for (let stop of stops) {
+                const stopId = stop.getAttribute('id');
+                if (stopId) {
+                    stopIds.push(stopId);
+                }
+            }
+        }
+		
+		  
+
+        async function loadLineTerminusData() {
+            const response = await fetch('gtfs/netex/stop-palmtransports.xml');
+            const text = await response.text();
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(text, "text/xml");
+
+            const quays = xmlDoc.getElementsByTagName('Quay');
+            for (let quay of quays) {
+                const quayId = quay.getAttribute('id');
+                const quayName = quay.getElementsByTagName('Name')[0].textContent;
+                stopNameMap[quayId] = quayName;
+            }
+        }
+
+        async function decodeProtobuf(buffer) {
+            const root = await protobuf.load('gtfs-realtime.proto');
+            const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
+            const message = FeedMessage.decode(new Uint8Array(buffer));
+            return FeedMessage.toObject(message, { longs: String });
+        }
+
+        function createColoredMarker(lat, lon, route_id) {
+
+    const color = lineColors[route_id] || '#000000';
+    const markerHtmlStyles = `
+        background-color: ${color};
+        width: 12px;
+        height: 12px;
+        display: block;
+        left: -6px;
+        top: -6px;
+        position: relative;
+        border-radius: 50%;
+        border: 2px solid white;
+        transition: transform 0.2s ease; /* Ajout de la transition pour l'animation */
+    `;
+    
+
+    const icon = L.divIcon({
+        className: "my-custom-pin",
+        iconAnchor: [0, 0],
+        popupAnchor: [0, 5],
+        html: `<span style="${markerHtmlStyles}" class="marker-icon" />`
+    });
+
+    return L.marker([lat, lon], { icon });
+}
+
+
+
+       function animateMarker(marker, newPosition) {
+    const startLatLng = marker.getLatLng();
+    const endLatLng = L.latLng(newPosition[0], newPosition[1]);
+    const duration = 1000; 
+    const startTime = performance.now();
+
+    if (marker.animationFrame) {
+        cancelAnimationFrame(marker.animationFrame);
+    }
+
+    function animate(time) {
+        const elapsed = time - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * progress;
+        const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * progress;
+        
+        marker.setLatLng([lat, lng]);
+
+        if (progress < 1) {
+            marker.animationFrame = requestAnimationFrame(animate);
+        }
+    }
+
+    marker.animationFrame = requestAnimationFrame(animate);
+}
+
+async function loadGeoJsonLines() {
+    const response = await fetch('gtfs/lignes-map/palmbus.geojson');
+    const geoJsonData = await response.json();
+
+    L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry.type === 'LineString';
+        },
+        style: function(feature) {
+            return {
+                color: lineColors[feature.properties.route_id] || '#000000',
+                weight: 2
+            };
+        },
+        onEachFeature: function(feature, layer) {
+            geoJsonLines.push(layer); 
+        }
+    }).addTo(map);
+}
+
+function filterByLine(lineId) {
+    geoJsonLines.forEach(layer => {
+        map.removeLayer(layer);
+    });
+
+    const selectedLineLayer = geoJsonLines.find(layer => layer.feature.properties.route_id === lineId);
+    if (selectedLineLayer) {
+        map.addLayer(selectedLineLayer);
+    }
+
+    Object.keys(markers).forEach(id => {
+        map.removeLayer(markers[id]);
+    });
+
+    Object.keys(markers).forEach(id => {
+        if (markers[id].line === lineId) {
+            markers[id].addTo(map);
+        }
+    });
+}
+
+
+function resetMapView() {
+    geoJsonLines.forEach(layer => {
+        map.addLayer(layer);
+    });
+
+    Object.keys(markers).forEach(id => {
+        markers[id].addTo(map);
+    });
+
+    selectedLine = null;
+}
+
+
+
+let routes = {};
+let trips = {};
+let stopTimes = {};
+let stops = {};
+let calendar = {};
+
+async function loadGtfsData() {
+    const routesData = await fetch('gtfs/routes.txt').then(res => res.text());
+    const routesLines = routesData.split('\n');
+    const routesHeaders = routesLines[0].split(',');
+    const routeIdIndex = routesHeaders.indexOf('route_id');
+    const shortNameIndex = routesHeaders.indexOf('route_short_name');
+    const longNameIndex = routesHeaders.indexOf('route_long_name');
+    const routeColor = routesHeaders.indexOf('route_color');
+    const routeColorText = routesHeaders.indexOf('route_text_color');
+
+    routesLines.slice(1).forEach(line => {
+        const values = line.split(',');
+        if (values[routeIdIndex]) {
+            routes[values[routeIdIndex]] = {
+                short_name: values[shortNameIndex],
+                long_name: values[longNameIndex],
+                route_color: `#${values[routesHeaders.indexOf('route_color')]}`,
+                route_text_color: `#${values[routesHeaders.indexOf('route_text_color')]}`,
+            };
+        }
+    });
+            // faut que je pense à optimiser l'obtention des données
+    const tripsData = await fetch('gtfs/trips.txt').then(res => res.text());
+    const tripsLines = tripsData.split('\n');
+    const tripsHeaders = tripsLines[0].split(',');
+    const tripRouteIdIndex = tripsHeaders.indexOf('route_id');
+    const tripIdIndex = tripsHeaders.indexOf('trip_id');
+    const tripServiceIdIndex = tripsHeaders.indexOf('service_id');
+
+    tripsLines.slice(1).forEach(line => {
+        const values = line.split(',');
+        if (values[tripRouteIdIndex] && values[tripIdIndex]) {
+            if (!trips[values[tripRouteIdIndex]]) {
+                trips[values[tripRouteIdIndex]] = [];
+            }
+            trips[values[tripRouteIdIndex]].push({
+                trip_id: values[tripIdIndex],
+                service_id: values[tripServiceIdIndex],
+            });
+        }
+    });
+
+    const stopTimesData = await fetch('gtfs/stop_times.txt').then(res => res.text());
+    const stopTimesLines = stopTimesData.split('\n');
+    const stopTimesHeaders = stopTimesLines[0].split(',');
+    const stopTripIdIndex = stopTimesHeaders.indexOf('trip_id');
+    const stopIdIndex = stopTimesHeaders.indexOf('stop_id');
+    const arrivalTimeIndex = stopTimesHeaders.indexOf('arrival_time');
+
+    stopTimesLines.slice(1).forEach(line => {
+        const values = line.split(',');
+        if (values[stopTripIdIndex]) {
+            if (!stopTimes[values[stopTripIdIndex]]) {
+                stopTimes[values[stopTripIdIndex]] = [];
+            }
+            stopTimes[values[stopTripIdIndex]].push({
+                stop_id: values[stopIdIndex],
+                arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'), // format hh:mm 
+            });
+        }
+    });
+
+    const stopsData = await fetch('gtfs/stops.txt').then(res => res.text());
+    const stopsLines = stopsData.split('\n');
+    const stopsHeaders = stopsLines[0].split(',');
+    const stopsIdIndex = stopsHeaders.indexOf('stop_id');
+    const stopsNameIndex = stopsHeaders.indexOf('stop_name');
+
+    stopsLines.slice(1).forEach(line => {
+        const values = line.split(',');
+        if (values[stopsIdIndex]) {
+            stops[values[stopsIdIndex]] = values[stopsNameIndex];
+        }
+    });
+
+    const calendarData = await fetch('gtfs/calendar.txt').then(res => res.text());
+    const calendarLines = calendarData.split('\n').filter(line => line.trim());
+    const calendarHeaders = calendarLines[0].split(',');
+    const serviceIdIndex = calendarHeaders.indexOf('service_id');
+
+    calendarLines.slice(1).forEach(line => {
+        const values = line.split(',');
+        if (values[serviceIdIndex]) {
+            const serviceId = values[serviceIdIndex].toLowerCase();
+
+            calendar[values[serviceIdIndex]] = {
+                weekdays: serviceId.includes('semaine'),
+                saturday: serviceId.includes('samedi'),
+                sunday: serviceId.includes('dimanche'),
+            };
+        }
+    });
+}
+
+
+function animatePopup(callback) {
+    const popupContent1 = document.getElementById('popup-content1');
+
+    popupContent1.classList.remove('popup-slide-active');
+    popupContent1.classList.add('popup-slide-hidden');
+
+    setTimeout(() => {
+        callback(); 
+
+        popupContent1.classList.remove('popup-slide-hidden');
+        popupContent1.classList.add('popup-slide-right');
+
+        void popupContent1.offsetWidth;
+
+        setTimeout(() => {
+            popupContent1.classList.remove('popup-slide-right');
+            popupContent1.classList.add('popup-slide-active');
+        }, 50); 
+    }, 300); 
+}
+
+
+function showLines() {
+        const popupContent1 = document.getElementById('popup-content1');
+        popupContent1.innerHTML = '<h2>Sélectionnez une ligne</h2>';
+
+        Object.entries(routes).forEach(([routeId, { short_name, long_name, route_color, route_text_color }]) => {
+            const button = document.createElement('div');
+            button.textContent = `Ligne ${short_name} - ${long_name.replace(/"/g, '')}`;
+            button.onclick = () => showDestinations(routeId);
+            button.style.margin = '5px';
+            button.style.backgroundColor = route_color || '#FFFFFF';
+            button.style.color = route_text_color || '#000000';
+            button.style.borderRadius = '10px';
+            button.style.padding = '10px';
+            popupContent1.appendChild(button);
+        });
+    showPopup();
+}
+
+function showDestinations(routeId) {
+    animatePopup(() => {
+        const popupContent1 = document.getElementById('popup-content1');
+        popupContent1.innerHTML = `<div class="textpop"><h4>Sélectionnez une destination</h4><h1>Ligne ${routes[routeId].short_name}</h1></div>`;
+
+        const destinations = new Set();
+
+        trips[routeId].forEach(({ trip_id }) => {
+            const tripStops = stopTimes[trip_id];
+            if (tripStops && tripStops.length > 0) {
+                const firstStop = tripStops[0].stop_id;
+                const lastStop = tripStops[tripStops.length - 1].stop_id;
+                destinations.add(firstStop);
+                destinations.add(lastStop);
+            }
+        });
+
+        Array.from(destinations).forEach(destinationId => {
+            const button = document.createElement('div');
+            button.textContent = stops[destinationId].replace(/"/g, '');
+            button.onclick = () => showStops(routeId, destinationId);
+            button.style.margin = '5px';
+            button.style.padding = '10px';
+            button.style.backgroundColor = '#FFFFFF';
+            button.style.color = '#000000';
+            button.style.borderRadius = '10px';
+            popupContent1.appendChild(button);
+        });
+    });
+}
+
+function showStops(routeId, destinationId) {
+    animatePopup(() => {
+        const popupContent1 = document.getElementById('popup-content1');
+        popupContent1.innerHTML = `<div class="textpop"><h4>Sélectionnez un arrêt</h4><h1>Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}</h1></div>`;
+
+        const stopSet = new Set();
+
+        trips[routeId].forEach(({ trip_id }) => {
+            const tripStops = stopTimes[trip_id];
+            if (tripStops) {
+                let reachedDestination = false;
+                tripStops.forEach(({ stop_id }) => {
+                    if (stop_id === destinationId) reachedDestination = true;
+                    if (!reachedDestination) stopSet.add(stop_id);
+                });
+            }
+        });
+
+        Array.from(stopSet).forEach(stopId => {
+            const button = document.createElement('div');
+            button.textContent = stops[stopId].replace(/"/g, '');
+            button.onclick = () => showSchedule(routeId, stopId, destinationId);
+            button.style.margin = '5px';
+            button.style.padding = '10px';
+            button.style.backgroundColor = '#FFFFFF';
+            button.style.color = '#000000';
+            button.style.borderRadius = '10px';
+            popupContent1.appendChild(button);
+        });
+    });
+}
+
+function showSchedule(routeId, stopId, destinationId) {
+    animatePopup(() => {
+        const popupContent1 = document.getElementById('popup-content1');
+        popupContent1.innerHTML = `<div class="textpop">
+            <h4>Ligne ${routes[routeId].short_name.replace(/"/g, '')} ➜ ${stops[destinationId].replace(/"/g, '')}</h4>
+            <h1>Horaires pour l'arrêt ${stops[stopId].replace(/"/g, '')}</h1>
+        </div>`;
+
+        const dayTypeSelect = document.createElement('select');
+        dayTypeSelect.innerHTML = `
+            <option value="weekdays">Horaires semaine</option>
+            <option value="saturday">Week-end / vacances</option>
+            <option value="sunday">Dimanche / fériés</option>
+        `;
+        dayTypeSelect.onchange = () => updateSchedule(routeId, stopId, destinationId, dayTypeSelect.value);
+        popupContent1.appendChild(dayTypeSelect);
+
+        const scheduleContainer = document.createElement('div');
+        scheduleContainer.id = 'schedule-container';
+        popupContent1.appendChild(scheduleContainer);
+
+        updateSchedule(routeId, stopId, destinationId, 'weekdays');
+    });
+}
+
+function updateSchedule(routeId, stopId, destinationId, dayType) {
+    const scheduleContainer = document.getElementById('schedule-container');
+    scheduleContainer.innerHTML = '';
+
+    const validTrips = trips[routeId].filter(({ service_id }) => {
+        if (dayType === 'weekdays') return calendar[service_id]?.weekdays;
+        if (dayType === 'saturday') return calendar[service_id]?.saturday;
+        if (dayType === 'sunday') return calendar[service_id]?.sunday;
+        return false;
+    });
+
+    const schedule = [];
+    validTrips.forEach(({ trip_id }) => {
+        const tripStops = stopTimes[trip_id];
+        let destinationReached = false;
+
+        if (tripStops) {
+            tripStops.forEach(({ stop_id: currentStopId, arrival_time }) => {
+                if (currentStopId === destinationId) destinationReached = true;
+                if (currentStopId === stopId && !destinationReached) {
+                    schedule.push(arrival_time);
+                }
+            });
+        }
+    });
+
+    const hours = {};
+    schedule.forEach(time => {
+        let [hour, minute] = time.split('h').map(num => parseInt(num, 10));
+
+        if (hour >= 24) {
+            hour -= 24;
+        }
+
+        if (!hours[hour]) hours[hour] = [];
+        hours[hour].push(minute);
+    });
+
+    const sortedTimes = Object.entries(hours).sort(([a], [b]) => a - b);
+
+    if (sortedTimes.length === 0) {
+        scheduleContainer.innerHTML = `<p>Pas de bus circulant à cette période.</p>`;
+    } else {
+        sortedTimes.forEach(([hour, minutes]) => {
+            const uniqueSortedMinutes = [...new Set(minutes)].sort((a, b) => a - b).join('  ');
+
+            const row = document.createElement('div');
+            row.className = 'schedule-row';
+            row.innerHTML = `<span>${hour}h</span><span1>${uniqueSortedMinutes}</span1>`;
+            scheduleContainer.appendChild(row);
+        });
+    }
+}
+
+
+function showPopup() {
+    const popup2 = document.getElementById('popup2');
+
+    popup2.style.display = 'block';
+    
+
+    const menubottom1 = document.getElementById('menubtm');
+
+
+    const menu = document.getElementById('menu');
+            const banner = document.getElementById('service-alerts-banner');
+            const menubotom = document.getElementById('menubottom');
+            banner.classList.remove('slide-down');
+            banner.classList.add('slide-up');
+            menubottom1.classList.remove('slide-downb');
+            menubottom1.classList.add('slide-upb');
+            if (selectedLine) {
+        const filtre = document.getElementById('filtre');
+        filtre.classList.add('slide-upc');
+        filtre.classList.remove('slide-downc');
+        resetMapView();
+        }
+
+            banner.addEventListener('transitionend', () => {
+            if (banner.classList.contains('slide-up')) {
+            banner.style.display = 'none'; 
+            menubottom1.style.display = 'none';
+            }
+            }, { once: true });
+
+
+
+}
+
+function closePopup() {
+    const popup2 = document.getElementById('popup2');
+    popup2.style.display = 'none';
+    const menubottom1 = document.getElementById('menubtm');
+
+
+    const banner = document.getElementById('service-alerts-banner');
+            menu.style.display = 'none'; 
+            isMenuVisible = false; 
+            banner.style.display = 'block';
+            menubottom1.style.display = 'flex';
+    setTimeout(() => {
+        banner.classList.remove('slide-up');
+        banner.classList.add('slide-down');
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
+    }, 10);
+
+
+}
+
+
+
+const filtre = document.getElementById('filtre');
+        filtre.onclick = () => {
+            if (selectedLine) {
+        filtre.classList.add('slide-upc');
+        filtre.classList.remove('slide-downc');
+        resetMapView();
+        }
+};
+
+
+const vehicleModels = {};
+
+const vehicleTypes = {
+    'elec': new Set(),
+    'hybrid': new Set(),
+    'gnv': new Set(),
+    'usb': new Set(),
+    'clim': new Set()
+};
+
+
+
+async function loadVehicleModels() {
+    try {
+        const response = await fetch('setvar/vehicules/index.php');
+        const fileList = await response.json();
+        
+        for (const file of fileList) {
+            if (file.endsWith('.txt')) {
+                await loadVehicleModelFile(file);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors du chargement des modèles de véhicules ', error);
+        toastBottomRight.error('Erreur lors du chargement des modèles de véhicules ', error);
+    }
+}
+
+async function loadVehicleModelFile(fileName) {
+    try {
+        const response = await fetch(`setvar/vehicules/${fileName}`);
+        const content = await response.text();
+        const lines = content.split('\n').map(line => line.trim()).filter(line => line !== '');
+        
+        if (lines.length < 8) {
+            console.error(`Format invalide pour le fichier ${fileName}`);
+            toastBottomRight.error(`Format invalide pour le fichier ${fileName}`);
+            return;
+        }
+        
+        const modelName = lines[0];
+        const thumbnailPath = lines[1];
+        
+        const params = {
+            isElectric: parseParamValue(lines[2]),       // isElec=true/false
+            isHybrid: parseParamValue(lines[3]),         // isHybrid=true/false
+            isGnv: parseParamValue(lines[4]),            // isGnv=true/false
+            isUsbPlugs: parseParamValue(lines[5]),       // isUsbPlugs=true/false
+            isAirConditioned: parseParamValue(lines[6]), // isAirConditionned=true/false
+            isHeatingUnit: parseParamValue(lines[7])     // isHeatingUnit=true/false
+        };
+        
+        const vehicleIds = lines.slice(8);
+        
+        const modelKey = fileName.replace('.txt', '');
+        
+        vehicleModels[modelKey] = {
+            name: modelName,
+            thumbnail: thumbnailPath,
+            params: params,
+            vehicles: new Set(vehicleIds)
+        };
+        
+        vehicleIds.forEach(id => {
+            if (params.isElectric) vehicleTypes['elec'].add(id);
+            if (params.isHybrid) vehicleTypes['hybrid'].add(id);
+            if (params.isGnv) vehicleTypes['gnv'].add(id);
+            if (params.isUsbPlugs) vehicleTypes['usb'].add(id);
+            if (params.isAirConditioned || params.isHeatingUnit) vehicleTypes['clim'].add(id);
+        });
+        
+    } catch (error) {
+        console.error(`Erreur lors du chargement du fichier ${fileName}:`, error);
+        toastBottomRight.error('Une erreur est survenue.');
+
+    }
+}
+
+function parseParamValue(paramLine) {
+    const parts = paramLine.split('=');
+    if (parts.length !== 2) return false;
+    
+    return parts[1].toLowerCase() === 'true';
+}
+
+function getVehicleModel(parkNumber) {
+    const parkId = String(parkNumber);    
+    for (const [modelKey, model] of Object.entries(vehicleModels)) {
+        if (model.vehicles.has(parkId)) {
+            return model;
+        }
+    }
+    return null;
+}
+
+function getVehicleOptionsBadges(parkNumber) {
+    const model = getVehicleModel(parkNumber);
+    let badges = '';
+    
+    if (model) {
+        const params = model.params;
+        
+        if (params.isElectric) {
+            badges += `<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
+                <img src="src/elec.png" alt="Électrique" style="height: 20px; vertical-align: middle;">
+            </span> `;
+        }
+        if (params.isHybrid) {
+            badges += `<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
+                <img src="src/hyb.png" alt="Hybride" style="height: 20px; vertical-align: middle;">
+            </span> `;
+        }
+        if (params.isGnv) {
+            badges += `<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
+                <img src="src/gnv.png" alt="Gaz Naturel" style="height: 20px; vertical-align: middle;">
+            </span> `;
+        }
+        if (params.isUsbPlugs) {
+            badges += `<span style="padding: 6px 10px; background: linear-gradient(45deg, #5856d677, #4b42d077); color: white; border-radius: 10px;">⚡ USB</span> `;
+        }
+        if (params.isAirConditioned) {
+            badges += `<span style="padding: 6px 10px; background: linear-gradient(45deg, #ADD8E677, #91c1d477); color: black; border-radius: 10px;">❄️ Climatisé</span> `;
+        }
+        if (params.isHeatingUnit) {
+            badges += `<span style="padding: 6px 10px; background: linear-gradient(45deg, #C21E5677, #9b164777); color: white; border-radius: 10px;">🌡️ Chauffé</span> `;
+        }
+    } 
+    
+    return badges;
+}
+
+function getVehicleBrandHtml(parkNumber) {
+    const model = getVehicleModel(parkNumber);
+    
+    if (model) {
+        return `
+            <div class="vehicle-model">
+                <img src="${model.thumbnail}" alt="Image d'un ${model.name}" class="vehicle-thumbnail" style="max-height: 30px;" />
+                <span style="margin-top: 10px;">🚌 Un ${model.name}</span>
+            </div>
+        `;
+    }
+
+    return `<span>🚌 Un bus</span>`;
+}
+
+function getVehicleDisplay(parkNumber) {
+    const model = getVehicleModel(parkNumber);
+    let html = '';
+    
+    if (model) {
+        html += `
+            <div class="vehicle-model">
+                <img src="${model.thumbnail}" alt="${model.name}" class="vehicle-thumbnail" />
+                <span style="margin-top: 10px;">🚎 ${model.name}</span>
+            </div>
+        `;
+        
+        const badges = [];
+        const params = model.params;
+        
+        if (params.isElectric) {
+            badges.push(`<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
+                <img src="src/elec.png" alt="Électrique" style="height: 20px; vertical-align: middle;">
+            </span>`);
+        }
+        if (params.isHybrid) {
+            badges.push(`<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
+                <img src="src/hyb.png" alt="Hybride" style="height: 20px; vertical-align: middle;">
+            </span>`);
+        }
+        if (params.isGnv) {
+            badges.push(`<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
+                <img src="src/gnv.png" alt="Gaz Naturel" style="height: 20px; vertical-align: middle;">
+            </span>`);
+        }
+        if (params.isUsbPlugs) {
+            badges.push(`<span style="padding: 6px 10px; background: linear-gradient(45deg, #5856d677, #4b42d077); color: white; border-radius: 10px;">⚡ USB</span>`);
+        }
+        if (params.isAirConditioned) {
+            badges.push(`<span style="padding: 6px 10px; background: linear-gradient(45deg, #ADD8E677, #91c1d477); color: black; border-radius: 10px;">❄️ Climatisé</span>`);
+        }
+        if (params.isHeatingUnit) {
+            badges.push(`<span style="padding: 6px 10px; background: linear-gradient(45deg, #C21E5677, #9b164777); color: white; border-radius: 10px;">🌡️ Chauffé</span>`);
+        }
+        
+        if (badges.length > 0) {
+            html += `<div class="vehicle-badges">${badges.join(' ')}</div>`;
+        }
+    } else {
+        html = `<span>🚎 Un bus</span>`;
+    }
+    
+    return html;
+}
+
+async function initializeApp() {
+    try {
+        toastBottomRight.info('Chargement async...');
+        
+        for (const key in vehicleTypes) {
+            vehicleTypes[key] = new Set();
+        }
+        
+        await loadVehicleModels();
+        
+        await fetchVehiclePositions();
+    } catch (error) {
+        console.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
+        toastBottomRight.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
+
+    }
+}
+
+async function fetchVehiclePositions() {
+    try {
+        const response = await fetch('proxy-cors/proxy_vehpos.php');
+        const buffer = await response.arrayBuffer();
+        const data = await decodeProtobuf(buffer);
+
+        const activeVehicleIds = new Set();
+
+        data.entity.forEach(entity => {
+            const vehicle = entity.vehicle;
+            if (vehicle) {
+                const id = vehicle.vehicle.id;
+                const vehicleOptionsBadges = getVehicleOptionsBadges(id);
+                const vehicleBrandHtml = getVehicleBrandHtml(id);
+                const line = vehicle.trip && vehicle.trip.routeId ? vehicle.trip.routeId : 'Inconnu';
+                const directionId = vehicle.trip ? vehicle.trip.directionId : undefined;
+                activeVehicleIds.add(id);
+
+                const statusMap = {
+                    0: '❌ Hors service commercial',
+                    1: ' En service - Portes ouvertes',
+                    2: ' En service'
+                };
+                const status = statusMap[vehicle.currentStatus] || 'Inconnu';
+
+                const stopIdun = vehicle.stopId || 'Inconnu';
+                let stopId = stopIdun.replace("0:", "");
+                const latitude = vehicle.position.latitude;
+                const longitude = vehicle.position.longitude;
+
+                if (isNaN(latitude) || isNaN(longitude)) {
+                    return; 
+                }
+
+                const speed = vehicle.position.speed ? (vehicle.position.speed).toFixed(0) + ' km/h' : 'Arrêté';
+                const bearing = vehicle.position.bearing || 'Inconnu';
+                const tripId = vehicle.trip && vehicle.trip.tripId ? vehicle.trip.tripId : 'Inconnu';
+
+                const lastStopId = tripUpdates[tripId] ? tripUpdates[tripId].lastStopId : 'Inconnu';
+                const lastStopNameun = stopNameMap[lastStopId] || 'Destination inconnue';
+                let lastStopName = lastStopNameun.replace("0:", "");
+                
+                const nextStops = tripUpdates[tripId]?.nextStops || [];
+
+                let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
+
+                let nextStopsHTML = `
+                    <div style="position: relative; max-height: 120px; ">  <!-- Conteneur avec fond au bas -->
+                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+                `;
+
+                if (currentStopIndex !== -1) {
+                    let filteredStops = nextStops.slice(currentStopIndex);  // Filtre arrêts à partir arrêt actuel
+
+                    filteredStops.forEach(stop => {
+                        nextStopsHTML += `
+                            <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                    <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
+                    <div>
+                    <div>${stop.departureTime ? `${stop.departureTime}` : "Inconnu"}</div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1"></circle></svg>
+                </div>
+                </li>
+                        `;
+                    });
+                } 
+
+                nextStopsHTML += `
+                        </ul>
+                    </div>
+                `;
+
+                const popupContentElement = document.querySelector('#popup-content'); 
+                if (popupContentElement) {
+                    popupContentElement.innerHTML = `
+                        <div style="padding: 10px; background: #f9f9f9; border-top: 1px solid #ddd;">
+                            <h4 style="margin: 0; font-size: 16px; font-weight: bold;">Heures de passage prévues :</h4>
+                            ${nextStopsHTML}
+                        </div>
+                    `;
+                }
+
+                const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
+
+                const arrivalDelay = delayInfo ? delayInfo.arrivalDelay : 0; 
+                const scheduledArrival = delayInfo ? delayInfo.scheduledArrival : null; 
+                                
+                function getTextColorForBackground(bgColor) {
+                    const color = bgColor.replace('#', '');
+                    const r = parseInt(color.substring(0, 2), 16);
+                    const g = parseInt(color.substring(2, 4), 16);
+                    const b = parseInt(color.substring(4, 6), 16);
+                    const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+                    return brightness > 150 ? '#000000' : '#FFFFFF';
+                }
+
+                const backgroundColor = lineColors[line] || '#000000';
+                const textColor = getTextColorForBackground(backgroundColor);
+
+                let arrivalTime = 'Inconnu';
+                if (scheduledArrival) {
+                    const arrivalDate = new Date(scheduledArrival * 1000);
+                    arrivalTime = arrivalDate.toLocaleTimeString();
+                }
+
+                let delayMessage = 'À l\'heure';
+                if (arrivalDelay > 0) {
+                    delayMessage = `En retard de ${arrivalDelay} secondes`;
+                } else if (arrivalDelay < 0) {
+                    delayMessage = `En avance de ${Math.abs(arrivalDelay)} secondes`;
+                }
+
+                let remainingTimeMessage = 'terminus arrivée.';
+                if (nextStops.length > 1) {
+                    const penultimateStop = nextStops[nextStops.length - 2]; // avant der arrêt
+                    const scheduledArrivalPenultimate = penultimateStop.departureTime;
+
+                    if (scheduledArrivalPenultimate && scheduledArrivalPenultimate.includes(":")) {
+                        const [hours, minutes] = scheduledArrivalPenultimate.split(':').map(num => parseInt(num, 10));
+
+                        const now = new Date();
+                        const scheduledArrivalDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
+
+                        const currentTime = new Date();
+                        const timeRemaining = Math.max(scheduledArrivalDate - currentTime, 0);
+                        const minutesRemaining = Math.floor(timeRemaining / 60000);
+                        const secondsRemaining = Math.floor((timeRemaining % 60000) / 1000);
+
+                        remainingTimeMessage = ` ${minutesRemaining} minutes.`;
+                    } else {
+                        remainingTimeMessage = ' délai inconnu';
+                    }
+                }
+                
+                const popupContent = `
+                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; line-height: 1.4; color: #333; border-radius: 15px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); overflow: hidden; background-color: ${backgroundColor}77; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+                        
+                        <!-- En-tête avec numéro de parc en arrière-plan -->
+                <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
+                    <!-- Texte principal -->
+                    <div style="z-index: 2; text-align: left; width: 100%;">
+                        <strong style="font-size: 20px;">Ligne ${lineName[line] || "interne au réseau"}</strong>
+                        <p style="margin: 0; font-size: 14px;">➜ Destination <strong style="color: ${textColor};">${lastStopName}</strong></p>
+                        <p style="margin: 0; font-size: 14px;">🏁 Arrivée au terminus dans <strong style="color: ${textColor};">${remainingTimeMessage}</strong></p>
+                    </div>
+
+                    <!-- Texte en arrière-plan -->
+                    <div style="
+                        position: absolute;
+                        right: 10px;
+                        top: 0;
+                        bottom: 0;
+                        z-index: 1;
+                        opacity: 0.1;
+                        font-size: 100px;
+                        font-weight: bold;
+                        color: ${textColor};
+                        display: flex;
+                        align-items: center;
+                        justify-content: flex-end;
+                        white-space: nowrap;
+                    ">
+                        Ligne ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
+                    </div>
+                </div>
+
+                <div style="margin-right: 10px; margin-top: 10px; margin-bottom: 5px; text-align: right;">
+                ${vehicleBrandHtml}
+                </div>
+
+                <div style="padding: 0 10px 10px 10px;">
+                    <div style="position: relative; display: flex; align-items: center; ">
+                        <!-- Conteneur pour le texte défilant avec effet fondu -->
+                        <div style="
+                            position: relative;
+                            flex: 1;
+                            overflow: hidden;
+                            border-radius: 10px;
+                        ">
+                            <!-- Contenu défilant horizontalement -->
+                            <div style="
+                                display: flex;
+                                gap: 10px;
+                                padding: 0px;
+                                white-space: nowrap;
+                                overflow-x: auto;
+                                scrollbar-width: thin; /* Pour les navigateurs qui supportent cette propriété */
+                                scrollbar-color: #888 #f1f1f1;
+                            " class="custom-scrollbar">
+                                <!-- Numéro de parc -->
+                                <span style="
+                                    background: #00000077;
+                                    color: #ffffff;
+                                    padding: 6px 12px;
+                                    border-radius: 10px;
+                                    font-weight: normal;
+                                    font-size: 14px;
+                                    white-space: nowrap;
+                                    -webkit-backdrop-filter: blur(8px); 
+                                ">
+                                    Véhicule ${vehicle.vehicle.label}
+                                </span>
+                                
+                                <!-- Badges des options du véhicule -->
+                                ${vehicleOptionsBadges}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="color: ${textColor};">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; margin-left: 10px; margin-right: 10px;">
+                        <span>📍 <strong>Prochain arrêt</strong></span>
+                        <span>${stopNameMap[stopId] || stopId}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-left: 10px; margin-right: 10px;">
+                        <span>💨 <strong>Vitesse</strong></span>
+                        <span>${speed}</span>
+                    </div>
+                </div>
+
+                <!-- Prochains arrêts -->
+                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+                    <h2 style="margin: 0; font-size: 18px; font-weight: bold;">Arrêts à l'approche</h2>
+                    <ul>
+                    <div id="nextStopsContent" class="next-stops-content">
+                          ${nextStopsHTML}
+                    </div>   
+                </div>
+                </div>
+                `;
+if (markers[id]) {
+    animateMarker(markers[id], [latitude, longitude]);
+
+    const existingPopup = markers[id].getPopup();
+    const currentContent = existingPopup ? existingPopup.getContent() : '';
+
+    if (existingPopup && currentContent === popupContent) {
+        return;
+    }
+
+    markers[id].setPopupContent(popupContent);
+
+    if (markers[id].isPopupOpen()) {
+        const popupElement = markers[id]._popup._contentNode.parentElement;
+        popupElement.classList.remove('hide'); 
+        popupElement.classList.add('show'); 
+
+        markers[id].openPopup();
+    }
+} else {
+    const marker = createColoredMarker(latitude, longitude, line).addTo(map);
+    markers[id] = marker;
+    markers[id].line = line;
+    markers[id].id = id;
+
+    marker.bindPopup(popupContent);
+
+    marker.on('popupopen', function (e) {
+        const popupElement = e.popup._contentNode.parentElement;
+        popupElement.classList.remove('hide'); 
+        popupElement.classList.add('show');  
+        const banner = document.getElementById('service-alerts-banner');
+
+    });
+
+    marker.on('popupclose', function (e) {
+        const popupElement = e.popup._contentNode.parentElement;
+
+        popupElement.classList.remove('show');
+        popupElement.classList.add('hide');
+        const banner = document.getElementById('service-alerts-banner');
+
+
+        setTimeout(() => {
+            e.popup.remove(); 
+        }, 200); 
+    });
+}
+
+                    }
+                });
+
+                Object.keys(markers).forEach(id => {
+            if (!activeVehicleIds.has(id)) {
+                map.removeLayer(markers[id]); 
+                delete markers[id]; 
+            }
+        });
+
+				
+        let isMenuVisible = true;
+
+const favoriteLines = new Set(JSON.parse(localStorage.getItem('favoriteLines') || '[]'));
+
+const ANIMATION_CONFIG = {
+    DURATION: 400,
+    POP_DURATION: 100,
+    SPRING_TIMING: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+    SCALE_UP: 1.03,
+    ITEM_MARGIN: 10
+};
+
+
+let isAnimating = false;
+
+function getAbsolutePositions(menu) {
+    const sections = Array.from(menu.querySelectorAll('.linesection'));
+    const positions = new Map();
+    let accumulatedHeight = 0;
+    
+    sections.forEach(section => {
+        const rect = section.getBoundingClientRect();
+        positions.set(section, {
+            top: accumulatedHeight,
+            height: rect.height,
+            index: sections.indexOf(section)
+        });
+        accumulatedHeight += rect.height + ANIMATION_CONFIG.ITEM_MARGIN;
+    });
+    
+    return { sections, positions };
+}
+
+function getTargetIndex(sections, movingSection, isFavorite, favoriteLines) {
+    const movingLine = movingSection.dataset.line;
+    
+    if (isFavorite) {
+        const firstNonFavoriteIndex = sections.findIndex(section => 
+            !favoriteLines.has(section.dataset.line)
+        );
+        
+        if (firstNonFavoriteIndex === sections.indexOf(movingSection)) {
+            return -1;
+        }
+        
+        return firstNonFavoriteIndex === -1 ? sections.length : firstNonFavoriteIndex;
+    } else {
+        let targetIndex = 0; 
+        
+        for (let i = 0; i < sections.length; i++) {
+            const sectionLine = sections[i].dataset.line;
+            
+            if (favoriteLines.has(sectionLine)) {
+                const movingNum = parseInt(movingLine);
+                const sectionNum = parseInt(sectionLine);
+                
+                if (!isNaN(movingNum) && !isNaN(sectionNum)) {
+                    if (movingNum < sectionNum) {
+                        return i;
+                    }
+                } else if (movingLine.localeCompare(sectionLine) < 0) {
+                    return i;
+                }
+            } else {
+                return i; 
+            }
+        }
+        
+        return sections.length;
+    }
+}
+
+function prepareSectionsForAnimation(sections) {
+    sections.forEach(section => {
+        section.style.transition = 'none';
+        section.style.position = 'relative';
+        section.style.zIndex = '1';
+        section.style.transform = 'translateY(0)';
+    });
+    
+    // Force reflow
+    sections[0].offsetHeight;
+}
+
+async function animateFavoriteTransition(button, lineSection, line, isFavorite) {
+    if (isAnimating) return;
+    isAnimating = true;
+    
+    const menu = document.getElementById('menu');
+    if (!menu || !lineSection) return;
+    
+    try {
+        menu.style.pointerEvents = 'none';
+        button.style.pointerEvents = 'none';
+        
+        const { sections, positions } = getAbsolutePositions(menu);
+        const currentIndex = sections.indexOf(lineSection);
+        
+        if (isFavorite) {
+            favoriteLines.delete(line);
+        } else {
+            favoriteLines.add(line);
+        }
+        
+        const targetIndex = getTargetIndex(sections, lineSection, isFavorite, favoriteLines);
+        
+        if (targetIndex === -1 || currentIndex === -1 || targetIndex === currentIndex) {
+            await animateRemoveFavorite(button, lineSection, sections, positions, currentIndex, targetIndex);
+            try {
+                localStorage.setItem('favoriteLines', JSON.stringify([...favoriteLines]));
+            } catch (error) {
+                console.error('Error saving favorites:', error);
+            }
+            await cleanup(menu, button);
+            return;
+        }
+        
+        if (isFavorite) {
+            await animateRemoveFavorite(button, lineSection, sections, positions, currentIndex, targetIndex);
+            button.innerHTML = '☆';
+        } else {
+            await animateAddFavorite(button, lineSection, sections, positions, currentIndex, targetIndex);
+        }
+        
+        try {
+            localStorage.setItem('favoriteLines', JSON.stringify([...favoriteLines]));
+        } catch (error) {
+            console.error('Error saving favorites:', error);
+        }
+        
+    } catch (error) {
+        console.error('Animation error:', error);
+    } finally {
+        await cleanup(menu, button);
+    }
+}
+
+async function animateAddFavorite(button, lineSection, sections, positions, currentIndex, targetIndex) {
+    prepareSectionsForAnimation(sections);
+    
+    lineSection.style.zIndex = '2';
+    lineSection.style.transition = `all ${ANIMATION_CONFIG.DURATION}ms cubic-bezier(0.34, 1.56, 0.64, 1)`;
+    
+    const currentPos = positions.get(lineSection);
+    let targetY = 0;
+    
+    for (let i = 0; i < targetIndex; i++) {
+        if (i !== currentIndex) {
+            const section = sections[i];
+            const sectionPos = positions.get(section);
+            targetY += sectionPos.height + ANIMATION_CONFIG.ITEM_MARGIN;
+        }
+    }
+    
+    const deltaY = targetY - currentPos.top;
+    
+    sections.forEach((section, index) => {
+        if (section !== lineSection) {
+            let displacement = 0;
+            
+            if (currentIndex < targetIndex) {
+                if (index > currentIndex && index <= targetIndex) {
+                    displacement = -(currentPos.height + ANIMATION_CONFIG.ITEM_MARGIN);
+                }
+            } else {
+                if (index >= targetIndex && index < currentIndex) {
+                    displacement = currentPos.height + ANIMATION_CONFIG.ITEM_MARGIN;
+                }
+            }
+            
+            if (displacement !== 0) {
+                section.style.transition = `transform ${ANIMATION_CONFIG.DURATION}ms cubic-bezier(0.34, 1.56, 0.64, 1)`;
+                section.style.transform = `translateY(${displacement}px)`;
+            }
+        }
+    });
+    
+    lineSection.style.transform = `scale(1.05)`;
+    await new Promise(r => setTimeout(r, 100));
+    lineSection.style.transform = `translateY(${deltaY}px) scale(1.05)`;
+    await new Promise(r => setTimeout(r, ANIMATION_CONFIG.DURATION - 150));
+    lineSection.style.transform = `translateY(${deltaY}px) scale(1)`;
+    
+    button.innerHTML = '★';
+    button.style.transform = 'scale(1.2)';
+    await new Promise(r => setTimeout(r, 100));
+    button.style.transform = 'scale(1)';
+}
+
+async function animateRemoveFavorite(button, lineSection, sections, positions, currentIndex, targetIndex) {
+    prepareSectionsForAnimation(sections);
+    
+    lineSection.style.zIndex = '2';
+    lineSection.style.transition = `all ${ANIMATION_CONFIG.DURATION}ms ${ANIMATION_CONFIG.SPRING_TIMING}`;
+    
+    const currentPos = positions.get(lineSection);
+    let targetY = 0;
+    
+    if (targetIndex === -1) {
+        targetIndex = sections.length;
+        sections.forEach((section, idx) => {
+            if (idx !== currentIndex) {
+                const sectionPos = positions.get(section);
+                targetY += sectionPos.height + ANIMATION_CONFIG.ITEM_MARGIN;
+            }
+        });
+    } else {
+        for (let i = 0; i < targetIndex; i++) {
+            if (i !== currentIndex) {
+                const section = sections[i];
+                const sectionPos = positions.get(section);
+                targetY += sectionPos.height + ANIMATION_CONFIG.ITEM_MARGIN;
+            }
+        }
+    }
+    
+    const deltaY = targetY - currentPos.top;
+    
+    sections.forEach((section, index) => {
+        if (section !== lineSection) {
+            let displacement = calculateDisplacement(index, currentIndex, targetIndex, 
+                currentPos.height + ANIMATION_CONFIG.ITEM_MARGIN);
+            
+            if (displacement !== 0) {
+                section.style.transition = `transform ${ANIMATION_CONFIG.DURATION}ms ${ANIMATION_CONFIG.SPRING_TIMING}`;
+                section.style.transform = `translateY(${displacement}px)`;
+            }
+        }
+    });
+    
+    await animateMovingSection(lineSection, deltaY);
+    
+    button.style.transform = 'scale(0.8)';
+    button.innerHTML = '☆';
+    await new Promise(r => setTimeout(r, 100));
+    button.style.transform = 'scale(1)';
+}
+
+function calculateDisplacement(index, currentIndex, targetIndex, sectionHeight) {
+    if (targetIndex === -1) {
+        return index > currentIndex ? -sectionHeight : 0;
+    }
+    
+    if (currentIndex < targetIndex) {
+        return (index > currentIndex && index <= targetIndex) ? -sectionHeight : 0;
+    } else {
+        return (index >= targetIndex && index < currentIndex) ? sectionHeight : 0;
+    }
+}
+
+async function animateMovingSection(section, deltaY) {
+    section.style.transform = `scale(${ANIMATION_CONFIG.SCALE_UP})`;
+    await new Promise(r => setTimeout(r, ANIMATION_CONFIG.POP_DURATION));
+    
+    section.style.transform = `translateY(${deltaY}px) scale(${ANIMATION_CONFIG.SCALE_UP})`;
+    await new Promise(r => setTimeout(r, ANIMATION_CONFIG.DURATION - 150));
+    
+    section.style.transform = `translateY(${deltaY}px) scale(1)`;
+}
+
+
+function updateFavoriteState(button, line, isFavorite) {
+    if (isFavorite) {
+        favoriteLines.delete(line);
+        button.innerHTML = '☆';
+    } else {
+        favoriteLines.add(line);
+        button.innerHTML = '★';
+    }
+    
+    try {
+        localStorage.setItem('favoriteLines', JSON.stringify([...favoriteLines]));
+    } catch (error) {
+        console.error('Error saving favorites:', error);
+    }
+}
+
+
+
+async function cleanup(menu, button) {
+    await new Promise(r => setTimeout(r, 50));
+    
+    const sections = menu.querySelectorAll('.linesection');
+    sections.forEach(section => {
+        section.style.transform = '';
+        section.style.transition = '';
+        section.style.zIndex = '';
+        section.style.position = '';
+    });
+    
+    menu.style.pointerEvents = 'auto';
+    button.style.pointerEvents = 'auto';
+    
+    updateMenu();
+    isAnimating = false;
+}
+
+const animationStyle = document.createElement('style');
+animationStyle.textContent = `
+    .linesection {
+        transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
+    }
+    
+    .linesection.removing {
+        animation: remove-favorite 0.3s ease-out forwards;
+    }
+    
+    @keyframes remove-favorite {
+        0% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.05);
+            opacity: 0.8;
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+    
+    .favorite-button {
+        transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+    }
+    
+    .favorite-button:hover {
+        transform: scale(1.1);
+    }
+    
+    .favorite-button:active {
+        transform: scale(0.9);
+    }
+`;
+document.head.appendChild(animationStyle);
+
+
+function updateMenu() {
+    const menu = document.getElementById('menu');
+    menu.innerHTML = '';
+
+    document.dispatchEvent(new Event('vehiclesLoaded')); 
+
+
+    const logoContainer = document.createElement('div');
+    logoContainer.style.textAlign = 'center';
+    logoContainer.style.marginBottom = '7px';
+
+    const logo = document.createElement('img');
+    logo.src = 'src/whitelogo.png'; 
+    logo.alt = 'Logo de My Bus Finder';
+    logo.style.maxWidth = '200px';
+    logo.style.display = 'block';
+    logo.style.margin = '0 auto';
+    logo.style.cursor = 'pointer';
+    logo.onclick = () => {
+        showUpdatePopup('updatecm.html');
+        musique();
+    };
+
+    logoContainer.appendChild(logo);
+    menu.appendChild(logoContainer);
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const totalMinutes = currentHour * 60 + currentMinutes;
+
+    let transportState = "normal";
+    if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
+        transportState = "presque saturé"; 
+    } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
+        transportState = "saturé";
+    }
+
+    const transportStateContainer = document.createElement('div');
+    transportStateContainer.style.display = 'flex';
+    transportStateContainer.style.alignItems = 'center';
+    transportStateContainer.style.justifyContent = 'center';
+    transportStateContainer.style.marginBottom = '10px';
+
+    const transportImage = document.createElement('img');
+    transportImage.alt = 'Affluence transports';
+    transportImage.style.width = '50px';
+    transportImage.style.height = '36px';
+    transportImage.style.marginRight = '10px';
+
+    if (transportState === "normal") {
+        transportImage.src = 'src/1of3body.png';
+        transportStateContainer.addEventListener('click', () => {
+            toastBottomRight.info('Ouf ! Aucune affluence notable est à signaler. Profitez bien de votre voyage !');
+        });
+        transportStateContainer.style.cursor = 'pointer';
+
+    } else if (transportState === "presque saturé") {
+        transportImage.src = 'src/2of3body.png';
+        transportStateContainer.addEventListener('click', () => {
+            toastBottomRight.info('Les gens rentrent chez eux, ça se corse... Mais on peut toujours voyager sereinement.');
+        });
+
+        transportStateContainer.style.cursor = 'pointer';
+
+    } else if (transportState === "saturé") {
+        transportImage.src = 'src/3of3body.png';
+        transportStateContainer.addEventListener('click', () => {
+            toastBottomRight.info('En heure de pointe, il est compliqué de se déplacer. Privilégiez les lignes secondaires.');
+    });
+    
+        transportStateContainer.style.cursor = 'pointer';
+    }
+
+    const transportStateTextContainer = document.createElement('div');
+    transportStateTextContainer.style.textAlign = 'left';
+
+    const transportStateLabel = document.createElement('div');
+    transportStateLabel.textContent = "Affluence transports";
+    transportStateLabel.style.fontSize = '14px';
+    transportStateLabel.style.marginTop = '7px';
+    transportStateLabel.style.color = '#fff';
+
+    const transportStateText = document.createElement('div');
+    transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
+    transportStateText.style.fontSize = '22px';
+    transportStateText.style.fontWeight = 'bold';
+    transportStateText.style.color = '#fff';
+
+    transportStateTextContainer.appendChild(transportStateLabel);
+    transportStateTextContainer.appendChild(transportStateText);
+
+    transportStateContainer.appendChild(transportImage);
+    transportStateContainer.appendChild(transportStateTextContainer);
+    menu.appendChild(transportStateContainer);
+
+    const busesByLineAndDestination = {};
+
+    Object.keys(markers).forEach(id => {
+        const vehicle = markers[id];
+        const line = vehicle.line;
+        const destination = vehicle.getPopup().getContent().match(/Destination\s*<strong.*?>(.*?)<\/strong>/)?.[1] || "Inconnue";
+
+        if (!busesByLineAndDestination[line]) {
+            busesByLineAndDestination[line] = {};
+        }
+
+        if (!busesByLineAndDestination[line][destination]) {
+            busesByLineAndDestination[line][destination] = [];
+        }
+
+        busesByLineAndDestination[line][destination].push({
+            parkNumber: vehicle.id,
+            vehicle
+        });
+    });
+
+    const sortedLines = Object.keys(busesByLineAndDestination)
+        .sort((a, b) => {
+            const aIsFavorite = favoriteLines.has(a);
+            const bIsFavorite = favoriteLines.has(b);
+            
+            if (aIsFavorite && !bIsFavorite) return -1;
+            if (!aIsFavorite && bIsFavorite) return 1;
+            
+            return isNaN(a) ? (isNaN(b) ? a.localeCompare(b) : 1) : (isNaN(b) ? -1 : parseInt(a) - parseInt(b));
+        });
+
+    sortedLines.forEach(line => {
+        const lineNameText = lineName[line] || "Inconnue";
+        const lineColor = lineColors[line] || '#000000';
+
+        const lineSection = document.createElement('div');
+        lineSection.dataset.line = line;
+        lineSection.style.backgroundColor = lineColor;
+        lineSection.classList.add('linesection');
+        lineSection.style.marginBottom = '10px';
+        lineSection.style.padding = '10px';
+        lineSection.style.borderRadius = '8px';
+        lineSection.style.position = 'relative';
+        const favoriteButton = document.createElement('button');
+        favoriteButton.style.position = 'absolute';
+        favoriteButton.style.right = '5px';
+        favoriteButton.style.top = '5px';
+        favoriteButton.style.background = 'none';
+        favoriteButton.style.border = 'none';
+        favoriteButton.style.color = '#fff';
+        favoriteButton.style.fontSize = '20px';
+        favoriteButton.style.cursor = 'pointer';
+        favoriteButton.innerHTML = favoriteLines.has(line) ? '★' : '☆';
+        favoriteButton.onclick = async (e) => {
+    e.stopPropagation();
+    const lineSection = e.target.closest('.linesection');
+    const isFavorite = favoriteLines.has(line);
+    await animateFavoriteTransition(e.target, lineSection, line, isFavorite);
+};
+const lineTitle = document.createElement('div');
+        lineTitle.textContent = `Ligne ${lineNameText}`;
+        lineTitle.style.fontSize = '18px';
+        lineTitle.style.fontWeight = 'bold';
+        lineTitle.style.color = '#fff';
+        lineTitle.style.paddingRight = '30px';
+
+        lineSection.appendChild(lineTitle);
+        lineSection.appendChild(favoriteButton);
+
+        Object.keys(busesByLineAndDestination[line])
+            .sort()
+            .forEach(destination => {
+                const destinationSection = document.createElement('div');
+                destinationSection.style.marginTop = '5px';
+                destinationSection.style.paddingLeft = '10px';
+
+                const destinationTitle = document.createElement('div');
+                destinationTitle.textContent = `➜ ${destination}`;
+                destinationTitle.style.fontSize = '16px';
+                destinationTitle.style.fontWeight = 'bold';
+                destinationTitle.style.color = '#fff';
+                destinationSection.appendChild(destinationTitle);
+
+                busesByLineAndDestination[line][destination].forEach(bus => {
+                    const busItem = document.createElement('div');
+                    busItem.textContent = `Bus ${bus.parkNumber}`;
+                    busItem.style.cursor = 'pointer';
+                    busItem.classList.add('menu-item');
+                    busItem.style.fontFamily = 'League Spartan';
+                    busItem.style.color = 'white';
+                    busItem.style.padding = '5px 10px';
+                    busItem.style.marginBottom = '5px';
+                    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+                    busItem.style.borderRadius = '8px';
+
+                    lineSection.onclick = () => {
+                        const lineId = line;
+                        selectedLine = lineId;
+                        filterByLine(lineId);
+                        menu.style.display = 'none';
+                        isMenuVisible = false;
+                        const banner = document.getElementById('service-alerts-banner');
+                        const filtre = document.getElementById('filtre');
+                        banner.style.display = 'block';
+                        menubottom1.style.display = 'flex';
+                        setTimeout(() => {
+                            banner.classList.remove('slide-up');
+                            banner.classList.add('slide-down');
+                            menubottom1.classList.remove('slide-upb');
+                            menubottom1.classList.add('slide-downb');
+                            filtre.classList.remove('slide-upc');
+                            filtre.classList.add('slide-downc');
+                        }, 10);
+                    };
+
+                    busItem.onclick = () => {
+                        map.setView(bus.vehicle.getLatLng(), 17);
+                        bus.vehicle.openPopup();
+                        menu.style.display = 'none';
+                        isMenuVisible = false;
+                        if (selectedLine) {
+                            resetMapView();
+                        }
+                        event.stopPropagation();
+                    };
+
+                    destinationSection.appendChild(busItem);
+                });
+
+                lineSection.appendChild(destinationSection);
+            });
+
+        menu.appendChild(lineSection);
+    });
+}
+
+const menubottom1 = document.getElementById('menubtm');
+
+
+        function showMenu() {
+            const menu = document.getElementById('menu');
+            const banner = document.getElementById('service-alerts-banner');
+            const menubotom = document.getElementById('menubottom');
+            menu.style.display = 'block'; 
+            isMenuVisible = true; 
+            banner.classList.remove('slide-down');
+            banner.classList.add('slide-up');
+            menubottom1.classList.remove('slide-downb');
+            menubottom1.classList.add('slide-upb');
+            if (selectedLine) {
+        const filtre = document.getElementById('filtre');
+        filtre.classList.add('slide-upc');
+        filtre.classList.remove('slide-downc');
+        resetMapView();
+        }
+
+            banner.addEventListener('transitionend', () => {
+            if (banner.classList.contains('slide-up')) {
+            banner.style.display = 'none'; 
+            menubottom1.style.display = 'none';
+            }
+            }, { once: true });
+
+        }
+
+        const menubutton = document.getElementById('menubutton');
+        menubutton.onclick = showMenu; 
+
+
+        const closeMap = document.getElementById('map');
+        closeMap.onclick = () => {
+            const banner = document.getElementById('service-alerts-banner');
+            menu.style.display = 'none'; 
+            isMenuVisible = false; 
+            banner.style.display = 'block';
+            menubottom1.style.display = 'flex';
+    setTimeout(() => {
+        banner.classList.remove('slide-up');
+        banner.classList.add('slide-down');
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
+    }, 10);
+    
+        };
+
+        updateMenu();
+
+    } catch (error) {
+        console.error('Err récup des données ! ', error);
+        toastBottomRight.error('Aucun véhicule détécté ! ', error);
+
+    }
+}
+
+
+		
+async function fetchServiceAlerts() {
+    try {
+        const response = await fetch('proxy-cors/proxy_servicealerts.php'); 
+        const buffer = await response.arrayBuffer();
+        const data = await decodeProtobuf(buffer);
+
+        const activeAlerts = [];
+
+
+
+        if (Array.isArray(data.entity) && data.entity.length > 0) {
+            data.entity.forEach(entity => {
+                const alert = entity.alert;
+                if (alert && alert.headerText) {
+                    const translations = alert.headerText.translation || [];
+                    const description = alert.descriptionText?.translation || [];
+                    const headerText = translations.find(t => t.language === 'fr')?.text || 'Alerte de service';
+                    const descriptionText = description.find(t => t.language === 'fr')?.text || '';
+                    const effect = alert.effect;
+
+                    activeAlerts.push({
+                        header: headerText,
+                        description: descriptionText,
+                        effect: effect
+                    });
+                }
+            });
+        }
+
+        updateServiceAlertsBanner(activeAlerts);
+    } catch (error) {
+        console.error('Err récup service alerts ! ', error);
+    }
+}
+
+
+
+function getEmojiForEffect(effect) {
+    switch (effect) {
+        case 1:
+            return '🚧 Travaux | ';
+        case 6:
+            return '🚑 Accident | ';
+        case 3:
+            return '🌧️ Conditions climatiques | ';
+        case 7:
+            return '⚙️ Panne | ';
+        case 5:
+            return '✊ Manifestations | ';
+        case 4:
+            return '🔻 Service réduit | ';
+        case 2:
+            return '⚠️ Service modifié | ';
+        default:
+            return 'ℹ️ Information | ';
+    }
+}
+
+function updateServiceAlertsBanner(alerts) {
+    const banner = document.getElementById('service-alerts-banner');
+    const textElement = document.getElementById('service-alerts-text');
+    const alertsContent = document.getElementById('alerts-content');
+
+    if (alerts.length === 0) {
+        textElement.textContent = '✔️ Le réseau fonctionne normalement';
+        alertsContent.innerHTML = '<p style="color: green;">✔️ Le réseau fonctionne normalement</p>';
+        
+        if (!banner.classList.contains('slide-down')) {
+            banner.style.display = 'block';
+            setTimeout(() => banner.classList.add('slide-down'), 10);
+        }
+    } else {
+        const alertText = alerts.map(alert => {
+            const emoji = getEmojiForEffect(alert.effect);
+            return `${emoji} ${alert.header}`;
+        }).join(' | ');
+        textElement.textContent = alertText;
+
+        alertsContent.innerHTML = alerts.map(alert => {
+            const emoji = getEmojiForEffect(alert.effect);
+            return `
+                <div style="margin-bottom: 10px; padding: 10px; border: 2px solid #ddd; border-radius: 13px;">
+                    <h4>${emoji} ${alert.header}</h4>
+                    <p>${alert.description}</p>
+                </div>
+            `;
+        }).join('');
+
+        if (!banner.classList.contains('slide-down')) {
+            banner.style.display = 'block';
+            setTimeout(() => banner.classList.add('slide-down'), 10);
+
+        }
+    }
+
+    animateScrollingText();
+}
+
+
+
+
+function animateScrollingText() {
+    const textElement = document.getElementById('service-alerts-text');
+    let startPosition = textElement.parentElement.offsetWidth;
+
+    const speed = 2; 
+    function scroll() {
+        startPosition -= speed;
+        if (startPosition < -textElement.offsetWidth) {
+            startPosition = textElement.parentElement.offsetWidth;
+        }
+        textElement.style.transform = `translateX(${startPosition}px)`;
+        requestAnimationFrame(scroll);
+    }
+    scroll();
+}
+
+
+function showAlertsMenu() {
+    const menu = document.getElementById('alerts-menu');
+    const overlay = document.getElementById('alerts-overlay');
+
+    overlay.style.display = 'block';
+    menu.style.display = 'block';
+    menu.style.opacity = '0';
+    menu.style.animation = 'fadeInPopupSvc 0.5s forwards';
+}
+
+function closeAlertsMenu() {
+    const menu = document.getElementById('alerts-menu');
+    const overlay = document.getElementById('alerts-overlay');
+
+    menu.style.animation = 'fadeOutPopupSvc 0.5s forwards';
+    setTimeout(() => {
+        menu.style.display = 'none';
+        overlay.style.display = 'none';
+    }, 500);
+}
+
+document.getElementById('service-alerts-banner').addEventListener('click', function() {
+    showUpdatePopup('alerts.html');
+});
+
+
+
+
+
+
+let lastTripUpdateTimestamp = 0; 
+
+const worker = new Worker('worker.js');
+
+async function fetchTripUpdates() {
+    try {
+        const response = await fetch('proxy-cors/proxy_tripupdate.php');
+        const buffer = await response.arrayBuffer();
+        const data = await decodeProtobuf(buffer);
+
+        worker.postMessage(data);
+
+        worker.onmessage = function(e) {
+            const processedData = e.data;
+
+            tripUpdates = processedData;
+
+        };
+    } catch (error) {
+        console.error('Err récup trip updates ! ', error);
+    }
+}
+
+
+		
+
+
+async function main() {
+    await loadLineColors();
+    await Promise.all([
+        loadStopIds(),
+        loadLineTerminusData(),
+        loadGeoJsonLines(),
+        fetchTripUpdates(),
+        fetchVehiclePositions(),
+        fetchServiceAlerts()
+    ]);
+
+        await fetchVehiclePositions();
+        setTimeout(() => {
+            toastBottomRight.success('UX initialisée avec succès !');
+        }, 1000); 
+
+        function fetchRegularUpdates() {
+            fetchVehiclePositions();
+            fetchTripUpdates();
+
+            setTimeout(fetchRegularUpdates, 8000);
+        }
+
+        setTimeout(fetchRegularUpdates, 8000);
+}
+
+
+
+main();
+    </script>
+</html>
