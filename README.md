@@ -31,9 +31,6 @@ Accès via [http://localhost:3000](http://localhost:3000)
 - 📱 Interface responsive pour mobile et desktop
 
 ## 💻 Technologies
-
-- **Frontend** : HTML5, CSS3, JavaScript vanilla
-- **Backend** : Node.js
 - **API** : Data.gouv.fr (GTFS & GTFS-RT)
 - **Cartographie** : Leaflet.js
 
