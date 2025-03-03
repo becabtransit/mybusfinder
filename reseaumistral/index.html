@@ -1210,41 +1210,63 @@ setTimeout(() => {
     logoscr.classList.add('logoscrapp');
     }, 10); 
 
+    async function initMap() {
+    const data = await getSetvar();
+    let defaultCoords = [43.125463, 5.930077];
+    let defaultZoom = 13;
     
-
-        var map = L.map('map', {
-    zoomControl: false 
-}).setView([43.125463, 5.930077], 13);
-		L.popup({
+    if (data && data.view) {
+        try {
+            const viewConfig = data.view.match(/\[(.*?)\],\s*(\d+)/);
+            if (viewConfig && viewConfig.length >= 3) {
+                const coords = viewConfig[1].split(',').map(coord => parseFloat(coord.trim()));
+                defaultCoords = [coords[0], coords[1]];
+                defaultZoom = parseInt(viewConfig[2]);
+            }
+        } catch (error) {
+            console.error('Erreur lors du parsing des coordonnées:', error);
+        }
+    }
+    
+    var map = L.map('map', {
+        zoomControl: false 
+    }).setView(defaultCoords, defaultZoom);
+    
+    L.popup({
         closeButton: false
-		})
-        L.control.locate().addTo(map);
+    });
+    
+    L.control.locate().addTo(map);
+    
+    map.on('popupopen', function (e) {
+        const popupWrapper = e.popup._wrapper; 
+        popupWrapper.classList.remove('popup-zoom-out', 'popup-zoom-in');
+        setTimeout(() => {
+            popupWrapper.classList.add('popup-zoom-in');
+        }, 10); 
+    });
+    
+    map.on('popupclose', function (e) {
+        const popupWrapper = e.popup._wrapper; 
+        popupWrapper.classList.remove('popup-zoom-in');
+        popupWrapper.classList.add('popup-zoom-out');
+        popupWrapper.addEventListener(
+            'transitionend',
+            () => {
+                popupWrapper.classList.remove('popup-zoom-out');
+            },
+            { once: true }
+        );
+    });
+    
+    return map;
+}
 
-        map.on('popupopen', function (e) {
-    const popupWrapper = e.popup._wrapper; 
 
-    popupWrapper.classList.remove('popup-zoom-out', 'popup-zoom-in');
-
-    setTimeout(() => {
-        popupWrapper.classList.add('popup-zoom-in');
-    }, 10); 
-});
-
-map.on('popupclose', function (e) {
-    const popupWrapper = e.popup._wrapper; 
-
-    popupWrapper.classList.remove('popup-zoom-in');
-    popupWrapper.classList.add('popup-zoom-out');
-
-    popupWrapper.addEventListener(
-        'transitionend',
-        () => {
-            popupWrapper.classList.remove('popup-zoom-out');
-        },
-        { once: true }
-    );
-});
-
+let map;
+(async function() {
+    map = await initMap();
+})();
 
 
         const markers = {};
@@ -1465,35 +1487,54 @@ const doc = document;
         }
 		
         async function loadStopIds() {
-            const response = await fetch('gtfs/netex/stop-palmtransports.xml');
-            const text = await response.text();
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(text, "text/xml");
-
-            const stops = xmlDoc.getElementsByTagName('stop');
-            for (let stop of stops) {
-                const stopId = stop.getAttribute('id');
-                if (stopId) {
-                    stopIds.push(stopId);
+    try {
+        const response = await fetch('gtfs/stops.txt');
+        const text = await response.text();
+        const lines = text.split('\n');
+        const headers = lines[0].split(',');
+        const stopIdIndex = headers.indexOf('stop_id');
+        
+        if (stopIdIndex !== -1) {
+            lines.slice(1).forEach(line => {
+                if (line.trim()) {
+                    const columns = line.split(',');
+                    const stopId = columns[stopIdIndex];
+                    if (stopId) {
+                        stopIds.push(stopId);
+                    }
                 }
-            }
+            });
         }
-		
-		  
+    } catch (error) {
+        console.error('Erreur lors du chargement des IDs d\'arrêt:', error);
+    }
+}
 
-        async function loadLineTerminusData() {
-            const response = await fetch('gtfs/netex/stop-palmtransports.xml');
-            const text = await response.text();
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(text, "text/xml");
-
-            const quays = xmlDoc.getElementsByTagName('Quay');
-            for (let quay of quays) {
-                const quayId = quay.getAttribute('id');
-                const quayName = quay.getElementsByTagName('Name')[0].textContent;
-                stopNameMap[quayId] = quayName;
-            }
+async function loadLineTerminusData() {
+    try {
+        const response = await fetch('gtfs/stops.txt');
+        const text = await response.text();
+        const lines = text.split('\n');
+        const headers = lines[0].split(',');
+        const stopIdIndex = headers.indexOf('stop_id');
+        const stopNameIndex = headers.indexOf('stop_name');
+        
+        if (stopIdIndex !== -1 && stopNameIndex !== -1) {
+            lines.slice(1).forEach(line => {
+                if (line.trim()) {
+                    const columns = line.split(',');
+                    const stopId = columns[stopIdIndex];
+                    const stopName = columns[stopNameIndex];
+                    if (stopId && stopName) {
+                        stopNameMap[stopId] = stopName;
+                    }
+                }
+            });
         }
+    } catch (error) {
+        console.error('Erreur lors du chargement des noms d\'arrêt:', error);
+    }
+}
 
         async function decodeProtobuf(buffer) {
             const root = await protobuf.load('gtfs-realtime.proto');
