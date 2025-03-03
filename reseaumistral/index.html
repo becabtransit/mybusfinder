@@ -1422,13 +1422,11 @@ async function extractGTFSFiles() {
 
 async function loadLineColors(routesFileContent) {
     try {
-        // Vérifiez si routesFileContent existe
         if (!routesFileContent) {
             console.error('Contenu du fichier routes.txt est undefined');
             return;
         }
         
-        // Récupérez data ici si nécessaire
         const data = await getSetvar();
         if (!data) {
             console.error('Échec récupération des variables de config');
@@ -1486,9 +1484,18 @@ async function loadLineColors(routesFileContent) {
 
 async function loadStopIds(stopsFileContent) {
     try {
+        if (!stopsFileContent) {
+            console.error('Contenu du fichier stops.txt est undefined');
+            return;
+        }
+        
         const lines = stopsFileContent.split('\n');
+        console.log(`Fichier stops.txt contient ${lines.length} lignes`);
+        
         const headers = lines[0].split(',');
         const stopIdIndex = headers.indexOf('stop_id');
+        
+        console.log(`Index stop_id trouvé: ${stopIdIndex}`);
         
         if (stopIdIndex !== -1) {
             lines.slice(1).forEach(line => {
@@ -1500,6 +1507,10 @@ async function loadStopIds(stopsFileContent) {
                     }
                 }
             });
+            console.log(`Nombre d'arrêts chargés: ${stopIds.length}`);
+        } else {
+            console.error('Entête stop_id non trouvé dans stops.txt');
+            console.log('Headers disponibles:', headers);
         }
     } catch (error) {
         console.error('Erreur lors du chargement des IDs d\'arrêt:', error);
@@ -1508,10 +1519,17 @@ async function loadStopIds(stopsFileContent) {
 
 async function loadLineTerminusData(stopsFileContent) {
     try {
+        if (!stopsFileContent) {
+            console.error('Contenu du fichier stops.txt est undefined');
+            return;
+        }
+        
         const lines = stopsFileContent.split('\n');
         const headers = lines[0].split(',');
         const stopIdIndex = headers.indexOf('stop_id');
         const stopNameIndex = headers.indexOf('stop_name');
+        
+        console.log(`Indices trouvés: stop_id=${stopIdIndex}, stop_name=${stopNameIndex}`);
         
         if (stopIdIndex !== -1 && stopNameIndex !== -1) {
             lines.slice(1).forEach(line => {
@@ -1527,6 +1545,9 @@ async function loadLineTerminusData(stopsFileContent) {
                     }
                 }
             });
+            console.log(`Noms d'arrêts chargés: ${Object.keys(stopNameMap).length}`);
+        } else {
+            console.error('Entêtes requis non trouvés dans stops.txt');
         }
     } catch (error) {
         console.error('Erreur lors du chargement des noms d\'arrêt:', error);
@@ -1546,32 +1567,15 @@ async function initializeGTFS() {
             console.log('Fichier routes.txt trouvé, taille:', extractedFiles['routes.txt'].length);
             await loadLineColors(extractedFiles['routes.txt']);
         } else {
-            const routesFile = Object.keys(extractedFiles).find(key => 
-                key.toLowerCase().includes('routes') && key.toLowerCase().endsWith('.txt'));
-            
-            if (routesFile) {
-                console.log(`Fichier routes.txt trouvé sous le nom ${routesFile}`);
-                await loadLineColors(extractedFiles[routesFile]);
-            } else {
-                console.error('Fichier routes.txt non trouvé dans l\'archive GTFS');
-                console.log('Fichiers disponibles:', Object.keys(extractedFiles));
-            }
+            console.error('Fichier routes.txt non trouvé dans l\'archive GTFS');
         }
         
         if (extractedFiles['stops.txt']) {
+            console.log('Fichier stops.txt trouvé, taille:', extractedFiles['stops.txt'].length);
             await loadStopIds(extractedFiles['stops.txt']);
             await loadLineTerminusData(extractedFiles['stops.txt']);
         } else {
-            const stopsFile = Object.keys(extractedFiles).find(key => 
-                key.toLowerCase().includes('stops') && key.toLowerCase().endsWith('.txt'));
-            
-            if (stopsFile) {
-                console.log(`Fichier stops.txt trouvé sous le nom ${stopsFile}`);
-                await loadStopIds(extractedFiles[stopsFile]);
-                await loadLineTerminusData(extractedFiles[stopsFile]);
-            } else {
-                console.error('Fichier stops.txt non trouvé dans l\'archive GTFS');
-            }
+            console.error('Fichier stops.txt non trouvé dans l\'archive GTFS');
         }
         
         return {
@@ -1585,6 +1589,7 @@ async function initializeGTFS() {
         throw error;
     }
 }
+
 async function decodeProtobuf(buffer) {
             const root = await protobuf.load('gtfs-realtime.proto');
             const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
