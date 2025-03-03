@@ -1403,7 +1403,6 @@ async function extractGTFSFiles() {
             if (!zipEntry.dir) {
                 const promise = zipEntry.async("string").then(content => {
                     extractedFiles[relativePath] = content;
-                    console.log(`Fichier extrait: ${relativePath}`);
                 });
                 filePromises.push(promise);
             }
@@ -1411,11 +1410,9 @@ async function extractGTFSFiles() {
         
         await Promise.all(filePromises);
         
-        console.log("Fichiers extraits:", Object.keys(extractedFiles));
         
         return extractedFiles;
     } catch (error) {
-        console.error('Erreur lors de l\'extraction des fichiers GTFS:', error);
         throw error;
     }
 }
@@ -1423,29 +1420,25 @@ async function extractGTFSFiles() {
 async function loadLineColors(routesFileContent) {
     try {
         if (!routesFileContent) {
-            console.error('Contenu du fichier routes.txt est undefined');
             return;
         }
         
         const data = await getSetvar();
         if (!data) {
-            console.error('Échec récupération des variables de config');
+            console.error('Échec récupération variables de config');
             return;
         }
         
         const lines = routesFileContent.split('\n');
-        console.log(`Fichier routes.txt contient ${lines.length} lignes`);
         
         const headers = lines[0].split(',');
         const routeIdIndex = headers.indexOf('route_id');
         const routeLongNameIndex = headers.indexOf('route_short_name');
         const routeColorIndex = headers.indexOf('route_color');
         
-        console.log(`Indices trouvés: route_id=${routeIdIndex}, route_short_name=${routeLongNameIndex}, route_color=${routeColorIndex}`);
         
         if (routeIdIndex === -1 || routeLongNameIndex === -1 || routeColorIndex === -1) {
-            console.error('Impossible de trouver tous les entêtes requis dans fichier routes.txt');
-            console.log('Headers disponibles:', headers);
+            console.error('Impossible de trouver tous les entêttes requis dans fichier routes.txt');
             return;
         }
         
@@ -1457,7 +1450,6 @@ async function loadLineColors(routesFileContent) {
             const columns = line.split(',');
             
             if (columns.length <= Math.max(routeIdIndex, routeLongNameIndex, routeColorIndex)) {
-                console.warn('Ligne GTFS incomplète ignorée', line);
                 return;
             }
             
@@ -1475,9 +1467,8 @@ async function loadLineColors(routesFileContent) {
             }
         });
         
-        console.log('Chargement des couleurs de lignes terminé:', Object.keys(lineColors).length, 'lignes trouvées');
     } catch (error) {
-        console.error('Erreur lors du chargement des couleurs de lignes:', error);
+        console.error('Erreur', error);
     }
 }
 
@@ -1485,17 +1476,14 @@ async function loadLineColors(routesFileContent) {
 async function loadStopIds(stopsFileContent) {
     try {
         if (!stopsFileContent) {
-            console.error('Contenu du fichier stops.txt est undefined');
             return;
         }
         
         const lines = stopsFileContent.split('\n');
-        console.log(`Fichier stops.txt contient ${lines.length} lignes`);
         
         const headers = lines[0].split(',');
         const stopIdIndex = headers.indexOf('stop_id');
         
-        console.log(`Index stop_id trouvé: ${stopIdIndex}`);
         
         if (stopIdIndex !== -1) {
             lines.slice(1).forEach(line => {
@@ -1507,20 +1495,16 @@ async function loadStopIds(stopsFileContent) {
                     }
                 }
             });
-            console.log(`Nombre d'arrêts chargés: ${stopIds.length}`);
         } else {
-            console.error('Entête stop_id non trouvé dans stops.txt');
-            console.log('Headers disponibles:', headers);
         }
     } catch (error) {
-        console.error('Erreur lors du chargement des IDs d\'arrêt:', error);
+        console.error('Erreur', error);
     }
 }
 
 async function loadLineTerminusData(stopsFileContent) {
     try {
         if (!stopsFileContent) {
-            console.error('Contenu du fichier stops.txt est undefined');
             return;
         }
         
@@ -1529,7 +1513,6 @@ async function loadLineTerminusData(stopsFileContent) {
         const stopIdIndex = headers.indexOf('stop_id');
         const stopNameIndex = headers.indexOf('stop_name');
         
-        console.log(`Indices trouvés: stop_id=${stopIdIndex}, stop_name=${stopNameIndex}`);
         
         if (stopIdIndex !== -1 && stopNameIndex !== -1) {
             lines.slice(1).forEach(line => {
@@ -1545,12 +1528,10 @@ async function loadLineTerminusData(stopsFileContent) {
                     }
                 }
             });
-            console.log(`Noms d'arrêts chargés: ${Object.keys(stopNameMap).length}`);
         } else {
-            console.error('Entêtes requis non trouvés dans stops.txt');
         }
     } catch (error) {
-        console.error('Erreur lors du chargement des noms d\'arrêt:', error);
+        console.error('Erreur', error);
     }
 }
 
@@ -1564,18 +1545,15 @@ async function initializeGTFS() {
         const extractedFiles = await extractGTFSFiles();
         
         if (extractedFiles['routes.txt']) {
-            console.log('Fichier routes.txt trouvé, taille:', extractedFiles['routes.txt'].length);
             await loadLineColors(extractedFiles['routes.txt']);
         } else {
-            console.error('Fichier routes.txt non trouvé dans l\'archive GTFS');
         }
         
         if (extractedFiles['stops.txt']) {
-            console.log('Fichier stops.txt trouvé, taille:', extractedFiles['stops.txt'].length);
             await loadStopIds(extractedFiles['stops.txt']);
             await loadLineTerminusData(extractedFiles['stops.txt']);
         } else {
-            console.error('Fichier stops.txt non trouvé dans l\'archive GTFS');
+            console.error('Fichier stops.txt non trouver');
         }
         
         return {
@@ -1585,7 +1563,7 @@ async function initializeGTFS() {
             stopNameMap
         };
     } catch (error) {
-        console.error('Erreur lors de l\'initialisation GTFS:', error);
+        console.error('Erreur lors de l\'initialisation data théorique gtfs', error);
         throw error;
     }
 }
@@ -3083,7 +3061,6 @@ async function fetchTripUpdates() {
 async function main() {
     await loadLineColors();
     await Promise.all([
-    await initializeGTFS(),
         loadStopIds(),
         loadLineTerminusData(),
         loadGeoJsonLines(),
