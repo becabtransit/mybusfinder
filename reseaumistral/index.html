@@ -1283,10 +1283,6 @@ setTimeout(() => {
 
 
         const markers = {};
-		        const lineTerminusMap = {
-            'LINE-1': { '0': 'Terminus A', '1': 'Terminus C' },
-            'LINE-2': { '0': 'Terminus B', '1': 'Terminus D' }
-        };
         const stopNameMap = {};
         const lineColors = {};
         const lineName = {};
@@ -1295,38 +1291,17 @@ setTimeout(() => {
         let geoJsonLines = []; 
         let tripUpdates = {};
         let loadingInterval;
-        function randomDelay(min = 500, max = 1500) {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
+
 
         function showLoadingScreen() {
     const loadingScreen = document.getElementById('loading-screen');
     loadingScreen.style.display = 'flex';
 
 
-    loadingInterval = setInterval(() => {
-        
-
-    }, 1000);
+    loadingInterval = setInterval(() => {}, 1000);
 }
 		
-function isMobileDevice() {
-            return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        }
 
-        function isStandalone() {
-            return window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-        }
-
-        function showSmartphonePopup() {
-            const popup = document.getElementById('smartphone-popup');
-            popup.style.display = 'flex';
-        }
-
-        function closeSmartphonePopup() {
-            const popup = document.getElementById('smartphone-popup');
-            popup.style.display = 'none';
-        }
 
         var audio = new Audio("src/sounds/musique.mp3"); 
 
@@ -1406,38 +1381,6 @@ document.getElementById('close-popup').addEventListener('click', closeUpdatePopu
 
 
 
-        window.onload = function() {
-
-            const closeSmartphoneButton = document.getElementById('close-smartphone-popup');
-            const closeUpdateButton = document.getElementById('close-popup');
-
-            if (closeSmartphoneButton) {
-                closeSmartphoneButton.addEventListener('click', closeSmartphonePopup);
-            }
-
-            if (closeUpdateButton) {
-                closeUpdateButton.addEventListener('click', closeUpdatePopup);
-            }
-
-            const shareButton = document.getElementById('share-button');
-            if (shareButton) {
-                shareButton.addEventListener('click', openShareMenu);
-            }
-        };
-
-        function openShareMenu() {
-            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-            if (isIOS) {
-                alert("Pour ajouter cette application à votre écran d'accueil, cliquez sur l'icône de partage (carré avec une flèche vers le haut) puis sélectionnez Ajouter à l'écran d'accueil.");
-            } else {
-                alert("Pour ajouter cette application à votre écran d'accueil, appuyez sur les 3 points situés en haut à droite de votre navigateur, puis sélectionnez Ajouter à l'écran d'accueil.");
-            }
-        }
-
-document.getElementById('close-popup').addEventListener('click', closeUpdatePopup);
-
-
-
 
 function hideLoadingScreen() {
     setTimeout(() => {
@@ -1463,38 +1406,67 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('vehiclesLoaded', hideLoadingScreen);
 });
 document.addEventListener('DOMContentLoaded', initializeApp);
-
 const doc = document;
-
-
-
-    showLoadingScreen();
+showLoadingScreen();
 
 
 
 
 
 
-        async function loadLineColors() {
-
-            const data = await getSetvar();
-            if (data) {
-            const response = await fetch('gtfs/routes.txt');
-            const text = await response.text();
-            const lines = text.split('\n').slice(`${data.slicelinecolor}`);
-            lines.forEach(line => {
-                const columns = line.split(',');
-                const routeId = columns[`${data.routeid}`];
-				const routeLongName = `#${columns[`${data.longname}`]}`;
-                const routeColor = `#${columns[`${data.color}`]}`;
-				let cleanedLineName = routeLongName
-  			  .replace("#", "")
+async function loadLineColors() {
+    try {
+        const data = await getSetvar();
+        if (!data) {
+            console.error('Échec de récupération des variables de configuration');
+            return;
+        }
+        
+        const response = await fetch('gtfs/routes.txt');
+        const text = await response.text();
+        const lines = text.split('\n');
+        
+        const headers = lines[0].split(',');
+        const routeIdIndex = headers.indexOf('route_id');
+        const routeLongNameIndex = headers.indexOf('route_long_name');
+        const routeColorIndex = headers.indexOf('route_color');
+        
+        if (routeIdIndex === -1 || routeLongNameIndex === -1 || routeColorIndex === -1) {
+            console.error('Impossible de trouver tous les en-têtes requis dans le fichier GTFS');
+            return;
+        }
+        
+        const startIndex = data.slicelinecolor ? parseInt(data.slicelinecolor) : 1;
+        
+        lines.slice(startIndex).forEach(line => {
+            if (!line.trim()) return; 
+            
+            const columns = line.split(',');
+            
+            if (columns.length <= Math.max(routeIdIndex, routeLongNameIndex, routeColorIndex)) {
+                console.warn('Ligne GTFS incomplète ignorée:', line);
+                return;
+            }
+            
+            const routeId = columns[routeIdIndex];
+            const routeLongName = columns[routeLongNameIndex];
+            let routeColor = columns[routeColorIndex];
+            if (routeColor && !routeColor.startsWith('#') && routeColor.trim() !== '') {
+                routeColor = `#${routeColor}`;
+            }
+            
+            let cleanedLineName = routeLongName ? routeLongName.replace(/"/g, '').trim() : '';
+                if (routeId) {
                 lineColors[routeId] = routeColor;
-				lineName[routeId] = cleanedLineName;
-				
-            });
-        }
-        }
+                lineName[routeId] = cleanedLineName;
+            }
+        });
+        
+        console.log('Chargement des couleurs de lignes terminé:', Object.keys(lineColors).length, 'lignes trouvées');
+    } catch (error) {
+        console.error('Erreur lors du chargement des couleurs de lignes:', error);
+    }
+}
 		
         async function loadStopIds() {
     try {
@@ -1534,7 +1506,10 @@ async function loadLineTerminusData() {
                 if (line.trim()) {
                     const columns = line.split(',');
                     const stopId = columns[stopIdIndex];
-                    const stopName = columns[stopNameIndex];
+                    let stopName = columns[stopNameIndex];
+                    
+                    stopName = stopName.replace(/"/g, '');
+                    
                     if (stopId && stopName) {
                         stopNameMap[stopId] = stopName;
                     }
@@ -1545,7 +1520,6 @@ async function loadLineTerminusData() {
         console.error('Erreur lors du chargement des noms d\'arrêt:', error);
     }
 }
-
         async function decodeProtobuf(buffer) {
             const root = await protobuf.load('gtfs-realtime.proto');
             const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
