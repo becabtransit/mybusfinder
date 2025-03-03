@@ -1157,7 +1157,11 @@ async function getSetvar() {
         const setvar1 = await response1.text();
         const geojson = setvar1.trim();  
 
-        return { colorbkg, view, geojson };
+        const response2 = await fetch('setvar/settings/geojson/link.txt');
+        const setvar2 = await response2.text();
+        const gtfslink = setvar2.trim();  
+
+        return { colorbkg, view, geojson, gtfslink };
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
@@ -1388,17 +1392,49 @@ showLoadingScreen();
 
 
 
-async function loadLineColors() {
+async function extractGTFSFiles() {
+    try {
+        const data = await getSetvar();
+        const response = await fetch(`${data.gtfslink}`);
+        if (!response.ok) {
+            throw new Error(`Échec du téléchargement: ${response.status} ${response.statusText}`);
+        }
+        
+        const zipData = await response.arrayBuffer();
+        
+        const zip = await JSZip.loadAsync(zipData);
+        
+        const extractedFiles = {};
+        
+        const filePromises = [];
+        zip.forEach((relativePath, zipEntry) => {
+            if (!zipEntry.dir) {
+                const promise = zipEntry.async("string").then(content => {
+                    extractedFiles[relativePath] = content;
+                    console.log(`Fichier extrait: ${relativePath}`);
+                });
+                filePromises.push(promise);
+            }
+        });
+        
+        await Promise.all(filePromises);
+        
+        return extractedFiles;
+    } catch (error) {
+        console.error('Erreur lors de l\'extraction des fichiers GTFS:', error);
+        throw error;
+    }
+}
+
+async function loadLineColors(routesFileContent) {
     try {
         const data = await getSetvar();
         if (!data) {
-            console.error('echec récup des variables de config');
+            console.error('Échec récupération des variables de config');
             return;
         }
         
-        const response = await fetch('gtfs/routes.txt');
-        const text = await response.text();
-        const lines = text.split('\n');
+        const lines = routesFileContent.split('\n');
         
         const headers = lines[0].split(',');
         const routeIdIndex = headers.indexOf('route_id');
@@ -1406,7 +1442,7 @@ async function loadLineColors() {
         const routeColorIndex = headers.indexOf('route_color');
         
         if (routeIdIndex === -1 || routeLongNameIndex === -1 || routeColorIndex === -1) {
-            console.error('Impossible de trouver tous les entettes requis dans le fichier gtfs');
+            console.error('Impossible de trouver tous les entêtes requis dans le fichier routes.txt');
             return;
         }
         
@@ -1418,7 +1454,7 @@ async function loadLineColors() {
             const columns = line.split(',');
             
             if (columns.length <= Math.max(routeIdIndex, routeLongNameIndex, routeColorIndex)) {
-                console.warn('Ligne GTFS incomplete ignorée', line);
+                console.warn('Ligne GTFS incomplète ignorée', line);
                 return;
             }
             
@@ -1430,7 +1466,7 @@ async function loadLineColors() {
             }
             
             let cleanedLineName = routeLongName ? routeLongName.replace(/"/g, '').trim() : '';
-                if (routeId) {
+            if (routeId) {
                 lineColors[routeId] = routeColor;
                 lineName[routeId] = cleanedLineName;
             }
@@ -1440,12 +1476,10 @@ async function loadLineColors() {
         console.error('Erreur lors du chargement des couleurs de lignes:', error);
     }
 }
-		
-        async function loadStopIds() {
+
+async function loadStopIds(stopsFileContent) {
     try {
-        const response = await fetch('gtfs/stops.txt');
-        const text = await response.text();
-        const lines = text.split('\n');
+        const lines = stopsFileContent.split('\n');
         const headers = lines[0].split(',');
         const stopIdIndex = headers.indexOf('stop_id');
         
@@ -1465,11 +1499,9 @@ async function loadLineColors() {
     }
 }
 
-async function loadLineTerminusData() {
+async function loadLineTerminusData(stopsFileContent) {
     try {
-        const response = await fetch('gtfs/stops.txt');
-        const text = await response.text();
-        const lines = text.split('\n');
+        const lines = stopsFileContent.split('\n');
         const headers = lines[0].split(',');
         const stopIdIndex = headers.indexOf('stop_id');
         const stopNameIndex = headers.indexOf('stop_name');
@@ -1493,7 +1525,43 @@ async function loadLineTerminusData() {
         console.error('Erreur lors du chargement des noms d\'arrêt:', error);
     }
 }
-        async function decodeProtobuf(buffer) {
+
+async function initializeGTFS() {
+    try {
+        const lineColors = {};
+        const lineName = {};
+        const stopIds = [];
+        const stopNameMap = {};
+        
+        const data = await getSetvar();
+        const extractedFiles = await extractGTFSFiles(`${data.gtfslink}`);
+        
+        if (extractedFiles['routes.txt']) {
+            await loadLineColors(extractedFiles['routes.txt']);
+        } else {
+            console.error('Fichier routes.txt non trouvé dans l\'archive GTFS');
+        }
+        
+        if (extractedFiles['stops.txt']) {
+            await loadStopIds(extractedFiles['stops.txt']);
+            await loadLineTerminusData(extractedFiles['stops.txt']);
+        } else {
+            console.error('Fichier stops.txt non trouvé dans l\'archive GTFS');
+        }
+        
+        return {
+            lineColors,
+            lineName,
+            stopIds,
+            stopNameMap
+        };
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation GTFS:', error);
+        throw error;
+    }
+}
+
+async function decodeProtobuf(buffer) {
             const root = await protobuf.load('gtfs-realtime.proto');
             const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
             const message = FeedMessage.decode(new Uint8Array(buffer));
@@ -1557,7 +1625,8 @@ async function loadLineTerminusData() {
 }
 
 async function loadGeoJsonLines() {
-    const response = await fetch('gtfs/lignes-map/palmbus.geojson');
+    const data = await getSetvar();
+    const response = await fetch(`${data.geojson}`);
     const geoJsonData = await response.json();
 
     L.geoJSON(geoJsonData, {
@@ -2986,6 +3055,7 @@ async function fetchTripUpdates() {
 async function main() {
     await loadLineColors();
     await Promise.all([
+    await initializeGTFS(),
         loadStopIds(),
         loadLineTerminusData(),
         loadGeoJsonLines(),
