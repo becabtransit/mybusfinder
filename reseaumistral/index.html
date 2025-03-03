@@ -1381,20 +1381,18 @@ const doc = document;
 showLoadingScreen();
 
 
-
+let data;
 
 
 
 async function extractGTFSFiles() {
     try {
-        const data = await getSetvar();
         const response = await fetch('proxy-cors/proxy_gtfs.php');
         if (!response.ok) {
             throw new Error(`Échec du téléchargement: ${response.status} ${response.statusText}`);
         }
         
         const zipData = await response.arrayBuffer();
-        
         const zip = await JSZip.loadAsync(zipData);
         
         const extractedFiles = {};
@@ -1411,7 +1409,6 @@ async function extractGTFSFiles() {
         });
         
         await Promise.all(filePromises);
-        
         return extractedFiles;
     } catch (error) {
         console.error('Erreur lors de l\'extraction des fichiers GTFS:', error);
@@ -1421,7 +1418,7 @@ async function extractGTFSFiles() {
 
 async function loadLineColors(routesFileContent) {
     try {
-        const data = await getSetvar();
+        data = data || await getSetvar();
         if (!data) {
             console.error('Échec récupération des variables de config');
             return;
@@ -1465,6 +1462,7 @@ async function loadLineColors(routesFileContent) {
             }
         });
         
+        console.log('Chargement des couleurs de lignes terminé:', Object.keys(lineColors).length, 'lignes trouvées');
     } catch (error) {
         console.error('Erreur lors du chargement des couleurs de lignes:', error);
     }
@@ -1521,13 +1519,12 @@ async function loadLineTerminusData(stopsFileContent) {
 
 async function initializeGTFS() {
     try {
-        const lineColors = {};
-        const lineName = {};
-        const stopIds = [];
-        const stopNameMap = {};
+        lineColors = {};
+        lineName = {};
+        stopIds = [];
+        stopNameMap = {};
         
-        const data = await getSetvar();
-        const extractedFiles = await extractGTFSFiles('proxy-cors/proxy_gtfs.php');
+        const extractedFiles = await extractGTFSFiles();
         
         if (extractedFiles['routes.txt']) {
             await loadLineColors(extractedFiles['routes.txt']);
@@ -1618,7 +1615,6 @@ async function decodeProtobuf(buffer) {
 }
 
 async function loadGeoJsonLines() {
-    const data = await getSetvar();
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
 
