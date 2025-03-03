@@ -1153,7 +1153,11 @@ async function getSetvar() {
         const setvar = await response.text();
         const view = setvar.trim();  
 
-        return { colorbkg, view };
+        const response1 = await fetch('setvar/settings/geojson/link.txt');
+        const setvar1 = await response1.text();
+        const geojson = setvar1.trim();  
+
+        return { colorbkg, view, geojson };
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
@@ -1414,7 +1418,7 @@ async function loadLineColors() {
             const columns = line.split(',');
             
             if (columns.length <= Math.max(routeIdIndex, routeLongNameIndex, routeColorIndex)) {
-                console.warn('Ligne GTFS incomplète ignorée:', line);
+                console.warn('Ligne GTFS incomplete ignorée', line);
                 return;
             }
             
@@ -1432,7 +1436,6 @@ async function loadLineColors() {
             }
         });
         
-        console.log('Chargement des couleurs de lignes terminé:', Object.keys(lineColors).length, 'lignes trouvées');
     } catch (error) {
         console.error('Erreur lors du chargement des couleurs de lignes:', error);
     }
