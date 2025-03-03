@@ -1158,11 +1158,7 @@ async function getSetvar() {
         const setvar1 = await response1.text();
         const geojson = setvar1.trim();  
 
-        const response2 = await fetch('setvar/settings/gtfs/linkgtfs.txt');
-        const setvar2 = await response2.text();
-        const gtfslink = setvar2.trim();  
-
-        return { colorbkg, view, geojson, gtfslink };
+        return { colorbkg, view, geojson };
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
@@ -1396,7 +1392,7 @@ showLoadingScreen();
 async function extractGTFSFiles() {
     try {
         const data = await getSetvar();
-        const response = await fetch(`${data.gtfslink}`);
+        const response = await fetch('proxy-cors/proxy_gtfs.php');
         if (!response.ok) {
             throw new Error(`Échec du téléchargement: ${response.status} ${response.statusText}`);
         }
@@ -1443,7 +1439,7 @@ async function loadLineColors(routesFileContent) {
         const routeColorIndex = headers.indexOf('route_color');
         
         if (routeIdIndex === -1 || routeLongNameIndex === -1 || routeColorIndex === -1) {
-            console.error('Impossible de trouver tous les entêtes requis dans le fichier routes.txt');
+            console.error('Impossible de trouver tous les entêtes requis dans fichier routestxt');
             return;
         }
         
@@ -1535,7 +1531,7 @@ async function initializeGTFS() {
         const stopNameMap = {};
         
         const data = await getSetvar();
-        const extractedFiles = await extractGTFSFiles(`${data.gtfslink}`);
+        const extractedFiles = await extractGTFSFiles('proxy-cors/proxy_gtfs.php');
         
         if (extractedFiles['routes.txt']) {
             await loadLineColors(extractedFiles['routes.txt']);
