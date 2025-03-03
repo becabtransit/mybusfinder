@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horaires de Bus</title>
+    <style>
+@import url('https://fonts.googleapis.com/css?family=League+Spartan:400,700');
+
+body {
+    font-family: 'League Spartan', sans-serif;
+    margin: 0;
+    padding: 0;
+    color: #333;
+    background-color: #f5f5f5;
+    transition: background-color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+h1, h2, h3, h4 {
+    margin: 0.5em 0;
+    transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.container {
+    margin: 0 auto;
+    padding: 15px;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    margin-top: 20px;
+    overflow: hidden;
+}
+
+.bus-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.bus-item {
+    padding: 12px 18px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), 
+                box-shadow 0.5s cubic-bezier(0.25, 1.5, 0.5, 1),
+                background-color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    background-color: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+.bus-item:hover {
+    transform: scale(0.98);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+    background-color: #f9f9f9;
+}
+
+.bus-item:active {
+    transform: translateY(0) scale(0.95);
+    transition: transform 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.bus-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 120%;
+    height: 100%;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transform: skewX(-25deg);
+    transition: left 1s cubic-bezier(0.25, 1.5, 0.5, 1);
+    z-index: 1;
+}
+
+.bus-item:hover::before {
+    left: 120%;
+}
+
+.bus-item div {
+    display: flex;
+    align-items: center;
+    margin: 5px 0;
+    position: relative;
+    z-index: 2;
+}
+
+.line-number {
+    font-size: 1.3em;
+    font-weight: bold;
+    transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.line-details {
+    display: flex;
+    align-items: center;
+}
+
+.bus-item:hover .color-box {
+    transform: scale(1.2) rotate(45deg);
+}
+
+.initial-fade-in {
+    animation: fadeIn 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.hidden {
+    display: none !important;
+}
+
+.controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding: 0 10px;
+}
+
+.btn {
+    padding: 10px 18px;
+    background-color: #363636;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    font-weight: bold;
+    box-shadow: 0 3px 10px rgba(0, 123, 255, 0.2);
+}
+
+.btn:hover {
+    background-color: #363636;
+    transform: scale(0.98);
+    box-shadow: 0 6px 15px rgba(0, 123, 255, 0.3);
+}
+
+.btn:active {
+    transform: scale(0.95);
+}
+
+.btn-back {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-back svg {
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.btn-back:hover svg {
+    transform: translateX(-5px);
+}
+
+select {
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-family: inherit;
+    background-color: #f9f9f9;
+    cursor: pointer;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    font-size: 0.95em;
+}
+
+select:hover {
+    border-color: #363636;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+select:focus {
+    outline: none;
+    border-color: #363636;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+#loading-indicator {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 120px;
+    flex-direction: column;
+}
+
+.spinner {
+    width: 45px;
+    height: 45px;
+    border: 4px solid rgba(0, 123, 255, 0.2);
+    border-radius: 50%;
+    border-top: 4px solid #363636;
+    animation: spin 1s cubic-bezier(0.25, 1.5, 0.5, 1) infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#error-message {
+    text-align: center;
+    color: #dc3545;
+    padding: 20px;
+    background-color: #f8d7da;
+    border-radius: 10px;
+    animation: shakeError 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    margin: 20px 0;
+    box-shadow: 0 3px 10px rgba(220, 53, 69, 0.1);
+}
+
+@keyframes shakeError {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-8px); }
+    40%, 80% { transform: translateX(8px); }
+}
+
+.page-transition {
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), 
+                opacity 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), 
+                scale 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), 
+                filter 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(50px);
+}
+
+.page-transition.slide-in {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+}
+
+
+
+
+.schedule-row {
+    display: flex;
+    padding: 12px 10px;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.schedule-row:hover {
+    background-color: #f5f9ff;
+}
+
+.schedule-row span {
+    font-weight: bold;
+    width: 60px;
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.schedule-row:hover span {
+    transform: scale(1.1);
+    color: #363636;
+}
+
+.schedule-row span1 {
+    flex: 1;
+}
+
+#schedule-container {
+    margin-top: 25px;
+    overflow-y: auto;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 10px;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.05);
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+#schedule-container:hover {
+    background-color: #f0f7ff;
+}
+
+.textpop {
+    margin-bottom: 25px;
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    padding: 5px 10px;
+}
+
+.textpop:hover {
+    transform: translateX(5px);
+}
+
+.textpop h1 {
+    font-size: 1.6em;
+    color: #363636;
+    transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.textpop:hover h1 {
+    color: #363636;
+}
+
+.textpop h4 {
+    font-size: 1em;
+    color: #666;
+    font-weight: normal;
+    transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.textpop:hover h4 {
+    color: #333;
+}
+
+.view {
+    display: none;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.view.active {
+    display: block;
+    animation: fadeIn 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.destination-item, .stop-item {
+    padding: 18px;
+    margin: 12px 0;
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.destination-item::before, .stop-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 120%;
+    height: 100%;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transform: skewX(-25deg);
+    transition: left 1s cubic-bezier(0.25, 1.5, 0.5, 1);
+    z-index: 1;
+}
+
+.destination-item:hover::before, .stop-item:hover::before {
+    left: 120%;
+}
+
+.destination-item:hover, .stop-item:hover {
+    transform: translateY(-5px) translateX(3px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    background-color: #f9f9f9;
+}
+
+.destination-item:active, .stop-item:active {
+    transform: translateY(0) scale(0.98);
+    transition: transform 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loading-view" class="view active">
+            <div id="loading-indicator">
+                <div class="spinner"></div>
+                <p style="margin-top: 15px; color: #666;">Chargement des données...</p>
+            </div>
+        </div>
+        
+        <div id="error-view" class="view">
+            <div id="error-message">
+                Erreur lors du chargement des données. Veuillez réessayer.
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn" onclick="loadData()">Réessayer</button>
+            </div>
+        </div>
+        
+        <div id="lines-view" class="view page-transition">
+            <h2>Sélectionnez une ligne</h2>
+            <div id="lines-container" class="bus-list"></div>
+        </div>
+        
+        <div id="destinations-view" class="view page-transition">
+            <div class="controls">
+                <button class="btn btn-back" onclick="showLines()">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Retour
+                </button>
+            </div>
+            <div class="textpop">
+                <h4>Sélectionnez une destination</h4>
+                <h1 id="route-title"></h1>
+            </div>
+            <div id="destinations-container"></div>
+        </div>
+        
+        <div id="stops-view" class="view page-transition">
+            <div class="controls">
+                <button class="btn btn-back" onclick="goBack()">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Retour
+                </button>
+            </div>
+            <div class="textpop">
+                <h4>Sélectionnez un arrêt</h4>
+                <h1 id="destination-title"></h1>
+            </div>
+            <div id="stops-container"></div>
+        </div>
+        
+        <div id="schedule-view" class="view page-transition">
+            <div class="controls">
+                <button class="btn btn-back" onclick="goBack()">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Retour
+                </button>
+            </div>
+            <div class="textpop">
+                <h4 id="route-info"></h4>
+                <h1 id="stop-title"></h1>
+            </div>
+            <div>
+                <select id="day-type-select">
+                    <option value="weekdays">Horaires semaine</option>
+                    <option value="saturday">Week-end / vacances</option>
+                    <option value="sunday">Dimanche / fériés</option>
+                </select>
+            </div>
+            <div id="schedule-container"></div>
+        </div>
+    </div>
+    
+    <script>
+        let routes = {};
+        let trips = {};
+        let stopTimes = {};
+        let stops = {};
+        let calendar = {};
+        
+        let navigationHistory = [];
+        let currentRouteId = null;
+        let currentStopId = null;
+        let currentDestinationId = null;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();
+        });
+        
+        function loadData() {
+            showView('loading-view');
+            
+
+                loadGtfsData().then(() => {
+                    showLines();
+                }).catch(error => {
+                    console.error('Erreur lors du chargement des données:', error);
+                    showView('error-view');
+                });
+        }
+        
+        async function loadGtfsData() {
+            try {
+                await Promise.all([
+                    loadRoutes(),
+                    loadTrips(),
+                    loadStopTimes(),
+                    loadStops(),
+                    loadCalendar()
+                ]);
+                return true;
+            } catch (error) {
+                console.error('Erreur lors du chargement des données GTFS:', error);
+                throw error;
+            }
+        }
+        
+        async function loadRoutes() {
+            const response = await fetch('gtfs/routes.txt');
+            const data = await response.text();
+            const lines = data.split('\n');
+            const headers = lines[0].split(',');
+            const routeIdIndex = headers.indexOf('route_id');
+            const shortNameIndex = headers.indexOf('route_short_name');
+            const longNameIndex = headers.indexOf('route_long_name');
+            const routeColorIndex = headers.indexOf('route_color');
+            const routeTextColorIndex = headers.indexOf('route_text_color');
+            
+            lines.slice(1).forEach(line => {
+                if (!line.trim()) return;
+                const values = line.split(',');
+                if (values[routeIdIndex]) {
+                    routes[values[routeIdIndex]] = {
+                        short_name: values[shortNameIndex],
+                        long_name: values[longNameIndex],
+                        route_color: values[routeColorIndex] ? `#${values[routeColorIndex]}` : '#FFFFFF',
+                        route_text_color: values[routeTextColorIndex] ? `#${values[routeTextColorIndex]}` : '#000000',
+                    };
+                }
+            });
+        }
+        
+        async function loadTrips() {
+            const response = await fetch('gtfs/trips.txt');
+            const data = await response.text();
+            const lines = data.split('\n');
+            const headers = lines[0].split(',');
+            const tripRouteIdIndex = headers.indexOf('route_id');
+            const tripIdIndex = headers.indexOf('trip_id');
+            const tripServiceIdIndex = headers.indexOf('service_id');
+            
+            lines.slice(1).forEach(line => {
+                if (!line.trim()) return;
+                const values = line.split(',');
+                if (values[tripRouteIdIndex] && values[tripIdIndex]) {
+                    if (!trips[values[tripRouteIdIndex]]) {
+                        trips[values[tripRouteIdIndex]] = [];
+                    }
+                    trips[values[tripRouteIdIndex]].push({
+                        trip_id: values[tripIdIndex],
+                        service_id: values[tripServiceIdIndex],
+                    });
+                }
+            });
+        }
+        
+        async function loadStopTimes() {
+            const response = await fetch('gtfs/stop_times.txt');
+            const data = await response.text();
+            const lines = data.split('\n');
+            const headers = lines[0].split(',');
+            const stopTripIdIndex = headers.indexOf('trip_id');
+            const stopIdIndex = headers.indexOf('stop_id');
+            const arrivalTimeIndex = headers.indexOf('arrival_time');
+            
+            lines.slice(1).forEach(line => {
+                if (!line.trim()) return;
+                const values = line.split(',');
+                if (values[stopTripIdIndex]) {
+                    if (!stopTimes[values[stopTripIdIndex]]) {
+                        stopTimes[values[stopTripIdIndex]] = [];
+                    }
+                    stopTimes[values[stopTripIdIndex]].push({
+                        stop_id: values[stopIdIndex],
+                        arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
+                    });
+                }
+            });
+        }
+        
+        async function loadStops() {
+            const response = await fetch('gtfs/stops.txt');
+            const data = await response.text();
+            const lines = data.split('\n');
+            const headers = lines[0].split(',');
+            const stopsIdIndex = headers.indexOf('stop_id');
+            const stopsNameIndex = headers.indexOf('stop_name');
+            
+            lines.slice(1).forEach(line => {
+                if (!line.trim()) return;
+                const values = line.split(',');
+                if (values[stopsIdIndex]) {
+                    stops[values[stopsIdIndex]] = values[stopsNameIndex];
+                }
+            });
+        }
+        
+        async function loadCalendar() {
+            const response = await fetch('gtfs/calendar.txt');
+            const data = await response.text();
+            const lines = data.split('\n').filter(line => line.trim());
+            const headers = lines[0].split(',');
+            const serviceIdIndex = headers.indexOf('service_id');
+            
+            lines.slice(1).forEach(line => {
+                if (!line.trim()) return;
+                const values = line.split(',');
+                if (values[serviceIdIndex]) {
+                    const serviceId = values[serviceIdIndex].toLowerCase();
+                    
+                    calendar[values[serviceIdIndex]] = {
+                        weekdays: serviceId.includes('semaine'),
+                        saturday: serviceId.includes('samedi'),
+                        sunday: serviceId.includes('dimanche'),
+                    };
+                }
+            });
+        }
+        
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active');
+            });
+            
+            const view = document.getElementById(viewId);
+            view.classList.add('active');
+            
+            if (view.classList.contains('page-transition')) {
+                setTimeout(() => {
+                    view.classList.add('slide-in');
+                }, 50);
+            }
+        }
+        
+        function showLines() {
+            navigationHistory = [];
+            currentRouteId = null;
+            currentDestinationId = null;
+            currentStopId = null;
+            
+            const container = document.getElementById('lines-container');
+            container.innerHTML = '';
+            
+            Object.entries(routes).forEach(([routeId, route]) => {
+                const lineItem = document.createElement('div');
+                lineItem.className = 'bus-item';
+                lineItem.innerHTML = `
+                    <div class="line-details">
+                        <span class="line-number" style="color: ${route.route_text_color}">Ligne ${route.short_name}</span>
+                    </div>
+                    <div style="color: ${route.route_text_color}">${route.long_name.replace(/"/g, '')}</div>
+                `;
+                lineItem.style.backgroundColor = `${route.route_color}`;
+                lineItem.onclick = () => showDestinations(routeId);
+                container.appendChild(lineItem);
+            });
+            
+            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+            showView('lines-view');
+        }
+        
+        function showDestinations(routeId) {
+            currentRouteId = routeId;
+            navigationHistory.push({ view: 'lines-view' });
+            
+            const container = document.getElementById('destinations-container');
+            container.innerHTML = '';
+            
+            document.getElementById('route-title').textContent = `Ligne ${routes[routeId].short_name}`;
+            
+            const destinations = new Set();
+            
+            trips[routeId].forEach(({ trip_id }) => {
+                const tripStops = stopTimes[trip_id];
+                if (tripStops && tripStops.length > 0) {
+                    const lastStop = tripStops[tripStops.length - 1].stop_id;
+                    destinations.add(lastStop);
+                }
+            });
+            
+            Array.from(destinations).forEach(destinationId => {
+                const destinationItem = document.createElement('div');
+                destinationItem.className = 'destination-item';
+                destinationItem.textContent = stops[destinationId].replace(/"/g, '');
+                destinationItem.onclick = () => showStops(routeId, destinationId);
+                destinationItem.style.backgroundColor = `${routes[routeId].route_color}`;
+                destinationItem.style.color = `${routes[routeId].route_text_color}`;
+                container.appendChild(destinationItem);
+            });
+            
+            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+            showView('destinations-view');
+        }
+        
+        function showStops(routeId, destinationId) {
+            currentDestinationId = destinationId;
+            navigationHistory.push({ view: 'destinations-view', routeId });
+            
+            const container = document.getElementById('stops-container');
+            container.innerHTML = '';
+            
+            document.getElementById('destination-title').textContent = 
+                `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
+            
+            const stopSet = new Set();
+            
+            trips[routeId].forEach(({ trip_id }) => {
+                const tripStops = stopTimes[trip_id];
+                if (tripStops) {
+                    const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
+                    if (destIndex !== -1) {
+                        for (let i = 0; i < destIndex; i++) {
+                            stopSet.add(tripStops[i].stop_id);
+                        }
+                    }
+                }
+            });
+            
+            Array.from(stopSet).forEach(stopId => {
+                const stopItem = document.createElement('div');
+                stopItem.className = 'stop-item';
+                stopItem.textContent = stops[stopId].replace(/"/g, '');
+                stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
+                stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
+                stopItem.style.color = `${routes[routeId].route_text_color}`;
+                container.appendChild(stopItem);
+            });
+            
+            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+            showView('stops-view');
+        }
+        
+        function showSchedule(routeId, stopId, destinationId) {
+            currentStopId = stopId;
+            navigationHistory.push({ view: 'stops-view', routeId, destinationId });
+            
+            document.getElementById('route-info').textContent = 
+                `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
+            document.getElementById('stop-title').textContent = 
+                `Horaires pour l'arrêt ${stops[stopId].replace(/"/g, '')}`;
+            
+            const dayTypeSelect = document.getElementById('day-type-select');
+            dayTypeSelect.onchange = () => updateSchedule(routeId, stopId, destinationId, dayTypeSelect.value);
+            
+            updateSchedule(routeId, stopId, destinationId, 'weekdays');
+            
+            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+            showView('schedule-view');
+        }
+        
+        function updateSchedule(routeId, stopId, destinationId, dayType) {
+            const scheduleContainer = document.getElementById('schedule-container');
+            scheduleContainer.innerHTML = '';
+            
+            const validTrips = trips[routeId].filter(({ service_id }) => {
+                if (dayType === 'weekdays') return calendar[service_id]?.weekdays;
+                if (dayType === 'saturday') return calendar[service_id]?.saturday;
+                if (dayType === 'sunday') return calendar[service_id]?.sunday;
+                return false;
+            });
+            
+            const schedule = [];
+            validTrips.forEach(({ trip_id }) => {
+                const tripStops = stopTimes[trip_id];
+                let destinationReached = false;
+                
+                if (tripStops) {
+                    tripStops.forEach(({ stop_id: currentStopId, arrival_time }) => {
+                        if (currentStopId === destinationId) destinationReached = true;
+                        if (currentStopId === stopId && !destinationReached) {
+                            schedule.push(arrival_time);
+                        }
+                    });
+                }
+            });
+            
+            const hours = {};
+            schedule.forEach(time => {
+                let [hour, minute] = time.split('h').map(num => parseInt(num, 10));
+                
+                if (hour >= 24) {
+                    hour -= 24;
+                }
+                
+                if (!hours[hour]) hours[hour] = [];
+                hours[hour].push(minute);
+            });
+            
+            const sortedTimes = Object.entries(hours).sort(([a], [b]) => a - b);
+            
+            if (sortedTimes.length === 0) {
+                scheduleContainer.innerHTML = `<p>Pas de bus circulant à cette période.</p>`;
+            } else {
+                sortedTimes.forEach(([hour, minutes]) => {
+                    const uniqueSortedMinutes = [...new Set(minutes)].sort((a, b) => a - b).join('  ');
+                    
+                    const row = document.createElement('div');
+                    row.className = 'schedule-row';
+                    row.innerHTML = `<span>${hour}h</span><span1>${uniqueSortedMinutes}</span1>`;
+                    scheduleContainer.appendChild(row);
+                });
+            }
+        }
+        
+        function goBack() {
+            if (navigationHistory.length === 0) {
+                showLines();
+                return;
+            }
+            
+            const previousState = navigationHistory.pop();
+            
+            if (previousState.view === 'lines-view') {
+                showLines();
+            } else if (previousState.view === 'destinations-view') {
+                showDestinations(previousState.routeId);
+            } else if (previousState.view === 'stops-view') {
+                showStops(previousState.routeId, previousState.destinationId);
+            }
+        }
+    </script>
+</body>
+</html>
