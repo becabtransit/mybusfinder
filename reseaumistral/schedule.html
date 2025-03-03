@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Horaires de Bus</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
     <style>
 @import url('https://fonts.googleapis.com/css?family=League+Spartan:400,700');
 
@@ -471,135 +472,245 @@ select:focus {
                     showView('error-view');
                 });
         }
+
+async function extractGTFSFiles() {
+    try {
+        const response = await fetch('proxy-cors/proxy_gtfs.php');
+        if (!response.ok) {
+            throw new Error(`Échec du téléchargement: ${response.status} ${response.statusText}`);
+        }
         
-        async function loadGtfsData() {
-            try {
-                await Promise.all([
-                    loadRoutes(),
-                    loadTrips(),
-                    loadStopTimes(),
-                    loadStops(),
-                    loadCalendar()
-                ]);
-                return true;
-            } catch (error) {
-                console.error('Erreur lors du chargement des données GTFS:', error);
-                throw error;
+        const zipData = await response.arrayBuffer();
+        const zip = await JSZip.loadAsync(zipData);
+        
+        const extractedFiles = {};
+        
+        const filePromises = [];
+        zip.forEach((relativePath, zipEntry) => {
+            if (!zipEntry.dir) {
+                const promise = zipEntry.async("string").then(content => {
+                    extractedFiles[relativePath] = content;
+                    console.log(`Fichier extrait: ${relativePath}`);
+                });
+                filePromises.push(promise);
             }
+        });
+        
+        await Promise.all(filePromises);
+        console.log("Fichiers extraits:", Object.keys(extractedFiles));
+        
+        return extractedFiles;
+    } catch (error) {
+        console.error('Erreur lors de l\'extraction des fichiers GTFS:', error);
+        throw error;
+    }
+}
+
+async function loadGtfsData() {
+    try {
+        // Extraction des fichiers ZIP
+        const extractedFiles = await extractGTFSFiles();
+        
+        // Réinitialisation des objets de données
+        routes = {};
+        trips = {};
+        stopTimes = {};
+        stops = {};
+        calendar = {};
+        
+        // Chargement des données depuis les fichiers extraits
+        await Promise.all([
+            loadRoutes(extractedFiles['routes.txt']),
+            loadTrips(extractedFiles['trips.txt']),
+            loadStopTimes(extractedFiles['stop_times.txt']),
+            loadStops(extractedFiles['stops.txt']),
+            loadCalendar(extractedFiles['calendar.txt'])
+        ]);
+        
+        return true;
+    } catch (error) {
+        console.error('Erreur lors du chargement des données GTFS:', error);
+        throw error;
+    }
+}
+
+async function loadRoutes(fileContent) {
+    try {
+        if (!fileContent) {
+            console.error('Contenu du fichier routes.txt est undefined');
+            return;
         }
         
-        async function loadRoutes() {
-            const response = await fetch('gtfs/routes.txt');
-            const data = await response.text();
-            const lines = data.split('\n');
-            const headers = lines[0].split(',');
-            const routeIdIndex = headers.indexOf('route_id');
-            const shortNameIndex = headers.indexOf('route_short_name');
-            const longNameIndex = headers.indexOf('route_long_name');
-            const routeColorIndex = headers.indexOf('route_color');
-            const routeTextColorIndex = headers.indexOf('route_text_color');
-            
-            lines.slice(1).forEach(line => {
-                if (!line.trim()) return;
-                const values = line.split(',');
-                if (values[routeIdIndex]) {
-                    routes[values[routeIdIndex]] = {
-                        short_name: values[shortNameIndex],
-                        long_name: values[longNameIndex],
-                        route_color: values[routeColorIndex] ? `#${values[routeColorIndex]}` : '#FFFFFF',
-                        route_text_color: values[routeTextColorIndex] ? `#${values[routeTextColorIndex]}` : '#000000',
-                    };
+        const lines = fileContent.split('\n');
+        console.log(`Fichier routes.txt contient ${lines.length} lignes`);
+        
+        const headers = lines[0].split(',');
+        const routeIdIndex = headers.indexOf('route_id');
+        const shortNameIndex = headers.indexOf('route_short_name');
+        const longNameIndex = headers.indexOf('route_long_name');
+        const routeColorIndex = headers.indexOf('route_color');
+        const routeTextColorIndex = headers.indexOf('route_text_color');
+        
+        console.log(`Indices routes.txt: route_id=${routeIdIndex}, short_name=${shortNameIndex}, long_name=${longNameIndex}`);
+        
+        lines.slice(1).forEach(line => {
+            if (!line.trim()) return;
+            const values = line.split(',');
+            if (values[routeIdIndex]) {
+                routes[values[routeIdIndex]] = {
+                    short_name: values[shortNameIndex],
+                    long_name: values[longNameIndex],
+                    route_color: values[routeColorIndex] ? `#${values[routeColorIndex]}` : '#FFFFFF',
+                    route_text_color: values[routeTextColorIndex] ? `#${values[routeTextColorIndex]}` : '#000000',
+                };
+            }
+        });
+        
+        console.log(`${Object.keys(routes).length} routes chargées`);
+    } catch (error) {
+        console.error('Erreur lors du chargement des routes:', error);
+    }
+}
+
+async function loadTrips(fileContent) {
+    try {
+        if (!fileContent) {
+            console.error('Contenu du fichier trips.txt est undefined');
+            return;
+        }
+        
+        const lines = fileContent.split('\n');
+        console.log(`Fichier trips.txt contient ${lines.length} lignes`);
+        
+        const headers = lines[0].split(',');
+        const tripRouteIdIndex = headers.indexOf('route_id');
+        const tripIdIndex = headers.indexOf('trip_id');
+        const tripServiceIdIndex = headers.indexOf('service_id');
+        
+        console.log(`Indices trips.txt: route_id=${tripRouteIdIndex}, trip_id=${tripIdIndex}, service_id=${tripServiceIdIndex}`);
+        
+        lines.slice(1).forEach(line => {
+            if (!line.trim()) return;
+            const values = line.split(',');
+            if (values[tripRouteIdIndex] && values[tripIdIndex]) {
+                if (!trips[values[tripRouteIdIndex]]) {
+                    trips[values[tripRouteIdIndex]] = [];
                 }
-            });
+                trips[values[tripRouteIdIndex]].push({
+                    trip_id: values[tripIdIndex],
+                    service_id: values[tripServiceIdIndex],
+                });
+            }
+        });
+        
+        console.log(`Trips chargés pour ${Object.keys(trips).length} routes`);
+    } catch (error) {
+        console.error('Erreur lors du chargement des trips:', error);
+    }
+}
+
+async function loadStopTimes(fileContent) {
+    try {
+        if (!fileContent) {
+            console.error('Contenu du fichier stop_times.txt est undefined');
+            return;
         }
         
-        async function loadTrips() {
-            const response = await fetch('gtfs/trips.txt');
-            const data = await response.text();
-            const lines = data.split('\n');
-            const headers = lines[0].split(',');
-            const tripRouteIdIndex = headers.indexOf('route_id');
-            const tripIdIndex = headers.indexOf('trip_id');
-            const tripServiceIdIndex = headers.indexOf('service_id');
-            
-            lines.slice(1).forEach(line => {
-                if (!line.trim()) return;
-                const values = line.split(',');
-                if (values[tripRouteIdIndex] && values[tripIdIndex]) {
-                    if (!trips[values[tripRouteIdIndex]]) {
-                        trips[values[tripRouteIdIndex]] = [];
-                    }
-                    trips[values[tripRouteIdIndex]].push({
-                        trip_id: values[tripIdIndex],
-                        service_id: values[tripServiceIdIndex],
-                    });
+        const lines = fileContent.split('\n');
+        console.log(`Fichier stop_times.txt contient ${lines.length} lignes`);
+        
+        const headers = lines[0].split(',');
+        const stopTripIdIndex = headers.indexOf('trip_id');
+        const stopIdIndex = headers.indexOf('stop_id');
+        const arrivalTimeIndex = headers.indexOf('arrival_time');
+        
+        console.log(`Indices stop_times.txt: trip_id=${stopTripIdIndex}, stop_id=${stopIdIndex}, arrival_time=${arrivalTimeIndex}`);
+        
+        lines.slice(1).forEach(line => {
+            if (!line.trim()) return;
+            const values = line.split(',');
+            if (values[stopTripIdIndex]) {
+                if (!stopTimes[values[stopTripIdIndex]]) {
+                    stopTimes[values[stopTripIdIndex]] = [];
                 }
-            });
+                stopTimes[values[stopTripIdIndex]].push({
+                    stop_id: values[stopIdIndex],
+                    arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
+                });
+            }
+        });
+        
+        console.log(`Stop times chargés pour ${Object.keys(stopTimes).length} trips`);
+    } catch (error) {
+        console.error('Erreur lors du chargement des stop times:', error);
+    }
+}
+
+async function loadStops(fileContent) {
+    try {
+        if (!fileContent) {
+            console.error('Contenu du fichier stops.txt est undefined');
+            return;
         }
         
-        async function loadStopTimes() {
-            const response = await fetch('gtfs/stop_times.txt');
-            const data = await response.text();
-            const lines = data.split('\n');
-            const headers = lines[0].split(',');
-            const stopTripIdIndex = headers.indexOf('trip_id');
-            const stopIdIndex = headers.indexOf('stop_id');
-            const arrivalTimeIndex = headers.indexOf('arrival_time');
-            
-            lines.slice(1).forEach(line => {
-                if (!line.trim()) return;
-                const values = line.split(',');
-                if (values[stopTripIdIndex]) {
-                    if (!stopTimes[values[stopTripIdIndex]]) {
-                        stopTimes[values[stopTripIdIndex]] = [];
-                    }
-                    stopTimes[values[stopTripIdIndex]].push({
-                        stop_id: values[stopIdIndex],
-                        arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
-                    });
-                }
-            });
+        const lines = fileContent.split('\n');
+        console.log(`Fichier stops.txt contient ${lines.length} lignes`);
+        
+        const headers = lines[0].split(',');
+        const stopsIdIndex = headers.indexOf('stop_id');
+        const stopsNameIndex = headers.indexOf('stop_name');
+        
+        console.log(`Indices stops.txt: stop_id=${stopsIdIndex}, stop_name=${stopsNameIndex}`);
+        
+        lines.slice(1).forEach(line => {
+            if (!line.trim()) return;
+            const values = line.split(',');
+            if (values[stopsIdIndex]) {
+                stops[values[stopsIdIndex]] = values[stopsNameIndex];
+            }
+        });
+        
+        console.log(`${Object.keys(stops).length} arrêts chargés`);
+    } catch (error) {
+        console.error('Erreur lors du chargement des stops:', error);
+    }
+}
+
+async function loadCalendar(fileContent) {
+    try {
+        if (!fileContent) {
+            console.error('Contenu du fichier calendar.txt est undefined');
+            return;
         }
         
-        async function loadStops() {
-            const response = await fetch('gtfs/stops.txt');
-            const data = await response.text();
-            const lines = data.split('\n');
-            const headers = lines[0].split(',');
-            const stopsIdIndex = headers.indexOf('stop_id');
-            const stopsNameIndex = headers.indexOf('stop_name');
-            
-            lines.slice(1).forEach(line => {
-                if (!line.trim()) return;
-                const values = line.split(',');
-                if (values[stopsIdIndex]) {
-                    stops[values[stopsIdIndex]] = values[stopsNameIndex];
-                }
-            });
-        }
+        const lines = fileContent.split('\n');
+        console.log(`Fichier calendar.txt contient ${lines.length} lignes`);
         
-        async function loadCalendar() {
-            const response = await fetch('gtfs/calendar.txt');
-            const data = await response.text();
-            const lines = data.split('\n').filter(line => line.trim());
-            const headers = lines[0].split(',');
-            const serviceIdIndex = headers.indexOf('service_id');
-            
-            lines.slice(1).forEach(line => {
-                if (!line.trim()) return;
-                const values = line.split(',');
-                if (values[serviceIdIndex]) {
-                    const serviceId = values[serviceIdIndex].toLowerCase();
-                    
-                    calendar[values[serviceIdIndex]] = {
-                        weekdays: serviceId.includes('semaine'),
-                        saturday: serviceId.includes('samedi'),
-                        sunday: serviceId.includes('dimanche'),
-                    };
-                }
-            });
-        }
+        const headers = lines[0].split(',');
+        const serviceIdIndex = headers.indexOf('service_id');
         
+        console.log(`Indice calendar.txt: service_id=${serviceIdIndex}`);
+        
+        lines.slice(1).forEach(line => {
+            if (!line.trim()) return;
+            const values = line.split(',');
+            if (values[serviceIdIndex]) {
+                const serviceId = values[serviceIdIndex].toLowerCase();
+                
+                calendar[values[serviceIdIndex]] = {
+                    weekdays: serviceId.includes('semaine'),
+                    saturday: serviceId.includes('samedi'),
+                    sunday: serviceId.includes('dimanche'),
+                };
+            }
+        });
+        
+        console.log(`${Object.keys(calendar).length} entrées de calendrier chargées`);
+    } catch (error) {
+        console.error('Erreur lors du chargement du calendrier:', error);
+    }
+}
+
         function showView(viewId) {
             document.querySelectorAll('.view').forEach(view => {
                 view.classList.remove('active');
