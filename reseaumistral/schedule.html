@@ -1,12 +1,10 @@
 
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
+    <title>Horaires de Bus</title>
     <style>
 @import url('https://fonts.googleapis.com/css?family=League+Spartan:400,700');
 
@@ -474,323 +472,134 @@ select:focus {
                 });
         }
         
-// Variables globales
-const lineColors = {};
-const lineName = {};
-const stopIds = [];
-const stopNameMap = {};
-
-
-async function extractGTFSFiles() {
-    try {
-        const response = await fetch('proxy-cors/proxy_gtfs.php');
-        if (!response.ok) {
-            throw new Error(`Échec du téléchargement: ${response.status} ${response.statusText}`);
-        }
-        
-        const zipData = await response.arrayBuffer();
-        
-        const zip = await JSZip.loadAsync(zipData);
-        
-        const extractedFiles = {};
-        
-        const filePromises = [];
-        zip.forEach((relativePath, zipEntry) => {
-            if (!zipEntry.dir) {
-                const promise = zipEntry.async("string").then(content => {
-                    extractedFiles[relativePath] = content;
-                    console.log(`Fichier extrait: ${relativePath}`);
-                });
-                filePromises.push(promise);
+        async function loadGtfsData() {
+            try {
+                await Promise.all([
+                    loadRoutes(),
+                    loadTrips(),
+                    loadStopTimes(),
+                    loadStops(),
+                    loadCalendar()
+                ]);
+                return true;
+            } catch (error) {
+                console.error('Erreur lors du chargement des données GTFS:', error);
+                throw error;
             }
-        });
-        
-        await Promise.all(filePromises);
-        
-        return extractedFiles;
-    } catch (error) {
-        console.error('Erreur lors de l\'extraction des fichiers GTFS:', error);
-        throw error;
-    }
-}
-
-async function loadGtfsData() {
-    try {
-        const extractedFiles = await extractGTFSFiles();
-        
-        if (!extractedFiles) {
-            throw new Error('Erreur: fichiers GTFS non extraits');
         }
         
-        await Promise.all([
-            loadRoutes(extractedFiles['routes.txt']),
-            loadTrips(extractedFiles['trips.txt']),
-            loadStopTimes(extractedFiles['stop_times.txt']),
-            loadStops(extractedFiles['stops.txt']),
-            loadCalendar(extractedFiles['calendar.txt'])
-        ]);
-        
-        return {
-            lineColors,
-            lineName,
-            stopIds,
-            stopNameMap,
-            routes,
-            trips,
-            stopTimes,
-            stops,
-            calendar
-        };
-    } catch (error) {
-        console.error('Erreur lors du chargement des données GTFS:', error);
-        throw error;
-    }
-}
-
-async function loadRoutes(routesFileContent) {
-    try {
-        if (!routesFileContent) {
-            console.error('Fichier routes.txt non trouvé dans l\'archive GTFS');
-            return;
-        }
-        
-        const lines = routesFileContent.split('\n');
-        const headers = lines[0].split(',');
-        
-        const routeIdIndex = headers.indexOf('route_id');
-        const shortNameIndex = headers.indexOf('route_short_name');
-        const longNameIndex = headers.indexOf('route_long_name');
-        const routeColorIndex = headers.indexOf('route_color');
-        const routeTextColorIndex = headers.indexOf('route_text_color');
-        
-        if (routeIdIndex === -1) {
-            console.error('Impossible de trouver l\'entête route_id dans fichier routes.txt');
-            return;
-        }
-        
-        const startIndex = data && data.slicelinecolor ? parseInt(data.slicelinecolor) : 1;
-        
-        lines.slice(startIndex).forEach(line => {
-            if (!line.trim()) return;
+        async function loadRoutes() {
+            const response = await fetch('gtfs/routes.txt');
+            const data = await response.text();
+            const lines = data.split('\n');
+            const headers = lines[0].split(',');
+            const routeIdIndex = headers.indexOf('route_id');
+            const shortNameIndex = headers.indexOf('route_short_name');
+            const longNameIndex = headers.indexOf('route_long_name');
+            const routeColorIndex = headers.indexOf('route_color');
+            const routeTextColorIndex = headers.indexOf('route_text_color');
             
-            const values = line.split(',');
-            
-            if (values.length <= Math.max(routeIdIndex, shortNameIndex, longNameIndex, routeColorIndex)) {
-                console.warn('Ligne GTFS incomplète ignorée', line);
-                return;
-            }
-            
-            const routeId = values[routeIdIndex];
-            const routeShortName = values[shortNameIndex];
-            const routeLongName = values[longNameIndex];
-            let routeColor = values[routeColorIndex];
-            let routeTextColor = values[routeTextColorIndex];
-            
-            // Formater les couleurs avec le préfixe #
-            if (routeColor && !routeColor.startsWith('#') && routeColor.trim() !== '') {
-                routeColor = `#${routeColor}`;
-            }
-            
-            if (routeTextColor && !routeTextColor.startsWith('#') && routeTextColor.trim() !== '') {
-                routeTextColor = `#${routeTextColor}`;
-            }
-            
-            let cleanedLineName = routeShortName ? routeShortName.replace(/"/g, '').trim() : '';
-            
-            if (routeId) {
-                // Conserver la rétrocompatibilité avec l'ancien code
-                lineColors[routeId] = routeColor;
-                lineName[routeId] = cleanedLineName;
-                
-                // Utiliser la nouvelle structure
-                routes[routeId] = {
-                    short_name: routeShortName,
-                    long_name: routeLongName,
-                    route_color: routeColor || '#FFFFFF',
-                    route_text_color: routeTextColor || '#000000'
-                };
-            }
-        });
-    } catch (error) {
-        console.error('Erreur lors du chargement des routes:', error);
-    }
-}
-
-async function loadTrips(tripsFileContent) {
-    try {
-        if (!tripsFileContent) {
-            console.error('Fichier trips.txt non trouvé dans l\'archive GTFS');
-            return;
-        }
-        
-        const lines = tripsFileContent.split('\n');
-        const headers = lines[0].split(',');
-        
-        const tripRouteIdIndex = headers.indexOf('route_id');
-        const tripIdIndex = headers.indexOf('trip_id');
-        const tripServiceIdIndex = headers.indexOf('service_id');
-        
-        if (tripRouteIdIndex === -1 || tripIdIndex === -1) {
-            console.error('Impossible de trouver les entêtes requis dans fichier trips.txt');
-            return;
-        }
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            
-            const values = line.split(',');
-            
-            if (values[tripRouteIdIndex] && values[tripIdIndex]) {
-                if (!trips[values[tripRouteIdIndex]]) {
-                    trips[values[tripRouteIdIndex]] = [];
+            lines.slice(1).forEach(line => {
+                if (!line.trim()) return;
+                const values = line.split(',');
+                if (values[routeIdIndex]) {
+                    routes[values[routeIdIndex]] = {
+                        short_name: values[shortNameIndex],
+                        long_name: values[longNameIndex],
+                        route_color: values[routeColorIndex] ? `#${values[routeColorIndex]}` : '#FFFFFF',
+                        route_text_color: values[routeTextColorIndex] ? `#${values[routeTextColorIndex]}` : '#000000',
+                    };
                 }
-                
-                trips[values[tripRouteIdIndex]].push({
-                    trip_id: values[tripIdIndex],
-                    service_id: values[tripServiceIdIndex]
-                });
-            }
-        });
-    } catch (error) {
-        console.error('Erreur lors du chargement des trajets:', error);
-    }
-}
-
-async function loadStopTimes(stopTimesFileContent) {
-    try {
-        if (!stopTimesFileContent) {
-            console.error('Fichier stop_times.txt non trouvé dans l\'archive GTFS');
-            return;
+            });
         }
         
-        const lines = stopTimesFileContent.split('\n');
-        const headers = lines[0].split(',');
-        
-        const stopTripIdIndex = headers.indexOf('trip_id');
-        const stopIdIndex = headers.indexOf('stop_id');
-        const arrivalTimeIndex = headers.indexOf('arrival_time');
-        
-        if (stopTripIdIndex === -1 || stopIdIndex === -1 || arrivalTimeIndex === -1) {
-            console.error('Impossible de trouver les entêtes requis dans fichier stop_times.txt');
-            return;
-        }
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
+        async function loadTrips() {
+            const response = await fetch('gtfs/trips.txt');
+            const data = await response.text();
+            const lines = data.split('\n');
+            const headers = lines[0].split(',');
+            const tripRouteIdIndex = headers.indexOf('route_id');
+            const tripIdIndex = headers.indexOf('trip_id');
+            const tripServiceIdIndex = headers.indexOf('service_id');
             
-            const values = line.split(',');
-            
-            if (values[stopTripIdIndex]) {
-                if (!stopTimes[values[stopTripIdIndex]]) {
-                    stopTimes[values[stopTripIdIndex]] = [];
+            lines.slice(1).forEach(line => {
+                if (!line.trim()) return;
+                const values = line.split(',');
+                if (values[tripRouteIdIndex] && values[tripIdIndex]) {
+                    if (!trips[values[tripRouteIdIndex]]) {
+                        trips[values[tripRouteIdIndex]] = [];
+                    }
+                    trips[values[tripRouteIdIndex]].push({
+                        trip_id: values[tripIdIndex],
+                        service_id: values[tripServiceIdIndex],
+                    });
                 }
-                
-                stopTimes[values[stopTripIdIndex]].push({
-                    stop_id: values[stopIdIndex],
-                    arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h')
-                });
-                
-                // Ajouter à la liste des stopIds pour la rétrocompatibilité
-                if (!stopIds.includes(values[stopIdIndex])) {
-                    stopIds.push(values[stopIdIndex]);
+            });
+        }
+        
+        async function loadStopTimes() {
+            const response = await fetch('gtfs/stop_times.txt');
+            const data = await response.text();
+            const lines = data.split('\n');
+            const headers = lines[0].split(',');
+            const stopTripIdIndex = headers.indexOf('trip_id');
+            const stopIdIndex = headers.indexOf('stop_id');
+            const arrivalTimeIndex = headers.indexOf('arrival_time');
+            
+            lines.slice(1).forEach(line => {
+                if (!line.trim()) return;
+                const values = line.split(',');
+                if (values[stopTripIdIndex]) {
+                    if (!stopTimes[values[stopTripIdIndex]]) {
+                        stopTimes[values[stopTripIdIndex]] = [];
+                    }
+                    stopTimes[values[stopTripIdIndex]].push({
+                        stop_id: values[stopIdIndex],
+                        arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
+                    });
                 }
-            }
-        });
-    } catch (error) {
-        console.error('Erreur lors du chargement des horaires d\'arrêts:', error);
-    }
-}
-
-async function loadStops(stopsFileContent) {
-    try {
-        if (!stopsFileContent) {
-            console.error('Fichier stops.txt non trouvé dans l\'archive GTFS');
-            return;
+            });
         }
         
-        const lines = stopsFileContent.split('\n');
-        const headers = lines[0].split(',');
-        
-        const stopIdIndex = headers.indexOf('stop_id');
-        const stopNameIndex = headers.indexOf('stop_name');
-        
-        if (stopIdIndex === -1 || stopNameIndex === -1) {
-            console.error('Impossible de trouver les entêtes requis dans fichier stops.txt');
-            return;
-        }
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
+        async function loadStops() {
+            const response = await fetch('gtfs/stops.txt');
+            const data = await response.text();
+            const lines = data.split('\n');
+            const headers = lines[0].split(',');
+            const stopsIdIndex = headers.indexOf('stop_id');
+            const stopsNameIndex = headers.indexOf('stop_name');
             
-            const values = line.split(',');
-            
-            if (values[stopIdIndex]) {
-                let stopName = values[stopNameIndex];
-                stopName = stopName.replace(/"/g, '');
-                
-                // Pour la rétrocompatibilité
-                stopNameMap[values[stopIdIndex]] = stopName;
-                
-                // Nouvelle structure
-                stops[values[stopIdIndex]] = stopName;
-                
-                // Ajouter à la liste des stopIds si ce n'est pas déjà fait
-                if (!stopIds.includes(values[stopIdIndex])) {
-                    stopIds.push(values[stopIdIndex]);
+            lines.slice(1).forEach(line => {
+                if (!line.trim()) return;
+                const values = line.split(',');
+                if (values[stopsIdIndex]) {
+                    stops[values[stopsIdIndex]] = values[stopsNameIndex];
                 }
-            }
-        });
-    } catch (error) {
-        console.error('Erreur lors du chargement des arrêts:', error);
-    }
-}
-
-async function loadCalendar(calendarFileContent) {
-    try {
-        if (!calendarFileContent) {
-            console.error('Fichier calendar.txt non trouvé dans l\'archive GTFS');
-            return;
+            });
         }
         
-        const lines = calendarFileContent.split('\n').filter(line => line.trim());
-        const headers = lines[0].split(',');
-        
-        const serviceIdIndex = headers.indexOf('service_id');
-        
-        if (serviceIdIndex === -1) {
-            console.error('Impossible de trouver l\'entête service_id dans fichier calendar.txt');
-            return;
+        async function loadCalendar() {
+            const response = await fetch('gtfs/calendar.txt');
+            const data = await response.text();
+            const lines = data.split('\n').filter(line => line.trim());
+            const headers = lines[0].split(',');
+            const serviceIdIndex = headers.indexOf('service_id');
+            
+            lines.slice(1).forEach(line => {
+                if (!line.trim()) return;
+                const values = line.split(',');
+                if (values[serviceIdIndex]) {
+                    const serviceId = values[serviceIdIndex].toLowerCase();
+                    
+                    calendar[values[serviceIdIndex]] = {
+                        weekdays: serviceId.includes('semaine'),
+                        saturday: serviceId.includes('samedi'),
+                        sunday: serviceId.includes('dimanche'),
+                    };
+                }
+            });
         }
         
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            
-            const values = line.split(',');
-            
-            if (values[serviceIdIndex]) {
-                const serviceId = values[serviceIdIndex].toLowerCase();
-                
-                calendar[values[serviceIdIndex]] = {
-                    weekdays: serviceId.includes('semaine'),
-                    saturday: serviceId.includes('samedi'),
-                    sunday: serviceId.includes('dimanche')
-                };
-            }
-        });
-    } catch (error) {
-        console.error('Erreur lors du chargement du calendrier:', error);
-    }
-}
-
-// Fonction principale pour initialiser les données GTFS
-async function initializeGTFS() {
-    try {
-        return await loadGtfsData();
-    } catch (error) {
-        console.error('Erreur lors de l\'initialisation GTFS:', error);
-        throw error;
-    }
-}
         function showView(viewId) {
             document.querySelectorAll('.view').forEach(view => {
                 view.classList.remove('active');
