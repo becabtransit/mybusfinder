@@ -1192,6 +1192,17 @@ async function getSetvar() {
 
 getSetvar();
 
+const vehicleModels = {};
+
+const vehicleTypes = {
+    'elec': new Set(),
+    'hybrid': new Set(),
+    'gnv': new Set(),
+    'usb': new Set(),
+    'clim': new Set()
+};
+
+let map;
 
 
 
@@ -1228,7 +1239,7 @@ setTimeout(() => {
         }
     }
     
-    var map = L.map('map', {
+    const mapInstance = L.map('map', {
         zoomControl: false 
     }).setView(defaultCoords, defaultZoom);
     
@@ -1236,9 +1247,9 @@ setTimeout(() => {
         closeButton: false
     });
     
-    L.control.locate().addTo(map);
+    L.control.locate().addTo(mapInstance);
     
-    map.on('popupopen', function (e) {
+    mapInstance.on('popupopen', function (e) {
         const popupWrapper = e.popup._wrapper; 
         popupWrapper.classList.remove('popup-zoom-out', 'popup-zoom-in');
         setTimeout(() => {
@@ -1246,7 +1257,7 @@ setTimeout(() => {
         }, 10); 
     });
     
-    map.on('popupclose', function (e) {
+    mapInstance.on('popupclose', function (e) {
         const popupWrapper = e.popup._wrapper; 
         popupWrapper.classList.remove('popup-zoom-in');
         popupWrapper.classList.add('popup-zoom-out');
@@ -1259,11 +1270,13 @@ setTimeout(() => {
         );
     });
     
-    return map;
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(mapInstance);
+    
+    return mapInstance;
 }
 
-
-let map;
 (async function() {
     map = await initMap();
 })();
@@ -1460,9 +1473,6 @@ const doc = document;
 
 
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-        }).addTo(map);
 
 
         async function loadLineColors() {
@@ -2006,15 +2016,7 @@ const filtre = document.getElementById('filtre');
 };
 
 
-const vehicleModels = {};
 
-const vehicleTypes = {
-    'elec': new Set(),
-    'hybrid': new Set(),
-    'gnv': new Set(),
-    'usb': new Set(),
-    'clim': new Set()
-};
 
 
 
