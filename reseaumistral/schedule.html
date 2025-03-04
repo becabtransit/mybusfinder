@@ -612,6 +612,7 @@ select:focus {
         
     document.addEventListener('DOMContentLoaded', function() {
     loadData();
+    isShowingRealtime = false;
     const tabs = document.querySelectorAll('.tab-button');
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -1213,9 +1214,12 @@ async function loadCalendar(fileContent) {
             showView('stops-view');
         }
         
-        function showSchedule(routeId, stopId, destinationId) {
+        let isShowingRealtime = false;
+
+function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
     currentRouteId = routeId;
+    isShowingRealtime = false; 
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
     document.getElementById('route-info').textContent = 
@@ -1226,6 +1230,20 @@ async function loadCalendar(fileContent) {
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
     dateSelect.value = today.toISOString().split('T')[0];
+    
+    document.querySelectorAll('.tab-button').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.dataset.tab === 'theoretical') {
+            tab.classList.add('active');
+        }
+    });
+
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+        if (content.id === 'theoretical-view') {
+            content.classList.add('active');
+        }
+    });
     
     updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
     
@@ -1242,6 +1260,7 @@ function setupTabHandlers() {
             tab.hasEventListener = true;
             tab.addEventListener('click', () => {
                 const targetTab = tab.dataset.tab;
+                isShowingRealtime = targetTab === 'realtime';
                 
                 tabs.forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
@@ -1251,10 +1270,13 @@ function setupTabHandlers() {
                 });
                 document.getElementById(`${targetTab}-view`).classList.add('active');
                 
-                if (targetTab === 'realtime') {
+                if (isShowingRealtime) {
                     startRealtimeUpdates();
                 } else {
                     stopRealtimeUpdates();
+                    // Mettre à jour les horaires théoriques
+                    const dateSelect = document.getElementById('date-select');
+                    updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, dateSelect.value);
                 }
             });
         }
@@ -1262,7 +1284,6 @@ function setupTabHandlers() {
 }
 
 function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
-    // Réinitialiser le conteneur
     const scheduleContainer = document.getElementById('schedule-container');
     scheduleContainer.innerHTML = '';
     
@@ -1294,31 +1315,9 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
         return;
     }
     
-    const schedule = [];
-    validTrips.forEach(trip => {
-        const tripStops = stopTimes[trip.trip_id];
-        let destinationReached = false;
-        
-        if (tripStops) {
-            tripStops.forEach(({ stop_id: currentStopId, arrival_time }) => {
-                if (currentStopId === destinationId) destinationReached = true;
-                if (currentStopId === stopId && !destinationReached) {
-                    const theoreticalTime = parseTime(arrival_time);
-                    const realtimeArrival = isShowingRealtime ? 
-                        getRealtimeArrival(trip.trip_id, stopId) : null;
-                    
-                    schedule.push({
-                        tripId: trip.trip_id,
-                        theoretical: theoreticalTime,
-                        realtime: realtimeArrival
-                    });
-                }
-            });
-        }
-    });
-    
-    displaySchedule(schedule, scheduleContainer);
+    displaySchedule(validTrips, stopId, destinationId, scheduleContainer);
 }
+
 
 function parseTime(timeStr) {
     const [hours, minutes] = timeStr.split(':').map(n => parseInt(n, 10));
@@ -1409,12 +1408,15 @@ function getActiveServiceIds(dayOfWeek, gtfsDate) {
     }
     
     return activeServiceIds;
-}function cleanup() {
-    stopRealtimeUpdates();
-    currentStopId = null;
-    currentRouteId = null;
 }
 
+function cleanup() {
+    stopRealtimeUpdates();
+    isShowingRealtime = false;
+    currentStopId = null;
+    currentRouteId = null;
+    currentDestinationId = null;
+}
 function goBack() {
             if (navigationHistory.length === 0) {
                 showLines();
