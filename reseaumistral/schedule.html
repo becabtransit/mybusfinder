@@ -389,6 +389,181 @@ select:focus {
     transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 
+/* Styles pour les périodes d'horaires */
+.schedule-period {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.schedule-period:hover {
+    transform: scale(0.995);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.period-header {
+    color: #363636;
+    font-size: 1.1em;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.schedule-times {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 5px;
+}
+
+.time-slot {
+    background-color: #f5f5f5;
+    padding: 8px 12px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.time-slot:hover {
+    transform: scale(1.05);
+    background-color: #eeeeee;
+}
+
+.time {
+    font-weight: bold;
+    color: #363636;
+}
+
+.accessibility-icon,
+.bike-icon {
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.frequency-note {
+    font-size: 0.8em;
+    color: #666;
+    font-style: italic;
+}
+
+/* Navigation des dates */
+.date-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 15px;
+}
+
+.date-navigation button {
+    background: none;
+    border: none;
+    font-size: 1.2em;
+    color: #363636;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 50%;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.date-navigation button:hover {
+    background-color: #f0f0f0;
+    transform: scale(1.1);
+}
+
+/* Informations de l'arrêt */
+.stop-info {
+    padding: 15px;
+    margin-bottom: 20px;
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.stop-info h4 {
+    color: #363636;
+    margin-bottom: 10px;
+}
+
+.stop-info p {
+    color: #666;
+    margin: 5px 0;
+}
+
+.accessibility,
+.transfers {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    background-color: #f5f5f5;
+    border-radius: 6px;
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: #363636;
+}
+
+/* Légende */
+.schedule-legend {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    font-size: 0.9em;
+    color: #666;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Message d'absence de service */
+.no-service-message {
+    padding: 20px;
+    text-align: center;
+}
+
+.alert {
+    padding: 15px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: fadeIn 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.alert-info {
+    background-color: #e3f2fd;
+    color: #0d47a1;
+}
+
+/* Route info */
+.route-header {
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+}
+
+.route-header h3 {
+    margin: 0;
+    font-size: 1.3em;
+}
+
+.route-header p {
+    margin: 5px 0 0 0;
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+
     </style>
 </head>
 <body>
@@ -468,34 +643,37 @@ select:focus {
     </div>
     
     <script>
-        let routes = {};
-        let trips = {};
-        let stopTimes = {};
-        let stops = {};
-        let calendar = {};
-        let calendarDates = {};
+let routes = {};
+let trips = {};
+let stopTimes = {};
+let stops = {};
+let calendar = {};
+let calendarDates = {};
+let shapes = {};  // Nouveau : pour stocker les tracés des lignes
+let frequencies = {};  // Nouveau : pour les services à fréquence fixe
+let transfers = {};  // Nouveau : pour les correspondances
+let fareAttributes = {};  // Nouveau : pour les informations tarifaires
+let fareRules = {};  // Nouveau : pour les règles tarifaires
+let agency = {};  // Nouveau : pour les informations sur l'opérateur
 
-        
-        let navigationHistory = [];
-        let currentRouteId = null;
-        let currentStopId = null;
-        let currentDestinationId = null;
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            loadData();
-        });
-        
-        function loadData() {
-            showView('loading-view');
-            
+let navigationHistory = [];
+let currentRouteId = null;
+let currentStopId = null;
+let currentDestinationId = null;
 
-                loadGtfsData().then(() => {
-                    showLines();
-                }).catch(error => {
-                    console.error('Erreur lors du chargement des données:', error);
-                    showView('error-view');
-                });
-        }
+document.addEventListener('DOMContentLoaded', function() {
+    loadData();
+});
+
+function loadData() {
+    showView('loading-view');
+    loadGtfsData().then(() => {
+        showLines();
+    }).catch(error => {
+        console.error('Erreur lors du chargement des données:', error);
+        showView('error-view');
+    });
+}
 
 async function extractGTFSFiles() {
     try {
@@ -508,8 +686,8 @@ async function extractGTFSFiles() {
         const zip = await JSZip.loadAsync(zipData);
         
         const extractedFiles = {};
-        
         const filePromises = [];
+        
         zip.forEach((relativePath, zipEntry) => {
             if (!zipEntry.dir) {
                 const promise = zipEntry.async("string").then(content => {
@@ -521,8 +699,6 @@ async function extractGTFSFiles() {
         });
         
         await Promise.all(filePromises);
-        console.log("Fichiers extraits:", Object.keys(extractedFiles));
-        
         return extractedFiles;
     } catch (error) {
         console.error('Erreur lors de l\'extraction des fichiers GTFS:', error);
@@ -530,435 +706,391 @@ async function extractGTFSFiles() {
     }
 }
 
-
 async function loadGtfsData() {
     try {
         const extractedFiles = await extractGTFSFiles();
         
+        // Réinitialisation des structures de données
         routes = {};
         trips = {};
         stopTimes = {};
         stops = {};
         calendar = {};
         calendarDates = {};
+        shapes = {};
+        frequencies = {};
+        transfers = {};
+        fareAttributes = {};
+        fareRules = {};
+        agency = {};
         
+        // Chargement de tous les fichiers GTFS
         await Promise.all([
+            loadAgency(extractedFiles['agency.txt']),
             loadRoutes(extractedFiles['routes.txt']),
             loadTrips(extractedFiles['trips.txt']),
             loadStopTimes(extractedFiles['stop_times.txt']),
             loadStops(extractedFiles['stops.txt']),
             loadCalendar(extractedFiles['calendar.txt']),
-            loadCalendarDates(extractedFiles['calendar_dates.txt'])
+            loadCalendarDates(extractedFiles['calendar_dates.txt']),
+            loadShapes(extractedFiles['shapes.txt']),
+            loadFrequencies(extractedFiles['frequencies.txt']),
+            loadTransfers(extractedFiles['transfers.txt']),
+            loadFareAttributes(extractedFiles['fare_attributes.txt']),
+            loadFareRules(extractedFiles['fare_rules.txt'])
         ]);
         
         return true;
     } catch (error) {
-        console.error('Erreur lors du chargement des données gtfs', error);
+        console.error('Erreur lors du chargement des données GTFS', error);
         throw error;
     }
 }
 
-async function loadCalendarDates(fileContent) {
-    try {
-        if (!fileContent) {
-            return;
-        }
+// Nouvelle fonction pour charger les informations de l'agence
+async function loadAgency(fileContent) {
+    if (!fileContent) return;
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    
+    const agencyIdIndex = headers.indexOf('agency_id');
+    const agencyNameIndex = headers.indexOf('agency_name');
+    const agencyUrlIndex = headers.indexOf('agency_url');
+    const agencyTimezoneIndex = headers.indexOf('agency_timezone');
+    const agencyLangIndex = headers.indexOf('agency_lang');
+    const agencyPhoneIndex = headers.indexOf('agency_phone');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
         
-        const lines = fileContent.split('\n');
-        
-        const headers = lines[0].split(',');
-        const serviceIdIndex = headers.indexOf('service_id');
-        const dateIndex = headers.indexOf('date');
-        const exceptionTypeIndex = headers.indexOf('exception_type');
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[serviceIdIndex] && values[dateIndex]) {
-                const date = values[dateIndex]; 
-                const exceptionType = parseInt(values[exceptionTypeIndex], 10); 
-                
-                if (!calendarDates[date]) {
-                    calendarDates[date] = { added: [], removed: [] };
-                }
-                
-                if (exceptionType === 1) {
-                    calendarDates[date].added.push(values[serviceIdIndex]);
-                } else if (exceptionType === 2) {
-                    calendarDates[date].removed.push(values[serviceIdIndex]);
-                }
-            }
-        });
-        
-        console.log(`Exceptions de calendrier chargées pour ${Object.keys(calendarDates).length} dates`);
-    } catch (error) {
-        console.error('Erreur lors du chargement des exceptions de calendrier', error);
-    }
+        const agencyId = values[agencyIdIndex] || 'default';
+        agency[agencyId] = {
+            name: values[agencyNameIndex]?.replace(/"/g, ''),
+            url: values[agencyUrlIndex]?.replace(/"/g, ''),
+            timezone: values[agencyTimezoneIndex],
+            lang: values[agencyLangIndex],
+            phone: values[agencyPhoneIndex]?.replace(/"/g, '')
+        };
+    });
 }
 
+// Fonction améliorée pour charger les routes
 async function loadRoutes(fileContent) {
-    try {
-        if (!fileContent) {
-            return;
+    if (!fileContent) return;
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    
+    const routeIdIndex = headers.indexOf('route_id');
+    const agencyIdIndex = headers.indexOf('agency_id');
+    const shortNameIndex = headers.indexOf('route_short_name');
+    const longNameIndex = headers.indexOf('route_long_name');
+    const descIndex = headers.indexOf('route_desc');
+    const typeIndex = headers.indexOf('route_type');
+    const urlIndex = headers.indexOf('route_url');
+    const colorIndex = headers.indexOf('route_color');
+    const textColorIndex = headers.indexOf('route_text_color');
+    const sortOrderIndex = headers.indexOf('route_sort_order');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
+        
+        if (values[routeIdIndex]) {
+            routes[values[routeIdIndex]] = {
+                agency_id: values[agencyIdIndex],
+                short_name: values[shortNameIndex]?.replace(/"/g, ''),
+                long_name: values[longNameIndex]?.replace(/"/g, ''),
+                description: values[descIndex]?.replace(/"/g, ''),
+                type: parseInt(values[typeIndex], 10),
+                url: values[urlIndex]?.replace(/"/g, ''),
+                route_color: values[colorIndex] ? `#${values[colorIndex]}` : '#FFFFFF',
+                route_text_color: values[textColorIndex] ? `#${values[textColorIndex]}` : '#000000',
+                sort_order: values[sortOrderIndex] ? parseInt(values[sortOrderIndex], 10) : 0,
+                trips_count: 0,  // Sera mis à jour lors du chargement des trips
+                stops_count: 0,  // Sera calculé plus tard
+                average_headway: 0  // Sera calculé à partir des fréquences
+            };
         }
-        
-        const lines = fileContent.split('\n');        
-        const headers = lines[0].split(',');
-        const routeIdIndex = headers.indexOf('route_id');
-        const shortNameIndex = headers.indexOf('route_short_name');
-        const longNameIndex = headers.indexOf('route_long_name');
-        const routeColorIndex = headers.indexOf('route_color');
-        const routeTextColorIndex = headers.indexOf('route_text_color');
-        
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[routeIdIndex]) {
-                routes[values[routeIdIndex]] = {
-                    short_name: values[shortNameIndex],
-                    long_name: values[longNameIndex],
-                    route_color: values[routeColorIndex] ? `#${values[routeColorIndex]}` : '#FFFFFF',
-                    route_text_color: values[routeTextColorIndex] ? `#${values[routeTextColorIndex]}` : '#000000',
-                };
-            }
-        });
-        
-    } catch (error) {
-        console.error('Erreur', error);
-    }
+    });
 }
 
-async function loadTrips(fileContent) {
-    try {
-        if (!fileContent) {
-            return;
-        }
-        
-        const lines = fileContent.split('\n');
-        
-        const headers = lines[0].split(',');
-        const tripRouteIdIndex = headers.indexOf('route_id');
-        const tripIdIndex = headers.indexOf('trip_id');
-        const tripServiceIdIndex = headers.indexOf('service_id');
-        const tripHeadsignIndex = headers.indexOf('trip_headsign');
-        const directionIdIndex = headers.indexOf('direction_id');
-        const wheelchairAccessibleIndex = headers.indexOf('wheelchair_accessible');
-        const bikesAllowedIndex = headers.indexOf('bikes_allowed');
-                
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[tripRouteIdIndex] && values[tripIdIndex]) {
-                if (!trips[values[tripRouteIdIndex]]) {
-                    trips[values[tripRouteIdIndex]] = [];
-                }
-                trips[values[tripRouteIdIndex]].push({
-                    trip_id: values[tripIdIndex],
-                    service_id: values[tripServiceIdIndex],
-                    headsign: values[tripHeadsignIndex] ? values[tripHeadsignIndex].replace(/"/g, '') : null,
-                    direction_id: values[directionIdIndex] ? parseInt(values[directionIdIndex], 10) : null,
-                    wheelchair_accessible: values[wheelchairAccessibleIndex] ? parseInt(values[wheelchairAccessibleIndex], 10) : 0,
-                    bikes_allowed: values[bikesAllowedIndex] ? parseInt(values[bikesAllowedIndex], 10) : 0
-                });
-            }
-        });
-        
-        console.log(`${Object.values(trips).reduce((sum, routeTrips) => sum + routeTrips.length, 0)} trajets chargés`);
-    } catch (error) {
-        console.error('Erreur lors du chargement des trajets:', error);
-    }
-}
-
-async function loadStopTimes(fileContent) {
-    try {
-        if (!fileContent) {
-            return;
-        }
-        
-        const lines = fileContent.split('\n');
-        
-        const headers = lines[0].split(',');
-        const stopTripIdIndex = headers.indexOf('trip_id');
-        const stopIdIndex = headers.indexOf('stop_id');
-        const arrivalTimeIndex = headers.indexOf('arrival_time');
-        
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[stopTripIdIndex]) {
-                if (!stopTimes[values[stopTripIdIndex]]) {
-                    stopTimes[values[stopTripIdIndex]] = [];
-                }
-                stopTimes[values[stopTripIdIndex]].push({
-                    stop_id: values[stopIdIndex],
-                    arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
-                });
-            }
-        });
-        
-    } catch (error) {
-        console.error('Erreur', error);
-    }
-}
-
+// Fonction améliorée pour le chargement des arrêts
 async function loadStops(fileContent) {
-    try {
-        if (!fileContent) {
-            return;
+    if (!fileContent) return;
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    
+    const stopIdIndex = headers.indexOf('stop_id');
+    const codeIndex = headers.indexOf('stop_code');
+    const nameIndex = headers.indexOf('stop_name');
+    const descIndex = headers.indexOf('stop_desc');
+    const latIndex = headers.indexOf('stop_lat');
+    const lonIndex = headers.indexOf('stop_lon');
+    const zoneIdIndex = headers.indexOf('zone_id');
+    const urlIndex = headers.indexOf('stop_url');
+    const locTypeIndex = headers.indexOf('location_type');
+    const parentStationIndex = headers.indexOf('parent_station');
+    const timezoneIndex = headers.indexOf('stop_timezone');
+    const wheelchairIndex = headers.indexOf('wheelchair_boarding');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
+        
+        if (values[stopIdIndex]) {
+            stops[values[stopIdIndex]] = {
+                code: values[codeIndex]?.replace(/"/g, ''),
+                name: values[nameIndex]?.replace(/"/g, ''),
+                description: values[descIndex]?.replace(/"/g, ''),
+                lat: parseFloat(values[latIndex]),
+                lon: parseFloat(values[lonIndex]),
+                zone_id: values[zoneIdIndex],
+                url: values[urlIndex]?.replace(/"/g, ''),
+                location_type: parseInt(values[locTypeIndex] || '0', 10),
+                parent_station: values[parentStationIndex] || null,
+                timezone: values[timezoneIndex],
+                wheelchair_boarding: parseInt(values[wheelchairIndex] || '0', 10),
+                routes_serving: new Set(),  // Sera rempli pendant le traitement
+                average_daily_departures: 0,  // Sera calculé
+                transfer_points: []  // Sera rempli à partir des données de transfert
+            };
         }
-        
-        const lines = fileContent.split('\n');
-        
-        const headers = lines[0].split(',');
-        const stopsIdIndex = headers.indexOf('stop_id');
-        const stopsNameIndex = headers.indexOf('stop_name');
-        const stopsLatIndex = headers.indexOf('stop_lat');
-        const stopsLonIndex = headers.indexOf('stop_lon');
-        const stopsCodeIndex = headers.indexOf('stop_code');
-        const stopsDescIndex = headers.indexOf('stop_desc');
-        const wheelchairBoardingIndex = headers.indexOf('wheelchair_boarding');
-        const parentStationIndex = headers.indexOf('parent_station');
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[stopsIdIndex]) {
-                stops[values[stopsIdIndex]] = {
-                    name: values[stopsNameIndex] ? values[stopsNameIndex].replace(/"/g, '') : '',
-                    lat: values[stopsLatIndex] ? parseFloat(values[stopsLatIndex]) : null,
-                    lon: values[stopsLonIndex] ? parseFloat(values[stopsLonIndex]) : null,
-                    code: values[stopsCodeIndex] ? values[stopsCodeIndex].replace(/"/g, '') : null,
-                    description: values[stopsDescIndex] ? values[stopsDescIndex].replace(/"/g, '') : null,
-                    wheelchair_boarding: values[wheelchairBoardingIndex] ? parseInt(values[wheelchairBoardingIndex], 10) : 0,
-                    parent_station: values[parentStationIndex] || null
-                };
-            }
-        });
-        
-        console.log(`${Object.keys(stops).length} arrêts chargés`);
-    } catch (error) {
-        console.error('Erreur lors du chargement des arrêts:', error);
-    }
+    });
 }
 
-async function loadCalendar(fileContent) {
-    try {
-        if (!fileContent) {
-            return;
-        }
+// Nouvelle fonction pour charger les formes (tracés)
+async function loadShapes(fileContent) {
+    if (!fileContent) return;
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    
+    const shapeIdIndex = headers.indexOf('shape_id');
+    const latIndex = headers.indexOf('shape_pt_lat');
+    const lonIndex = headers.indexOf('shape_pt_lon');
+    const sequenceIndex = headers.indexOf('shape_pt_sequence');
+    const distTraveledIndex = headers.indexOf('shape_dist_traveled');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
         
-        const lines = fileContent.split('\n');
-        
-        const headers = lines[0].split(',');
-        const serviceIdIndex = headers.indexOf('service_id');
-        const startDateIndex = headers.indexOf('start_date');
-        const endDateIndex = headers.indexOf('end_date');
-        const mondayIndex = headers.indexOf('monday');
-        const tuesdayIndex = headers.indexOf('tuesday');
-        const wednesdayIndex = headers.indexOf('wednesday');
-        const thursdayIndex = headers.indexOf('thursday');
-        const fridayIndex = headers.indexOf('friday');
-        const saturdayIndex = headers.indexOf('saturday');
-        const sundayIndex = headers.indexOf('sunday');
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[serviceIdIndex]) {
-                const serviceId = values[serviceIdIndex];
-                
-                calendar[serviceId] = {
-                    weekdays: [
-                        parseInt(values[mondayIndex], 10),
-                        parseInt(values[tuesdayIndex], 10),
-                        parseInt(values[wednesdayIndex], 10),
-                        parseInt(values[thursdayIndex], 10),
-                        parseInt(values[fridayIndex], 10)
-                    ].includes(1),
-                    saturday: parseInt(values[saturdayIndex], 10) === 1,
-                    sunday: parseInt(values[sundayIndex], 10) === 1,
-                    start_date: values[startDateIndex],
-                    end_date: values[endDateIndex]
-                };
+        if (values[shapeIdIndex]) {
+            const shapeId = values[shapeIdIndex];
+            if (!shapes[shapeId]) {
+                shapes[shapeId] = [];
             }
-        });
-        
-        console.log(`${Object.keys(calendar).length} services de calendrier chargés`);
-    } catch (error) {
-        console.error('Erreur lors du chargement du calendrier', error);
-    }
+            
+            shapes[shapeId].push({
+                lat: parseFloat(values[latIndex]),
+                lon: parseFloat(values[lonIndex]),
+                sequence: parseInt(values[sequenceIndex], 10),
+                dist_traveled: values[distTraveledIndex] ? parseFloat(values[distTraveledIndex]) : null
+            });
+        }
+    });
+    
+    // Trier les points par séquence
+    Object.values(shapes).forEach(shape => {
+        shape.sort((a, b) => a.sequence - b.sequence);
+    });
 }
 
-        function showView(viewId) {
-            document.querySelectorAll('.view').forEach(view => {
-                view.classList.remove('active');
-            });
-            
-            const view = document.getElementById(viewId);
-            view.classList.add('active');
-            
-            if (view.classList.contains('page-transition')) {
-                setTimeout(() => {
-                    view.classList.add('slide-in');
-                }, 50);
+// Nouvelle fonction pour charger les fréquences
+async function loadFrequencies(fileContent) {
+    if (!fileContent) return;
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    
+    const tripIdIndex = headers.indexOf('trip_id');
+    const startTimeIndex = headers.indexOf('start_time');
+    const endTimeIndex = headers.indexOf('end_time');
+    const headwaySecsIndex = headers.indexOf('headway_secs');
+    const exactTimesIndex = headers.indexOf('exact_times');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
+        
+        if (values[tripIdIndex]) {
+            const tripId = values[tripIdIndex];
+            if (!frequencies[tripId]) {
+                frequencies[tripId] = [];
             }
+            
+            frequencies[tripId].push({
+                start_time: values[startTimeIndex],
+                end_time: values[endTimeIndex],
+                headway_secs: parseInt(values[headwaySecsIndex], 10),
+                exact_times: values[exactTimesIndex] ? parseInt(values[exactTimesIndex], 10) : 0
+            });
         }
-        
-        function showLines() {
-            navigationHistory = [];
-            currentRouteId = null;
-            currentDestinationId = null;
-            currentStopId = null;
-            
-            const container = document.getElementById('lines-container');
-            container.innerHTML = '';
-            
-            Object.entries(routes).forEach(([routeId, route]) => {
-                const lineItem = document.createElement('div');
-                lineItem.className = 'bus-item';
-                lineItem.innerHTML = `
-                    <div class="line-details">
-                        <span class="line-number" style="color: ${route.route_text_color}">Ligne ${route.short_name}</span>
-                    </div>
-                    <div style="color: ${route.route_text_color}; text-align: right;">${route.long_name.replace(/"/g, '')}</div>
-                `;
-                lineItem.style.backgroundColor = `${route.route_color}`;
-                lineItem.onclick = () => showDestinations(routeId);
-                container.appendChild(lineItem);
-            });
-            
-            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-            showView('lines-view');
-        }
-        
-        function showDestinations(routeId) {
-            currentRouteId = routeId;
-            navigationHistory.push({ view: 'lines-view' });
-            
-            const container = document.getElementById('destinations-container');
-            container.innerHTML = '';
-            
-            document.getElementById('route-title').textContent = `Ligne ${routes[routeId].short_name}`;
-            
-            const destinations = new Set();
-            
-            trips[routeId].forEach(({ trip_id }) => {
-                const tripStops = stopTimes[trip_id];
-                if (tripStops && tripStops.length > 0) {
-                    const lastStop = tripStops[tripStops.length - 1].stop_id;
-                    destinations.add(lastStop);
-                }
-            });
-            
-            Array.from(destinations).forEach(destinationId => {
-                const destinationItem = document.createElement('div');
-                destinationItem.className = 'destination-item';
-                destinationItem.textContent = stops[destinationId].replace(/"/g, '');
-                destinationItem.onclick = () => showStops(routeId, destinationId);
-                destinationItem.style.backgroundColor = `${routes[routeId].route_color}`;
-                destinationItem.style.color = `${routes[routeId].route_text_color}`;
-                container.appendChild(destinationItem);
-            });
-            
-            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-            showView('destinations-view');
-        }
-        
-        function showStops(routeId, destinationId) {
-            currentDestinationId = destinationId;
-            navigationHistory.push({ view: 'destinations-view', routeId });
-            
-            const container = document.getElementById('stops-container');
-            container.innerHTML = '';
-            
-            document.getElementById('destination-title').textContent = 
-                `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
-            
-            const stopSet = new Set();
-            
-            trips[routeId].forEach(({ trip_id }) => {
-                const tripStops = stopTimes[trip_id];
-                if (tripStops) {
-                    const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
-                    if (destIndex !== -1) {
-                        for (let i = 0; i < destIndex; i++) {
-                            stopSet.add(tripStops[i].stop_id);
-                        }
-                    }
-                }
-            });
-            
-            Array.from(stopSet).forEach(stopId => {
-                const stopItem = document.createElement('div');
-                stopItem.className = 'stop-item';
-                stopItem.textContent = stops[stopId].replace(/"/g, '');
-                stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
-                stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
-                stopItem.style.color = `${routes[routeId].route_text_color}`;
-                container.appendChild(stopItem);
-            });
-            
-            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-            showView('stops-view');
-        }
-        
-        function showSchedule(routeId, stopId, destinationId) {
-    currentStopId = stopId;
-    navigationHistory.push({ view: 'stops-view', routeId, destinationId });
-    
-    document.getElementById('route-info').textContent = 
-        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
-    document.getElementById('stop-title').textContent = 
-        `Horaires pour l'arrêt ${stops[stopId].replace(/"/g, '')}`;
-    
-    const dateSelect = document.getElementById('date-select');
-    const today = new Date();
-    dateSelect.value = today.toISOString().split('T')[0];
-    
-    dateSelect.onchange = () => updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
-    
-    updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
-    
-    document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-    showView('schedule-view');
+    });
 }
 
+// Nouvelle fonction pour charger les transferts
+async function loadTransfers(fileContent) {
+    if (!fileContent) return;
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    
+    const fromStopIndex = headers.indexOf('from_stop_id');
+    const toStopIndex = headers.indexOf('to_stop_id');
+    const transferTypeIndex = headers.indexOf('transfer_type');
+    const minTimeIndex = headers.indexOf('min_transfer_time');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
+        
+        if (values[fromStopIndex] && values[toStopIndex]) {
+            const fromStopId = values[fromStopIndex];
+            const toStopId = values[toStopIndex];
+            
+            if (!transfers[fromStopId]) {
+                transfers[fromStopId] = [];
+            }
+            
+            transfers[fromStopId].push({
+                to_stop_id: toStopId,
+                transfer_type: parseInt(values[transferTypeIndex], 10),
+                min_transfer_time: values[minTimeIndex] ? parseInt(values[minTimeIndex], 10) : null
+            });
+            
+            // Mettre à jour les points de correspondance dans les stops
+            if (stops[fromStopId]) {
+                stops[fromStopId].transfer_points.push({
+                    stop_id: toStopId,
+                    transfer_type: parseInt(values[transferTypeIndex], 10),
+                    min_time: values[minTimeIndex] ? parseInt(values[minTimeIndex], 10) : null
+                });
+            }
+        }
+    });
+}
+
+// Fonction améliorée pour afficher les horaires
 function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     const scheduleContainer = document.getElementById('schedule-container');
     scheduleContainer.innerHTML = '';
     
     const selectedDate = new Date(dateString);
     const gtfsDate = selectedDate.toISOString().split('T')[0].replace(/-/g, '');
-    const dayOfWeek = selectedDate.getDay(); 
+    const dayOfWeek = selectedDate.getDay();
     
+    // Afficher les informations de l'arrêt
+    const stopInfo = document.createElement('div');
+    stopInfo.className = 'stop-info';
+    if (stops[stopId]) {
+        const stop = stops[stopId];
+        stopInfo.innerHTML = `
+            <h4>${stop.name}</h4>
+            ${stop.description ? `<p>${stop.description}</p>` : ''}
+            ${stop.wheelchair_boarding ? '<div class="accessibility">♿ Accessible PMR</div>' : ''}
+            ${stop.transfer_points.length > 0 ? 
+                `<div class="transfers">
+                    🔄 Correspondances disponibles avec ${stop.transfer_points.length} ligne(s)
+                </div>` : ''}
+        `;
+    }
+    scheduleContainer.appendChild(stopInfo);
+    
+    // Afficher les informations de la ligne
+    const routeInfo = document.createElement('div');
+    routeInfo.className = 'route-info';
+    if (routes[routeId]) {
+        const route = routes[routeId];
+        routeInfo.innerHTML = `
+            <div class="route-header" style="background-color: ${route.route_color}; color: ${route.route_text_color}">
+                <h3>Ligne ${route.short_name}</h3>
+                ${route.description ? `<p>${route.description}</p>` : ''}
+            </div>
+        `;
+    }
+    scheduleContainer.appendChild(routeInfo);
+    
+    // Afficher la date
     const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const formattedDate = selectedDate.toLocaleDateString('fr-FR', dateOptions);
     
+    // En-tête de la date avec style amélioré
     const dateHeader = document.createElement('div');
     dateHeader.className = 'date-header';
-    dateHeader.innerHTML = `<h3>Horaires pour le ${formattedDate}</h3>`;
+    dateHeader.innerHTML = `
+        <div class="date-navigation">
+            <button onclick="navigateDate('${dateString}', -1)">◀</button>
+            <h3>Horaires pour le ${formattedDate}</h3>
+            <button onclick="navigateDate('${dateString}', 1)">▶</button>
+        </div>
+    `;
     scheduleContainer.appendChild(dateHeader);
     
+    // Récupération des services actifs
     const activeServiceIds = getActiveServiceIds(dayOfWeek, gtfsDate);
     
     if (activeServiceIds.length === 0) {
-        scheduleContainer.innerHTML += `<p>Pas de service disponible pour cette date.</p>`;
+        showNoServiceMessage(scheduleContainer, 'Pas de service disponible pour cette date.');
         return;
     }
     
+    // Filtrer les trajets valides pour cette date
     const validTrips = trips[routeId].filter(({ trip_id, service_id }) => 
         activeServiceIds.includes(service_id)
     );
     
     if (validTrips.length === 0) {
-        scheduleContainer.innerHTML += `<p>Pas de bus de cette ligne circulant à cette date.</p>`;
+        showNoServiceMessage(scheduleContainer, 'Pas de bus de cette ligne circulant à cette date.');
         return;
     }
     
-    const schedule = [];
-    validTrips.forEach(({ trip_id }) => {
+    // Récupération et organisation des horaires
+    const scheduleData = getScheduleData(validTrips, stopId, destinationId);
+    
+    // Si des fréquences sont définies, les ajouter aux horaires
+    addFrequencyBasedSchedules(scheduleData, validTrips, stopId);
+    
+    // Affichage des horaires par période
+    displayScheduleByPeriods(scheduleContainer, scheduleData);
+}
+
+// Fonction pour naviguer entre les dates
+function navigateDate(currentDate, offset) {
+    const date = new Date(currentDate);
+    date.setDate(date.getDate() + offset);
+    const newDate = date.toISOString().split('T')[0];
+    document.getElementById('date-select').value = newDate;
+    updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, newDate);
+}
+
+// Fonction pour afficher un message d'absence de service
+function showNoServiceMessage(container, message) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'no-service-message';
+    messageDiv.innerHTML = `
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            ${message}
+        </div>
+    `;
+    container.appendChild(messageDiv);
+}
+
+// Fonction pour récupérer les données d'horaires
+function getScheduleData(validTrips, stopId, destinationId) {
+    const scheduleData = {
+        morning: [],   // 5h-9h
+        day: [],       // 9h-16h
+        evening: [],   // 16h-20h
+        night: []      // 20h-5h
+    };
+    
+    validTrips.forEach(({ trip_id, wheelchair_accessible, bikes_allowed }) => {
         const tripStops = stopTimes[trip_id];
         let destinationReached = false;
         
@@ -966,73 +1098,124 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
             tripStops.forEach(({ stop_id: currentStopId, arrival_time }) => {
                 if (currentStopId === destinationId) destinationReached = true;
                 if (currentStopId === stopId && !destinationReached) {
-                    schedule.push(arrival_time);
+                    const [hours, minutes] = arrival_time.split('h').map(num => parseInt(num, 10));
+                    const normalizedHour = hours >= 24 ? hours - 24 : hours;
+                    
+                    const scheduleEntry = {
+                        hour: normalizedHour,
+                        minute: minutes,
+                        wheelchair: wheelchair_accessible === 1,
+                        bikes: bikes_allowed === 1,
+                        realtime: false // À implémenter si des données temps réel sont disponibles
+                    };
+                    
+                    // Classement par période
+                    if (normalizedHour >= 5 && normalizedHour < 9) {
+                        scheduleData.morning.push(scheduleEntry);
+                    } else if (normalizedHour >= 9 && normalizedHour < 16) {
+                        scheduleData.day.push(scheduleEntry);
+                    } else if (normalizedHour >= 16 && normalizedHour < 20) {
+                        scheduleData.evening.push(scheduleEntry);
+                    } else {
+                        scheduleData.night.push(scheduleEntry);
+                    }
                 }
             });
         }
     });
     
-    const hours = {};
-    schedule.forEach(time => {
-        let [hour, minute] = time.split('h').map(num => parseInt(num, 10));
-        
-        if (hour >= 24) {
-            hour -= 24;
-        }
-        
-        if (!hours[hour]) hours[hour] = [];
-        hours[hour].push(minute);
+    // Trier les horaires dans chaque période
+    Object.values(scheduleData).forEach(period => {
+        period.sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
     });
     
-    const sortedTimes = Object.entries(hours).sort(([a], [b]) => a - b);
-    
-    if (sortedTimes.length === 0) {
-        scheduleContainer.innerHTML += `<p>Pas d'horaires disponibles pour cet arrêt à cette date.</p>`;
-    } else {
-        sortedTimes.forEach(([hour, minutes]) => {
-            const uniqueSortedMinutes = [...new Set(minutes)].sort((a, b) => a - b).join('  ');
-            
-            const row = document.createElement('div');
-            row.className = 'schedule-row';
-            row.innerHTML = `<span>${hour}h</span><span1>${uniqueSortedMinutes}</span1>`;
-            scheduleContainer.appendChild(row);
-        });
-    }
+    return scheduleData;
 }
 
-function getActiveServiceIds(dayOfWeek, gtfsDate) {
-    const activeServiceIds = [];
+// Fonction pour ajouter les horaires basés sur les fréquences
+function addFrequencyBasedSchedules(scheduleData, validTrips, stopId) {
+    validTrips.forEach(({ trip_id, wheelchair_accessible, bikes_allowed }) => {
+        if (frequencies[trip_id]) {
+            frequencies[trip_id].forEach(freq => {
+                const [startHour, startMin] = freq.start_time.split(':').map(Number);
+                const [endHour, endMin] = freq.end_time.split(':').map(Number);
+                const headwayMinutes = freq.headway_secs / 60;
+                
+                let currentTime = startHour * 60 + startMin;
+                const endTime = endHour * 60 + endMin;
+                
+                while (currentTime < endTime) {
+                    const hour = Math.floor(currentTime / 60);
+                    const minute = currentTime % 60;
+                    
+                    const scheduleEntry = {
+                        hour,
+                        minute,
+                        wheelchair: wheelchair_accessible === 1,
+                        bikes: bikes_allowed === 1,
+                        frequency: true,
+                        headway: headwayMinutes
+                    };
+                    
+                    // Classer dans la période appropriée
+                    if (hour >= 5 && hour < 9) {
+                        scheduleData.morning.push(scheduleEntry);
+                    } else if (hour >= 9 && hour < 16) {
+                        scheduleData.day.push(scheduleEntry);
+                    } else if (hour >= 16 && hour < 20) {
+                        scheduleData.evening.push(scheduleEntry);
+                    } else {
+                        scheduleData.night.push(scheduleEntry);
+                    }
+                    
+                    currentTime += headwayMinutes;
+                }
+            });
+        }
+    });
+}
+
+// Fonction pour afficher les horaires par période
+function displayScheduleByPeriods(container, scheduleData) {
+    const periods = [
+        { key: 'morning', label: 'Matin (5h-9h)', icon: '🌅' },
+        { key: 'day', label: 'Journée (9h-16h)', icon: '☀️' },
+        { key: 'evening', label: 'Soir (16h-20h)', icon: '🌆' },
+        { key: 'night', label: 'Nuit (20h-5h)', icon: '🌙' }
+    ];
     
-    Object.entries(calendar).forEach(([serviceId, service]) => {
-        const isInDateRange = service.start_date && service.end_date && 
-                              gtfsDate >= service.start_date && 
-                              gtfsDate <= service.end_date;
-        
-        if (isInDateRange && 
-            ((dayOfWeek === 0 && service.sunday) ||
-             (dayOfWeek === 6 && service.saturday) ||
-             (dayOfWeek >= 1 && dayOfWeek <= 5 && service.weekdays))) {
-            activeServiceIds.push(serviceId);
+    periods.forEach(({ key, label, icon }) => {
+        if (scheduleData[key].length > 0) {
+            const periodContainer = document.createElement('div');
+            periodContainer.className = 'schedule-period';
+            
+            periodContainer.innerHTML = `
+                <h4 class="period-header">${icon} ${label}</h4>
+                <div class="schedule-times">
+                    ${scheduleData[key].map(time => `
+                        <div class="time-slot">
+                            <span class="time">${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}</span>
+                            ${time.wheelchair ? '<span class="accessibility-icon">♿</span>' : ''}
+                            ${time.bikes ? '<span class="bike-icon">🚲</span>' : ''}
+                            ${time.frequency ? `<span class="frequency-note">~${time.headway}min</span>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            container.appendChild(periodContainer);
         }
     });
     
-    if (calendarDates[gtfsDate]) {
-        calendarDates[gtfsDate].added.forEach(serviceId => {
-            if (!activeServiceIds.includes(serviceId)) {
-                activeServiceIds.push(serviceId);
-            }
-        });
-        
-        calendarDates[gtfsDate].removed.forEach(serviceId => {
-            const index = activeServiceIds.indexOf(serviceId);
-            if (index !== -1) {
-                activeServiceIds.splice(index, 1);
-            }
-        });
-    }
-    
-    return activeServiceIds;
-}
+    // Ajouter une légende
+    const legend = document.createElement('div');
+    legend.className = 'schedule-legend';
+    legend.innerHTML = `
+        <div class="legend-item">♿ Accessible PMR</div>
+        <div class="legend-item">🚲 Vélos autorisés</div>
+        <div class="legend-item">~ Fréquence approximative</div>
+    `;
+    container.appendChild(legend);
 
 function goBack() {
             if (navigationHistory.length === 0) {
@@ -1050,6 +1233,7 @@ function goBack() {
                 showStops(previousState.routeId, previousState.destinationId);
             }
         }
+    }
     </script>
 </body>
 </html>
