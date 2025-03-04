@@ -1568,14 +1568,6 @@ async function initializeGTFS() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        const gtfsData = await initializeGTFS();
-    } catch (error) {
-        console.error('Erreur lors de l\'initialisation GTFS:', error);
-    }
-});
-
 async function decodeProtobuf(buffer) {
             const root = await protobuf.load('gtfs-realtime.proto');
             const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
@@ -3063,36 +3055,35 @@ async function fetchTripUpdates() {
 
 
 		
-
-
 async function main() {
-    await loadLineColors(),
-    await loadStopIds(),
-    await loadLineTerminusData(),
-    await loadGeoJsonLines();
-    await Promise.all([
-
-        fetchTripUpdates(),
-        fetchVehiclePositions(),
-        fetchServiceAlerts(),
-        hideLoadingScreen()
-
-    ]);
-
-        await fetchVehiclePositions();    
-
+    try {
+        const gtfsData = await initializeGTFS();
+        console.log("GTFS data initialized successfully", gtfsData);
+        
+        await loadGeoJsonLines();
+        
+        await Promise.all([
+            fetchTripUpdates(),
+            fetchVehiclePositions(),
+            fetchServiceAlerts(),
+            hideLoadingScreen()
+        ]);
+        
         function fetchRegularUpdates() {
             fetchVehiclePositions();
             fetchTripUpdates();
-
+            
             setTimeout(fetchRegularUpdates, 8000);
         }
 
         setTimeout(fetchRegularUpdates, 8000);
+        
+        console.log("Init complete , regular updates scheduled");
+    } catch (error) {
+        console.error("Error in main function", error);
+    }
 }
 
-
-
-main();
+document.addEventListener('DOMContentLoaded', main);
     </script>
 </html>
