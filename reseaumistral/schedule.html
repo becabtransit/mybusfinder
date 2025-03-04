@@ -786,14 +786,37 @@ message TranslatedString {
 }
 `;
 
+function loadProtobufJS() {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/protobuf.js@6.11.3/dist/protobuf.min.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Impossible de charger protobuf.js'));
+        document.head.appendChild(script);
+    });
+}
+
 let root = null;
 let TransitRealtime = null;
+let protobufLoaded = false;
 
 async function initializeProtobuf() {
+    if (protobufLoaded) {
+        return true;
+    }
+
     try {
+        await loadProtobufJS();
+        
+        if (typeof protobuf === 'undefined') {
+            throw new Error('protobuf.js n\'a pas été correctement chargé');
+        }
+
         const parsed = protobuf.parse(gtfsRealtimeProto);
         root = parsed.root;
         TransitRealtime = root.lookupType("transit_realtime.FeedMessage");
+        protobufLoaded = true;
+        console.log('Protobuf initialisé avec succès');
         return true;
     } catch (error) {
         console.error('Erreur lors de l\'initialisation de protobuf:', error);
@@ -803,48 +826,84 @@ async function initializeProtobuf() {
 
 async function fetchRealtimeData() {
     try {
-        if (!TransitRealtime) {
-            await initializeProtobuf();
+        if (!protobufLoaded) {
+            const initialized = await initializeProtobuf();
+            if (!initialized) {
+                throw new Error('Échec de l\'initialisation de protobuf');
+            }
         }
 
-        const response = await fetch('proxy-cors/proxy_tripupdate.php');
+        const response = await fetch('proxy-cors/proxy_gtfs_rt.php');
         if (!response.ok) {
             throw new Error(`Échec du téléchargement GTFS-RT: ${response.status}`);
         }
         
         const buffer = await response.arrayBuffer();
+        
+        if (!TransitRealtime) {
+            throw new Error('TransitRealtime n\'est pas initialisé');
+        }
+
         const message = TransitRealtime.decode(new Uint8Array(buffer));
         
+        // Reset realtime data
         realtimeData = {};
         
-        message.entity.forEach(entity => {
-            if (entity.tripUpdate) {
-                const tripId = entity.tripUpdate.trip.tripId;
-                
-                entity.tripUpdate.stopTimeUpdate.forEach(update => {
-                    const stopId = update.stopId;
-                    const arrival = update.arrival ? update.arrival.time.low * 1000 : null;
+        if (message && message.entity) {
+            message.entity.forEach(entity => {
+                if (entity.tripUpdate) {
+                    const tripId = entity.tripUpdate.trip.tripId;
                     
-                    if (!realtimeData[tripId]) {
-                        realtimeData[tripId] = {};
-                    }
-                    realtimeData[tripId][stopId] = arrival;
-                });
-            }
-        });
+                    entity.tripUpdate.stopTimeUpdate.forEach(update => {
+                        const stopId = update.stopId;
+                        const arrival = update.arrival ? update.arrival.time.low * 1000 : null;
+                        
+                        if (!realtimeData[tripId]) {
+                            realtimeData[tripId] = {};
+                        }
+                        realtimeData[tripId][stopId] = arrival;
+                    });
+                }
+            });
+        }
         
         return true;
     } catch (error) {
         console.error('Erreur lors du chargement des données GTFS-RT:', error);
+        handleRealtimeError();
         return false;
     }
 }
 
-function startRealtimeUpdates() {
-    initializeProtobuf().then(() => {
-        fetchRealtimeData();
-        setInterval(fetchRealtimeData, 60000); 
-    });
+// Fonction pour gérer les erreurs de temps réel
+function handleRealtimeError() {
+    const realtimeContainer = document.getElementById('realtime-container');
+    if (realtimeContainer) {
+        realtimeContainer.innerHTML = `
+            <div class="realtime-header">
+                <h3>Données temps réel indisponibles</h3>
+            </div>
+            <div class="no-realtime-data">
+                Les données en temps réel ne sont pas disponibles pour le moment.
+                Veuillez réessayer plus tard.
+            </div>
+        `;
+    }
+}
+
+async function startRealtimeUpdates() {
+    try {
+        const initialized = await initializeProtobuf();
+        if (!initialized) {
+            throw new Error('Échec de l\'initialisation de protobuf');
+        }
+        
+        await fetchRealtimeData();
+        setInterval(fetchRealtimeData, 60000); // Refresh every minute
+    } catch (error) {
+        console.error('Erreur lors du démarrage des mises à jour temps réel:', error);
+        handleRealtimeError();
+    }
 }
 
 
@@ -1331,13 +1390,12 @@ function showSchedule(routeId, stopId, destinationId) {
         }
     };
     
-    startRealtimeUpdates();
+    updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
     
-    if (isRealtimeView) {
-        updateRealtimeSchedule(routeId, stopId, destinationId);
-    } else {
-        updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
-    }
+    startRealtimeUpdates().catch(error => {
+        console.error('Erreur lors du démarrage des mises à jour temps réel:', error);
+        handleRealtimeError();
+    });
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('schedule-view');
