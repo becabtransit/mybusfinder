@@ -276,6 +276,7 @@ select:focus {
 }
 
 .textpop {
+    display: inline-grid;
     transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
     padding: 5px 10px;
 }
@@ -892,16 +893,21 @@ function displayRealtimeSchedule(arrivals) {
                     <span class="vehicle-id">Bus ${arrival.vehicleId}</span>
                 </div>
                 ${arrival.theoretical ? 
-                    `<div class="theoretical-time">Passe initialement à ${arrival.theoretical}</div>` : 
+                    `<div class="theoretical-time">(théorique: ${arrival.theoretical})</div>` : 
                     ''}
             </div>
             <div class="delay-indicator ${delayClass}">${delayText}</div>
         `;
         
+        item.style.cursor = 'pointer';
+        
+        item.addEventListener('click', () => {
+            sendVehicleIdToParent(arrival.vehicleId, arrival.tripId);
+        });
+        
         container.appendChild(item);
     });
 }
-
 function getRealtimeArrival(tripId, stopId) {
     if (!realtimeData || !realtimeData[tripId]) {
         return null;
