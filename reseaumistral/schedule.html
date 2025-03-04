@@ -641,6 +641,213 @@ async function loadCalendarDates(fileContent) {
     }
 }
 
+// Fonction pour charger les attributs tarifaires
+async function loadFareAttributes(fileContent) {
+    if (!fileContent) return;
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    
+    const fareIdIndex = headers.indexOf('fare_id');
+    const priceIndex = headers.indexOf('price');
+    const currencyTypeIndex = headers.indexOf('currency_type');
+    const paymentMethodIndex = headers.indexOf('payment_method');
+    const transfersIndex = headers.indexOf('transfers');
+    const transferDurationIndex = headers.indexOf('transfer_duration');
+    const agencyIdIndex = headers.indexOf('agency_id');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
+        
+        if (values[fareIdIndex]) {
+            fareAttributes[values[fareIdIndex]] = {
+                price: parseFloat(values[priceIndex]),
+                currency_type: values[currencyTypeIndex],
+                payment_method: parseInt(values[paymentMethodIndex], 10),
+                transfers: values[transfersIndex] ? parseInt(values[transfersIndex], 10) : null,
+                transfer_duration: values[transferDurationIndex] ? parseInt(values[transferDurationIndex], 10) : null,
+                agency_id: values[agencyIdIndex] || null,
+                // Ajout de champs utiles pour l'interface utilisateur
+                payment_method_desc: getPaymentMethodDescription(parseInt(values[paymentMethodIndex], 10)),
+                transfers_desc: getTransfersDescription(values[transfersIndex] ? parseInt(values[transfersIndex], 10) : null)
+            };
+        }
+    });
+    
+    console.log(`${Object.keys(fareAttributes).length} attributs tarifaires chargés`);
+}
+
+// Fonction pour charger les règles tarifaires
+async function loadFareRules(fileContent) {
+    if (!fileContent) return;
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    
+    const fareIdIndex = headers.indexOf('fare_id');
+    const routeIdIndex = headers.indexOf('route_id');
+    const originIdIndex = headers.indexOf('origin_id');
+    const destinationIdIndex = headers.indexOf('destination_id');
+    const containsIdIndex = headers.indexOf('contains_id');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
+        
+        if (values[fareIdIndex]) {
+            const fareId = values[fareIdIndex];
+            
+            if (!fareRules[fareId]) {
+                fareRules[fareId] = [];
+            }
+            
+            fareRules[fareId].push({
+                route_id: values[routeIdIndex] || null,
+                origin_id: values[originIdIndex] || null,
+                destination_id: values[destinationIdIndex] || null,
+                contains_id: values[containsIdIndex] || null
+            });
+            
+            // Enrichir les données des routes avec les informations tarifaires
+            if (values[routeIdIndex] && routes[values[routeIdIndex]]) {
+                if (!routes[values[routeIdIndex]].fares) {
+                    routes[values[routeIdIndex]].fares = [];
+                }
+                routes[values[routeIdIndex]].fares.push(fareId);
+            }
+        }
+    });
+    
+    console.log(`Règles tarifaires chargées pour ${Object.keys(fareRules).length} tarifs`);
+}
+
+// Fonction utilitaire pour obtenir la description du mode de paiement
+function getPaymentMethodDescription(paymentMethod) {
+    switch(paymentMethod) {
+        case 0:
+            return "Paiement à bord";
+        case 1:
+            return "Paiement préalable requis";
+        default:
+            return "Mode de paiement non spécifié";
+    }
+}
+
+// Fonction utilitaire pour obtenir la description des correspondances
+function getTransfersDescription(transfers) {
+    switch(transfers) {
+        case 0:
+            return "Aucune correspondance possible";
+        case 1:
+            return "Une correspondance autorisée";
+        case 2:
+            return "Deux correspondances autorisées";
+        case null:
+            return "Correspondances illimitées";
+        default:
+            return `${transfers} correspondances autorisées`;
+    }
+}
+
+// Fonction pour obtenir le tarif applicable pour un trajet
+function getFareForTrip(routeId, originStopId, destinationStopId) {
+    let applicableFares = [];
+    
+    // Récupérer tous les tarifs possibles pour cette route
+    if (routes[routeId] && routes[routeId].fares) {
+        routes[routeId].fares.forEach(fareId => {
+            const fareRuleSet = fareRules[fareId];
+            if (fareRuleSet) {
+                // Vérifier si les règles correspondent au trajet
+                const matchingRules = fareRuleSet.filter(rule => {
+                    let matches = true;
+                    
+                    // Vérifier la route
+                    if (rule.route_id && rule.route_id !== routeId) {
+                        matches = false;
+                    }
+                    
+                    // Vérifier la zone d'origine
+                    if (rule.origin_id && stops[originStopId] && 
+                        stops[originStopId].zone_id !== rule.origin_id) {
+                        matches = false;
+                    }
+                    
+                    // Vérifier la zone de destination
+                    if (rule.destination_id && stops[destinationStopId] && 
+                        stops[destinationStopId].zone_id !== rule.destination_id) {
+                        matches = false;
+                    }
+                    
+                    // Vérifier les zones traversées
+                    if (rule.contains_id) {
+                        // Cette vérification nécessiterait une analyse du trajet complet
+                        // Pour simplifier, on suppose que c'est vrai si les zones d'origine et de destination correspondent
+                        const originZone = stops[originStopId]?.zone_id;
+                        const destZone = stops[destinationStopId]?.zone_id;
+                        if (rule.contains_id !== originZone && rule.contains_id !== destZone) {
+                            matches = false;
+                        }
+                    }
+                    
+                    return matches;
+                });
+                
+                if (matchingRules.length > 0) {
+                    const fareAttribute = fareAttributes[fareId];
+                    if (fareAttribute) {
+                        applicableFares.push({
+                            ...fareAttribute,
+                            fare_id: fareId,
+                            rules: matchingRules
+                        });
+                    }
+                }
+            }
+        });
+    }
+    
+    return applicableFares;
+}
+
+// Fonction pour afficher les informations tarifaires dans l'interface
+function displayFareInformation(container, routeId, originStopId, destinationStopId) {
+    const fares = getFareForTrip(routeId, originStopId, destinationStopId);
+    
+    if (fares.length === 0) {
+        return;
+    }
+    
+    const fareSection = document.createElement('div');
+    fareSection.className = 'fare-information';
+    fareSection.innerHTML = `
+        <h4>🎫 Informations tarifaires</h4>
+        <div class="fares-container">
+            ${fares.map(fare => `
+                <div class="fare-item">
+                    <div class="fare-price">
+                        ${fare.price.toFixed(2)} ${fare.currency_type}
+                    </div>
+                    <div class="fare-details">
+                        <div class="payment-method">
+                            💳 ${fare.payment_method_desc}
+                        </div>
+                        <div class="transfers-info">
+                            🔄 ${fare.transfers_desc}
+                            ${fare.transfer_duration ? 
+                                `(valable ${Math.floor(fare.transfer_duration / 60)} minutes)` : 
+                                ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    
+    container.appendChild(fareSection);
+}
+
 async function loadRoutes(fileContent) {
     if (!fileContent) return;
     
@@ -1077,10 +1284,15 @@ async function loadCalendar(fileContent) {
     currentStopId = stopId;
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
+    const scheduleContainer = document.getElementById('schedule-container');
+    scheduleContainer.innerHTML = '';
+    
     document.getElementById('route-info').textContent = 
-        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
+        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].name}`;
     document.getElementById('stop-title').textContent = 
-        `Horaires pour l'arrêt ${stops[stopId].replace(/"/g, '')}`;
+        `Horaires pour l'arrêt ${stops[stopId].name}`;
+    
+    displayFareInformation(scheduleContainer, routeId, stopId, destinationId);
     
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
@@ -1089,9 +1301,6 @@ async function loadCalendar(fileContent) {
     dateSelect.onchange = () => updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
     
     updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
-    
-    document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-    showView('schedule-view');
 }
 
 function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
