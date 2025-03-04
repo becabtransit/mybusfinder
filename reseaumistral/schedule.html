@@ -1144,93 +1144,101 @@ async function loadCalendar(fileContent) {
         }
         
         function showDestinations(routeId) {
-            currentRouteId = routeId;
-            navigationHistory.push({ view: 'lines-view' });
-            
-            const container = document.getElementById('destinations-container');
-            container.innerHTML = '';
-            
-            document.getElementById('route-title').textContent = `Ligne ${routes[routeId].short_name}`;
-            
-            const destinations = new Set();
-            
-            trips[routeId].forEach(({ trip_id }) => {
-                const tripStops = stopTimes[trip_id];
-                if (tripStops && tripStops.length > 0) {
-                    const lastStop = tripStops[tripStops.length - 1].stop_id;
-                    destinations.add(lastStop);
-                }
-            });
-            
-            Array.from(destinations).forEach(destinationId => {
-                const destinationItem = document.createElement('div');
-                destinationItem.className = 'destination-item';
-                destinationItem.textContent = stops[destinationId].replace(/"/g, '');
-                destinationItem.onclick = () => showStops(routeId, destinationId);
-                destinationItem.style.backgroundColor = `${routes[routeId].route_color}`;
-                destinationItem.style.color = `${routes[routeId].route_text_color}`;
-                container.appendChild(destinationItem);
-            });
-            
-            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-            showView('destinations-view');
+    currentRouteId = routeId;
+    navigationHistory.push({ view: 'lines-view' });
+    
+    const container = document.getElementById('destinations-container');
+    container.innerHTML = '';
+    
+    document.getElementById('route-title').textContent = `Ligne ${routes[routeId].short_name}`;
+    
+    const destinations = new Set();
+    
+    trips[routeId].forEach(({ trip_id }) => {
+        const tripStops = stopTimes[trip_id];
+        if (tripStops && tripStops.length > 0) {
+            const lastStop = tripStops[tripStops.length - 1].stop_id;
+            destinations.add(lastStop);
         }
-        
+    });
+    
+    Array.from(destinations).forEach(destinationId => {
+        const destinationName = getStopName(destinationId);
+        const destinationItem = document.createElement('div');
+        destinationItem.className = 'destination-item';
+        destinationItem.textContent = destinationName;
+        destinationItem.onclick = () => showStops(routeId, destinationId);
+        destinationItem.style.backgroundColor = `${routes[routeId].route_color}`;
+        destinationItem.style.color = `${routes[routeId].route_text_color}`;
+        container.appendChild(destinationItem);
+    });
+    
+    document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+    showView('destinations-view');
+}        
         function showStops(routeId, destinationId) {
-            currentDestinationId = destinationId;
-            navigationHistory.push({ view: 'destinations-view', routeId });
-            
-            const container = document.getElementById('stops-container');
-            container.innerHTML = '';
-            
-            document.getElementById('destination-title').textContent = 
-                `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
-            
-            const stopSet = new Set();
-            
-            trips[routeId].forEach(({ trip_id }) => {
-                const tripStops = stopTimes[trip_id];
-                if (tripStops) {
-                    const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
-                    if (destIndex !== -1) {
-                        for (let i = 0; i < destIndex; i++) {
-                            stopSet.add(tripStops[i].stop_id);
-                        }
-                    }
+    currentDestinationId = destinationId;
+    navigationHistory.push({ view: 'destinations-view', routeId });
+    
+    const container = document.getElementById('stops-container');
+    container.innerHTML = '';
+    
+    const destinationName = getStopName(destinationId);
+    document.getElementById('destination-title').textContent = 
+        `Ligne ${routes[routeId].short_name} ➜ ${destinationName}`;
+    
+    const stopSet = new Set();
+    
+    trips[routeId].forEach(({ trip_id }) => {
+        const tripStops = stopTimes[trip_id];
+        if (tripStops) {
+            const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
+            if (destIndex !== -1) {
+                for (let i = 0; i < destIndex; i++) {
+                    stopSet.add(tripStops[i].stop_id);
                 }
-            });
-            
-            Array.from(stopSet).forEach(stopId => {
-                const stopItem = document.createElement('div');
-                stopItem.className = 'stop-item';
-                stopItem.textContent = stops[stopId].replace(/"/g, '');
-                stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
-                stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
-                stopItem.style.color = `${routes[routeId].route_text_color}`;
-                container.appendChild(stopItem);
-            });
-            
-            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-            showView('stops-view');
+            }
         }
-        
+    });
+    
+    Array.from(stopSet).forEach(stopId => {
+        const stopName = getStopName(stopId);
+        const stopItem = document.createElement('div');
+        stopItem.className = 'stop-item';
+        stopItem.textContent = stopName;
+        stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
+        stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
+        stopItem.style.color = `${routes[routeId].route_text_color}`;
+        container.appendChild(stopItem);
+    });
+    
+    document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+    showView('stops-view');
+}
+
         let isShowingRealtime = false;
 
-function showSchedule(routeId, stopId, destinationId) {
+        function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
     currentRouteId = routeId;
-    isShowingRealtime = false; 
+    currentDestinationId = destinationId;
+    isShowingRealtime = false;
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
+    // Accéder correctement aux noms des arrêts
+    const destinationName = stops[destinationId] ? stops[destinationId].name : 'Arrêt inconnu';
+    const stopName = stops[stopId] ? stops[stopId].name : 'Arrêt inconnu';
+    
     document.getElementById('route-info').textContent = 
-        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].name}`;
+        `Ligne ${routes[routeId].short_name} ➜ ${destinationName}`;
     document.getElementById('stop-title').textContent = 
-        `Horaires pour l'arrêt ${stops[stopId].name}`;
+        `Horaires pour l'arrêt ${stopName}`;
     
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
     dateSelect.value = today.toISOString().split('T')[0];
     
+    // S'assurer que l'onglet théorique est actif par défaut
     document.querySelectorAll('.tab-button').forEach(tab => {
         tab.classList.remove('active');
         if (tab.dataset.tab === 'theoretical') {
@@ -1245,12 +1253,23 @@ function showSchedule(routeId, stopId, destinationId) {
         }
     });
     
+    // Initialiser l'affichage des horaires théoriques
     updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
     
+    // Configurer les gestionnaires d'événements des onglets
     setupTabHandlers();
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('schedule-view');
+}
+
+// Fonction utilitaire pour obtenir le nom d'un arrêt de manière sécurisée
+function getStopName(stopId) {
+    if (!stops[stopId]) {
+        console.warn(`Arrêt non trouvé pour l'ID: ${stopId}`);
+        return 'Arrêt inconnu';
+    }
+    return stops[stopId].name.replace(/\"/g, '');
 }
 
 function setupTabHandlers() {
