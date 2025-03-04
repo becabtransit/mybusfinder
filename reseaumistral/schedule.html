@@ -389,41 +389,7 @@ select:focus {
     transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 
-.stop-content {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
 
-.stop-name {
-    flex: 1;
-}
-
-.accessibility-icon, .transfer-icon {
-    font-size: 1.2em;
-}
-
-.transfer-icon {
-    cursor: help;
-}
-
-.destination-item, .stop-item {
-    display: flex;
-    align-items: center;
-    padding: 12px;
-    margin: 8px 0;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: transform 0.2s ease;
-}
-
-.destination-item:hover, .stop-item:hover {
-    transform: translateX(5px);
-}
-
-.stop-content {
-    width: 100%;
-}
 
     </style>
 </head>
@@ -1365,29 +1331,134 @@ function showStops(routeId, destinationId) {
     showView('stops-view');
 }
 
-        function showSchedule(routeId, stopId, destinationId) {
+function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
-    const scheduleContainer = document.getElementById('schedule-container');
-    scheduleContainer.innerHTML = '';
+    const container = document.getElementById('schedule-container');
+    container.innerHTML = '';
     
+    // Vérifier que tous les éléments nécessaires existent
+    if (!routes[routeId] || !stops[stopId] || !stops[destinationId]) {
+        console.error('Données manquantes:', { routeId, stopId, destinationId });
+        showError(container, 'Impossible d\'afficher les horaires : données manquantes');
+        return;
+    }
+    
+    // Mise à jour des titres
     document.getElementById('route-info').textContent = 
-        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].name}`;
+        `Ligne ${routes[routeId].short_name} → ${stops[destinationId].name}`;
     document.getElementById('stop-title').textContent = 
         `Horaires pour l'arrêt ${stops[stopId].name}`;
     
-    displayFareInformation(scheduleContainer, routeId, stopId, destinationId);
+    // Créer la section d'informations de l'arrêt
+    const stopInfoSection = createStopInfoSection(stopId);
+    container.appendChild(stopInfoSection);
     
-    const dateSelect = document.getElementById('date-select');
+    // Ajouter le sélecteur de date
+    const dateSelector = createDateSelector();
+    container.appendChild(dateSelector);
+    
+    // Initialiser avec la date du jour
     const today = new Date();
-    dateSelect.value = today.toISOString().split('T')[0];
+    const dateString = today.toISOString().split('T')[0];
+    updateScheduleByDate(routeId, stopId, destinationId, dateString);
     
-    dateSelect.onchange = () => updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
+    // Afficher les informations tarifaires
+    displayFareInformation(container, routeId, stopId, destinationId);
     
-    updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
+    // Afficher la vue des horaires
+    showView('schedule-view');
 }
 
+function createStopInfoSection(stopId) {
+    const stop = stops[stopId];
+    const section = document.createElement('div');
+    section.className = 'stop-info-section';
+    
+    let content = `
+        <div class="stop-details">
+            <h3>${stop.name}</h3>
+            ${stop.description ? `<p>${stop.description}</p>` : ''}
+    `;
+    
+    // Ajouter les informations d'accessibilité
+    if (stop.wheelchair_boarding === 1) {
+        content += '<div class="accessibility-info">♿ Arrêt accessible PMR</div>';
+    }
+    
+    // Ajouter les informations de correspondance
+    if (stop.transfer_points && stop.transfer_points.length > 0) {
+        content += `
+            <div class="transfer-info">
+                🔄 Correspondances disponibles :
+                <ul>
+                ${stop.transfer_points.map(transfer => {
+                    const transferStop = stops[transfer.stop_id];
+                    return transferStop ? 
+                        `<li>${transferStop.name} (${transfer.min_time ? 
+                            `temps de correspondance : ${transfer.min_time} min` : 
+                            'correspondance directe'})</li>` : '';
+                }).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    // Ajouter les coordonnées si disponibles
+    if (stop.lat && stop.lon) {
+        content += `
+            <div class="location-info">
+                📍 <a href="https://www.openstreetmap.org/?mlat=${stop.lat}&mlon=${stop.lon}" 
+                     target="_blank">Voir sur la carte</a>
+            </div>
+        `;
+    }
+    
+    content += '</div>';
+    section.innerHTML = content;
+    return section;
+}
+
+function createDateSelector() {
+    const container = document.createElement('div');
+    container.className = 'date-selector';
+    
+    // Créer un sélecteur pour les 7 prochains jours
+    const select = document.createElement('select');
+    select.id = 'date-select';
+    
+    const today = new Date();
+    for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(today.getDate() + i);
+        
+        const option = document.createElement('option');
+        option.value = date.toISOString().split('T')[0];
+        
+        const dateFormatter = new Intl.DateTimeFormat('fr-FR', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        
+        option.textContent = i === 0 ? 
+            "Aujourd'hui - " + dateFormatter.format(date) :
+            i === 1 ? 
+                "Demain - " + dateFormatter.format(date) :
+                dateFormatter.format(date);
+        
+        select.appendChild(option);
+    }
+    
+    select.onchange = (e) => {
+        updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, e.target.value);
+    };
+    
+    container.appendChild(select);
+    return container;
+}
 function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     const scheduleContainer = document.getElementById('schedule-container');
     scheduleContainer.innerHTML = '';
