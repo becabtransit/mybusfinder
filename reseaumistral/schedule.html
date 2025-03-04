@@ -728,8 +728,17 @@ select:focus {
                 <div id="realtime-container" class="realtime-list"></div>
             </div>
         </div>
+        <div id="home-view" class="view page-transition">
+            <div class="favorites-header">
+                <h2>Mes arrêts favoris</h2>
+            </div>
+            <div id="favorites-container" class="favorites-container"></div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn" onclick="showLines()">Ajouter un arrêt</button>
+            </div>
+        </div>
     </div>
-    
+    <script src="src/js/favorites.js"></script>
     <script>
         let routes = {};
         let trips = {};
@@ -1430,6 +1439,27 @@ function showSchedule(routeId, stopId, destinationId) {
     document.getElementById('stop-title').textContent = 
         `Horaires pour l'arrêt ${stops[stopId].replace(/"/g, '')}`;
 
+        const favoriteButton = document.createElement('div');
+favoriteButton.className = `favorite-star ${isFavorite(routeId, stopId, destinationId) ? 'active' : ''}`;
+favoriteButton.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="${isFavorite(routeId, stopId, destinationId) ? '#FFD700' : 'none'}" stroke="currentColor" stroke-width="2">
+        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+    </svg>
+`;
+favoriteButton.onclick = () => {
+    const id = `${routeId}-${stopId}-${destinationId}`;
+    if (isFavorite(routeId, stopId, destinationId)) {
+        removeFromFavorites(id);
+        favoriteButton.classList.remove('active');
+        favoriteButton.querySelector('svg').setAttribute('fill', 'none');
+    } else {
+        addToFavorites(routeId, stopId, destinationId);
+        favoriteButton.classList.add('active');
+        favoriteButton.querySelector('svg').setAttribute('fill', '#FFD700');
+    }
+};
+document.querySelector('#stop-title').parentNode.style.position = 'relative';
+document.querySelector('#stop-title').parentNode.appendChild(favoriteButton);
     
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
