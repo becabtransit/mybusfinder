@@ -612,24 +612,27 @@ select:focus {
         
     document.addEventListener('DOMContentLoaded', function() {
     loadData();
-    isShowingRealtime = false;
     const tabs = document.querySelectorAll('.tab-button');
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const targetTab = tab.dataset.tab;
             
+            // Mise à jour des boutons
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             
+            // Mise à jour du contenu
             document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.remove('active');
             });
             document.getElementById(`${targetTab}-view`).classList.add('active');
             
+            // Gestion des mises à jour temps réel
             if (targetTab === 'realtime') {
-                fetchRealtimeData();
+                isShowingRealtime = true;
                 startRealtimeUpdates();
             } else {
+                isShowingRealtime = false;
                 stopRealtimeUpdates();
             }
         });
@@ -642,8 +645,9 @@ function startRealtimeUpdates() {
         clearInterval(updateInterval);
     }
     
-    fetchRealtimeData(); // Premier chargement immédiat
-    updateInterval = setInterval(fetchRealtimeData, 30000); // Puis toutes les 30 secondes
+    fetchRealtimeData();
+    
+    updateInterval = setInterval(fetchRealtimeData, 30000);
 }
 
 function stopRealtimeUpdates() {
@@ -677,75 +681,79 @@ async function fetchRealtimeData() {
         }
         const buffer = await response.arrayBuffer();
         
-        // Utilisation de protobuf.js pour décoder les données GTFS-RT
+        // Décodage des données GTFS-RT
         const root = await protobuf.load('gtfs-realtime.proto');
         const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
         const message = FeedMessage.decode(new Uint8Array(buffer));
         
-        // Traitement des données temps réel
-        const processedData = processRealtimeData(message);
-        
         // Mise à jour de l'horodatage
-        const lastUpdate = new Date(message.header.timestamp * 1000);
-        document.getElementById('last-update-time').textContent = 
-            `Dernière mise à jour : ${lastUpdate.toLocaleTimeString()}`;
+        updateLastUpdateTime(message.header.timestamp);
         
-        // Afficher les données temps réel pour l'arrêt actuel
-        if (currentStopId) {
-            displayRealtimeSchedule(processedData[currentStopId] || []);
-        }
+        // Traiter et afficher les données en temps réel
+        const processedData = processRealtimeData(message);
+        displayRealtimeSchedule(processedData);
         
     } catch (error) {
         console.error('Erreur lors de la récupération des données temps réel:', error);
-        document.getElementById('realtime-container').innerHTML = 
-            '<p class="error-message">Impossible de charger les horaires en temps réel</p>';
+        displayRealtimeError();
     }
 }
 
+function displayRealtimeError() {
+    const container = document.getElementById('realtime-container');
+    container.innerHTML = `
+        <div class="error-message">
+            Impossible de récupérer les horaires en temps réel.
+            <button class="retry-button" onclick="fetchRealtimeData()">Réessayer</button>
+        </div>
+    `;
+}
+
+function updateLastUpdateTime(timestamp) {
+    const lastUpdate = new Date(timestamp * 1000);
+    const timeString = lastUpdate.toLocaleTimeString();
+    document.getElementById('last-update-time').textContent = 
+        `Dernière mise à jour : ${timeString}`;
+}
+
 function processRealtimeData(message) {
-    const processedData = {};
-    
+    if (!currentRouteId || !currentStopId) {
+        return [];
+    }
+
+    const currentTime = new Date();
+    const arrivals = [];
+
     message.entity.forEach(entity => {
-        if (entity.tripUpdate) {
-            const tripUpdate = entity.tripUpdate;
-            const tripId = tripUpdate.trip.tripId;
-            
-            // Trouver la ligne et l'arrêt correspondant au trip
-            const routeId = getRouteIdFromTripId(tripId);
-            if (routeId !== currentRouteId) return;
-            
-            tripUpdate.stopTimeUpdate.forEach(update => {
-                const stopId = update.stopId;
-                if (!processedData[stopId]) {
-                    processedData[stopId] = [];
-                }
-                
-                if (update.arrival) {
-                    const scheduledTime = getScheduledTime(tripId, stopId);
-                    const realTime = new Date(update.arrival.time * 1000);
-                    const delay = scheduledTime ? 
-                        Math.round((realTime - scheduledTime) / 60000) : 0;
+        if (entity.tripUpdate && matchesCurrentRoute(entity.tripUpdate.trip)) {
+            entity.tripUpdate.stopTimeUpdate.forEach(update => {
+                if (update.stopId === currentStopId) {
+                    const arrivalTime = new Date(update.arrival?.time * 1000 || update.time * 1000);
                     
-                    processedData[stopId].push({
-                        time: realTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                        delay: delay,
-                        tripId: tripId
-                    });
+                    // Ne garder que les passages à venir (dans les prochaines 24h)
+                    if (arrivalTime > currentTime && 
+                        arrivalTime < new Date(currentTime.getTime() + 24 * 60 * 60 * 1000)) {
+                        
+                        const theoreticalTime = getTheoreticalTime(entity.tripUpdate.trip.tripId, currentStopId);
+                        const delay = theoreticalTime ? 
+                            Math.round((arrivalTime - theoreticalTime) / 60000) : 0;
+
+                        arrivals.push({
+                            time: arrivalTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                            delay: delay,
+                            tripId: entity.tripUpdate.trip.tripId
+                        });
+                    }
                 }
             });
         }
     });
 
-
-    Object.keys(processedData).forEach(stopId => {
-        processedData[stopId].sort((a, b) => {
-            const timeA = parseTime(a.time);
-            const timeB = parseTime(b.time);
-            return timeA - timeB;
-        });
+    return arrivals.sort((a, b) => {
+        const timeA = parseTime(a.time);
+        const timeB = parseTime(b.time);
+        return timeA - timeB;
     });
-    
-    return processedData;
 }
 
 function getRouteIdFromTripId(tripId) {
@@ -755,6 +763,24 @@ function getRouteIdFromTripId(tripId) {
         }
     }
     return null;
+}
+
+function matchesCurrentRoute(trip) {
+    const routeTrips = trips[currentRouteId] || [];
+    return routeTrips.some(rt => rt.trip_id === trip.tripId);
+}
+
+function getTheoreticalTime(tripId, stopId) {
+    const tripStopTimes = stopTimes[tripId];
+    if (!tripStopTimes) return null;
+
+    const stopTime = tripStopTimes.find(st => st.stop_id === stopId);
+    if (!stopTime) return null;
+
+    // Convertir l'heure théorique en objet Date
+    const [hours, minutes] = stopTime.arrival_time.split('h').map(Number);
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
 }
 
 function getScheduledTime(tripId, stopId) {
@@ -771,26 +797,17 @@ function getScheduledTime(tripId, stopId) {
 function displayRealtimeSchedule(arrivals) {
     const container = document.getElementById('realtime-container');
     container.innerHTML = '';
-    
+
     if (!arrivals || arrivals.length === 0) {
-        container.innerHTML = '<p class="no-data">Aucun passage prévu prochainement</p>';
+        container.innerHTML = `
+            <div class="no-data-message">
+                Aucun passage prévu prochainement
+            </div>
+        `;
         return;
     }
-    
-    // Filtrer les passages futurs uniquement
-    const now = new Date();
-    const futureArrivals = arrivals.filter(arrival => {
-        const arrivalTime = parseTime(arrival.time);
-        return arrivalTime > now;
-    });
-    
-    if (futureArrivals.length === 0) {
-        container.innerHTML = '<p class="no-data">Plus de passage prévu aujourd\'hui</p>';
-        return;
-    }
-    
-    // Afficher les prochains passages
-    futureArrivals.slice(0, 5).forEach(arrival => {
+
+    arrivals.forEach(arrival => {
         const item = document.createElement('div');
         item.className = 'realtime-item';
         
@@ -804,7 +821,7 @@ function displayRealtimeSchedule(arrivals) {
             delayClass = 'delay-early';
             delayText = `Avance de ${Math.abs(arrival.delay)} minutes`;
         }
-        
+
         item.innerHTML = `
             <div class="arrival-time">${arrival.time}</div>
             <div class="delay-indicator ${delayClass}">${delayText}</div>
@@ -1318,6 +1335,12 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     displaySchedule(validTrips, stopId, destinationId, scheduleContainer);
 }
 
+function parseTime(timeStr) {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+}
+
 // Fonction utilitaire pour analyser le format d'heure "XXhYY"
 function parseTimeString(timeStr) {
     const [hours, minutes] = timeStr.split('h').map(num => parseInt(num, 10));
@@ -1422,10 +1445,8 @@ function getActiveServiceIds(dayOfWeek, gtfsDate) {
 function cleanup() {
     stopRealtimeUpdates();
     isShowingRealtime = false;
-    currentStopId = null;
-    currentRouteId = null;
-    currentDestinationId = null;
 }
+
 function goBack() {
             if (navigationHistory.length === 0) {
                 showLines();
