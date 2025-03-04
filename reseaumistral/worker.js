@@ -1,69 +1,57 @@
+// worker.js
 onmessage = function(e) {
-    postMessage(processTripUpdates(e.data));
+    const data = e.data;
+
+    const processedData = processTripUpdates(data);
+
+    postMessage(processedData);
 };
 
 function processTripUpdates(data) {
     const tripUpdates = {};
-    const now = Date.now() / 1000;
-    const timeFormatOptions = { hour: '2-digit', minute: '2-digit' };
-    
-    for (let i = 0; i < data.entity.length; i++) {
-        const entity = data.entity[i];
+
+    data.entity.forEach(entity => {
         const tripUpdate = entity.tripUpdate;
-        
-        if (!tripUpdate || !tripUpdate.stopTimeUpdate || !tripUpdate.stopTimeUpdate.length) {
-            continue;
-        }
-        
-        const tripId = tripUpdate.trip.tripId;
-        const stopTimeUpdates = tripUpdate.stopTimeUpdate;
-        const stopUpdatesLength = stopTimeUpdates.length;
-        
-        const lastStopId = stopUpdatesLength > 0 
-            ? stopTimeUpdates[stopUpdatesLength - 1].stopId.replace("0:", "") 
-            : 'Inconnu';
-        
-        const nextStops = [];
-        const arrivalDelays = {};
-        
-        for (let j = 0; j < stopUpdatesLength; j++) {
-            const update = stopTimeUpdates[j];
-            const stopId = update.stopId.replace("0:", "");
-            const arrival = update.arrival;
-            const departure = update.departure;
-            
-            let arrivalTimeStr = null;
-            let departureTimeStr = null;
-            let unifiedTime = "Heure inconnue";
-            
-            if (arrival && arrival.time) {
-                const arrivalDate = new Date(arrival.time * 1000);
-                arrivalTimeStr = arrivalDate.toLocaleTimeString([], timeFormatOptions);
-                unifiedTime = arrivalTimeStr;
-                
-                arrivalDelays[update.stopId] = arrival.time - now;
-            }
-            
-            if (!arrivalTimeStr && departure && departure.time) {
-                departureTimeStr = new Date(departure.time * 1000).toLocaleTimeString([], timeFormatOptions);
-                unifiedTime = departureTimeStr;
-            }
-            
-            nextStops.push({
-                stopId,
-                arrivalTime: arrivalTimeStr,
-                departureTime: departureTimeStr,
-                unifiedTime
+        if (tripUpdate && tripUpdate.stopTimeUpdate) {
+            const tripId = tripUpdate.trip.tripId;
+            const stopTimeUpdates = tripUpdate.stopTimeUpdate;
+
+            const lastStopId = stopTimeUpdates.length > 0 ? stopTimeUpdates[stopTimeUpdates.length - 1].stopId.replace("0:", "") : 'Inconnu';
+
+            const nextStops = stopTimeUpdates.map(update => {
+                const stopId = update.stopId.replace("0:", "");
+                const arrivalTime = update.arrival?.time ?? null; 
+                const departureTime = update.departure?.time ?? null;
+
+                const unifiedTime = arrivalTime 
+                    ? new Date(arrivalTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                    : departureTime 
+                        ? new Date(departureTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                        : "Heure inconnue";
+
+                return {
+                    stopId,
+                    arrivalTime: arrivalTime ? new Date(arrivalTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
+                    departureTime: departureTime ? new Date(departureTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
+                    unifiedTime 
+                };
+            });
+
+            tripUpdates[tripId] = {
+                stopUpdates: stopTimeUpdates,
+                lastStopId: lastStopId,
+                arrivalDelays: {},
+                nextStops: nextStops
+            };
+
+            stopTimeUpdates.forEach(update => {
+                if (update.arrival) {
+                    const arrivalDelay = update.arrival.time - Date.now() / 1000; 
+                    tripUpdates[tripId].arrivalDelays[update.stopId] = arrivalDelay;
+                }
             });
         }
-        
-        tripUpdates[tripId] = {
-            stopUpdates: stopTimeUpdates,
-            lastStopId: lastStopId,
-            arrivalDelays: arrivalDelays,
-            nextStops: nextStops
-        };
-    }
-    
-    return tripUpdates;
+    });
+
+    return tripUpdates; 
 }
