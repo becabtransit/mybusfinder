@@ -356,6 +356,41 @@ select:focus {
     transform: translateY(0) scale(0.95);
     transition: transform 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
+
+.date-input {
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-family: inherit;
+    background-color: #f9f9f9;
+    cursor: pointer;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    font-size: 0.95em;
+    margin-bottom: 15px;
+}
+
+.date-input:hover {
+    border-color: #363636;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.date-input:focus {
+    outline: none;
+    border-color: #363636;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.date-header {
+    padding: 10px 0;
+    border-bottom: 2px solid #eee;
+    margin-bottom: 15px;
+    text-align: center;
+    color: #363636;
+    transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
     </style>
 </head>
 <body>
@@ -426,11 +461,9 @@ select:focus {
                 <h1 id="stop-title"></h1>
             </div>
             <div>
-                <select id="day-type-select">
-                    <option value="weekdays">Horaires semaine</option>
-                    <option value="saturday">Week-end / vacances</option>
-                    <option value="sunday">Dimanche / fériés</option>
-                </select>
+                <div>
+                    <input type="date" id="date-select" class="date-input">
+                </div>
             </div>
             <div id="schedule-container"></div>
         </div>
@@ -442,6 +475,8 @@ select:focus {
         let stopTimes = {};
         let stops = {};
         let calendar = {};
+        let calendarDates = {};
+
         
         let navigationHistory = [];
         let currentRouteId = null;
@@ -497,6 +532,7 @@ async function extractGTFSFiles() {
     }
 }
 
+
 async function loadGtfsData() {
     try {
         const extractedFiles = await extractGTFSFiles();
@@ -506,19 +542,59 @@ async function loadGtfsData() {
         stopTimes = {};
         stops = {};
         calendar = {};
+        calendarDates = {};
         
         await Promise.all([
             loadRoutes(extractedFiles['routes.txt']),
             loadTrips(extractedFiles['trips.txt']),
             loadStopTimes(extractedFiles['stop_times.txt']),
             loadStops(extractedFiles['stops.txt']),
-            loadCalendar(extractedFiles['calendar.txt'])
+            loadCalendar(extractedFiles['calendar.txt']),
+            loadCalendarDates(extractedFiles['calendar_dates.txt'])
         ]);
         
         return true;
     } catch (error) {
         console.error('Erreur lors du chargement des données gtfs', error);
         throw error;
+    }
+}
+
+async function loadCalendarDates(fileContent) {
+    try {
+        if (!fileContent) {
+            return;
+        }
+        
+        const lines = fileContent.split('\n');
+        
+        const headers = lines[0].split(',');
+        const serviceIdIndex = headers.indexOf('service_id');
+        const dateIndex = headers.indexOf('date');
+        const exceptionTypeIndex = headers.indexOf('exception_type');
+        
+        lines.slice(1).forEach(line => {
+            if (!line.trim()) return;
+            const values = line.split(',');
+            if (values[serviceIdIndex] && values[dateIndex]) {
+                const date = values[dateIndex]; 
+                const exceptionType = parseInt(values[exceptionTypeIndex], 10); 
+                
+                if (!calendarDates[date]) {
+                    calendarDates[date] = { added: [], removed: [] };
+                }
+                
+                if (exceptionType === 1) {
+                    calendarDates[date].added.push(values[serviceIdIndex]);
+                } else if (exceptionType === 2) {
+                    calendarDates[date].removed.push(values[serviceIdIndex]);
+                }
+            }
+        });
+        
+        console.log(`Exceptions de calendrier chargées pour ${Object.keys(calendarDates).length} dates`);
+    } catch (error) {
+        console.error('Erreur lors du chargement des exceptions de calendrier', error);
     }
 }
 
@@ -657,24 +733,41 @@ async function loadCalendar(fileContent) {
         
         const headers = lines[0].split(',');
         const serviceIdIndex = headers.indexOf('service_id');
-        
+        const startDateIndex = headers.indexOf('start_date');
+        const endDateIndex = headers.indexOf('end_date');
+        const mondayIndex = headers.indexOf('monday');
+        const tuesdayIndex = headers.indexOf('tuesday');
+        const wednesdayIndex = headers.indexOf('wednesday');
+        const thursdayIndex = headers.indexOf('thursday');
+        const fridayIndex = headers.indexOf('friday');
+        const saturdayIndex = headers.indexOf('saturday');
+        const sundayIndex = headers.indexOf('sunday');
         
         lines.slice(1).forEach(line => {
             if (!line.trim()) return;
             const values = line.split(',');
             if (values[serviceIdIndex]) {
-                const serviceId = values[serviceIdIndex].toLowerCase();
+                const serviceId = values[serviceIdIndex];
                 
-                calendar[values[serviceIdIndex]] = {
-                    weekdays: serviceId.includes('semaine'),
-                    saturday: serviceId.includes('samedi'),
-                    sunday: serviceId.includes('dimanche'),
+                calendar[serviceId] = {
+                    weekdays: [
+                        parseInt(values[mondayIndex], 10),
+                        parseInt(values[tuesdayIndex], 10),
+                        parseInt(values[wednesdayIndex], 10),
+                        parseInt(values[thursdayIndex], 10),
+                        parseInt(values[fridayIndex], 10)
+                    ].includes(1),
+                    saturday: parseInt(values[saturdayIndex], 10) === 1,
+                    sunday: parseInt(values[sundayIndex], 10) === 1,
+                    start_date: values[startDateIndex],
+                    end_date: values[endDateIndex]
                 };
             }
         });
         
+        console.log(`${Object.keys(calendar).length} services de calendrier chargés`);
     } catch (error) {
-        console.error('Erreur', error);
+        console.error('Erreur lors du chargement du calendrier', error);
     }
 }
 
@@ -792,78 +885,136 @@ async function loadCalendar(fileContent) {
         }
         
         function showSchedule(routeId, stopId, destinationId) {
-            currentStopId = stopId;
-            navigationHistory.push({ view: 'stops-view', routeId, destinationId });
-            
-            document.getElementById('route-info').textContent = 
-                `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
-            document.getElementById('stop-title').textContent = 
-                `Horaires pour l'arrêt ${stops[stopId].replace(/"/g, '')}`;
-            
-            const dayTypeSelect = document.getElementById('day-type-select');
-            dayTypeSelect.onchange = () => updateSchedule(routeId, stopId, destinationId, dayTypeSelect.value);
-            
-            updateSchedule(routeId, stopId, destinationId, 'weekdays');
-            
-            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-            showView('schedule-view');
+    currentStopId = stopId;
+    navigationHistory.push({ view: 'stops-view', routeId, destinationId });
+    
+    document.getElementById('route-info').textContent = 
+        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
+    document.getElementById('stop-title').textContent = 
+        `Horaires pour l'arrêt ${stops[stopId].replace(/"/g, '')}`;
+    
+    const dateSelect = document.getElementById('date-select');
+    const today = new Date();
+    dateSelect.value = today.toISOString().split('T')[0];
+    
+    dateSelect.onchange = () => updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
+    
+    updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
+    
+    document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+    showView('schedule-view');
+}
+
+function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
+    const scheduleContainer = document.getElementById('schedule-container');
+    scheduleContainer.innerHTML = '';
+    
+    const selectedDate = new Date(dateString);
+    const gtfsDate = selectedDate.toISOString().split('T')[0].replace(/-/g, '');
+    const dayOfWeek = selectedDate.getDay(); 
+    
+    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const formattedDate = selectedDate.toLocaleDateString('fr-FR', dateOptions);
+    
+    const dateHeader = document.createElement('div');
+    dateHeader.className = 'date-header';
+    dateHeader.innerHTML = `<h3>Horaires pour le ${formattedDate}</h3>`;
+    scheduleContainer.appendChild(dateHeader);
+    
+    const activeServiceIds = getActiveServiceIds(dayOfWeek, gtfsDate);
+    
+    if (activeServiceIds.length === 0) {
+        scheduleContainer.innerHTML += `<p>Pas de service disponible pour cette date.</p>`;
+        return;
+    }
+    
+    const validTrips = trips[routeId].filter(({ trip_id, service_id }) => 
+        activeServiceIds.includes(service_id)
+    );
+    
+    if (validTrips.length === 0) {
+        scheduleContainer.innerHTML += `<p>Pas de bus de cette ligne circulant à cette date.</p>`;
+        return;
+    }
+    
+    const schedule = [];
+    validTrips.forEach(({ trip_id }) => {
+        const tripStops = stopTimes[trip_id];
+        let destinationReached = false;
+        
+        if (tripStops) {
+            tripStops.forEach(({ stop_id: currentStopId, arrival_time }) => {
+                if (currentStopId === destinationId) destinationReached = true;
+                if (currentStopId === stopId && !destinationReached) {
+                    schedule.push(arrival_time);
+                }
+            });
+        }
+    });
+    
+    const hours = {};
+    schedule.forEach(time => {
+        let [hour, minute] = time.split('h').map(num => parseInt(num, 10));
+        
+        if (hour >= 24) {
+            hour -= 24;
         }
         
-        function updateSchedule(routeId, stopId, destinationId, dayType) {
-            const scheduleContainer = document.getElementById('schedule-container');
-            scheduleContainer.innerHTML = '';
+        if (!hours[hour]) hours[hour] = [];
+        hours[hour].push(minute);
+    });
+    
+    const sortedTimes = Object.entries(hours).sort(([a], [b]) => a - b);
+    
+    if (sortedTimes.length === 0) {
+        scheduleContainer.innerHTML += `<p>Pas d'horaires disponibles pour cet arrêt à cette date.</p>`;
+    } else {
+        sortedTimes.forEach(([hour, minutes]) => {
+            const uniqueSortedMinutes = [...new Set(minutes)].sort((a, b) => a - b).join('  ');
             
-            const validTrips = trips[routeId].filter(({ service_id }) => {
-                if (dayType === 'weekdays') return calendar[service_id]?.weekdays;
-                if (dayType === 'saturday') return calendar[service_id]?.saturday;
-                if (dayType === 'sunday') return calendar[service_id]?.sunday;
-                return false;
-            });
-            
-            const schedule = [];
-            validTrips.forEach(({ trip_id }) => {
-                const tripStops = stopTimes[trip_id];
-                let destinationReached = false;
-                
-                if (tripStops) {
-                    tripStops.forEach(({ stop_id: currentStopId, arrival_time }) => {
-                        if (currentStopId === destinationId) destinationReached = true;
-                        if (currentStopId === stopId && !destinationReached) {
-                            schedule.push(arrival_time);
-                        }
-                    });
-                }
-            });
-            
-            const hours = {};
-            schedule.forEach(time => {
-                let [hour, minute] = time.split('h').map(num => parseInt(num, 10));
-                
-                if (hour >= 24) {
-                    hour -= 24;
-                }
-                
-                if (!hours[hour]) hours[hour] = [];
-                hours[hour].push(minute);
-            });
-            
-            const sortedTimes = Object.entries(hours).sort(([a], [b]) => a - b);
-            
-            if (sortedTimes.length === 0) {
-                scheduleContainer.innerHTML = `<p>Pas de bus circulant à cette période.</p>`;
-            } else {
-                sortedTimes.forEach(([hour, minutes]) => {
-                    const uniqueSortedMinutes = [...new Set(minutes)].sort((a, b) => a - b).join('  ');
-                    
-                    const row = document.createElement('div');
-                    row.className = 'schedule-row';
-                    row.innerHTML = `<span>${hour}h</span><span1>${uniqueSortedMinutes}</span1>`;
-                    scheduleContainer.appendChild(row);
-                });
+            const row = document.createElement('div');
+            row.className = 'schedule-row';
+            row.innerHTML = `<span>${hour}h</span><span1>${uniqueSortedMinutes}</span1>`;
+            scheduleContainer.appendChild(row);
+        });
+    }
+}
+
+function getActiveServiceIds(dayOfWeek, gtfsDate) {
+    const activeServiceIds = [];
+    
+    Object.entries(calendar).forEach(([serviceId, service]) => {
+        const isInDateRange = service.start_date && service.end_date && 
+                              gtfsDate >= service.start_date && 
+                              gtfsDate <= service.end_date;
+        
+        if (isInDateRange && 
+            ((dayOfWeek === 0 && service.sunday) ||
+             (dayOfWeek === 6 && service.saturday) ||
+             (dayOfWeek >= 1 && dayOfWeek <= 5 && service.weekdays))) {
+            activeServiceIds.push(serviceId);
+        }
+    });
+    
+    if (calendarDates[gtfsDate]) {
+        calendarDates[gtfsDate].added.forEach(serviceId => {
+            if (!activeServiceIds.includes(serviceId)) {
+                activeServiceIds.push(serviceId);
             }
-        }
+        });
         
-        function goBack() {
+        calendarDates[gtfsDate].removed.forEach(serviceId => {
+            const index = activeServiceIds.indexOf(serviceId);
+            if (index !== -1) {
+                activeServiceIds.splice(index, 1);
+            }
+        });
+    }
+    
+    return activeServiceIds;
+}
+
+function goBack() {
             if (navigationHistory.length === 0) {
                 showLines();
                 return;
