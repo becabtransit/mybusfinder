@@ -866,7 +866,7 @@ function displayRealtimeSchedule(arrivals) {
     if (!arrivals || arrivals.length === 0) {
         container.innerHTML = `
             <div class="no-data-message">
-                Aucun passage prévu prochainement
+                Oups... aucun passage prévu prochainement
             </div>
         `;
         return;
@@ -878,13 +878,18 @@ function displayRealtimeSchedule(arrivals) {
         
         let delayClass = 'delay-ontime';
         let delayText = 'À l\'heure';
+        delayTextTheo = `Départ à l'heure prévue : ${arrival.theoretical}`;
+
         
         if (arrival.delay > 5) {
             delayClass = 'delay-late';
             delayText = `Retard de ${arrival.delay} minutes`;
+            delayTextTheo = `Départ initialement prévu à ${arrival.theoretical}`;
         } else if (arrival.delay < -2) {
             delayClass = 'delay-early';
             delayText = `Avance de ${Math.abs(arrival.delay)} minutes`;
+            delayTextTheo = `Départ initialement prévu à ${arrival.theoretical}`;
+
         }
 
         item.innerHTML = `
@@ -894,7 +899,7 @@ function displayRealtimeSchedule(arrivals) {
                     <span class="vehicle-id">Bus ${arrival.vehicleId}</span>
                 </div>
                 ${arrival.theoretical ? 
-                    `<div class="theoretical-time">(théorique: ${arrival.theoretical})</div>` : 
+                    `<div class="theoretical-time">${delayTextTheo}</div>` : 
                     ''}
             </div>
             <div class="delay-indicator ${delayClass}">${delayText}</div>
