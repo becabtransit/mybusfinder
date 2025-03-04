@@ -1318,63 +1318,72 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     displaySchedule(validTrips, stopId, destinationId, scheduleContainer);
 }
 
-
-function parseTime(timeStr) {
-    const [hours, minutes] = timeStr.split(':').map(n => parseInt(n, 10));
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+// Fonction utilitaire pour analyser le format d'heure "XXhYY"
+function parseTimeString(timeStr) {
+    const [hours, minutes] = timeStr.split('h').map(num => parseInt(num, 10));
+    return { hours, minutes };
 }
 
-function displaySchedule(schedule, container) {
-    const hours = {};
-    
-    schedule.forEach(({ theoretical, realtime, tripId }) => {
-        const displayTime = realtime && isShowingRealtime ? realtime : theoretical;
-        const hour = displayTime.getHours();
+// Fonction utilitaire pour formater les minutes
+function formatMinutes(minutes) {
+    return minutes.toString().padStart(2, '0');
+}
+
+function displaySchedule(validTrips, stopId, destinationId, container) {
+    const schedule = [];
+    validTrips.forEach(trip => {
+        const tripStops = stopTimes[trip.trip_id];
+        let destinationReached = false;
         
-        if (!hours[hour]) hours[hour] = [];
-        hours[hour].push({ theoretical, realtime, tripId });
+        if (tripStops) {
+            tripStops.forEach(({ stop_id: currentStopId, arrival_time }) => {
+                if (currentStopId === destinationId) destinationReached = true;
+                if (currentStopId === stopId && !destinationReached) {
+                    schedule.push(arrival_time);
+                }
+            });
+        }
     });
     
-    const sortedHours = Object.entries(hours).sort(([a], [b]) => a - b);
-    
-    if (sortedHours.length === 0) {
-        container.innerHTML += `<p>Pas d'horaires disponibles pour cet arrêt à cette date.</p>`;
+    if (schedule.length === 0) {
+        container.innerHTML += `<p>Pas d'horaires disponibles pour cet arrêt.</p>`;
         return;
     }
     
-    sortedHours.forEach(([hour, times]) => {
-        const row = document.createElement('div');
-        row.className = 'schedule-row';
+    // Organiser les horaires par heure
+    const hours = {};
+    schedule.forEach(time => {
+        // Gérer le format "XXhYY"
+        let [hour, minute] = time.split('h').map(num => parseInt(num, 10));
         
-        const minutesDisplay = times
-            .sort((a, b) => {
-                const timeA = a.realtime && isShowingRealtime ? a.realtime : a.theoretical;
-                const timeB = b.realtime && isShowingRealtime ? b.realtime : b.theoretical;
-                return timeA - timeB;
-            })
-            .map(({ theoretical, realtime, tripId }) => {
-                const theoreticalMinutes = theoretical.getMinutes();
-                
-                if (!isShowingRealtime || !realtime) {
-                    return `<span>${theoreticalMinutes.toString().padStart(2, '0')}</span>`;
-                }
-                
-                const realtimeMinutes = realtime.getMinutes();
-                const diff = Math.round((realtime - theoretical) / 60000); // différence en minutes
-                
-                let className = 'realtime-arrival';
-                if (diff > 5) className += ' delayed';
-                else if (diff < -2) className += ' early';
-                
-                return `<span class="${className}" title="Théorique: ${theoreticalMinutes.toString().padStart(2, '0')}">${realtimeMinutes.toString().padStart(2, '0')}</span>`;
-            })
+        // Gérer les heures au-delà de 24h
+        if (hour >= 24) {
+            hour -= 24;
+        }
+        
+        if (!hours[hour]) hours[hour] = [];
+        hours[hour].push(minute);
+    });
+    
+    // Trier et afficher les horaires
+    const sortedHours = Object.entries(hours).sort(([a], [b]) => parseInt(a) - parseInt(b));
+    
+    sortedHours.forEach(([hour, minutes]) => {
+        const uniqueSortedMinutes = [...new Set(minutes)]
+            .sort((a, b) => a - b)
+            .map(min => min.toString().padStart(2, '0'))
             .join('  ');
         
-        row.innerHTML = `<span>${hour}h</span><span1>${minutesDisplay}</span1>`;
+        const row = document.createElement('div');
+        row.className = 'schedule-row';
+        row.innerHTML = `
+            <span>${hour}h</span>
+            <span1>${uniqueSortedMinutes}</span1>
+        `;
         container.appendChild(row);
     });
 }
+
 
 function getActiveServiceIds(dayOfWeek, gtfsDate) {
     const activeServiceIds = [];
