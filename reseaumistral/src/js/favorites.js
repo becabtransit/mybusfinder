@@ -41,3 +41,27 @@ function isFavorite(routeId, stopId, destinationId) {
     const id = `${routeId}-${stopId}-${destinationId}`;
     return favorites.some(f => f.id === id);
 }
+
+function updateFavoritesRealtimeData() {
+    const favorites = getFavorites();
+    favorites.forEach(favorite => {
+        const container = document.querySelector(`[data-favorite-id="${favorite.id}"] .realtime-info`);
+        if (container) {
+            fetchRealtimeDataForStop(favorite.routeId, favorite.stopId, container);
+        }
+    });
+}
+
+let favoritesUpdateInterval;
+
+function startFavoritesUpdate() {
+    updateFavoritesRealtimeData();
+    favoritesUpdateInterval = setInterval(updateFavoritesRealtimeData, 30000);
+}
+
+function stopFavoritesUpdate() {
+    if (favoritesUpdateInterval) {
+        clearInterval(favoritesUpdateInterval);
+        favoritesUpdateInterval = null;
+    }
+}
