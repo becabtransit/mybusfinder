@@ -1962,7 +1962,15 @@ async function initializeApp() {
     }
 }
 
+let gtfsInitialized = false;
+
+
 async function fetchVehiclePositions() {
+
+    if (!gtfsInitialized) {
+        console.log("fetchVehiclePositions: GTFS pas encore initialisé, attente...");
+        return; 
+    }
     try {
         const response = await fetch('proxy-cors/proxy_vehpos.php');
         const buffer = await response.arrayBuffer();
@@ -3055,34 +3063,39 @@ async function fetchTripUpdates() {
 
 
 		
+
 async function main() {
-    try {
+    try {        
+        showLoadingScreen("Chargement des données GTFS...");
+        
         const gtfsData = await initializeGTFS();
-        console.log("GTFS data initialized successfully", gtfsData);
+        gtfsInitialized = true;
+        console.log("GTFS initialisé avec succès");
         
         await loadGeoJsonLines();
         
         await Promise.all([
             fetchTripUpdates(),
             fetchVehiclePositions(),
-            fetchServiceAlerts(),
-            hideLoadingScreen()
+            fetchServiceAlerts()
         ]);
+        
+        hideLoadingScreen();
         
         function fetchRegularUpdates() {
             fetchVehiclePositions();
             fetchTripUpdates();
-            
             setTimeout(fetchRegularUpdates, 8000);
         }
-
+        
         setTimeout(fetchRegularUpdates, 8000);
         
-        console.log("Init complete , regular updates scheduled");
     } catch (error) {
-        console.error("Error in main function", error);
+        console.error("Erreur dans main():", error);
+        showErrorMessage("Erreur de chargement des données. Veuillez rafraîchir la page.");
     }
 }
+
 
 document.addEventListener('DOMContentLoaded', main);
     </script>
