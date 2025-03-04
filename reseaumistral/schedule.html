@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/protobufjs/6.11.2/protobuf.min.js"></script>
 
     <style>
 @import url('https://fonts.googleapis.com/css?family=League+Spartan:400,700');
@@ -390,106 +389,6 @@ select:focus {
     transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 
-.schedule-controls {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 15px;
-    }
-
-    .toggle-button {
-        padding: 10px 18px;
-        background-color: #363636;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
-        font-weight: bold;
-        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
-        flex: 1;
-    }
-
-    .toggle-button:hover {
-        transform: scale(0.98);
-        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
-    }
-
-    .toggle-button:active {
-        transform: scale(0.95);
-    }
-
-    .toggle-button.active {
-        background-color: #1a1a1a;
-    }
-
-    .realtime-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px 10px;
-        border-bottom: 1px solid #eee;
-        transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
-    }
-
-    .realtime-row:hover {
-        background-color: #f5f9ff;
-        transform: scale(0.99);
-    }
-
-    .realtime-time {
-        font-weight: bold;
-        font-size: 1.1em;
-        transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
-    }
-
-    .realtime-row:hover .realtime-time {
-        transform: scale(1.1);
-        color: #363636;
-    }
-
-    .realtime-countdown {
-        color: #666;
-        font-size: 0.9em;
-        padding: 4px 8px;
-        border-radius: 12px;
-        background-color: #f0f0f0;
-        transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
-    }
-
-    .realtime-row:hover .realtime-countdown {
-        background-color: #e0e0e0;
-        transform: scale(1.05);
-    }
-
-    .realtime-header {
-        text-align: center;
-        padding: 15px 0;
-        margin-bottom: 15px;
-        border-bottom: 2px solid #eee;
-        color: #363636;
-        transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
-    }
-
-    #realtime-container {
-        overflow-y: auto;
-        padding: 15px;
-        background-color: #f9f9f9;
-        border-radius: 10px;
-        box-shadow: inset 0 2px 8px rgba(0,0,0,0.05);
-        transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
-    }
-
-    #realtime-container:hover {
-        background-color: #f0f7ff;
-    }
-
-    .no-realtime-data {
-        text-align: center;
-        padding: 20px;
-        color: #666;
-        font-style: italic;
-    }
-
     </style>
 </head>
 <body>
@@ -559,24 +458,15 @@ select:focus {
                 <h4 id="route-info"></h4>
                 <h1 id="stop-title"></h1>
             </div>
-            <div class="schedule-controls">
-                <input type="date" id="date-select" class="date-input">
-                <button id="toggle-realtime" class="toggle-button" onclick="toggleRealtimeView()">
-                    Voir les passages en temps réel
-                </button>
+            <div>
+                <div>
+                    <input type="date" id="date-select" class="date-input">
+                </div>
             </div>
             <div id="schedule-container"></div>
-            <div id="realtime-container" style="display: none;">
-                <div class="realtime-header">
-                    <h3>Prochains passages en temps réel</h3>
-                </div>
-                <div class="no-realtime-data">
-                    Chargement des données en temps réel...
-                </div>
-            </div>
         </div>
     </div>
-
+    
     <script>
         let routes = {};
         let trips = {};
@@ -592,11 +482,9 @@ select:focus {
         let currentDestinationId = null;
         
         document.addEventListener('DOMContentLoaded', function() {
-            initializeProtobuf().then(() => {
-                loadData();
-            });
+            loadData();
         });
-
+        
         function loadData() {
             showView('loading-view');
             
@@ -608,361 +496,6 @@ select:focus {
                     showView('error-view');
                 });
         }
-
-        let realtimeData = {};
-
-        const gtfsRealtimeProto = `
-syntax = "proto2";
-package transit_realtime;
-
-message FeedMessage {
-  required FeedHeader header = 1;
-  repeated FeedEntity entity = 2;
-}
-
-message FeedHeader {
-  required string version = 1;
-  optional uint64 timestamp = 2;
-  optional bool incrementality = 3 [default = FULL_DATASET];
-  enum Incrementality {
-    FULL_DATASET = 0;
-    DIFFERENTIAL = 1;
-  }
-}
-
-message FeedEntity {
-  required string id = 1;
-  optional bool is_deleted = 2 [default = false];
-  optional TripUpdate trip_update = 3;
-  optional VehiclePosition vehicle = 4;
-  optional Alert alert = 5;
-}
-
-message TripUpdate {
-  required TripDescriptor trip = 1;
-  optional VehicleDescriptor vehicle = 3;
-  repeated StopTimeUpdate stop_time_update = 2;
-  optional uint64 timestamp = 4;
-  optional uint64 delay = 5;
-}
-
-message StopTimeUpdate {
-  optional uint32 stop_sequence = 1;
-  optional string stop_id = 4;
-  optional StopTimeEvent arrival = 2;
-  optional StopTimeEvent departure = 3;
-  enum ScheduleRelationship {
-    SCHEDULED = 0;
-    SKIPPED = 1;
-    NO_DATA = 2;
-  }
-  optional ScheduleRelationship schedule_relationship = 5 [default = SCHEDULED];
-}
-
-message StopTimeEvent {
-  optional int32 delay = 1;
-  optional int64 time = 2;
-  optional int32 uncertainty = 3;
-}
-
-message TripDescriptor {
-  optional string trip_id = 1;
-  optional string route_id = 5;
-  optional string direction_id = 6;
-  optional string start_time = 2;
-  optional string start_date = 3;
-  enum ScheduleRelationship {
-    SCHEDULED = 0;
-    ADDED = 1;
-    UNSCHEDULED = 2;
-    CANCELED = 3;
-    DUPLICATE = 4;
-  }
-  optional ScheduleRelationship schedule_relationship = 4;
-}
-
-message VehicleDescriptor {
-  optional string id = 1;
-  optional string label = 2;
-  optional string license_plate = 3;
-}
-
-message VehiclePosition {
-  optional TripDescriptor trip = 1;
-  optional VehicleDescriptor vehicle = 8;
-  optional Position position = 2;
-  optional uint32 current_stop_sequence = 3;
-  optional string stop_id = 7;
-  enum VehicleStopStatus {
-    INCOMING_AT = 0;
-    STOPPED_AT = 1;
-    IN_TRANSIT_TO = 2;
-  }
-  optional VehicleStopStatus current_status = 4 [default = IN_TRANSIT_TO];
-  optional uint64 timestamp = 5;
-  enum CongestionLevel {
-    UNKNOWN_CONGESTION_LEVEL = 0;
-    RUNNING_SMOOTHLY = 1;
-    STOP_AND_GO = 2;
-    CONGESTION = 3;
-    SEVERE_CONGESTION = 4;
-  }
-  optional CongestionLevel congestion_level = 6;
-  enum OccupancyStatus {
-    EMPTY = 0;
-    MANY_SEATS_AVAILABLE = 1;
-    FEW_SEATS_AVAILABLE = 2;
-    STANDING_ROOM_ONLY = 3;
-    CRUSHED_STANDING_ROOM_ONLY = 4;
-    FULL = 5;
-    NOT_ACCEPTING_PASSENGERS = 6;
-  }
-  optional OccupancyStatus occupancy_status = 9;
-}
-
-message Position {
-  required float latitude = 1;
-  required float longitude = 2;
-  optional float bearing = 3;
-  optional float odometer = 4;
-  optional float speed = 5;
-}
-
-message Alert {
-  repeated TimeRange active_period = 1;
-  repeated EntitySelector informed_entity = 5;
-  enum Cause {
-    UNKNOWN_CAUSE = 1;
-    OTHER_CAUSE = 2;
-    TECHNICAL_PROBLEM = 3;
-    STRIKE = 4;
-    DEMONSTRATION = 5;
-    ACCIDENT = 6;
-    HOLIDAY = 7;
-    WEATHER = 8;
-    MAINTENANCE = 9;
-    CONSTRUCTION = 10;
-    POLICE_ACTIVITY = 11;
-    MEDICAL_EMERGENCY = 12;
-  }
-  optional Cause cause = 6 [default = UNKNOWN_CAUSE];
-  enum Effect {
-    NO_SERVICE = 1;
-    REDUCED_SERVICE = 2;
-    SIGNIFICANT_DELAYS = 3;
-    DETOUR = 4;
-    ADDITIONAL_SERVICE = 5;
-    MODIFIED_SERVICE = 6;
-    OTHER_EFFECT = 7;
-    UNKNOWN_EFFECT = 8;
-    STOP_MOVED = 9;
-  }
-  optional Effect effect = 7 [default = UNKNOWN_EFFECT];
-  optional TranslatedString url = 8;
-  optional TranslatedString header_text = 10;
-  optional TranslatedString description_text = 11;
-}
-
-message TimeRange {
-  optional uint64 start = 1;
-  optional uint64 end = 2;
-}
-
-message EntitySelector {
-  optional string agency_id = 1;
-  optional string route_id = 2;
-  optional int32 route_type = 3;
-  optional TripDescriptor trip = 4;
-  optional string stop_id = 5;
-  optional int32 direction_id = 6;
-}
-
-message TranslatedString {
-  repeated Translation translation = 1;
-  message Translation {
-    required string text = 1;
-    optional string language = 2;
-  }
-}
-`;
-
-async function loadProtobufJS() {
-    return new Promise((resolve, reject) => {
-        // Utiliser la version light compilée
-        const protobufScripts = [
-            'https://cdn.jsdelivr.net/npm/protobuf.js@6.11.3/dist/light/protobuf.min.js',
-            'https://cdn.jsdelivr.net/npm/protobuf.js@6.11.3/dist/light/protobuf.js'
-        ];
-        
-        let loadedScripts = 0;
-        let lastError = null;
-
-        function tryLoadScript(scriptUrl) {
-            const script = document.createElement('script');
-            script.src = scriptUrl;
-            
-            script.onload = () => {
-                console.log(`Protobuf.js chargé avec succès depuis ${scriptUrl}`);
-                resolve();
-            };
-            
-            script.onerror = (error) => {
-                console.warn(`Échec du chargement depuis ${scriptUrl}`, error);
-                lastError = error;
-                loadedScripts++;
-                
-                if (loadedScripts === protobufScripts.length) {
-                    // Si tous les scripts ont échoué, on passe au plan B
-                    fallbackToLocalProtobuf().then(resolve).catch(reject);
-                }
-            };
-            
-            document.head.appendChild(script);
-        }
-
-        // Essayer de charger depuis le premier CDN
-        tryLoadScript(protobufScripts[0]);
-    });
-}
-
-// Plan B : Utiliser une version minifiée intégrée directement dans le code
-async function fallbackToLocalProtobuf() {
-    try {
-        // Version minifiée de protobuf.js light
-        const protobufCode = `
-            var $protobuf=function(t){function n(t,n){for(var r=Object.keys(n),e=0;e<r.length;++e)t[r[e]]=n[r[e]];return t}function r(t,n){return n.forEach((function(n){t[n]=t[n]||{}})),t}t.Reader=function(t){this.buf=t,this.pos=0},t.Reader.prototype.len=function(){return this.buf.length},t.Reader.prototype.skip=function(t){return this.pos+=t,this},t.Reader.prototype.uint32=function(){for(var t,n=0,r=0;r<5&&(t=this.buf[this.pos++],n|=(127&t)<<7*r,0!=(128&t));r++);return n},t.Reader.prototype.int32=function(){return 0|this.uint32()},t.Reader.prototype.sint32=function(){var t=this.uint32();return t>>>1^-(1&t)},t.Reader.prototype.bool=function(){return 0!==this.uint32()},t.Reader.prototype.fixed32=function(){if(this.pos+4>this.len())throw RangeError("index out of range");return this.buf.readUInt32LE(this.pos)},t.Reader.prototype.sfixed32=function(){if(this.pos+4>this.len())throw RangeError("index out of range");return this.buf.readInt32LE(this.pos)},t.Reader.prototype.float=function(){if(this.pos+4>this.len())throw RangeError("index out of range");return this.buf.readFloatLE(this.pos)},t.Reader.prototype.double=function(){if(this.pos+8>this.len())throw RangeError("index out of range");return this.buf.readDoubleLE(this.pos)},t.Reader.prototype.bytes=function(){var t=this.uint32(),n=this.pos;return this.pos+=t,n},t.Reader.prototype.string=function(){var t=this.bytes(),n=this.pos;return this.pos=t,this.buf.toString("utf8",n,t)},t.decode=function(n,r){if("string"==typeof r){if(!t[r])throw Error("unknown type: "+r);r=t[r]}var e=new t.Reader(n);if(!r.decode)throw Error("invalid type: "+r);return r.decode(e)},t.Field=function(t,n,e,o,i){this.name=t,this.type=n,this.id=e,this.required=o,this.repeated=i},t.Message=function(t){this.fields={},this.oneofs={},n(this.fields,t.fields||{}),n(this.oneofs,t.oneofs||{})},t.Message.prototype.decode=function(n){for(var r={},e=Object.keys(this.fields),o=0;o<e.length;++o){var i=this.fields[e[o]];r[i.name]=i.repeated?[]:null}for(;n.pos<n.len();){var s=n.uint32(),f=s>>>3,u=this.fields[f];if(u){var a=u.type;if("Message"===a.name){var p=a.decode(n);u.repeated?r[u.name].push(p):r[u.name]=p}else{var h=n[a.name.toLowerCase()]();u.repeated?r[u.name].push(h):r[u.name]=h}}}return r},t}({});
-        `;
-        
-        // Créer un blob avec le code
-        const blob = new Blob([protobufCode], { type: 'application/javascript' });
-        const scriptUrl = URL.createObjectURL(blob);
-        
-        // Charger le script
-        const script = document.createElement('script');
-        script.src = scriptUrl;
-        
-        await new Promise((resolve, reject) => {
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-        });
-        
-        console.log('Version locale de protobuf.js chargée avec succès');
-        return true;
-    } catch (error) {
-        console.error('Erreur lors du chargement de la version locale de protobuf:', error);
-        throw error;
-    }
-}
-
-let root = null;
-let TransitRealtime = null;
-let protobufLoaded = false;
-
-async function initializeProtobuf() {
-    if (protobufLoaded) {
-        return true;
-    }
-
-    try {
-        await loadProtobufJS();
-        
-        if (typeof protobuf === 'undefined') {
-            throw new Error('protobuf.js n\'a pas été correctement chargé');
-        }
-
-        const parsed = protobuf.parse(gtfsRealtimeProto);
-        root = parsed.root;
-        TransitRealtime = root.lookupType("transit_realtime.FeedMessage");
-        protobufLoaded = true;
-        console.log('Protobuf initialisé avec succès');
-        return true;
-    } catch (error) {
-        console.error('Erreur lors de l\'initialisation de protobuf:', error);
-        return false;
-    }
-}
-
-async function fetchRealtimeData() {
-    try {
-        if (!protobufLoaded) {
-            const initialized = await initializeProtobuf();
-            if (!initialized) {
-                throw new Error('Échec de l\'initialisation de protobuf');
-            }
-        }
-
-        const response = await fetch('proxy-cors/proxy_tripupdate.php');
-        if (!response.ok) {
-            throw new Error(`Échec du téléchargement GTFS-RT: ${response.status}`);
-        }
-        
-        const buffer = await response.arrayBuffer();
-        const uint8Array = new Uint8Array(buffer);
-        
-        // Utiliser la version simplifiée pour le décodage
-        const message = $protobuf.decode(uint8Array, "transit_realtime.FeedMessage");
-        
-        // Reset realtime data
-        realtimeData = {};
-        
-        if (message && message.entity) {
-            message.entity.forEach(entity => {
-                if (entity.tripUpdate) {
-                    const tripId = entity.tripUpdate.trip.tripId;
-                    
-                    entity.tripUpdate.stopTimeUpdate.forEach(update => {
-                        const stopId = update.stopId;
-                        const arrival = update.arrival ? update.arrival.time : null;
-                        
-                        if (!realtimeData[tripId]) {
-                            realtimeData[tripId] = {};
-                        }
-                        realtimeData[tripId][stopId] = arrival ? arrival * 1000 : null;
-                    });
-                }
-            });
-        }
-        
-        return true;
-    } catch (error) {
-        console.error('Erreur lors du chargement des données GTFS-RT:', error);
-        handleRealtimeError();
-        return false;
-    }
-}
-// Fonction pour gérer les erreurs de temps réel
-function handleRealtimeError() {
-    const realtimeContainer = document.getElementById('realtime-container');
-    if (realtimeContainer) {
-        realtimeContainer.innerHTML = `
-            <div class="realtime-header">
-                <h3>Données temps réel indisponibles</h3>
-            </div>
-            <div class="no-realtime-data">
-                Les données en temps réel ne sont pas disponibles pour le moment.
-                Veuillez réessayer plus tard.
-            </div>
-        `;
-    }
-}
-
-async function startRealtimeUpdates() {
-    try {
-        const initialized = await initializeProtobuf();
-        if (!initialized) {
-            throw new Error('Échec de l\'initialisation de protobuf');
-        }
-        
-        await fetchRealtimeData();
-        setInterval(fetchRealtimeData, 60000); // Refresh every minute
-    } catch (error) {
-        console.error('Erreur lors du démarrage des mises à jour temps réel:', error);
-        handleRealtimeError();
-    }
-}
-
-
 
 async function extractGTFSFiles() {
     try {
@@ -1349,109 +882,22 @@ async function loadCalendar(fileContent) {
             showView('stops-view');
         }
         
-        let isRealtimeView = false;
-
-function toggleRealtimeView() {
-    isRealtimeView = !isRealtimeView;
-    const button = document.getElementById('toggle-realtime');
-    button.textContent = isRealtimeView ? 'Voir les horaires théoriques' : 'Voir les passages en temps réel';
-    
-    const scheduleContainer = document.getElementById('schedule-container');
-    const realtimeContainer = document.getElementById('realtime-container');
-    
-    scheduleContainer.style.display = isRealtimeView ? 'none' : 'block';
-    realtimeContainer.style.display = isRealtimeView ? 'block' : 'none';
-    
-    if (isRealtimeView && currentRouteId && currentStopId && currentDestinationId) {
-        updateRealtimeSchedule(currentRouteId, currentStopId, currentDestinationId);
-    }
-}
-
-function updateRealtimeSchedule(routeId, stopId, destinationId) {
-    const realtimeContainer = document.getElementById('realtime-container');
-    realtimeContainer.innerHTML = '';
-    
-    const now = new Date();
-    const currentTime = now.getTime();
-    
-    const gtfsDate = now.toISOString().split('T')[0].replace(/-/g, '');
-    const dayOfWeek = now.getDay();
-    const activeServiceIds = getActiveServiceIds(dayOfWeek, gtfsDate);
-    
-    const validTrips = trips[routeId].filter(({ trip_id, service_id }) => 
-        activeServiceIds.includes(service_id)
-    );
-    
-    const realtimeUpdates = [];
-    
-    validTrips.forEach(({ trip_id }) => {
-        if (realtimeData[trip_id] && realtimeData[trip_id][stopId]) {
-            const arrivalTime = realtimeData[trip_id][stopId];
-            if (arrivalTime > currentTime) {
-                realtimeUpdates.push({
-                    tripId: trip_id,
-                    time: arrivalTime
-                });
-            }
-        }
-    });
-    
-    if (realtimeUpdates.length === 0) {
-        realtimeContainer.innerHTML = `
-            <div class="realtime-header">
-                <h3>Prochains passages en temps réel</h3>
-            </div>
-            <p>Aucun passage prévu prochainement</p>
-        `;
-        return;
-    }
-    
-    realtimeUpdates.sort((a, b) => a.time - b.time);
-    
-    const realtimeHeader = document.createElement('div');
-    realtimeHeader.className = 'realtime-header';
-    realtimeHeader.innerHTML = '<h3>Prochains passages en temps réel</h3>';
-    realtimeContainer.appendChild(realtimeHeader);
-    
-    realtimeUpdates.forEach(update => {
-        const arrivalDate = new Date(update.time);
-        const minutes = Math.round((update.time - currentTime) / 60000);
-        
-        const row = document.createElement('div');
-        row.className = 'realtime-row';
-        row.innerHTML = `
-            <span class="time">${arrivalDate.getHours()}h${String(arrivalDate.getMinutes()).padStart(2, '0')}</span>
-            <span class="countdown">(dans ${minutes} min)</span>
-        `;
-        realtimeContainer.appendChild(row);
-    });
-}
-
-function showSchedule(routeId, stopId, destinationId) {
+        function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
     document.getElementById('route-info').textContent = 
-        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/\"/g, '')}`;
+        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
     document.getElementById('stop-title').textContent = 
-        `Horaires pour l'arrêt ${stops[stopId].replace(/\"/g, '')}`;
+        `Horaires pour l'arrêt ${stops[stopId].replace(/"/g, '')}`;
     
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
     dateSelect.value = today.toISOString().split('T')[0];
     
-    dateSelect.onchange = () => {
-        if (!isRealtimeView) {
-            updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
-        }
-    };
+    dateSelect.onchange = () => updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
     
     updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
-    
-    startRealtimeUpdates().catch(error => {
-        console.error('Erreur lors du démarrage des mises à jour temps réel:', error);
-        handleRealtimeError();
-    });
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('schedule-view');
