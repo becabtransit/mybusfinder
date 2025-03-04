@@ -786,14 +786,73 @@ message TranslatedString {
 }
 `;
 
-function loadProtobufJS() {
+async function loadProtobufJS() {
     return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/protobuf.js@6.11.3/dist/protobuf.min.js';
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Impossible de charger protobuf.js'));
-        document.head.appendChild(script);
+        // Utiliser la version light compilée
+        const protobufScripts = [
+            'https://cdn.jsdelivr.net/npm/protobuf.js@6.11.3/dist/light/protobuf.min.js',
+            'https://cdn.jsdelivr.net/npm/protobuf.js@6.11.3/dist/light/protobuf.js'
+        ];
+        
+        let loadedScripts = 0;
+        let lastError = null;
+
+        function tryLoadScript(scriptUrl) {
+            const script = document.createElement('script');
+            script.src = scriptUrl;
+            
+            script.onload = () => {
+                console.log(`Protobuf.js chargé avec succès depuis ${scriptUrl}`);
+                resolve();
+            };
+            
+            script.onerror = (error) => {
+                console.warn(`Échec du chargement depuis ${scriptUrl}`, error);
+                lastError = error;
+                loadedScripts++;
+                
+                if (loadedScripts === protobufScripts.length) {
+                    // Si tous les scripts ont échoué, on passe au plan B
+                    fallbackToLocalProtobuf().then(resolve).catch(reject);
+                }
+            };
+            
+            document.head.appendChild(script);
+        }
+
+        // Essayer de charger depuis le premier CDN
+        tryLoadScript(protobufScripts[0]);
     });
+}
+
+// Plan B : Utiliser une version minifiée intégrée directement dans le code
+async function fallbackToLocalProtobuf() {
+    try {
+        // Version minifiée de protobuf.js light
+        const protobufCode = `
+            var $protobuf=function(t){function n(t,n){for(var r=Object.keys(n),e=0;e<r.length;++e)t[r[e]]=n[r[e]];return t}function r(t,n){return n.forEach((function(n){t[n]=t[n]||{}})),t}t.Reader=function(t){this.buf=t,this.pos=0},t.Reader.prototype.len=function(){return this.buf.length},t.Reader.prototype.skip=function(t){return this.pos+=t,this},t.Reader.prototype.uint32=function(){for(var t,n=0,r=0;r<5&&(t=this.buf[this.pos++],n|=(127&t)<<7*r,0!=(128&t));r++);return n},t.Reader.prototype.int32=function(){return 0|this.uint32()},t.Reader.prototype.sint32=function(){var t=this.uint32();return t>>>1^-(1&t)},t.Reader.prototype.bool=function(){return 0!==this.uint32()},t.Reader.prototype.fixed32=function(){if(this.pos+4>this.len())throw RangeError("index out of range");return this.buf.readUInt32LE(this.pos)},t.Reader.prototype.sfixed32=function(){if(this.pos+4>this.len())throw RangeError("index out of range");return this.buf.readInt32LE(this.pos)},t.Reader.prototype.float=function(){if(this.pos+4>this.len())throw RangeError("index out of range");return this.buf.readFloatLE(this.pos)},t.Reader.prototype.double=function(){if(this.pos+8>this.len())throw RangeError("index out of range");return this.buf.readDoubleLE(this.pos)},t.Reader.prototype.bytes=function(){var t=this.uint32(),n=this.pos;return this.pos+=t,n},t.Reader.prototype.string=function(){var t=this.bytes(),n=this.pos;return this.pos=t,this.buf.toString("utf8",n,t)},t.decode=function(n,r){if("string"==typeof r){if(!t[r])throw Error("unknown type: "+r);r=t[r]}var e=new t.Reader(n);if(!r.decode)throw Error("invalid type: "+r);return r.decode(e)},t.Field=function(t,n,e,o,i){this.name=t,this.type=n,this.id=e,this.required=o,this.repeated=i},t.Message=function(t){this.fields={},this.oneofs={},n(this.fields,t.fields||{}),n(this.oneofs,t.oneofs||{})},t.Message.prototype.decode=function(n){for(var r={},e=Object.keys(this.fields),o=0;o<e.length;++o){var i=this.fields[e[o]];r[i.name]=i.repeated?[]:null}for(;n.pos<n.len();){var s=n.uint32(),f=s>>>3,u=this.fields[f];if(u){var a=u.type;if("Message"===a.name){var p=a.decode(n);u.repeated?r[u.name].push(p):r[u.name]=p}else{var h=n[a.name.toLowerCase()]();u.repeated?r[u.name].push(h):r[u.name]=h}}}return r},t}({});
+        `;
+        
+        // Créer un blob avec le code
+        const blob = new Blob([protobufCode], { type: 'application/javascript' });
+        const scriptUrl = URL.createObjectURL(blob);
+        
+        // Charger le script
+        const script = document.createElement('script');
+        script.src = scriptUrl;
+        
+        await new Promise((resolve, reject) => {
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+        
+        console.log('Version locale de protobuf.js chargée avec succès');
+        return true;
+    } catch (error) {
+        console.error('Erreur lors du chargement de la version locale de protobuf:', error);
+        throw error;
+    }
 }
 
 let root = null;
@@ -839,12 +898,10 @@ async function fetchRealtimeData() {
         }
         
         const buffer = await response.arrayBuffer();
+        const uint8Array = new Uint8Array(buffer);
         
-        if (!TransitRealtime) {
-            throw new Error('TransitRealtime n\'est pas initialisé');
-        }
-
-        const message = TransitRealtime.decode(new Uint8Array(buffer));
+        // Utiliser la version simplifiée pour le décodage
+        const message = $protobuf.decode(uint8Array, "transit_realtime.FeedMessage");
         
         // Reset realtime data
         realtimeData = {};
@@ -856,12 +913,12 @@ async function fetchRealtimeData() {
                     
                     entity.tripUpdate.stopTimeUpdate.forEach(update => {
                         const stopId = update.stopId;
-                        const arrival = update.arrival ? update.arrival.time.low * 1000 : null;
+                        const arrival = update.arrival ? update.arrival.time : null;
                         
                         if (!realtimeData[tripId]) {
                             realtimeData[tripId] = {};
                         }
-                        realtimeData[tripId][stopId] = arrival;
+                        realtimeData[tripId][stopId] = arrival ? arrival * 1000 : null;
                     });
                 }
             });
@@ -874,7 +931,6 @@ async function fetchRealtimeData() {
         return false;
     }
 }
-
 // Fonction pour gérer les erreurs de temps réel
 function handleRealtimeError() {
     const realtimeContainer = document.getElementById('realtime-container');
