@@ -642,8 +642,8 @@ function startRealtimeUpdates() {
         clearInterval(updateInterval);
     }
     
-    fetchRealtimeData(); 
-    updateInterval = setInterval(fetchRealtimeData, 30000);
+    fetchRealtimeData(); // Premier chargement immédiat
+    updateInterval = setInterval(fetchRealtimeData, 30000); // Puis toutes les 30 secondes
 }
 
 function stopRealtimeUpdates() {
@@ -677,16 +677,20 @@ async function fetchRealtimeData() {
         }
         const buffer = await response.arrayBuffer();
         
+        // Utilisation de protobuf.js pour décoder les données GTFS-RT
         const root = await protobuf.load('gtfs-realtime.proto');
         const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
         const message = FeedMessage.decode(new Uint8Array(buffer));
         
+        // Traitement des données temps réel
         const processedData = processRealtimeData(message);
         
+        // Mise à jour de l'horodatage
         const lastUpdate = new Date(message.header.timestamp * 1000);
         document.getElementById('last-update-time').textContent = 
             `Dernière mise à jour : ${lastUpdate.toLocaleTimeString()}`;
         
+        // Afficher les données temps réel pour l'arrêt actuel
         if (currentStopId) {
             displayRealtimeSchedule(processedData[currentStopId] || []);
         }
@@ -706,6 +710,7 @@ function processRealtimeData(message) {
             const tripUpdate = entity.tripUpdate;
             const tripId = tripUpdate.trip.tripId;
             
+            // Trouver la ligne et l'arrêt correspondant au trip
             const routeId = getRouteIdFromTripId(tripId);
             if (routeId !== currentRouteId) return;
             
@@ -1138,137 +1143,94 @@ async function loadCalendar(fileContent) {
             showView('lines-view');
         }
         
-        function getStopName(stopId) {
-    if (!stops[stopId]) {
-        console.warn(`Arrêt non trouvé pour l'ID: ${stopId}`);
-        return 'Arrêt inconnu';
-    }
-    
-    if (typeof stops[stopId] === 'string') {
-        return stops[stopId];
-    }
-    
-    if (stops[stopId].name) {
-        return typeof stops[stopId].name === 'string' ? 
-            stops[stopId].name.replace(/"/g, '') : 
-            stops[stopId].name;
-    }
-    
-    return 'Arrêt inconnu';
-}
-
-function showDestinations(routeId) {
-    currentRouteId = routeId;
-    navigationHistory.push({ view: 'lines-view' });
-    
-    const container = document.getElementById('destinations-container');
-    container.innerHTML = '';
-    
-    document.getElementById('route-title').textContent = `Ligne ${routes[routeId].short_name}`;
-    
-    const destinations = new Set();
-    
-    trips[routeId].forEach(({ trip_id }) => {
-        const tripStops = stopTimes[trip_id];
-        if (tripStops && tripStops.length > 0) {
-            const lastStop = tripStops[tripStops.length - 1].stop_id;
-            if (lastStop) {
-                destinations.add(lastStop);
-            }
-        }
-    });
-    
-    Array.from(destinations).forEach(destinationId => {
-        if (!destinationId) return; 
-        
-        const destinationName = getStopName(destinationId);
-        const destinationItem = document.createElement('div');
-        destinationItem.className = 'destination-item';
-        destinationItem.textContent = destinationName;
-        destinationItem.onclick = () => showStops(routeId, destinationId);
-        
-        if (routes[routeId]) {
-            destinationItem.style.backgroundColor = routes[routeId].route_color || '#FFFFFF';
-            destinationItem.style.color = routes[routeId].route_text_color || '#000000';
+        function showDestinations(routeId) {
+            currentRouteId = routeId;
+            navigationHistory.push({ view: 'lines-view' });
+            
+            const container = document.getElementById('destinations-container');
+            container.innerHTML = '';
+            
+            document.getElementById('route-title').textContent = `Ligne ${routes[routeId].short_name}`;
+            
+            const destinations = new Set();
+            
+            trips[routeId].forEach(({ trip_id }) => {
+                const tripStops = stopTimes[trip_id];
+                if (tripStops && tripStops.length > 0) {
+                    const lastStop = tripStops[tripStops.length - 1].stop_id;
+                    destinations.add(lastStop);
+                }
+            });
+            
+            Array.from(destinations).forEach(destinationId => {
+                const destinationItem = document.createElement('div');
+                destinationItem.className = 'destination-item';
+                destinationItem.textContent = stops[destinationId].replace(/"/g, '');
+                destinationItem.onclick = () => showStops(routeId, destinationId);
+                destinationItem.style.backgroundColor = `${routes[routeId].route_color}`;
+                destinationItem.style.color = `${routes[routeId].route_text_color}`;
+                container.appendChild(destinationItem);
+            });
+            
+            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+            showView('destinations-view');
         }
         
-        container.appendChild(destinationItem);
-    });
-    
-    document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-    showView('destinations-view');
-}
-
-function showStops(routeId, destinationId) {
-    currentDestinationId = destinationId;
-    navigationHistory.push({ view: 'destinations-view', routeId });
-    
-    const container = document.getElementById('stops-container');
-    container.innerHTML = '';
-    
-    const destinationName = getStopName(destinationId);
-    document.getElementById('destination-title').textContent = 
-        `Ligne ${routes[routeId].short_name} ➜ ${destinationName}`;
-    
-    const stopSet = new Set();
-    
-    trips[routeId].forEach(({ trip_id }) => {
-        const tripStops = stopTimes[trip_id];
-        if (tripStops) {
-            const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
-            if (destIndex !== -1) {
-                for (let i = 0; i < destIndex; i++) {
-                    if (tripStops[i].stop_id) {
-                        stopSet.add(tripStops[i].stop_id);
+        function showStops(routeId, destinationId) {
+            currentDestinationId = destinationId;
+            navigationHistory.push({ view: 'destinations-view', routeId });
+            
+            const container = document.getElementById('stops-container');
+            container.innerHTML = '';
+            
+            document.getElementById('destination-title').textContent = 
+                `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
+            
+            const stopSet = new Set();
+            
+            trips[routeId].forEach(({ trip_id }) => {
+                const tripStops = stopTimes[trip_id];
+                if (tripStops) {
+                    const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
+                    if (destIndex !== -1) {
+                        for (let i = 0; i < destIndex; i++) {
+                            stopSet.add(tripStops[i].stop_id);
+                        }
                     }
                 }
-            }
-        }
-    });
-    
-    Array.from(stopSet).forEach(stopId => {
-        if (!stopId) return; 
-        
-        const stopName = getStopName(stopId);
-        const stopItem = document.createElement('div');
-        stopItem.className = 'stop-item';
-        stopItem.textContent = stopName;
-        stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
-        
-        if (routes[routeId]) {
-            stopItem.style.backgroundColor = routes[routeId].route_color || '#FFFFFF';
-            stopItem.style.color = routes[routeId].route_text_color || '#000000';
+            });
+            
+            Array.from(stopSet).forEach(stopId => {
+                const stopItem = document.createElement('div');
+                stopItem.className = 'stop-item';
+                stopItem.textContent = stops[stopId].replace(/"/g, '');
+                stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
+                stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
+                stopItem.style.color = `${routes[routeId].route_text_color}`;
+                container.appendChild(stopItem);
+            });
+            
+            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+            showView('stops-view');
         }
         
-        container.appendChild(stopItem);
-    });
-    
-    document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-    showView('stops-view');
-}
-
-let isShowingRealtime = false;
+        let isShowingRealtime = false;
 
 function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
     currentRouteId = routeId;
-    currentDestinationId = destinationId;
-    isShowingRealtime = false;
+    isShowingRealtime = false; 
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
-    const destinationName = getStopName(destinationId);
-    const stopName = getStopName(stopId);
-    
     document.getElementById('route-info').textContent = 
-        `Ligne ${routes[routeId].short_name} ➜ ${destinationName}`;
+        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].name}`;
     document.getElementById('stop-title').textContent = 
-        `Horaires pour l'arrêt ${stopName}`;
+        `Horaires pour l'arrêt ${stops[stopId].name}`;
     
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
     dateSelect.value = today.toISOString().split('T')[0];
     
-    // Réinitialiser les onglets
     document.querySelectorAll('.tab-button').forEach(tab => {
         tab.classList.remove('active');
         if (tab.dataset.tab === 'theoretical') {
@@ -1284,18 +1246,11 @@ function showSchedule(routeId, stopId, destinationId) {
     });
     
     updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
+    
     setupTabHandlers();
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('schedule-view');
-}
-
-function getStopName(stopId) {
-    if (!stops[stopId]) {
-        console.warn(`Arrêt non trouvé pour l'ID: ${stopId}`);
-        return 'Arrêt inconnu';
-    }
-    return stops[stopId].name.replace(/\"/g, '');
 }
 
 function setupTabHandlers() {
@@ -1319,6 +1274,7 @@ function setupTabHandlers() {
                     startRealtimeUpdates();
                 } else {
                     stopRealtimeUpdates();
+                    // Mettre à jour les horaires théoriques
                     const dateSelect = document.getElementById('date-select');
                     updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, dateSelect.value);
                 }
@@ -1362,14 +1318,6 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     displaySchedule(validTrips, stopId, destinationId, scheduleContainer);
 }
 
-function parseTimeString(timeStr) {
-    const [hours, minutes] = timeStr.split('h').map(num => parseInt(num, 10));
-    return { hours, minutes };
-}
-
-function formatMinutes(minutes) {
-    return minutes.toString().padStart(2, '0');
-}
 
 function parseTime(timeStr) {
     const [hours, minutes] = timeStr.split(':').map(n => parseInt(n, 10));
@@ -1377,57 +1325,56 @@ function parseTime(timeStr) {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
 }
 
-function displaySchedule(validTrips, stopId, destinationId, container) {
-    const schedule = [];
-    validTrips.forEach(trip => {
-        const tripStops = stopTimes[trip.trip_id];
-        let destinationReached = false;
+function displaySchedule(schedule, container) {
+    const hours = {};
+    
+    schedule.forEach(({ theoretical, realtime, tripId }) => {
+        const displayTime = realtime && isShowingRealtime ? realtime : theoretical;
+        const hour = displayTime.getHours();
         
-        if (tripStops) {
-            tripStops.forEach(({ stop_id: currentStopId, arrival_time }) => {
-                if (currentStopId === destinationId) destinationReached = true;
-                if (currentStopId === stopId && !destinationReached) {
-                    schedule.push(arrival_time);
-                }
-            });
-        }
+        if (!hours[hour]) hours[hour] = [];
+        hours[hour].push({ theoretical, realtime, tripId });
     });
     
-    if (schedule.length === 0) {
-        container.innerHTML += `<p>Pas d'horaires disponibles pour cet arrêt.</p>`;
+    const sortedHours = Object.entries(hours).sort(([a], [b]) => a - b);
+    
+    if (sortedHours.length === 0) {
+        container.innerHTML += `<p>Pas d'horaires disponibles pour cet arrêt à cette date.</p>`;
         return;
     }
     
-    const hours = {};
-    schedule.forEach(time => {
-        let [hour, minute] = time.split('h').map(num => parseInt(num, 10));
-        
-        if (hour >= 24) {
-            hour -= 24;
-        }
-        
-        if (!hours[hour]) hours[hour] = [];
-        hours[hour].push(minute);
-    });
-    
-    const sortedHours = Object.entries(hours).sort(([a], [b]) => parseInt(a) - parseInt(b));
-    
-    sortedHours.forEach(([hour, minutes]) => {
-        const uniqueSortedMinutes = [...new Set(minutes)]
-            .sort((a, b) => a - b)
-            .map(min => min.toString().padStart(2, '0'))
-            .join('  ');
-        
+    sortedHours.forEach(([hour, times]) => {
         const row = document.createElement('div');
         row.className = 'schedule-row';
-        row.innerHTML = `
-            <span>${hour}h</span>
-            <span1>${uniqueSortedMinutes}</span1>
-        `;
+        
+        const minutesDisplay = times
+            .sort((a, b) => {
+                const timeA = a.realtime && isShowingRealtime ? a.realtime : a.theoretical;
+                const timeB = b.realtime && isShowingRealtime ? b.realtime : b.theoretical;
+                return timeA - timeB;
+            })
+            .map(({ theoretical, realtime, tripId }) => {
+                const theoreticalMinutes = theoretical.getMinutes();
+                
+                if (!isShowingRealtime || !realtime) {
+                    return `<span>${theoreticalMinutes.toString().padStart(2, '0')}</span>`;
+                }
+                
+                const realtimeMinutes = realtime.getMinutes();
+                const diff = Math.round((realtime - theoretical) / 60000); // différence en minutes
+                
+                let className = 'realtime-arrival';
+                if (diff > 5) className += ' delayed';
+                else if (diff < -2) className += ' early';
+                
+                return `<span class="${className}" title="Théorique: ${theoreticalMinutes.toString().padStart(2, '0')}">${realtimeMinutes.toString().padStart(2, '0')}</span>`;
+            })
+            .join('  ');
+        
+        row.innerHTML = `<span>${hour}h</span><span1>${minutesDisplay}</span1>`;
         container.appendChild(row);
     });
 }
-
 
 function getActiveServiceIds(dayOfWeek, gtfsDate) {
     const activeServiceIds = [];
