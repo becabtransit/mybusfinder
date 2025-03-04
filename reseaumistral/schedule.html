@@ -504,6 +504,29 @@ select:focus {
     border-radius: 6px;
 }
 
+.arrival-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.theoretical-time {
+    font-size: 0.8em;
+    color: #666;
+}
+
+.realtime-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 10px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
     </style>
 </head>
 <body>
@@ -823,7 +846,12 @@ function displayRealtimeSchedule(arrivals) {
         }
 
         item.innerHTML = `
-            <div class="arrival-time">${arrival.time}</div>
+            <div class="arrival-info">
+                <div class="arrival-time">${arrival.time}</div>
+                ${arrival.theoretical ? 
+                    `<div class="theoretical-time">(théorique: ${arrival.theoretical})</div>` : 
+                    ''}
+            </div>
             <div class="delay-indicator ${delayClass}">${delayText}</div>
         `;
         
@@ -1273,6 +1301,17 @@ function showSchedule(routeId, stopId, destinationId) {
 
 function setupTabHandlers() {
     const tabs = document.querySelectorAll('.tab-button');
+    const dateSelect = document.getElementById('date-select');
+
+    if (!dateSelect.hasEventListener) {
+        dateSelect.hasEventListener = true;
+        dateSelect.addEventListener('change', (event) => {
+            if (currentRouteId && currentStopId && currentDestinationId) {
+                updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, event.target.value);
+            }
+        });
+    }
+
     tabs.forEach(tab => {
         if (!tab.hasEventListener) {
             tab.hasEventListener = true;
@@ -1292,8 +1331,6 @@ function setupTabHandlers() {
                     startRealtimeUpdates();
                 } else {
                     stopRealtimeUpdates();
-                    // Mettre à jour les horaires théoriques
-                    const dateSelect = document.getElementById('date-select');
                     updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, dateSelect.value);
                 }
             });
