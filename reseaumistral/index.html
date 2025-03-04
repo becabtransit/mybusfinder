@@ -1575,8 +1575,40 @@ async function decodeProtobuf(buffer) {
             return FeedMessage.toObject(message, { longs: String });
         }
 
-        function createColoredMarker(lat, lon, route_id) {
+        window.addEventListener('message', function(event) {
+    if (event.data.type === 'vehicleSelected') {
+        const vehicleId = event.data.vehicleId;
+        const tripId = event.data.tripId;
+        const stopId = event.data.stopId;
+        const routeId = event.data.routeId;
+        
+        const marker = findMarkerByVehicleId(vehicleId);
+        if (marker) {
+            map.setView(marker.getLatLng(), 17);
+            
+            marker.openPopup();
+            
+            const menu = document.getElementById('menu');
+            menu.style.display = 'none';
+            isMenuVisible = false;
+            
+            if (selectedLine) {
+                resetMapView();
+            }
+        }
+    }
+});
 
+function findMarkerByVehicleId(vehicleId) {
+    for (const [id, marker] of Object.entries(markers)) {
+        if (marker.id === vehicleId) {
+            return marker;
+        }
+    }
+    return null;
+}
+
+function createColoredMarker(lat, lon, route_id) {
     const color = lineColors[route_id] || '#000000';
     const markerHtmlStyles = `
         background-color: ${color};
@@ -1590,7 +1622,6 @@ async function decodeProtobuf(buffer) {
         border: 2px solid white;
         transition: transform 0.2s ease; 
     `;
-    
 
     const icon = L.divIcon({
         className: "my-custom-pin",
@@ -1599,9 +1630,18 @@ async function decodeProtobuf(buffer) {
         html: `<span style="${markerHtmlStyles}" class="marker-icon" />`
     });
 
-    return L.marker([lat, lon], { icon });
-}
+    const marker = L.marker([lat, lon], { icon });
+    
+    marker.on('mouseover', function() {
+        this._icon.firstChild.style.transform = 'scale(1.2)';
+    });
+    
+    marker.on('mouseout', function() {
+        this._icon.firstChild.style.transform = 'scale(1)';
+    });
 
+    return marker;
+}
 
 
        function animateMarker(marker, newPosition) {
