@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.X.X/dist/protobuf.min.js"></script>
     <style>
 @import url('https://fonts.googleapis.com/css?family=League+Spartan:400,700');
 
@@ -389,6 +389,126 @@ select:focus {
     transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 
+.schedule-controls {
+    padding: 15px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.toggle-button {
+    padding: 12px 20px;
+    background-color: #363636;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    font-family: 'League Spartan', sans-serif;
+    font-weight: bold;
+    box-shadow: 0 3px 10px rgba(54, 54, 54, 0.2);
+}
+
+.toggle-button:hover {
+    transform: scale(0.98);
+    box-shadow: 0 6px 15px rgba(54, 54, 54, 0.3);
+}
+
+.toggle-button:active {
+    transform: scale(0.95);
+}
+
+.update-time {
+    font-size: 0.85em;
+    color: #666;
+    text-align: center;
+    padding: 8px;
+    background-color: #f5f5f5;
+    border-radius: 6px;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.update-time:hover {
+    background-color: #eeeeee;
+}
+
+.realtime-arrival {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    position: relative;
+}
+
+.realtime-arrival::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: currentColor;
+    transform: scaleX(0);
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.realtime-arrival:hover::after {
+    transform: scaleX(1);
+}
+
+.realtime-arrival.delayed {
+    color: #dc3545;
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
+.realtime-arrival.early {
+    color: #28a745;
+    background-color: rgba(40, 167, 69, 0.1);
+}
+
+.realtime-arrival.on-time {
+    color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+@keyframes updatePulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.time-updated {
+    animation: updatePulse 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.schedule-row span1 {
+    flex: 1;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.time-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: #f5f5f5;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.time-chip:hover {
+    transform: scale(1.05);
+}
+
+.theoretical-time {
+    font-size: 0.8em;
+    color: #666;
+    margin-left: 4px;
+}
+
     </style>
 </head>
 <body>
@@ -458,12 +578,32 @@ select:focus {
                 <h4 id="route-info"></h4>
                 <h1 id="stop-title"></h1>
             </div>
+            <div class="schedule-controls">
+                <button id="toggle-schedule-type" class="toggle-button">
+                    Voir les horaires théoriques
+                </button>
+                <div id="last-update-time" class="update-time">
+                    Dernière mise à jour : --:--
+                </div>
+            </div>
             <div>
                 <div>
                     <input type="date" id="date-select" class="date-input">
                 </div>
             </div>
             <div id="schedule-container"></div>
+        </div>
+        
+        <div id="schedule-legend" class="schedule-legend" style="display: none;">
+            <div class="legend-item">
+                <span class="realtime-arrival on-time">●</span> À l'heure
+            </div>
+            <div class="legend-item">
+                <span class="realtime-arrival delayed">●</span> Retard
+            </div>
+            <div class="legend-item">
+                <span class="realtime-arrival early">●</span> Avance
+            </div>
         </div>
     </div>
     
@@ -482,7 +622,18 @@ select:focus {
         let currentDestinationId = null;
         
         document.addEventListener('DOMContentLoaded', function() {
+            
             loadData();
+            const cleanupInterval = () => {
+                if (updateInterval) {
+                    clearInterval(updateInterval);
+                    updateInterval = null;
+                }
+            };
+            
+            ['lines-view', 'destinations-view', 'stops-view'].forEach(viewId => {
+                document.getElementById(viewId).addEventListener('show', cleanupInterval);
+            });
         });
         
         function loadData() {
@@ -496,6 +647,77 @@ select:focus {
                     showView('error-view');
                 });
         }
+
+        let realtimeData = null;
+let isShowingRealtime = true;
+let updateInterval = null;
+
+async function fetchRealtimeData() {
+    try {
+        const response = await fetch('proxy-cors/proxy_tripupdate.php');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const buffer = await response.arrayBuffer();
+        
+        // Utilisez protobuf.js pour décoder les données GTFS-RT
+        const root = await protobuf.load('gtfs-realtime.proto');
+        const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
+        const message = FeedMessage.decode(new Uint8Array(buffer));
+        
+        // Mettre à jour l'horodatage
+        const lastUpdate = new Date(message.header.timestamp * 1000);
+        document.getElementById('last-update-time').textContent = 
+            `Dernière mise à jour: ${lastUpdate.toLocaleTimeString()}`;
+        
+        // Traiter et stocker les mises à jour
+        realtimeData = processRealtimeData(message);
+        
+        // Si on affiche actuellement les données en temps réel, mettre à jour l'affichage
+        if (isShowingRealtime && currentRouteId && currentStopId) {
+            updateScheduleDisplay();
+        }
+    } catch (error) {
+        console.error('Erreur lors de la récupération des données temps réel:', error);
+    }
+}
+
+function processRealtimeData(message) {
+    const updates = {};
+    
+    message.entity.forEach(entity => {
+        if (entity.tripUpdate) {
+            const tripUpdate = entity.tripUpdate;
+            const tripId = tripUpdate.trip.tripId;
+            
+            updates[tripId] = {
+                stopTimeUpdates: tripUpdate.stopTimeUpdate.map(update => ({
+                    stopId: update.stopId,
+                    arrival: update.arrival ? update.arrival.time * 1000 : null,
+                    departure: update.departure ? update.departure.time * 1000 : null,
+                    scheduleRelationship: update.scheduleRelationship
+                }))
+            };
+        }
+    });
+    
+    return updates;
+}
+
+function getRealtimeArrival(tripId, stopId) {
+    if (!realtimeData || !realtimeData[tripId]) {
+        return null;
+    }
+    
+    const stopUpdate = realtimeData[tripId].stopTimeUpdates
+        .find(update => update.stopId === stopId);
+    
+    if (!stopUpdate || !stopUpdate.arrival) {
+        return null;
+    }
+    
+    return new Date(stopUpdate.arrival);
+}
 
 async function extractGTFSFiles() {
     try {
@@ -901,15 +1123,32 @@ async function loadCalendar(fileContent) {
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('schedule-view');
+
+    const toggleButton = document.getElementById('toggle-schedule-type');
+    toggleButton.onclick = () => {
+        isShowingRealtime = !isShowingRealtime;
+        toggleButton.textContent = isShowingRealtime ? 
+            'Voir les horaires théoriques' : 
+            'Voir les horaires en temps réel';
+        updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
+    };
+
+    if (updateInterval) {
+        clearInterval(updateInterval);
+    }
+    fetchRealtimeData();
+    updateInterval = setInterval(fetchRealtimeData, 30000); // Mise à jour toutes les 30 secondes
+    
 }
 
 function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
+    // Réinitialiser le conteneur
     const scheduleContainer = document.getElementById('schedule-container');
     scheduleContainer.innerHTML = '';
     
     const selectedDate = new Date(dateString);
     const gtfsDate = selectedDate.toISOString().split('T')[0].replace(/-/g, '');
-    const dayOfWeek = selectedDate.getDay(); 
+    const dayOfWeek = selectedDate.getDay();
     
     const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const formattedDate = selectedDate.toLocaleDateString('fr-FR', dateOptions);
@@ -936,46 +1175,87 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     }
     
     const schedule = [];
-    validTrips.forEach(({ trip_id }) => {
-        const tripStops = stopTimes[trip_id];
+    validTrips.forEach(trip => {
+        const tripStops = stopTimes[trip.trip_id];
         let destinationReached = false;
         
         if (tripStops) {
             tripStops.forEach(({ stop_id: currentStopId, arrival_time }) => {
                 if (currentStopId === destinationId) destinationReached = true;
                 if (currentStopId === stopId && !destinationReached) {
-                    schedule.push(arrival_time);
+                    const theoreticalTime = parseTime(arrival_time);
+                    const realtimeArrival = isShowingRealtime ? 
+                        getRealtimeArrival(trip.trip_id, stopId) : null;
+                    
+                    schedule.push({
+                        tripId: trip.trip_id,
+                        theoretical: theoreticalTime,
+                        realtime: realtimeArrival
+                    });
                 }
             });
         }
     });
     
+    displaySchedule(schedule, scheduleContainer);
+}
+
+function parseTime(timeStr) {
+    const [hours, minutes] = timeStr.split('h').map(num => parseInt(num, 10));
+    const now = new Date();
+    const time = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+    return time;
+}
+
+function displaySchedule(schedule, container) {
     const hours = {};
-    schedule.forEach(time => {
-        let [hour, minute] = time.split('h').map(num => parseInt(num, 10));
-        
-        if (hour >= 24) {
-            hour -= 24;
-        }
+    
+    schedule.forEach(({ theoretical, realtime, tripId }) => {
+        const displayTime = realtime && isShowingRealtime ? realtime : theoretical;
+        const hour = displayTime.getHours();
         
         if (!hours[hour]) hours[hour] = [];
-        hours[hour].push(minute);
+        hours[hour].push({ theoretical, realtime, tripId });
     });
     
-    const sortedTimes = Object.entries(hours).sort(([a], [b]) => a - b);
+    const sortedHours = Object.entries(hours).sort(([a], [b]) => a - b);
     
-    if (sortedTimes.length === 0) {
-        scheduleContainer.innerHTML += `<p>Pas d'horaires disponibles pour cet arrêt à cette date.</p>`;
-    } else {
-        sortedTimes.forEach(([hour, minutes]) => {
-            const uniqueSortedMinutes = [...new Set(minutes)].sort((a, b) => a - b).join('  ');
-            
-            const row = document.createElement('div');
-            row.className = 'schedule-row';
-            row.innerHTML = `<span>${hour}h</span><span1>${uniqueSortedMinutes}</span1>`;
-            scheduleContainer.appendChild(row);
-        });
+    if (sortedHours.length === 0) {
+        container.innerHTML += `<p>Pas d'horaires disponibles pour cet arrêt à cette date.</p>`;
+        return;
     }
+    
+    sortedHours.forEach(([hour, times]) => {
+        const row = document.createElement('div');
+        row.className = 'schedule-row';
+        
+        const minutesDisplay = times
+            .sort((a, b) => {
+                const timeA = a.realtime && isShowingRealtime ? a.realtime : a.theoretical;
+                const timeB = b.realtime && isShowingRealtime ? b.realtime : b.theoretical;
+                return timeA - timeB;
+            })
+            .map(({ theoretical, realtime, tripId }) => {
+                const theoreticalMinutes = theoretical.getMinutes();
+                
+                if (!isShowingRealtime || !realtime) {
+                    return `<span>${theoreticalMinutes.toString().padStart(2, '0')}</span>`;
+                }
+                
+                const realtimeMinutes = realtime.getMinutes();
+                const diff = Math.round((realtime - theoretical) / 60000); // différence en minutes
+                
+                let className = 'realtime-arrival';
+                if (diff > 5) className += ' delayed';
+                else if (diff < -2) className += ' early';
+                
+                return `<span class="${className}" title="Théorique: ${theoreticalMinutes.toString().padStart(2, '0')}">${realtimeMinutes.toString().padStart(2, '0')}</span>`;
+            })
+            .join('  ');
+        
+        row.innerHTML = `<span>${hour}h</span><span1>${minutesDisplay}</span1>`;
+        container.appendChild(row);
+    });
 }
 
 function getActiveServiceIds(dayOfWeek, gtfsDate) {
