@@ -858,6 +858,7 @@ function getScheduledTime(tripId, stopId) {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
 }
+
 function displayRealtimeSchedule(arrivals) {
     const container = document.getElementById('realtime-container');
     container.innerHTML = '';
@@ -902,6 +903,7 @@ function displayRealtimeSchedule(arrivals) {
         item.style.cursor = 'pointer';
         
         item.addEventListener('click', () => {
+            console.log('Click sur vehicleId:', arrival.vehicleId); 
             sendVehicleIdToParent(arrival.vehicleId, arrival.tripId);
         });
         
@@ -910,14 +912,20 @@ function displayRealtimeSchedule(arrivals) {
 }
 
 function sendVehicleIdToParent(vehicleId, tripId) {
+    console.log('Tentative d\'envoi du vehicleId:', vehicleId);
+    
     if (window.parent !== window) {
-        window.parent.postMessage({
+        const message = {
             type: 'vehicleSelected',
             vehicleId: vehicleId,
             tripId: tripId,
             stopId: currentStopId,
-            routeId: currentRouteId
-        }, '*');
+            routeId: currentRouteId,
+            timestamp: new Date().getTime()
+        };
+        
+        window.parent.postMessage(message, '*');
+        console.log('Message envoyé à la page parente:', message);
     }
 }
 
