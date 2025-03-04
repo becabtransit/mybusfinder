@@ -3106,26 +3106,32 @@ document.getElementById('service-alerts-banner').addEventListener('click', funct
 let lastTripUpdateTimestamp = 0;
 const worker = new Worker('worker.js');
 
-worker.onmessage = function(e) {
-    const processedData = e.data;
-    tripUpdates = processedData;
-
-};
-
 async function fetchTripUpdates() {
     try {
         const response = await fetch('proxy-cors/proxy_tripupdate.php');
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
 
+        // Créer une promesse qui se résoudra quand le worker répondra
+        const workerResponse = new Promise((resolve) => {
+            worker.onmessage = function(e) {
+                const processedData = e.data;
+                tripUpdates = processedData;
+                resolve(processedData);
+            };
+        });
+
+        // Envoyer les données au worker
         worker.postMessage(data);
+
+        // Attendre la réponse du worker
+        return await workerResponse;
+
     } catch (error) {
         console.error('Err récup trip updates ! ', error);
+        throw error;
     }
 }
-
-
-		
 
 async function main() {
     try {        
@@ -3147,7 +3153,7 @@ async function main() {
         
         function fetchRegularUpdates() {
             fetchVehiclePositions();
-            fetchTripUpdates();
+            fetchTripUpdates().catch(console.error);
             setTimeout(fetchRegularUpdates, 8000);
         }
         
@@ -3158,7 +3164,6 @@ async function main() {
         showErrorMessage("Erreur de chargement des données. Veuillez rafraîchir la page.");
     }
 }
-
 
 document.addEventListener('DOMContentLoaded', main);
     </script>
