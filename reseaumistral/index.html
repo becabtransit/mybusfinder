@@ -1562,6 +1562,9 @@ async function initializeGTFS() {
             stopIds,
             stopNameMap
         };
+
+        document.dispatchEvent(new Event('vehiclesLoaded')); 
+
     } catch (error) {
         console.error('Erreur lors de l\'initialisation data théorique gtfs', error);
         throw error;
@@ -2594,7 +2597,6 @@ function updateMenu() {
     const menu = document.getElementById('menu');
     menu.innerHTML = '';
 
-    document.dispatchEvent(new Event('vehiclesLoaded')); 
 
 
     const logoContainer = document.createElement('div');
@@ -3059,19 +3061,15 @@ async function fetchTripUpdates() {
 
 
 async function main() {
-    await extractGTFSFiles();
     await initializeGTFS();
     await Promise.all([
     loadLineColors(),
         loadStopIds(),
         loadLineTerminusData(),
         loadGeoJsonLines(),
-
-    setTimeout(() => {
         fetchTripUpdates(),
         fetchVehiclePositions(),
         fetchServiceAlerts()
-    }, 1000)
 
     ]);
 
