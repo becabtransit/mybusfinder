@@ -527,6 +527,34 @@ select:focus {
     transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 
+.vehicle-id {
+    font-size: 0.85em;
+    color: #666;
+    margin-left: 8px;
+    padding: 2px 6px;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.arrival-time {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.realtime-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;  
+    padding: 15px;
+    margin-bottom: 10px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
     </style>
 </head>
 <body>
@@ -745,26 +773,40 @@ function processRealtimeData(message) {
     }
 
     const currentTime = new Date();
+    const selectedDate = document.getElementById('date-select').value;
     const arrivals = [];
 
     message.entity.forEach(entity => {
         if (entity.tripUpdate && matchesCurrentRoute(entity.tripUpdate.trip)) {
+            const vehicleId = entity.tripUpdate.vehicle ? 
+                            entity.tripUpdate.vehicle.id || 
+                            entity.tripUpdate.vehicle.label || 
+                            'N/A' : 'N/A';
+
             entity.tripUpdate.stopTimeUpdate.forEach(update => {
                 if (update.stopId === currentStopId) {
                     const arrivalTime = new Date(update.arrival?.time * 1000 || update.time * 1000);
                     
-                    // Ne garder que les passages à venir (dans les prochaines 24h)
                     if (arrivalTime > currentTime && 
                         arrivalTime < new Date(currentTime.getTime() + 24 * 60 * 60 * 1000)) {
                         
-                        const theoreticalTime = getTheoreticalTime(entity.tripUpdate.trip.tripId, currentStopId);
+                        const theoreticalTime = getTheoreticalTime(
+                            entity.tripUpdate.trip.tripId, 
+                            currentStopId, 
+                            selectedDate
+                        );
+                        
                         const delay = theoreticalTime ? 
                             Math.round((arrivalTime - theoreticalTime) / 60000) : 0;
 
                         arrivals.push({
                             time: arrivalTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
                             delay: delay,
-                            tripId: entity.tripUpdate.trip.tripId
+                            tripId: entity.tripUpdate.trip.tripId,
+                            vehicleId: vehicleId, 
+                            theoretical: theoreticalTime ? 
+                                theoreticalTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 
+                                null
                         });
                     }
                 }
@@ -816,7 +858,6 @@ function getScheduledTime(tripId, stopId) {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
 }
-
 function displayRealtimeSchedule(arrivals) {
     const container = document.getElementById('realtime-container');
     container.innerHTML = '';
@@ -847,7 +888,10 @@ function displayRealtimeSchedule(arrivals) {
 
         item.innerHTML = `
             <div class="arrival-info">
-                <div class="arrival-time">${arrival.time}</div>
+                <div class="arrival-time">
+                    ${arrival.time}
+                    <span class="vehicle-id">Bus ${arrival.vehicleId}</span>
+                </div>
                 ${arrival.theoretical ? 
                     `<div class="theoretical-time">(théorique: ${arrival.theoretical})</div>` : 
                     ''}
