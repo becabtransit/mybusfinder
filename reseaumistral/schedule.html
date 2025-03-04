@@ -389,7 +389,6 @@ select:focus {
     transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 
-/* Styles pour les périodes d'horaires */
 .schedule-period {
     margin: 20px 0;
     padding: 15px;
@@ -451,7 +450,6 @@ select:focus {
     font-style: italic;
 }
 
-/* Navigation des dates */
 .date-navigation {
     display: flex;
     justify-content: space-between;
@@ -475,7 +473,6 @@ select:focus {
     transform: scale(1.1);
 }
 
-/* Informations de l'arrêt */
 .stop-info {
     padding: 15px;
     margin-bottom: 20px;
@@ -507,7 +504,6 @@ select:focus {
     color: #363636;
 }
 
-/* Légende */
 .schedule-legend {
     margin-top: 20px;
     padding: 15px;
@@ -526,7 +522,6 @@ select:focus {
     gap: 5px;
 }
 
-/* Message d'absence de service */
 .no-service-message {
     padding: 20px;
     text-align: center;
@@ -546,7 +541,6 @@ select:focus {
     color: #0d47a1;
 }
 
-/* Route info */
 .route-header {
     padding: 15px;
     margin-bottom: 20px;
@@ -649,12 +643,12 @@ let stopTimes = {};
 let stops = {};
 let calendar = {};
 let calendarDates = {};
-let shapes = {};  // Nouveau : pour stocker les tracés des lignes
-let frequencies = {};  // Nouveau : pour les services à fréquence fixe
-let transfers = {};  // Nouveau : pour les correspondances
-let fareAttributes = {};  // Nouveau : pour les informations tarifaires
-let fareRules = {};  // Nouveau : pour les règles tarifaires
-let agency = {};  // Nouveau : pour les informations sur l'opérateur
+let shapes = {}; 
+let frequencies = {}; 
+let transfers = {};  
+let fareAttributes = {};  
+let fareRules = {}; 
+let agency = {};  
 
 let navigationHistory = [];
 let currentRouteId = null;
@@ -710,7 +704,6 @@ async function loadGtfsData() {
     try {
         const extractedFiles = await extractGTFSFiles();
         
-        // Réinitialisation des structures de données
         routes = {};
         trips = {};
         stopTimes = {};
@@ -724,7 +717,6 @@ async function loadGtfsData() {
         fareRules = {};
         agency = {};
         
-        // Chargement de tous les fichiers GTFS
         await Promise.all([
             loadAgency(extractedFiles['agency.txt']),
             loadRoutes(extractedFiles['routes.txt']),
@@ -747,7 +739,6 @@ async function loadGtfsData() {
     }
 }
 
-// Nouvelle fonction pour charger les informations de l'agence
 async function loadAgency(fileContent) {
     if (!fileContent) return;
     
@@ -776,7 +767,6 @@ async function loadAgency(fileContent) {
     });
 }
 
-// Fonction améliorée pour charger les routes
 async function loadRoutes(fileContent) {
     if (!fileContent) return;
     
@@ -809,15 +799,14 @@ async function loadRoutes(fileContent) {
                 route_color: values[colorIndex] ? `#${values[colorIndex]}` : '#FFFFFF',
                 route_text_color: values[textColorIndex] ? `#${values[textColorIndex]}` : '#000000',
                 sort_order: values[sortOrderIndex] ? parseInt(values[sortOrderIndex], 10) : 0,
-                trips_count: 0,  // Sera mis à jour lors du chargement des trips
-                stops_count: 0,  // Sera calculé plus tard
-                average_headway: 0  // Sera calculé à partir des fréquences
+                trips_count: 0,  
+                stops_count: 0,  
+                average_headway: 0  
             };
         }
     });
 }
 
-// Fonction améliorée pour le chargement des arrêts
 async function loadStops(fileContent) {
     if (!fileContent) return;
     
@@ -854,15 +843,14 @@ async function loadStops(fileContent) {
                 parent_station: values[parentStationIndex] || null,
                 timezone: values[timezoneIndex],
                 wheelchair_boarding: parseInt(values[wheelchairIndex] || '0', 10),
-                routes_serving: new Set(),  // Sera rempli pendant le traitement
-                average_daily_departures: 0,  // Sera calculé
-                transfer_points: []  // Sera rempli à partir des données de transfert
+                routes_serving: new Set(),  
+                average_daily_departures: 0,  
+                transfer_points: []  
             };
         }
     });
 }
 
-// Nouvelle fonction pour charger les formes (tracés)
 async function loadShapes(fileContent) {
     if (!fileContent) return;
     
@@ -894,13 +882,11 @@ async function loadShapes(fileContent) {
         }
     });
     
-    // Trier les points par séquence
     Object.values(shapes).forEach(shape => {
         shape.sort((a, b) => a.sequence - b.sequence);
     });
 }
 
-// Nouvelle fonction pour charger les fréquences
 async function loadFrequencies(fileContent) {
     if (!fileContent) return;
     
@@ -933,7 +919,6 @@ async function loadFrequencies(fileContent) {
     });
 }
 
-// Nouvelle fonction pour charger les transferts
 async function loadTransfers(fileContent) {
     if (!fileContent) return;
     
@@ -963,7 +948,6 @@ async function loadTransfers(fileContent) {
                 min_transfer_time: values[minTimeIndex] ? parseInt(values[minTimeIndex], 10) : null
             });
             
-            // Mettre à jour les points de correspondance dans les stops
             if (stops[fromStopId]) {
                 stops[fromStopId].transfer_points.push({
                     stop_id: toStopId,
@@ -975,7 +959,6 @@ async function loadTransfers(fileContent) {
     });
 }
 
-// Fonction améliorée pour afficher les horaires
 function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     const scheduleContainer = document.getElementById('schedule-container');
     scheduleContainer.innerHTML = '';
@@ -984,7 +967,6 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     const gtfsDate = selectedDate.toISOString().split('T')[0].replace(/-/g, '');
     const dayOfWeek = selectedDate.getDay();
     
-    // Afficher les informations de l'arrêt
     const stopInfo = document.createElement('div');
     stopInfo.className = 'stop-info';
     if (stops[stopId]) {
@@ -1001,7 +983,6 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     }
     scheduleContainer.appendChild(stopInfo);
     
-    // Afficher les informations de la ligne
     const routeInfo = document.createElement('div');
     routeInfo.className = 'route-info';
     if (routes[routeId]) {
@@ -1015,11 +996,9 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     }
     scheduleContainer.appendChild(routeInfo);
     
-    // Afficher la date
     const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const formattedDate = selectedDate.toLocaleDateString('fr-FR', dateOptions);
     
-    // En-tête de la date avec style amélioré
     const dateHeader = document.createElement('div');
     dateHeader.className = 'date-header';
     dateHeader.innerHTML = `
@@ -1031,7 +1010,6 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     `;
     scheduleContainer.appendChild(dateHeader);
     
-    // Récupération des services actifs
     const activeServiceIds = getActiveServiceIds(dayOfWeek, gtfsDate);
     
     if (activeServiceIds.length === 0) {
@@ -1039,7 +1017,6 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
         return;
     }
     
-    // Filtrer les trajets valides pour cette date
     const validTrips = trips[routeId].filter(({ trip_id, service_id }) => 
         activeServiceIds.includes(service_id)
     );
@@ -1049,17 +1026,13 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
         return;
     }
     
-    // Récupération et organisation des horaires
     const scheduleData = getScheduleData(validTrips, stopId, destinationId);
     
-    // Si des fréquences sont définies, les ajouter aux horaires
     addFrequencyBasedSchedules(scheduleData, validTrips, stopId);
     
-    // Affichage des horaires par période
     displayScheduleByPeriods(scheduleContainer, scheduleData);
 }
 
-// Fonction pour naviguer entre les dates
 function navigateDate(currentDate, offset) {
     const date = new Date(currentDate);
     date.setDate(date.getDate() + offset);
@@ -1068,7 +1041,6 @@ function navigateDate(currentDate, offset) {
     updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, newDate);
 }
 
-// Fonction pour afficher un message d'absence de service
 function showNoServiceMessage(container, message) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'no-service-message';
@@ -1081,13 +1053,12 @@ function showNoServiceMessage(container, message) {
     container.appendChild(messageDiv);
 }
 
-// Fonction pour récupérer les données d'horaires
 function getScheduleData(validTrips, stopId, destinationId) {
     const scheduleData = {
-        morning: [],   // 5h-9h
-        day: [],       // 9h-16h
-        evening: [],   // 16h-20h
-        night: []      // 20h-5h
+        morning: [],  
+        day: [],       
+        evening: [],   
+        night: []      
     };
     
     validTrips.forEach(({ trip_id, wheelchair_accessible, bikes_allowed }) => {
