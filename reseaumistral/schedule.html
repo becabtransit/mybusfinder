@@ -389,6 +389,42 @@ select:focus {
     transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 
+.stop-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stop-name {
+    flex: 1;
+}
+
+.accessibility-icon, .transfer-icon {
+    font-size: 1.2em;
+}
+
+.transfer-icon {
+    cursor: help;
+}
+
+.destination-item, .stop-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.destination-item:hover, .stop-item:hover {
+    transform: translateX(5px);
+}
+
+.stop-content {
+    width: 100%;
+}
+
     </style>
 </head>
 <body>
@@ -1210,76 +1246,125 @@ async function loadCalendar(fileContent) {
         }
         
         function showDestinations(routeId) {
-            currentRouteId = routeId;
-            navigationHistory.push({ view: 'lines-view' });
-            
-            const container = document.getElementById('destinations-container');
-            container.innerHTML = '';
-            
-            document.getElementById('route-title').textContent = `Ligne ${routes[routeId].short_name}`;
-            
-            const destinations = new Set();
-            
-            trips[routeId].forEach(({ trip_id }) => {
-                const tripStops = stopTimes[trip_id];
-                if (tripStops && tripStops.length > 0) {
-                    const lastStop = tripStops[tripStops.length - 1].stop_id;
-                    destinations.add(lastStop);
-                }
-            });
-            
-            Array.from(destinations).forEach(destinationId => {
-                const destinationItem = document.createElement('div');
-                destinationItem.className = 'destination-item';
-                destinationItem.textContent = stops[destinationId].replace(/"/g, '');
-                destinationItem.onclick = () => showStops(routeId, destinationId);
-                destinationItem.style.backgroundColor = `${routes[routeId].route_color}`;
-                destinationItem.style.color = `${routes[routeId].route_text_color}`;
-                container.appendChild(destinationItem);
-            });
-            
-            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-            showView('destinations-view');
+    currentRouteId = routeId;
+    navigationHistory.push({ view: 'lines-view' });
+    
+    const container = document.getElementById('destinations-container');
+    container.innerHTML = '';
+    
+    document.getElementById('route-title').textContent = `Ligne ${routes[routeId].short_name}`;
+    
+    const destinations = new Set();
+    
+    trips[routeId].forEach(({ trip_id }) => {
+        const tripStops = stopTimes[trip_id];
+        if (tripStops && tripStops.length > 0) {
+            const lastStop = tripStops[tripStops.length - 1].stop_id;
+            destinations.add(lastStop);
+        }
+    });
+    
+    Array.from(destinations).forEach(destinationId => {
+        if (!stops[destinationId]) {
+            console.error(`Arrêt non trouvé pour l'ID: ${destinationId}`);
+            return;
         }
         
-        function showStops(routeId, destinationId) {
-            currentDestinationId = destinationId;
-            navigationHistory.push({ view: 'destinations-view', routeId });
-            
-            const container = document.getElementById('stops-container');
-            container.innerHTML = '';
-            
-            document.getElementById('destination-title').textContent = 
-                `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
-            
-            const stopSet = new Set();
-            
-            trips[routeId].forEach(({ trip_id }) => {
-                const tripStops = stopTimes[trip_id];
-                if (tripStops) {
-                    const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
-                    if (destIndex !== -1) {
-                        for (let i = 0; i < destIndex; i++) {
-                            stopSet.add(tripStops[i].stop_id);
-                        }
-                    }
-                }
-            });
-            
-            Array.from(stopSet).forEach(stopId => {
-                const stopItem = document.createElement('div');
-                stopItem.className = 'stop-item';
-                stopItem.textContent = stops[stopId].replace(/"/g, '');
-                stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
-                stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
-                stopItem.style.color = `${routes[routeId].route_text_color}`;
-                container.appendChild(stopItem);
-            });
-            
-            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-            showView('stops-view');
+        const destinationItem = document.createElement('div');
+        destinationItem.className = 'destination-item';
+        // Utiliser la propriété 'name' de l'objet stop
+        destinationItem.textContent = stops[destinationId].name;
+        destinationItem.onclick = () => showStops(routeId, destinationId);
+        destinationItem.style.backgroundColor = `${routes[routeId].route_color}`;
+        destinationItem.style.color = `${routes[routeId].route_text_color}`;
+        
+        // Ajouter des informations supplémentaires si disponibles
+        if (stops[destinationId].wheelchair_boarding === 1) {
+            const accessibilityIcon = document.createElement('span');
+            accessibilityIcon.className = 'accessibility-icon';
+            accessibilityIcon.textContent = ' ♿';
+            destinationItem.appendChild(accessibilityIcon);
         }
         
+        container.appendChild(destinationItem);
+    });
+    
+    document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+    showView('destinations-view');
+}
+
+function showStops(routeId, destinationId) {
+    currentDestinationId = destinationId;
+    navigationHistory.push({ view: 'destinations-view', routeId });
+    
+    const container = document.getElementById('stops-container');
+    container.innerHTML = '';
+    
+    document.getElementById('destination-title').textContent = 
+        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].name}`;
+    
+    const stopSet = new Set();
+    
+    trips[routeId].forEach(({ trip_id }) => {
+        const tripStops = stopTimes[trip_id];
+        if (tripStops) {
+            const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
+            if (destIndex !== -1) {
+                for (let i = 0; i < destIndex; i++) {
+                    stopSet.add(tripStops[i].stop_id);
+                }
+            }
+        }
+    });
+    
+    Array.from(stopSet).forEach(stopId => {
+        if (!stops[stopId]) {
+            console.error(`Arrêt non trouvé pour l'ID: ${stopId}`);
+            return;
+        }
+        
+        const stopItem = document.createElement('div');
+        stopItem.className = 'stop-item';
+        
+        // Créer un conteneur pour le nom et les icônes
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'stop-content';
+        
+        // Ajouter le nom de l'arrêt
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'stop-name';
+        nameSpan.textContent = stops[stopId].name;
+        contentDiv.appendChild(nameSpan);
+        
+        // Ajouter les icônes si nécessaire
+        if (stops[stopId].wheelchair_boarding === 1) {
+            const accessibilityIcon = document.createElement('span');
+            accessibilityIcon.className = 'accessibility-icon';
+            accessibilityIcon.textContent = ' ♿';
+            contentDiv.appendChild(accessibilityIcon);
+        }
+        
+        // Ajouter les informations de correspondance si disponibles
+        if (stops[stopId].transfer_points && stops[stopId].transfer_points.length > 0) {
+            const transferIcon = document.createElement('span');
+            transferIcon.className = 'transfer-icon';
+            transferIcon.textContent = ' 🔄';
+            transferIcon.title = `${stops[stopId].transfer_points.length} correspondance(s) possible(s)`;
+            contentDiv.appendChild(transferIcon);
+        }
+        
+        stopItem.appendChild(contentDiv);
+        stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
+        stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
+        stopItem.style.color = `${routes[routeId].route_text_color}`;
+        
+        container.appendChild(stopItem);
+    });
+    
+    document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+    showView('stops-view');
+}
+
         function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
