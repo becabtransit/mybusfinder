@@ -541,21 +541,263 @@ async function loadGtfsData() {
         stops = {};
         calendar = {};
         calendarDates = {};
+        shapes = {};
+        frequencies = {};
+        transfers = {};
+        pathways = {};
+        levels = {};
+        fareAttributes = {};
+        fareRules = {};
+        attributions = {};
+        translations = {};
         
-        await Promise.all([
+        console.log('Chargement des données GTFS en cours...');
+        
+        // Chargement des fichiers obligatoires du GTFS
+        const requiredFiles = [
             loadRoutes(extractedFiles['routes.txt']),
             loadTrips(extractedFiles['trips.txt']),
             loadStopTimes(extractedFiles['stop_times.txt']),
             loadStops(extractedFiles['stops.txt']),
-            loadCalendar(extractedFiles['calendar.txt']),
-            loadCalendarDates(extractedFiles['calendar_dates.txt'])
-        ]);
+            loadCalendar(extractedFiles['calendar.txt'])
+        ];
+        
+        await Promise.all(requiredFiles);
+        
+        // Chargement des fichiers optionnels du GTFS
+        const optionalFiles = [
+            loadCalendarDates(extractedFiles['calendar_dates.txt']),
+            loadShapes(extractedFiles['shapes.txt']),
+            loadFrequencies(extractedFiles['frequencies.txt']),
+            loadTransfers(extractedFiles['transfers.txt']),
+            loadPathways(extractedFiles['pathways.txt']),
+            loadLevels(extractedFiles['levels.txt']),
+            loadFareAttributes(extractedFiles['fare_attributes.txt']),
+            loadFareRules(extractedFiles['fare_rules.txt']),
+            loadAttributions(extractedFiles['attributions.txt']),
+            loadTranslations(extractedFiles['translations.txt'])
+        ];
+        
+        await Promise.all(optionalFiles);
+        
+        // Charger les métadonnées du flux
+        const feedData = await loadFeedInfo(extractedFiles['feed_info.txt']);
+        
+        // Prétraiter les données pour améliorer les performances
+        preprocessData();
+        
+        console.log('Chargement des données GTFS terminé avec succès.');
+        
+        // Mettre à jour les informations de version du flux
+        if (feedData && feedData.publisher_name) {
+            const versionInfoContainer = document.getElementById('version-info') || document.createElement('div');
+            versionInfoContainer.id = 'version-info';
+            versionInfoContainer.className = 'version-info';
+            versionInfoContainer.innerHTML = `
+                <div class="data-source">
+                    Source des données : ${feedData.publisher_name}
+                    ${feedData.version ? `(version ${feedData.version})` : ''}
+                </div>
+                <div class="data-validity">
+                    ${feedData.start_date && feedData.end_date ? 
+                        `Validité : ${formatGtfsDate(feedData.start_date)} - ${formatGtfsDate(feedData.end_date)}` : ''}
+                </div>
+            `;
+            
+            // Ajouter à l'interface utilisateur
+            const footer = document.querySelector('footer') || document.body;
+            footer.appendChild(versionInfoContainer);
+        }
         
         return true;
     } catch (error) {
-        console.error('Erreur lors du chargement des données gtfs', error);
+        console.error('Erreur lors du chargement des données GTFS:', error);
         throw error;
     }
+}
+
+// Fonction pour formater les dates GTFS
+function formatGtfsDate(gtfsDate) {
+    if (!gtfsDate || gtfsDate.length !== 8) return '';
+    const year = gtfsDate.substring(0, 4);
+    const month = gtfsDate.substring(4, 6);
+    const day = gtfsDate.substring(6, 8);
+    return `${day}/${month}/${year}`;
+}
+
+// Fonction pour prétraiter les données pour de meilleures performances
+function preprocessData() {
+    console.log('Prétraitement des données...');
+    
+    // 1. Créer un index des arrêts par ligne pour accélerer l'affichage
+    const stopsByRoute = {};
+    
+    Object.entries(trips).forEach(([routeId, routeTrips]) => {
+        stopsByRoute[routeId] = new Set();
+        
+        routeTrips.forEach(trip => {
+            const tripStops = stopTimes[trip.trip_id];
+            if (tripStops) {
+                tripStops.forEach(stop => {
+                    stopsByRoute[routeId].add(stop.stop_id);
+                });
+            }
+        });
+    });
+    
+    // 2. Indexer les correspondances entre les lignes
+    const routeConnections = {};
+    
+    // Trouver les arrêts partagés entre différentes lignes
+    Object.entries(stopsByRoute).forEach(([routeId, routeStops]) => {
+        routeConnections[routeId] = new Set();
+        
+        Object.entries(stopsByRoute).forEach(([otherRouteId, otherRouteStops]) => {
+            if (routeId !== otherRouteId) {
+                // Vérifier si les deux lignes partagent au moins un arrêt
+                const intersection = [...routeStops].filter(stop => otherRouteStops.has(stop));
+                if (intersection.length > 0) {
+                    routeConnections[routeId].add(otherRouteId);
+                }
+            }
+        });
+    });
+    
+    // 3. Pré-calculer les destinations possibles pour chaque ligne
+    const routeDestinations = {};
+    
+    Object.entries(trips).forEach(([routeId, routeTrips]) => {
+        routeDestinations[routeId] = new Set();
+        
+        routeTrips.forEach(trip => {
+            const tripStops = stopTimes[trip.trip_id];
+            if (tripStops && tripStops.length > 0) {
+                // Dernier arrêt comme destination
+                const lastStop = tripStops[tripStops.length - 1].stop_id;
+                routeDestinations[routeId].add(lastStop);
+                
+                // Utiliser le headsign s'il existe
+                if (trip.headsign) {
+                    routeDestinations[routeId].add(trip.headsign);
+                }
+            }
+        });
+    });
+    
+    // Stocker les données prétraitées
+    window.gtfsIndexes = {
+        stopsByRoute,
+        routeConnections,
+        routeDestinations
+    };
+    
+    console.log('Prétraitement terminé.');
+}
+
+async function loadShapes(fileContent) {
+    if (!fileContent) return;
+    
+    shapes = {};
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    const shapeIdIndex = headers.indexOf('shape_id');
+    const latIndex = headers.indexOf('shape_pt_lat');
+    const lonIndex = headers.indexOf('shape_pt_lon');
+    const sequenceIndex = headers.indexOf('shape_pt_sequence');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
+        const shapeId = values[shapeIdIndex];
+        
+        if (!shapeId) return;
+        
+        if (!shapes[shapeId]) {
+            shapes[shapeId] = [];
+        }
+        
+        shapes[shapeId].push({
+            lat: parseFloat(values[latIndex]),
+            lon: parseFloat(values[lonIndex]),
+            sequence: parseInt(values[sequenceIndex], 10)
+        });
+    });
+    
+    // Trier les points par séquence
+    Object.keys(shapes).forEach(shapeId => {
+        shapes[shapeId].sort((a, b) => a.sequence - b.sequence);
+    });
+    
+    console.log(`${Object.keys(shapes).length} formes chargées`);
+}
+
+// Charger les données de fréquences
+async function loadFrequencies(fileContent) {
+    if (!fileContent) return;
+    
+    frequencies = {};
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    const tripIdIndex = headers.indexOf('trip_id');
+    const startTimeIndex = headers.indexOf('start_time');
+    const endTimeIndex = headers.indexOf('end_time');
+    const headwaySecsIndex = headers.indexOf('headway_secs');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
+        const tripId = values[tripIdIndex];
+        
+        if (!tripId) return;
+        
+        if (!frequencies[tripId]) {
+            frequencies[tripId] = [];
+        }
+        
+        frequencies[tripId].push({
+            start_time: values[startTimeIndex],
+            end_time: values[endTimeIndex],
+            headway_secs: parseInt(values[headwaySecsIndex], 10)
+        });
+    });
+    
+    console.log(`Fréquences chargées pour ${Object.keys(frequencies).length} trajets`);
+}
+
+// Charger les données de transferts entre arrêts
+async function loadTransfers(fileContent) {
+    if (!fileContent) return;
+    
+    transfers = {};
+    
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    const fromStopIdIndex = headers.indexOf('from_stop_id');
+    const toStopIdIndex = headers.indexOf('to_stop_id');
+    const transferTypeIndex = headers.indexOf('transfer_type');
+    const minTransferTimeIndex = headers.indexOf('min_transfer_time');
+    
+    lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const values = line.split(',');
+        const fromStopId = values[fromStopIdIndex];
+        const toStopId = values[toStopIdIndex];
+        
+        if (!fromStopId || !toStopId) return;
+        
+        if (!transfers[fromStopId]) {
+            transfers[fromStopId] = {};
+        }
+        
+        transfers[fromStopId][toStopId] = {
+            transfer_type: parseInt(values[transferTypeIndex], 10),
+            min_transfer_time: values[minTransferTimeIndex] ? parseInt(values[minTransferTimeIndex], 10) : null
+        };
+    });
+    
+    console.log(`Transferts chargés pour ${Object.keys(transfers).length} arrêts`);
 }
 
 async function loadCalendarDates(fileContent) {
@@ -641,6 +883,10 @@ async function loadTrips(fileContent) {
         const tripRouteIdIndex = headers.indexOf('route_id');
         const tripIdIndex = headers.indexOf('trip_id');
         const tripServiceIdIndex = headers.indexOf('service_id');
+        const tripHeadsignIndex = headers.indexOf('trip_headsign');
+        const directionIdIndex = headers.indexOf('direction_id');
+        const wheelchairAccessibleIndex = headers.indexOf('wheelchair_accessible');
+        const bikesAllowedIndex = headers.indexOf('bikes_allowed');
                 
         lines.slice(1).forEach(line => {
             if (!line.trim()) return;
@@ -652,12 +898,17 @@ async function loadTrips(fileContent) {
                 trips[values[tripRouteIdIndex]].push({
                     trip_id: values[tripIdIndex],
                     service_id: values[tripServiceIdIndex],
+                    headsign: values[tripHeadsignIndex] ? values[tripHeadsignIndex].replace(/"/g, '') : null,
+                    direction_id: values[directionIdIndex] ? parseInt(values[directionIdIndex], 10) : null,
+                    wheelchair_accessible: values[wheelchairAccessibleIndex] ? parseInt(values[wheelchairAccessibleIndex], 10) : 0,
+                    bikes_allowed: values[bikesAllowedIndex] ? parseInt(values[bikesAllowedIndex], 10) : 0
                 });
             }
         });
         
+        console.log(`${Object.values(trips).reduce((sum, routeTrips) => sum + routeTrips.length, 0)} trajets chargés`);
     } catch (error) {
-        console.error('Erreur', error);
+        console.error('Erreur lors du chargement des trajets:', error);
     }
 }
 
@@ -673,7 +924,12 @@ async function loadStopTimes(fileContent) {
         const stopTripIdIndex = headers.indexOf('trip_id');
         const stopIdIndex = headers.indexOf('stop_id');
         const arrivalTimeIndex = headers.indexOf('arrival_time');
-        
+        const departureTimeIndex = headers.indexOf('departure_time');
+        const stopSequenceIndex = headers.indexOf('stop_sequence');
+        const pickupTypeIndex = headers.indexOf('pickup_type');
+        const dropOffTypeIndex = headers.indexOf('drop_off_type');
+        const stopHeadsignIndex = headers.indexOf('stop_headsign');
+        const timePointIndex = headers.indexOf('timepoint');
         
         lines.slice(1).forEach(line => {
             if (!line.trim()) return;
@@ -684,13 +940,25 @@ async function loadStopTimes(fileContent) {
                 }
                 stopTimes[values[stopTripIdIndex]].push({
                     stop_id: values[stopIdIndex],
-                    arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
+                    arrival_time: values[arrivalTimeIndex],
+                    arrival_time_formatted: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
+                    departure_time: values[departureTimeIndex],
+                    stop_sequence: values[stopSequenceIndex] ? parseInt(values[stopSequenceIndex], 10) : 0,
+                    pickup_type: values[pickupTypeIndex] ? parseInt(values[pickupTypeIndex], 10) : 0,
+                    drop_off_type: values[dropOffTypeIndex] ? parseInt(values[dropOffTypeIndex], 10) : 0,
+                    stop_headsign: values[stopHeadsignIndex] ? values[stopHeadsignIndex].replace(/"/g, '') : null,
+                    timepoint: values[timePointIndex] ? parseInt(values[timePointIndex], 10) : 1
                 });
             }
         });
         
+        Object.keys(stopTimes).forEach(tripId => {
+            stopTimes[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
+        });
+        
+        console.log(`Horaires chargés pour ${Object.keys(stopTimes).length} trajets`);
     } catch (error) {
-        console.error('Erreur', error);
+        console.error('Erreur lors du chargement des horaires d\'arrêt:', error);
     }
 }
 
@@ -705,19 +973,32 @@ async function loadStops(fileContent) {
         const headers = lines[0].split(',');
         const stopsIdIndex = headers.indexOf('stop_id');
         const stopsNameIndex = headers.indexOf('stop_name');
-        
+        const stopsLatIndex = headers.indexOf('stop_lat');
+        const stopsLonIndex = headers.indexOf('stop_lon');
+        const stopsCodeIndex = headers.indexOf('stop_code');
+        const stopsDescIndex = headers.indexOf('stop_desc');
+        const wheelchairBoardingIndex = headers.indexOf('wheelchair_boarding');
+        const parentStationIndex = headers.indexOf('parent_station');
         
         lines.slice(1).forEach(line => {
             if (!line.trim()) return;
             const values = line.split(',');
             if (values[stopsIdIndex]) {
-                stops[values[stopsIdIndex]] = values[stopsNameIndex];
+                stops[values[stopsIdIndex]] = {
+                    name: values[stopsNameIndex] ? values[stopsNameIndex].replace(/"/g, '') : '',
+                    lat: values[stopsLatIndex] ? parseFloat(values[stopsLatIndex]) : null,
+                    lon: values[stopsLonIndex] ? parseFloat(values[stopsLonIndex]) : null,
+                    code: values[stopsCodeIndex] ? values[stopsCodeIndex].replace(/"/g, '') : null,
+                    description: values[stopsDescIndex] ? values[stopsDescIndex].replace(/"/g, '') : null,
+                    wheelchair_boarding: values[wheelchairBoardingIndex] ? parseInt(values[wheelchairBoardingIndex], 10) : 0,
+                    parent_station: values[parentStationIndex] || null
+                };
             }
         });
         
         console.log(`${Object.keys(stops).length} arrêts chargés`);
     } catch (error) {
-        console.error('Erreur', error);
+        console.error('Erreur lors du chargement des arrêts:', error);
     }
 }
 
@@ -886,14 +1167,70 @@ async function loadCalendar(fileContent) {
     currentStopId = stopId;
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
+    const routeColor = routes[routeId].route_color;
+    const routeTextColor = routes[routeId].route_text_color;
+    
     document.getElementById('route-info').textContent = 
-        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
+        `Ligne ${routes[routeId].short_name} → ${stops[destinationId].name}`;
     document.getElementById('stop-title').textContent = 
-        `Horaires pour l'arrêt ${stops[stopId].replace(/"/g, '')}`;
+        `Horaires pour l'arrêt ${stops[stopId].name}`;
+    
+    document.getElementById('route-info').style.backgroundColor = routeColor;
+    document.getElementById('route-info').style.color = routeTextColor;
+    document.getElementById('stop-title').style.color = routeColor;
+    
+    const stopInfoContainer = document.getElementById('stop-info') || document.createElement('div');
+    stopInfoContainer.id = 'stop-info';
+    stopInfoContainer.className = 'stop-info';
+    
+    const stopDetails = stops[stopId];
+    let accessibilityInfo = '';
+    if (stopDetails.wheelchair_boarding === 1) {
+        accessibilityInfo = '<span class="accessibility-icon">♿</span> Accessible aux fauteuils roulants';
+    } else if (stopDetails.wheelchair_boarding === 2) {
+        accessibilityInfo = '<span class="accessibility-icon">⚠️</span> Non accessible aux fauteuils roulants';
+    }
+    
+    let mapLink = '';
+    if (stopDetails.lat && stopDetails.lon) {
+        mapLink = `<a href="https://www.google.com/maps?q=${stopDetails.lat},${stopDetails.lon}" target="_blank" class="map-link">Voir sur la carte</a>`;
+    }
+    
+    stopInfoContainer.innerHTML = `
+        <div class="stop-details">
+            ${stopDetails.code ? `<div>Code : ${stopDetails.code}</div>` : ''}
+            ${stopDetails.description ? `<div>Description : ${stopDetails.description}</div>` : ''}
+            ${accessibilityInfo ? `<div>${accessibilityInfo}</div>` : ''}
+            ${mapLink}
+        </div>
+    `;
+    
+    const scheduleHeader = document.getElementById('schedule-header') || document.querySelector('.schedule-header');
+    if (scheduleHeader) {
+        scheduleHeader.after(stopInfoContainer);
+    } else {
+        document.getElementById('schedule-container').before(stopInfoContainer);
+    }
     
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
     dateSelect.value = today.toISOString().split('T')[0];
+    
+    dateSelect.innerHTML = '';
+    for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(today.getDate() + i);
+        const dateStr = date.toISOString().split('T')[0];
+        const option = document.createElement('option');
+        option.value = dateStr;
+        
+        const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+        option.textContent = i === 0 ? 'Aujourd\'hui' : 
+                             i === 1 ? 'Demain' : 
+                             `${dayNames[date.getDay()]} ${date.getDate()}/${date.getMonth() + 1}`;
+        
+        dateSelect.appendChild(option);
+    }
     
     dateSelect.onchange = () => updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
     
@@ -935,46 +1272,302 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
         return;
     }
     
-    const schedule = [];
-    validTrips.forEach(({ trip_id }) => {
-        const tripStops = stopTimes[trip_id];
+    // Créer un tableau d'horaires avancé avec plus d'informations
+    const scheduleFull = [];
+    validTrips.forEach((trip) => {
+        const tripStops = stopTimes[trip.trip_id];
         let destinationReached = false;
         
         if (tripStops) {
-            tripStops.forEach(({ stop_id: currentStopId, arrival_time }) => {
-                if (currentStopId === destinationId) destinationReached = true;
-                if (currentStopId === stopId && !destinationReached) {
-                    schedule.push(arrival_time);
-                }
-            });
+            const targetStopIndex = tripStops.findIndex(stop => stop.stop_id === stopId);
+            const destinationIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
+            
+            if (targetStopIndex !== -1 && destinationIndex !== -1 && targetStopIndex < destinationIndex) {
+                const targetStop = tripStops[targetStopIndex];
+                const destinationStop = tripStops[destinationIndex];
+                
+                // Calculer le temps de trajet jusqu'à destination
+                const arrivalTime = parseTimeString(targetStop.arrival_time);
+                const destinationTime = parseTimeString(destinationStop.arrival_time);
+                const travelTimeMinutes = Math.round((destinationTime - arrivalTime) / 60000);
+                
+                // Extraire les informations d'accessibilité
+                const wheelchairAccessible = trip.wheelchair_accessible === 1 ? true : false;
+                const bikesAllowed = trip.bikes_allowed === 1 ? true : false;
+                
+                scheduleFull.push({
+                    arrival_time: targetStop.arrival_time,
+                    arrival_time_formatted: targetStop.arrival_time_formatted,
+                    destination_time: destinationStop.arrival_time_formatted,
+                    travel_time_minutes: travelTimeMinutes,
+                    is_pickup_allowed: targetStop.pickup_type !== 1,
+                    is_express: tripStops.length < 10, // Exemple simple pour identifier les trajets express
+                    wheelchair_accessible: wheelchairAccessible,
+                    bikes_allowed: bikesAllowed,
+                    headsign: trip.headsign || stops[destinationId].name,
+                    trip_id: trip.trip_id
+                });
+            }
         }
     });
     
+    // Trier les horaires par heure d'arrivée
+    scheduleFull.sort((a, b) => {
+        return parseTimeString(a.arrival_time) - parseTimeString(b.arrival_time);
+    });
+    
+    if (scheduleFull.length === 0) {
+        scheduleContainer.innerHTML += `<p>Pas d'horaires disponibles pour cet arrêt à cette date.</p>`;
+        return;
+    }
+    
+    // Regrouper par heure
     const hours = {};
-    schedule.forEach(time => {
-        let [hour, minute] = time.split('h').map(num => parseInt(num, 10));
+    scheduleFull.forEach(trip => {
+        let [hourStr, minuteStr] = trip.arrival_time.split(':');
+        let hour = parseInt(hourStr, 10);
         
+        // Normaliser les heures après minuit
         if (hour >= 24) {
             hour -= 24;
         }
         
         if (!hours[hour]) hours[hour] = [];
-        hours[hour].push(minute);
+        hours[hour].push(trip);
     });
     
-    const sortedTimes = Object.entries(hours).sort(([a], [b]) => a - b);
+    const sortedHours = Object.entries(hours).sort(([a], [b]) => parseInt(a) - parseInt(b));
     
-    if (sortedTimes.length === 0) {
-        scheduleContainer.innerHTML += `<p>Pas d'horaires disponibles pour cet arrêt à cette date.</p>`;
-    } else {
-        sortedTimes.forEach(([hour, minutes]) => {
-            const uniqueSortedMinutes = [...new Set(minutes)].sort((a, b) => a - b).join('  ');
+    sortedHours.forEach(([hour, trips]) => {
+        const hourContainer = document.createElement('div');
+        hourContainer.className = 'hour-container';
+        
+        // Entête de l'heure
+        const hourHeader = document.createElement('div');
+        hourHeader.className = 'hour-header';
+        hourHeader.textContent = `${hour}h`;
+        hourContainer.appendChild(hourHeader);
+        
+        // Liste des départs pour cette heure
+        const tripsList = document.createElement('div');
+        tripsList.className = 'trips-list';
+        
+        trips.forEach(trip => {
+            const minute = trip.arrival_time.split(':')[1];
+            const tripItem = document.createElement('div');
+            tripItem.className = 'trip-item';
             
-            const row = document.createElement('div');
-            row.className = 'schedule-row';
-            row.innerHTML = `<span>${hour}h</span><span1>${uniqueSortedMinutes}</span1>`;
-            scheduleContainer.appendChild(row);
+            // Ajouter des classes pour les caractéristiques du trajet
+            if (trip.wheelchair_accessible) tripItem.classList.add('accessible');
+            if (trip.bikes_allowed) tripItem.classList.add('bikes-allowed');
+            if (trip.is_express) tripItem.classList.add('express');
+            if (!trip.is_pickup_allowed) tripItem.classList.add('no-pickup');
+            
+            let tripInfo = `
+                <div class="trip-time">${minute}</div>
+                <div class="trip-details">
+                    <div class="trip-headsign">${trip.headsign}</div>
+                    <div class="trip-duration">Arrivée à ${trip.destination_time} (${trip.travel_time_minutes} min)</div>
+                    <div class="trip-features">
+                        ${trip.wheelchair_accessible ? '<span title="Accessible aux fauteuils roulants">♿</span>' : ''}
+                        ${trip.bikes_allowed ? '<span title="Vélos autorisés">🚲</span>' : ''}
+                        ${trip.is_express ? '<span title="Service express">⚡</span>' : ''}
+                        ${!trip.is_pickup_allowed ? '<span title="Descente uniquement">🚫</span>' : ''}
+                    </div>
+                </div>
+            `;
+            
+            tripItem.innerHTML = tripInfo;
+            
+            // Ajouter un événement pour montrer plus de détails sur le trajet
+            tripItem.onclick = () => showTripDetails(trip.trip_id, stopId, destinationId);
+            
+            tripsList.appendChild(tripItem);
         });
+        
+        hourContainer.appendChild(tripsList);
+        scheduleContainer.appendChild(hourContainer);
+    });
+}
+
+function parseTimeString(timeStr) {
+    const [hours, minutes, seconds] = timeStr.split(':').map(Number);
+    let totalSeconds = hours * 3600 + minutes * 60 + (seconds || 0);
+    // Convertir en millisecondes pour les calculs de différence
+    return totalSeconds * 1000;
+}
+
+function showTripDetails(tripId, fromStopId, toStopId) {
+    // Créer un modal pour afficher les détails du trajet
+    const modalContainer = document.createElement('div');
+    modalContainer.className = 'modal-container';
+    
+    const modal = document.createElement('div');
+    modal.className = 'trip-details-modal';
+    
+    // Récupérer les informations du trajet
+    const tripStops = stopTimes[tripId];
+    if (!tripStops) {
+        console.error('Trajet non trouvé:', tripId);
+        return;
+    }
+    
+    // Trouver le trajet correspondant et sa ligne
+    let routeId = null;
+    let tripInfo = null;
+    for (const [rid, routeTrips] of Object.entries(trips)) {
+        const trip = routeTrips.find(t => t.trip_id === tripId);
+        if (trip) {
+            routeId = rid;
+            tripInfo = trip;
+            break;
+        }
+    }
+    
+    if (!routeId || !tripInfo) {
+        console.error('Informations de trajet non trouvées');
+        return;
+    }
+    
+    const route = routes[routeId];
+    const fromStopIndex = tripStops.findIndex(stop => stop.stop_id === fromStopId);
+    const toStopIndex = tripStops.findIndex(stop => stop.stop_id === toStopId);
+    
+    // En-tête du modal
+    const modalHeader = document.createElement('div');
+    modalHeader.className = 'modal-header';
+    modalHeader.style.backgroundColor = route.route_color;
+    modalHeader.style.color = route.route_text_color;
+    
+    modalHeader.innerHTML = `
+        <h3>Détails du trajet</h3>
+        <div class="route-name">Ligne ${route.short_name} - ${tripInfo.headsign || stops[toStopId].name}</div>
+        <button class="close-button">&times;</button>
+    `;
+    modal.appendChild(modalHeader);
+    
+    // Contenu du modal
+    const modalContent = document.createElement('div');
+    modalContent.className = 'modal-content';
+    
+    // Informations sur le trajet
+    const tripInfoSection = document.createElement('div');
+    tripInfoSection.className = 'trip-info-section';
+    
+    let serviceInfo = '';
+    if (calendar[tripInfo.service_id]) {
+        const calData = calendar[tripInfo.service_id];
+        if (calData.weekdays) serviceInfo += 'Circule en semaine. ';
+        if (calData.saturday) serviceInfo += 'Circule le samedi. ';
+        if (calData.sunday) serviceInfo += 'Circule le dimanche. ';
+    }
+    
+    tripInfoSection.innerHTML = `
+        <div class="trip-properties">
+            <div><strong>Identifiant:</strong> ${tripId}</div>
+            <div><strong>Service:</strong> ${serviceInfo}</div>
+            ${tripInfo.wheelchair_accessible === 1 ? '<div>✓ Accessible aux fauteuils roulants</div>' : ''}
+            ${tripInfo.bikes_allowed === 1 ? '<div>✓ Vélos autorisés</div>' : ''}
+        </div>
+    `;
+    
+    modalContent.appendChild(tripInfoSection);
+    
+    // Ajouter l'itinéraire du trajet
+    const itinerarySection = document.createElement('div');
+    itinerarySection.className = 'itinerary-section';
+    itinerarySection.innerHTML = '<h4>Itinéraire</h4>';
+    
+    const timeline = document.createElement('div');
+    timeline.className = 'timeline';
+    
+    // Obtenir les arrêts pertinents pour ce trajet
+    const relevantStops = tripStops.slice(
+        Math.min(fromStopIndex, toStopIndex),
+        Math.max(fromStopIndex, toStopIndex) + 1
+    );
+    
+    relevantStops.forEach((stop, index) => {
+        const stopItem = document.createElement('div');
+        stopItem.className = 'timeline-item';
+        
+        // Mettre en évidence les arrêts de départ et d'arrivée
+        if (stop.stop_id === fromStopId) stopItem.classList.add('departure-stop');
+        if (stop.stop_id === toStopId) stopItem.classList.add('arrival-stop');
+        
+        const stopDetails = stops[stop.stop_id];
+        const timeDisplay = stop.arrival_time.split(':').slice(0, 2).join('h');
+        
+        stopItem.innerHTML = `
+            <div class="time-marker">${timeDisplay}</div>
+            <div class="stop-bullet"></div>
+            <div class="stop-name">${stopDetails.name}</div>
+        `;
+        
+        timeline.appendChild(stopItem);
+    });
+    
+    itinerarySection.appendChild(timeline);
+    modalContent.appendChild(itinerarySection);
+    
+    modal.appendChild(modalContent);
+    
+    // Ajouter un bouton pour fermer le modal
+    const closeButton = modalHeader.querySelector('.close-button');
+    closeButton.onclick = () => {
+        document.body.removeChild(modalContainer);
+    };
+    
+    // Ajouter un événement pour fermer le modal en cliquant à l'extérieur
+    modalContainer.onclick = (event) => {
+        if (event.target === modalContainer) {
+            document.body.removeChild(modalContainer);
+        }
+    };
+    
+    modalContainer.appendChild(modal);
+    document.body.appendChild(modalContainer);
+}
+
+async function loadFeedInfo(fileContent) {
+    try {
+        if (!fileContent) {
+            return;
+        }
+        
+        let feedInfo = {};
+        
+        const lines = fileContent.split('\n');
+        
+        const headers = lines[0].split(',');
+        const publisherNameIndex = headers.indexOf('feed_publisher_name');
+        const publisherUrlIndex = headers.indexOf('feed_publisher_url');
+        const langIndex = headers.indexOf('feed_lang');
+        const startDateIndex = headers.indexOf('feed_start_date');
+        const endDateIndex = headers.indexOf('feed_end_date');
+        const versionIndex = headers.indexOf('feed_version');
+        const contactEmailIndex = headers.indexOf('feed_contact_email');
+        
+        if (lines.length > 1) {
+            const values = lines[1].split(',');
+            
+            feedInfo = {
+                publisher_name: values[publisherNameIndex] ? values[publisherNameIndex].replace(/"/g, '') : null,
+                publisher_url: values[publisherUrlIndex] ? values[publisherUrlIndex].replace(/"/g, '') : null,
+                lang: values[langIndex] || null,
+                start_date: values[startDateIndex] || null,
+                end_date: values[endDateIndex] || null,
+                version: values[versionIndex] || null,
+                contact_email: values[contactEmailIndex] ? values[contactEmailIndex].replace(/"/g, '') : null
+            };
+            
+            console.log('Informations sur le flux GTFS chargées:', feedInfo);
+        }
+        
+        return feedInfo;
+    } catch (error) {
+        console.error('Erreur lors du chargement des informations du flux:', error);
+        return {};
     }
 }
 
