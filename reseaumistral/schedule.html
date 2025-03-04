@@ -650,39 +650,53 @@ select:focus {
 }
 
 .favorite-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    padding: 15px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 
 .favorite-info {
-    flex: 1;
+    width: 100%;
 }
 
-.favorite-line {
-    font-weight: bold;
-    font-size: 1.1em;
+.favorite-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
 }
 
-.favorite-stop {
+.favorite-line-number {
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+}
+
+.favorite-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.favorite-direction,
+.favorite-stop-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95em;
+}
+
+.favorite-direction svg,
+.favorite-stop-name svg {
+    min-width: 16px;
     opacity: 0.9;
-    font-size: 0.9em;
-    margin: 4px 0;
-}
-
-.favorite-realtime {
-    font-size: 0.9em;
-    margin-top: 4px;
-}
-
-.next-arrivals {
-    color: #28a745;
-    font-weight: bold;
 }
 
 .favorite-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
 }
 
 .favorite-button {
@@ -690,22 +704,41 @@ select:focus {
     border: none;
     padding: 8px;
     cursor: pointer;
-    transition: transform 0.3s ease;
+    transition: all 0.3s ease;
     color: inherit;
+    opacity: 0.8;
+    border-radius: 50%;
 }
 
 .favorite-button:hover {
     transform: scale(1.1);
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.realtime-info {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.favorite-realtime {
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.next-arrivals {
+    color: #2ecc71;
+    font-weight: 600;
+    text-shadow: 0 0 10px rgba(46, 204, 113, 0.2);
 }
 
 .no-realtime-data {
     font-size: 0.9em;
     opacity: 0.7;
     font-style: italic;
-}
-
-.lines-section {
-    margin-top: 20px;
 }
 
     </style>
@@ -1414,21 +1447,17 @@ async function loadCalendar(fileContent) {
         favoritesSection.innerHTML = '<h3>Mes arrêts favoris</h3>';
         
         favorites.forEach(favorite => {
-            const favoriteItem = document.createElement('div');
-            favoriteItem.className = 'bus-item favorite-item';
-            favoriteItem.setAttribute('data-favorite-id', favorite.id);
-            favoriteItem.style.backgroundColor = routes[favorite.routeId].route_color;
-            favoriteItem.style.color = routes[favorite.routeId].route_text_color;
-            
-            favoriteItem.innerHTML = `
-                <div class="favorite-info">
-                    <div class="favorite-line">
-                        <span class="line-number">Ligne ${favorite.routeName} → ${favorite.destinationName}</span>
-                    </div>
-                    <div class="favorite-stop">
-                        ${favorite.stopName}
-                    </div>
-                    <div class="realtime-info"></div>
+    const favoriteItem = document.createElement('div');
+    favoriteItem.className = 'bus-item favorite-item';
+    favoriteItem.setAttribute('data-favorite-id', favorite.id);
+    favoriteItem.style.backgroundColor = routes[favorite.routeId].route_color;
+    favoriteItem.style.color = routes[favorite.routeId].route_text_color;
+    
+    favoriteItem.innerHTML = `
+        <div class="favorite-info">
+            <div class="favorite-header">
+                <div class="favorite-line-number">
+                    <strong>Ligne ${favorite.routeName}</strong>
                 </div>
                 <div class="favorite-actions">
                     <button class="favorite-button" onclick="event.stopPropagation(); removeFromFavorites('${favorite.id}'); showLines();">
@@ -1437,11 +1466,29 @@ async function loadCalendar(fileContent) {
                         </svg>
                     </button>
                 </div>
-            `;
-            
-            favoriteItem.onclick = () => showSchedule(favorite.routeId, favorite.stopId, favorite.destinationId);
-            favoritesSection.appendChild(favoriteItem);
-        });
+            </div>
+            <div class="favorite-details">
+                <div class="favorite-direction">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M13 5l7 7-7 7"/>
+                    </svg>
+                    <span>${favorite.destinationName}</span>
+                </div>
+                <div class="favorite-stop-name">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 21c4-4 8-7 8-12a8 8 0 1 0-16 0c0 5 4 8 8 12z"/>
+                    </svg>
+                    <span>${favorite.stopName}</span>
+                </div>
+            </div>
+            <div class="realtime-info"></div>
+        </div>
+    `;
+    
+    favoriteItem.onclick = () => showSchedule(favorite.routeId, favorite.stopId, favorite.destinationId);
+    favoritesSection.appendChild(favoriteItem);
+});
         
         container.appendChild(favoritesSection);
         updateFavoritesRealtimeData();
