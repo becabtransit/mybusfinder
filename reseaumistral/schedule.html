@@ -741,6 +741,52 @@ select:focus {
     font-style: italic;
 }
 
+.favorite-item {
+    padding: 12px 18px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    transition: all 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.favorite-info {
+    flex: 1;
+    margin-right: 15px;
+}
+
+.favorite-main-info {
+    font-size: 1.1em;
+    margin-bottom: 4px;
+}
+
+.favorite-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: inherit;
+    opacity: 0.8;
+    border-radius: 50%;
+}
+
+.favorite-button:hover {
+    transform: scale(1.1);
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.favorite-realtime {
+    font-size: 0.95em;
+}
+
+.next-arrivals {
+    color: #2ecc71;
+    font-weight: 600;
+}
+
     </style>
 </head>
 <body>
@@ -1455,41 +1501,22 @@ async function loadCalendar(fileContent) {
     
     favoriteItem.innerHTML = `
         <div class="favorite-info">
-            <div class="favorite-header">
-                <div class="favorite-line-number">
-                    <strong>Ligne ${favorite.routeName}</strong>
-                </div>
-                <div class="favorite-actions">
-                    <button class="favorite-button" onclick="event.stopPropagation(); removeFromFavorites('${favorite.id}'); showLines();">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 6L6 18M6 6l12 12"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <div class="favorite-details">
-                <div class="favorite-direction">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M5 12h14M13 5l7 7-7 7"/>
-                    </svg>
-                    <span>${favorite.destinationName}</span>
-                </div>
-                <div class="favorite-stop-name">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M12 21c4-4 8-7 8-12a8 8 0 1 0-16 0c0 5 4 8 8 12z"/>
-                    </svg>
-                    <span>${favorite.stopName}</span>
-                </div>
+            <div class="favorite-main-info">
+                Ligne ${favorite.routeName} → ${favorite.destinationName} - à l'arrêt ${favorite.stopName}
             </div>
             <div class="realtime-info"></div>
         </div>
+        <button class="favorite-button" onclick="event.stopPropagation(); removeFromFavorites('${favorite.id}'); showLines();">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+        </button>
     `;
     
     favoriteItem.onclick = () => showSchedule(favorite.routeId, favorite.stopId, favorite.destinationId);
     favoritesSection.appendChild(favoriteItem);
 });
-        
+
         container.appendChild(favoritesSection);
         updateFavoritesRealtimeData();
         startFavoritesUpdate();
@@ -1551,20 +1578,19 @@ function processRealtimeDataForStop(message, routeId, stopId) {
 
 function displayRealtimeDataInFavorite(arrivals, container) {
     if (arrivals.length === 0) {
-        container.innerHTML = '<div class="no-realtime-data">Pas de passage prévu</div>';
+        container.innerHTML = '<div class="favorite-realtime">Pas de passage prévu</div>';
         return;
     }
 
     container.innerHTML = `
         <div class="favorite-realtime">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 6v6l4 2"/>
-            </svg>
-            Prochains passages : <span class="next-arrivals">${arrivals.map(a => a.time).join(', ')}</span>
+            Prochains passages : <span class="next-arrivals">${arrivals.map(a => {
+                const [hours, minutes] = a.time.split(':');
+                return `${hours}h${minutes}`;
+            }).join(' | ')}</span>
         </div>
     `;
-}     
+}
         function showDestinations(routeId) {
             currentRouteId = routeId;
             navigationHistory.push({ view: 'lines-view' });
