@@ -1213,7 +1213,7 @@ async function loadCalendar(fileContent) {
             showView('stops-view');
         }
         
-        let isShowingRealtime = false;
+        let isShowingRealtime = false; // Par défaut, on affiche les horaires théoriques
 
 function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
@@ -1259,7 +1259,6 @@ function setupTabHandlers() {
             tab.hasEventListener = true;
             tab.addEventListener('click', () => {
                 const targetTab = tab.dataset.tab;
-                isShowingRealtime = targetTab === 'realtime';
                 
                 tabs.forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
@@ -1269,13 +1268,10 @@ function setupTabHandlers() {
                 });
                 document.getElementById(`${targetTab}-view`).classList.add('active');
                 
-                if (isShowingRealtime) {
+                if (targetTab === 'realtime') {
                     startRealtimeUpdates();
                 } else {
                     stopRealtimeUpdates();
-                    // Mettre à jour les horaires théoriques
-                    const dateSelect = document.getElementById('date-select');
-                    updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, dateSelect.value);
                 }
             });
         }
