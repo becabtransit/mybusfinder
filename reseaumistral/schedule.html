@@ -1194,77 +1194,61 @@ async function loadCalendar(fileContent) {
         }
         
         function showStops(routeId, destinationId) {
-            currentDestinationId = destinationId;
-            navigationHistory.push({ view: 'destinations-view', routeId });
-            
-            const container = document.getElementById('stops-container');
-            container.innerHTML = '';
-            
-            document.getElementById('destination-title').textContent = 
-                `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
-            
-            const stopSet = new Set();
-            
-            trips[routeId].forEach(({ trip_id }) => {
-                const tripStops = stopTimes[trip_id];
-                if (tripStops) {
-                    const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
-                    if (destIndex !== -1) {
-                        for (let i = 0; i < destIndex; i++) {
-                            stopSet.add(tripStops[i].stop_id);
-                        }
-                    }
+    currentDestinationId = destinationId;
+    navigationHistory.push({ view: 'destinations-view', routeId });
+    
+    const container = document.getElementById('stops-container');
+    container.innerHTML = '';
+    
+    document.getElementById('destination-title').textContent = 
+        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].name}`; // Modifié ici
+    
+    const stopSet = new Set();
+    
+    trips[routeId].forEach(({ trip_id }) => {
+        const tripStops = stopTimes[trip_id];
+        if (tripStops) {
+            const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
+            if (destIndex !== -1) {
+                for (let i = 0; i < destIndex; i++) {
+                    stopSet.add(tripStops[i].stop_id);
                 }
-            });
-            
-            Array.from(stopSet).forEach(stopId => {
-                const stopItem = document.createElement('div');
-                stopItem.className = 'stop-item';
-                stopItem.textContent = stops[stopId].replace(/"/g, '');
-                stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
-                stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
-                stopItem.style.color = `${routes[routeId].route_text_color}`;
-                container.appendChild(stopItem);
-            });
-            
-            document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-            showView('stops-view');
+            }
         }
+    });
+    
+    Array.from(stopSet).forEach(stopId => {
+        const stopItem = document.createElement('div');
+        stopItem.className = 'stop-item';
+        stopItem.textContent = stops[stopId].name; // Modifié ici
+        stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
+        stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
+        stopItem.style.color = `${routes[routeId].route_text_color}`;
+        container.appendChild(stopItem);
+    });
+    
+    document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
+    showView('stops-view');
+}
         
         let isShowingRealtime = false;
 
-function showSchedule(routeId, stopId, destinationId) {
+        function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
-    currentRouteId = routeId;
-    isShowingRealtime = false; 
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
     document.getElementById('route-info').textContent = 
-        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].name}`;
+        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].name}`; // Modifié ici
     document.getElementById('stop-title').textContent = 
-        `Horaires pour l'arrêt ${stops[stopId].name}`;
+        `Horaires pour l'arrêt ${stops[stopId].name}`; // Modifié ici
     
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
     dateSelect.value = today.toISOString().split('T')[0];
     
-    document.querySelectorAll('.tab-button').forEach(tab => {
-        tab.classList.remove('active');
-        if (tab.dataset.tab === 'theoretical') {
-            tab.classList.add('active');
-        }
-    });
-
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-        if (content.id === 'theoretical-view') {
-            content.classList.add('active');
-        }
-    });
+    dateSelect.onchange = () => updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
     
     updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
-    
-    setupTabHandlers();
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('schedule-view');
