@@ -642,8 +642,8 @@ function startRealtimeUpdates() {
         clearInterval(updateInterval);
     }
     
-    fetchRealtimeData(); // Premier chargement immédiat
-    updateInterval = setInterval(fetchRealtimeData, 30000); // Puis toutes les 30 secondes
+    fetchRealtimeData(); 
+    updateInterval = setInterval(fetchRealtimeData, 30000);
 }
 
 function stopRealtimeUpdates() {
@@ -677,20 +677,16 @@ async function fetchRealtimeData() {
         }
         const buffer = await response.arrayBuffer();
         
-        // Utilisation de protobuf.js pour décoder les données GTFS-RT
         const root = await protobuf.load('gtfs-realtime.proto');
         const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
         const message = FeedMessage.decode(new Uint8Array(buffer));
         
-        // Traitement des données temps réel
         const processedData = processRealtimeData(message);
         
-        // Mise à jour de l'horodatage
         const lastUpdate = new Date(message.header.timestamp * 1000);
         document.getElementById('last-update-time').textContent = 
             `Dernière mise à jour : ${lastUpdate.toLocaleTimeString()}`;
         
-        // Afficher les données temps réel pour l'arrêt actuel
         if (currentStopId) {
             displayRealtimeSchedule(processedData[currentStopId] || []);
         }
@@ -710,7 +706,6 @@ function processRealtimeData(message) {
             const tripUpdate = entity.tripUpdate;
             const tripId = tripUpdate.trip.tripId;
             
-            // Trouver la ligne et l'arrêt correspondant au trip
             const routeId = getRouteIdFromTripId(tripId);
             if (routeId !== currentRouteId) return;
             
@@ -1324,7 +1319,6 @@ function setupTabHandlers() {
                     startRealtimeUpdates();
                 } else {
                     stopRealtimeUpdates();
-                    // Mettre à jour les horaires théoriques
                     const dateSelect = document.getElementById('date-select');
                     updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, dateSelect.value);
                 }
@@ -1368,13 +1362,11 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     displaySchedule(validTrips, stopId, destinationId, scheduleContainer);
 }
 
-// Fonction utilitaire pour analyser le format d'heure "XXhYY"
 function parseTimeString(timeStr) {
     const [hours, minutes] = timeStr.split('h').map(num => parseInt(num, 10));
     return { hours, minutes };
 }
 
-// Fonction utilitaire pour formater les minutes
 function formatMinutes(minutes) {
     return minutes.toString().padStart(2, '0');
 }
@@ -1406,13 +1398,10 @@ function displaySchedule(validTrips, stopId, destinationId, container) {
         return;
     }
     
-    // Organiser les horaires par heure
     const hours = {};
     schedule.forEach(time => {
-        // Gérer le format "XXhYY"
         let [hour, minute] = time.split('h').map(num => parseInt(num, 10));
         
-        // Gérer les heures au-delà de 24h
         if (hour >= 24) {
             hour -= 24;
         }
@@ -1421,7 +1410,6 @@ function displaySchedule(validTrips, stopId, destinationId, container) {
         hours[hour].push(minute);
     });
     
-    // Trier et afficher les horaires
     const sortedHours = Object.entries(hours).sort(([a], [b]) => parseInt(a) - parseInt(b));
     
     sortedHours.forEach(([hour, minutes]) => {
