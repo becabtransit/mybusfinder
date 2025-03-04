@@ -678,6 +678,107 @@ select:focus {
     margin-top: 10px;
 }
 
+/* Modification du style des titres */
+.textpop {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 15px 20px;
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    margin: 15px 0;
+    position: relative;
+}
+
+.textpop h4 {
+    color: #666;
+    font-size: 0.9em;
+    order: -1;
+    margin: 0;
+}
+
+.textpop h1 {
+    margin: 0;
+    font-size: 1.4em;
+    color: #333;
+}
+
+/* Style du bouton favoris */
+.favorite-star {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.favorite-star:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Modification de l'affichage des horaires temps réel */
+.realtime-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    margin-bottom: 10px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.arrival-info {
+    display: grid;
+    gap: 8px;
+}
+
+.arrival-time {
+    font-size: 1.2em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.delay-indicator {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.9em;
+    opacity: 1;
+    transform: none;
+}
+
+.theoretical-time {
+    color: #666;
+    font-size: 0.9em;
+}
+
+/* Modification des tabs */
+.schedule-tabs {
+    background-color: white;
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    margin: 15px 0;
+}
+
+/* Style pour le sélecteur de date */
+.date-input {
+    width: 100%;
+    margin: 15px 0;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1em;
+    background-color: white;
+}
+
     </style>
 </head>
 <body>
@@ -1009,18 +1110,15 @@ function displayRealtimeSchedule(arrivals) {
         
         let delayClass = 'delay-ontime';
         let delayText = 'À l\'heure';
-        delayTextTheo = `Départ à l'heure prévue : ${arrival.theoretical}`;
+        let delayTextTheo = arrival.theoretical ? 
+            `Départ prévu initialement à ${arrival.theoretical}` : '';
 
-        
         if (arrival.delay > 5) {
             delayClass = 'delay-late';
-            delayText = `Retard de ${arrival.delay} minutes`;
-            delayTextTheo = `Départ initialement prévu à ${arrival.theoretical}`;
+            delayText = `${arrival.delay} minutes de retard`;
         } else if (arrival.delay < -2) {
             delayClass = 'delay-early';
-            delayText = `Avance de ${Math.abs(arrival.delay)} minutes`;
-            delayTextTheo = `Départ initialement prévu à ${arrival.theoretical}`;
-
+            delayText = `${Math.abs(arrival.delay)} minutes d'avance`;
         }
 
         item.innerHTML = `
@@ -1029,17 +1127,12 @@ function displayRealtimeSchedule(arrivals) {
                     ${arrival.time}
                     <span class="vehicle-id">Bus ${arrival.vehicleId}</span>
                 </div>
-                ${arrival.theoretical ? 
-                    `<div class="theoretical-time">${delayTextTheo}</div>` : 
-                    ''}
+                <div class="theoretical-time">${delayTextTheo}</div>
+                <div class="delay-indicator ${delayClass}">${delayText}</div>
             </div>
-            <div class="delay-indicator ${delayClass}">${delayText}</div>
         `;
         
-        item.style.cursor = 'pointer';
-        
         item.addEventListener('click', () => {
-            console.log('Click sur vehicleId:', arrival.vehicleId); 
             sendVehicleIdToParent(arrival.vehicleId, arrival.tripId);
         });
         
