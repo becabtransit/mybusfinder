@@ -639,25 +639,6 @@ select:focus {
     font-style: italic;
 }
 
-.favorite-realtime {
-    font-size: 0.9em;
-    color: #666;
-    margin-top: 4px;
-}
-
-.no-realtime-data {
-    font-size: 0.9em;
-    color: #999;
-    font-style: italic;
-    margin-top: 4px;
-}
-
-.favorite-item .error {
-    color: #dc3545;
-    font-size: 0.9em;
-    margin-top: 4px;
-}
-
 .favorites-section {
     margin-bottom: 30px;
 }
@@ -890,17 +871,17 @@ function stopRealtimeUpdates() {
 }
 
         
-function loadData() {
-    showView('loading-view');
-    
-    loadGtfsData().then(() => {
-        displayFavorites(); 
-        showView('home-view'); 
-    }).catch(error => {
-        console.error('Erreur lors du chargement des données:', error);
-        showView('error-view');
-    });
-}
+        function loadData() {
+            showView('loading-view');
+            
+
+                loadGtfsData().then(() => {
+                    showLines();
+                }).catch(error => {
+                    console.error('Erreur lors du chargement des données:', error);
+                    showView('error-view');
+                });
+        }
 
 let realtimeData = null;
 let updateInterval = null;
@@ -913,6 +894,7 @@ async function fetchRealtimeData() {
         }
         const buffer = await response.arrayBuffer();
         
+        // Décodage des données GTFS-RT
         const root = await protobuf.load('gtfs-realtime.proto');
         const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
         const message = FeedMessage.decode(new Uint8Array(buffer));
@@ -1531,8 +1513,7 @@ function displayRealtimeDataInFavorite(arrivals, container) {
             Prochains passages : <span class="next-arrivals">${arrivals.map(a => a.time).join(', ')}</span>
         </div>
     `;
-}
-
+}        
         function showDestinations(routeId) {
             currentRouteId = routeId;
             navigationHistory.push({ view: 'lines-view' });
