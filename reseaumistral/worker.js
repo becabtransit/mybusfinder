@@ -1,56 +1,85 @@
 // worker.js
-self.onmessage = function(e) {
-    const processedData = processTripUpdates(e.data);
+self.onmessage = ({ data }) => {
+    const processedData = processTripUpdates(data);
     self.postMessage(processedData);
 };
 
 function processTripUpdates(data) {
-    const tripUpdates = {};
+    const tripUpdates = Object.create(null);
     const now = Date.now() / 1000;
 
-    for (const entity of data.entity) {
-        const { tripUpdate } = entity;
-        if (!tripUpdate?.stopTimeUpdate) continue;
+    // Préallocation pour réduire les allocations mémoire
+    const localCache = {
+        timestampCache: new Map(),
+        stopIdCache: new Map()
+    };
 
-        const { trip, stopTimeUpdate: stopTimeUpdates } = tripUpdate;
+    for (let i = 0, len = data.entity.length; i < len; i++) {
+        const { tripUpdate } = data.entity[i];
+        if (!tripUpdate?.stopTimeUpdate?.length) continue;
+
+        const { trip, stopTimeUpdate: stops } = tripUpdate;
         const tripId = trip.tripId;
 
-        const processedStopUpdates = stopTimeUpdates.map(update => {
-            const stopId = update.stopId.replace("0:", "");
-            const arrivalTime = update.arrival?.time ?? null;
-            const departureTime = update.departure?.time ?? null;
+        // Traitement optimisé des stops
+        const processedStops = [];
+        const arrivalDelays = Object.create(null);
+        let lastStopId = 'Inconnu';
 
-            return {
+        for (let j = 0, stopLen = stops.length; j < stopLen; j++) {
+            const stop = stops[j];
+            const stopId = localCache.stopIdCache.get(stop.stopId) || 
+                           localCache.stopIdCache.set(stop.stopId, stop.stopId.replace("0:", "")).get(stop.stopId);
+            
+            const arrivalTime = stop.arrival?.time ?? null;
+            const departureTime = stop.departure?.time ?? null;
+
+            const processedStop = {
                 stopId,
-                arrivalTime: formatTime(arrivalTime),
-                departureTime: formatTime(departureTime),
-                unifiedTime: formatTime(arrivalTime || departureTime),
-                arrivalDelay: arrivalTime ? arrivalTime - now : null
+                arrivalTime: formatTime(arrivalTime, localCache.timestampCache),
+                departureTime: formatTime(departureTime, localCache.timestampCache),
+                unifiedTime: formatTime(arrivalTime || departureTime, localCache.timestampCache)
             };
-        });
 
-        const lastStop = processedStopUpdates[processedStopUpdates.length - 1];
-        
+            processedStops.push(processedStop);
+
+            // Calcul des délais
+            if (arrivalTime) {
+                arrivalDelays[stopId] = arrivalTime - now;
+            }
+
+            // Dernier stop
+            if (j === stops.length - 1) {
+                lastStopId = stopId;
+            }
+        }
+
+        // Création rapide de l'objet de mise à jour
         tripUpdates[tripId] = {
-            stopUpdates: processedStopUpdates,
-            lastStopId: lastStop?.stopId ?? 'Inconnu',
-            nextStops: processedStopUpdates,
-            arrivalDelays: Object.fromEntries(
-                processedStopUpdates
-                    .filter(stop => stop.arrivalDelay !== null)
-                    .map(stop => [stop.stopId, stop.arrivalDelay])
-            )
+            stopUpdates: processedStops,
+            lastStopId,
+            nextStops: processedStops,
+            arrivalDelays
         };
     }
 
     return tripUpdates;
 }
 
-// Fonction utilitaire pour formater les heures
-function formatTime(timestamp) {
+// Fonction de formatage avec mise en cache
+function formatTime(timestamp, cache) {
     if (!timestamp) return "Heure inconnue";
-    return new Date(timestamp * 1000).toLocaleTimeString([], { 
+
+    // Utilisation d'un cache pour réduire les conversions de date
+    if (cache.has(timestamp)) {
+        return cache.get(timestamp);
+    }
+
+    const formattedTime = new Date(timestamp * 1000).toLocaleTimeString([], { 
         hour: '2-digit', 
         minute: '2-digit' 
     });
+
+    cache.set(timestamp, formattedTime);
+    return formattedTime;
 }
