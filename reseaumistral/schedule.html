@@ -544,26 +544,58 @@ select:focus {
     gap: 8px;
 }
 
+/* Sections des favoris */
+.favorites-section {
+    margin-bottom: 30px;
+}
+
+.favorites-section h3, 
+.lines-section h3 {
+    margin: 15px 0;
+    color: #333;
+    font-size: 1.2em;
+    padding: 0 5px;
+}
+
+/* Style de l'élément favori */
 .favorite-item {
-    padding: 12px 18px;
+    padding: 15px 18px;
     margin-bottom: 12px;
     border-radius: 12px;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     transition: all 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+    min-height: 50px;
+    position: relative;
 }
 
+.favorite-item:hover {
+    transform: scale(0.98);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.favorite-item:active {
+    transform: scale(0.95);
+}
+
+/* Zone d'information du favori */
 .favorite-info {
     flex: 1;
     margin-right: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .favorite-main-info {
     font-size: 1.1em;
-    margin-bottom: 4px;
+    white-space: normal;
+    line-height: 1.4;
+    margin-right: 30px; /* Espace pour le bouton de suppression */
 }
 
+/* Bouton de suppression */
 .favorite-button {
     background: none;
     border: none;
@@ -573,6 +605,9 @@ select:focus {
     color: inherit;
     opacity: 0.8;
     border-radius: 50%;
+    position: absolute;
+    right: 10px;
+    top: 10px;
 }
 
 .favorite-button:hover {
@@ -581,13 +616,69 @@ select:focus {
     background: rgba(0, 0, 0, 0.1);
 }
 
+/* Informations en temps réel */
 .favorite-realtime {
     font-size: 0.95em;
+    white-space: normal;
+    line-height: 1.3;
 }
 
 .next-arrivals {
     color: #2ecc71;
     font-weight: 600;
+    text-shadow: 0 0 10px rgba(46, 204, 113, 0.2);
+}
+
+/* Message quand pas de données temps réel */
+.no-realtime-data {
+    font-size: 0.95em;
+    opacity: 0.7;
+    font-style: italic;
+}
+
+/* Animation d'entrée pour les favoris */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.favorite-item {
+    animation: fadeInUp 0.3s ease-out forwards;
+}
+
+/* Effet de survol pour l'interaction */
+.favorite-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 120%;
+    height: 100%;
+    background: linear-gradient(
+        to right,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    transform: skewX(-25deg);
+    transition: left 1s cubic-bezier(0.25, 1.5, 0.5, 1);
+    z-index: 1;
+}
+
+.favorite-item:hover::before {
+    left: 120%;
+}
+
+.favorites-section + .lines-section {
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    padding-top: 20px;
+    margin-top: 10px;
 }
 
     </style>
@@ -1387,7 +1478,7 @@ function displayRealtimeDataInFavorite(arrivals, container) {
 
     container.innerHTML = `
         <div class="favorite-realtime">
-            Prochains passages : <span class="next-arrivals">${arrivals.map(a => {
+            Prochains passages : <span>${arrivals.map(a => {
                 const [hours, minutes] = a.time.split(':');
                 return `${hours}h${minutes}`;
             }).join(' | ')}</span>
