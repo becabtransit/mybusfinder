@@ -8,7 +8,6 @@ function processTripUpdates(data) {
     const tripUpdates = Object.create(null);
     const now = Date.now() / 1000;
 
-    // Préallocation pour réduire les allocations mémoire
     const localCache = {
         timestampCache: new Map(),
         stopIdCache: new Map()
@@ -21,7 +20,6 @@ function processTripUpdates(data) {
         const { trip, stopTimeUpdate: stops } = tripUpdate;
         const tripId = trip.tripId;
 
-        // Traitement optimisé des stops
         const processedStops = [];
         const arrivalDelays = Object.create(null);
         let lastStopId = 'Inconnu';
@@ -43,18 +41,15 @@ function processTripUpdates(data) {
 
             processedStops.push(processedStop);
 
-            // Calcul des délais
             if (arrivalTime) {
                 arrivalDelays[stopId] = arrivalTime - now;
             }
 
-            // Dernier stop
             if (j === stops.length - 1) {
                 lastStopId = stopId;
             }
         }
 
-        // Création rapide de l'objet de mise à jour
         tripUpdates[tripId] = {
             stopUpdates: processedStops,
             lastStopId,
@@ -66,11 +61,9 @@ function processTripUpdates(data) {
     return tripUpdates;
 }
 
-// Fonction de formatage avec mise en cache
 function formatTime(timestamp, cache) {
     if (!timestamp) return "Heure inconnue";
 
-    // Utilisation d'un cache pour réduire les conversions de date
     if (cache.has(timestamp)) {
         return cache.get(timestamp);
     }
