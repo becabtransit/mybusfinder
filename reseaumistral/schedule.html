@@ -1143,7 +1143,26 @@ async function loadCalendar(fileContent) {
             showView('lines-view');
         }
         
-        function showDestinations(routeId) {
+        function getStopName(stopId) {
+    if (!stops[stopId]) {
+        console.warn(`Arrêt non trouvé pour l'ID: ${stopId}`);
+        return 'Arrêt inconnu';
+    }
+    
+    if (typeof stops[stopId] === 'string') {
+        return stops[stopId];
+    }
+    
+    if (stops[stopId].name) {
+        return typeof stops[stopId].name === 'string' ? 
+            stops[stopId].name.replace(/"/g, '') : 
+            stops[stopId].name;
+    }
+    
+    return 'Arrêt inconnu';
+}
+
+function showDestinations(routeId) {
     currentRouteId = routeId;
     navigationHistory.push({ view: 'lines-view' });
     
@@ -1158,25 +1177,34 @@ async function loadCalendar(fileContent) {
         const tripStops = stopTimes[trip_id];
         if (tripStops && tripStops.length > 0) {
             const lastStop = tripStops[tripStops.length - 1].stop_id;
-            destinations.add(lastStop);
+            if (lastStop) {
+                destinations.add(lastStop);
+            }
         }
     });
     
     Array.from(destinations).forEach(destinationId => {
+        if (!destinationId) return; 
+        
         const destinationName = getStopName(destinationId);
         const destinationItem = document.createElement('div');
         destinationItem.className = 'destination-item';
         destinationItem.textContent = destinationName;
         destinationItem.onclick = () => showStops(routeId, destinationId);
-        destinationItem.style.backgroundColor = `${routes[routeId].route_color}`;
-        destinationItem.style.color = `${routes[routeId].route_text_color}`;
+        
+        if (routes[routeId]) {
+            destinationItem.style.backgroundColor = routes[routeId].route_color || '#FFFFFF';
+            destinationItem.style.color = routes[routeId].route_text_color || '#000000';
+        }
+        
         container.appendChild(destinationItem);
     });
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('destinations-view');
-}        
-        function showStops(routeId, destinationId) {
+}
+
+function showStops(routeId, destinationId) {
     currentDestinationId = destinationId;
     navigationHistory.push({ view: 'destinations-view', routeId });
     
@@ -1195,20 +1223,28 @@ async function loadCalendar(fileContent) {
             const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
             if (destIndex !== -1) {
                 for (let i = 0; i < destIndex; i++) {
-                    stopSet.add(tripStops[i].stop_id);
+                    if (tripStops[i].stop_id) {
+                        stopSet.add(tripStops[i].stop_id);
+                    }
                 }
             }
         }
     });
     
     Array.from(stopSet).forEach(stopId => {
+        if (!stopId) return; 
+        
         const stopName = getStopName(stopId);
         const stopItem = document.createElement('div');
         stopItem.className = 'stop-item';
         stopItem.textContent = stopName;
         stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
-        stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
-        stopItem.style.color = `${routes[routeId].route_text_color}`;
+        
+        if (routes[routeId]) {
+            stopItem.style.backgroundColor = routes[routeId].route_color || '#FFFFFF';
+            stopItem.style.color = routes[routeId].route_text_color || '#000000';
+        }
+        
         container.appendChild(stopItem);
     });
     
@@ -1216,18 +1252,17 @@ async function loadCalendar(fileContent) {
     showView('stops-view');
 }
 
-        let isShowingRealtime = false;
+let isShowingRealtime = false;
 
-        function showSchedule(routeId, stopId, destinationId) {
+function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
     currentRouteId = routeId;
     currentDestinationId = destinationId;
     isShowingRealtime = false;
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
-    // Accéder correctement aux noms des arrêts
-    const destinationName = stops[destinationId] ? stops[destinationId].name : 'Arrêt inconnu';
-    const stopName = stops[stopId] ? stops[stopId].name : 'Arrêt inconnu';
+    const destinationName = getStopName(destinationId);
+    const stopName = getStopName(stopId);
     
     document.getElementById('route-info').textContent = 
         `Ligne ${routes[routeId].short_name} ➜ ${destinationName}`;
@@ -1238,7 +1273,7 @@ async function loadCalendar(fileContent) {
     const today = new Date();
     dateSelect.value = today.toISOString().split('T')[0];
     
-    // S'assurer que l'onglet théorique est actif par défaut
+    // Réinitialiser les onglets
     document.querySelectorAll('.tab-button').forEach(tab => {
         tab.classList.remove('active');
         if (tab.dataset.tab === 'theoretical') {
@@ -1253,17 +1288,13 @@ async function loadCalendar(fileContent) {
         }
     });
     
-    // Initialiser l'affichage des horaires théoriques
     updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
-    
-    // Configurer les gestionnaires d'événements des onglets
     setupTabHandlers();
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('schedule-view');
 }
 
-// Fonction utilitaire pour obtenir le nom d'un arrêt de manière sécurisée
 function getStopName(stopId) {
     if (!stops[stopId]) {
         console.warn(`Arrêt non trouvé pour l'ID: ${stopId}`);
