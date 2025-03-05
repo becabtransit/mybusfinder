@@ -1407,6 +1407,94 @@ showLoadingScreen();
 let data;
 
 
+const DB_NAME = 'MyBusFinder';
+const DB_VERSION = 3;
+const STORE_NAME = 'gtfsStore';
+
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+        };
+    });
+}
+
+async function isFirstVisitOfDay() {
+    try {
+        const db = await initDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(STORE_NAME, 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.get('lastUpdate');
+
+            request.onsuccess = () => {
+                const lastVisit = request.result;
+                if (!lastVisit) {
+                    resolve(true);
+                    return;
+                }
+
+                const lastVisitDate = new Date(lastVisit);
+                const currentDate = new Date();
+                
+                resolve(
+                    lastVisitDate.getDate() !== currentDate.getDate() ||
+                    lastVisitDate.getMonth() !== currentDate.getMonth() ||
+                    lastVisitDate.getFullYear() !== currentDate.getFullYear()
+                );
+            };
+
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        toastBottomRight.error('Erreur lors de la vérification des données');
+        return true;
+    }
+}
+
+async function saveToCache(data) {
+    try {
+        const db = await initDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(STORE_NAME, 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+
+            store.put(data, 'gtfsData');
+            store.put(new Date().toISOString(), 'lastUpdate');
+
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => reject(transaction.error);
+        });
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde dans le cache', error);
+        throw error;
+    }
+}
+
+async function getFromCache() {
+    try {
+        const db = await initDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(STORE_NAME, 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.get('gtfsData');
+
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        console.error('Erreur lors de la récupération cache', error);
+        return null;
+    }
+}
 
 async function extractGTFSFiles() {
     try {
@@ -1416,7 +1504,6 @@ async function extractGTFSFiles() {
         }
         
         const zipData = await response.arrayBuffer();
-        
         const zip = await JSZip.loadAsync(zipData);
         
         const extractedFiles = {};
@@ -1432,7 +1519,6 @@ async function extractGTFSFiles() {
         });
         
         await Promise.all(filePromises);
-        
         
         return extractedFiles;
     } catch (error) {
@@ -1459,7 +1545,6 @@ async function loadLineColors(routesFileContent) {
         const routeLongNameIndex = headers.indexOf('route_short_name');
         const routeColorIndex = headers.indexOf('route_color');
         
-        
         if (routeIdIndex === -1 || routeLongNameIndex === -1 || routeColorIndex === -1) {
             console.error('Impossible de trouver tous les entêttes requis dans fichier routes.txt');
             return;
@@ -1468,7 +1553,7 @@ async function loadLineColors(routesFileContent) {
         const startIndex = data.slicelinecolor ? parseInt(data.slicelinecolor) : 1;
         
         lines.slice(startIndex).forEach(line => {
-            if (!line.trim()) return; 
+            if (!line.trim()) return;
             
             const columns = line.split(',');
             
@@ -1483,7 +1568,7 @@ async function loadLineColors(routesFileContent) {
                 routeColor = `#${routeColor}`;
             }
             
-            let cleanedLineName = routeLongName ? routeLongName.replace(/"/g, '').trim() : '';
+            let cleanedLineName = routeLongName ? routeLongName.replace(/\"/g, '').trim() : '';
             if (routeId) {
                 lineColors[routeId] = routeColor;
                 lineName[routeId] = cleanedLineName;
@@ -1494,7 +1579,6 @@ async function loadLineColors(routesFileContent) {
         console.error('Erreur', error);
     }
 }
-
 
 async function loadStopIds(stopsFileContent) {
     try {
@@ -1507,7 +1591,6 @@ async function loadStopIds(stopsFileContent) {
         const headers = lines[0].split(',');
         const stopIdIndex = headers.indexOf('stop_id');
         
-        
         if (stopIdIndex !== -1) {
             lines.slice(1).forEach(line => {
                 if (line.trim()) {
@@ -1518,7 +1601,6 @@ async function loadStopIds(stopsFileContent) {
                     }
                 }
             });
-        } else {
         }
     } catch (error) {
         console.error('Erreur', error);
@@ -1536,7 +1618,6 @@ async function loadLineTerminusData(stopsFileContent) {
         const stopIdIndex = headers.indexOf('stop_id');
         const stopNameIndex = headers.indexOf('stop_name');
         
-        
         if (stopIdIndex !== -1 && stopNameIndex !== -1) {
             lines.slice(1).forEach(line => {
                 if (line.trim()) {
@@ -1544,14 +1625,13 @@ async function loadLineTerminusData(stopsFileContent) {
                     const stopId = columns[stopIdIndex];
                     let stopName = columns[stopNameIndex];
                     
-                    stopName = stopName.replace(/"/g, '');
+                    stopName = stopName.replace(/\"/g, '');
                     
                     if (stopId && stopName) {
                         stopNameMap[stopId] = stopName;
                     }
                 }
             });
-        } else {
         }
     } catch (error) {
         console.error('Erreur', error);
@@ -1565,18 +1645,32 @@ async function initializeGTFS() {
         stopIds.length = 0;
         Object.keys(stopNameMap).forEach(key => delete stopNameMap[key]);
         
-        const extractedFiles = await extractGTFSFiles();
+        let extractedFiles;
+        
+        const isFirstVisit = await isFirstVisitOfDay();
+        
+        if (isFirstVisit) {
+            toastBottomRight.info('Téléchargement des données quotidiennes..');
+            extractedFiles = await extractGTFSFiles();
+            await saveToCache(extractedFiles);
+        } else {
+            extractedFiles = await getFromCache();
+            if (!extractedFiles) {
+                toastBottomRight.info('Téléchargement des données quotidiennes..');
+                extractedFiles = await extractGTFSFiles();
+                await saveToCache(extractedFiles);
+            }
+        }
         
         if (extractedFiles['routes.txt']) {
             await loadLineColors(extractedFiles['routes.txt']);
-        } else {
         }
         
         if (extractedFiles['stops.txt']) {
             await loadStopIds(extractedFiles['stops.txt']);
             await loadLineTerminusData(extractedFiles['stops.txt']);
         } else {
-            console.error('Fichier stops.txt non trouver');
+            console.error('Fichier stops.txt non trouvé');
         }
         
         return {
@@ -1585,10 +1679,30 @@ async function initializeGTFS() {
             stopIds,
             stopNameMap
         };
-
-
+        
     } catch (error) {
         console.error('Erreur lors de l\'initialisation data théorique gtfs', error);
+        throw error;
+    }
+}
+
+async function clearGTFSCache() {
+    try {
+        const db = await initDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(STORE_NAME, 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.clear();
+
+            request.onsuccess = () => {
+                toastBottomRight.success('Cache effacé avec succès !');
+                resolve();
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        console.error('Erreur lors de l\'effacement du cache', error);
+        toastBottomRight.error('Erreur lors de l\'effacement du cache');
         throw error;
     }
 }
@@ -3112,7 +3226,6 @@ async function fetchTripUpdates() {
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
 
-        // Créer une promesse qui se résoudra quand le worker répondra
         const workerResponse = new Promise((resolve) => {
             worker.onmessage = function(e) {
                 const processedData = e.data;
@@ -3121,10 +3234,8 @@ async function fetchTripUpdates() {
             };
         });
 
-        // Envoyer les données au worker
         worker.postMessage(data);
 
-        // Attendre la réponse du worker
         return await workerResponse;
 
     } catch (error) {
