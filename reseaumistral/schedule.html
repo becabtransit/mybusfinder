@@ -781,7 +781,6 @@ select:focus {
     position: fixed;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
     background: white;
     border-radius: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -791,12 +790,28 @@ select:focus {
     overflow: hidden;
     max-height: 80vh;
     display: none;
+    transform: translate(-50%, -60%);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.stops-timeline-menu.visible {
+    transform: translate(-50%, -50%);
+    opacity: 1;
 }
 
 .stops-timeline-header {
     padding: 15px;
     border-bottom: 1px solid #eee;
     position: relative;
+    transform: translateY(-20px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.stops-timeline-header.visible {
+    transform: translateY(0);
+    opacity: 1;
 }
 
 .stops-timeline-close {
@@ -833,7 +848,7 @@ select:focus {
 
 .bus-position-indicator {
     position: absolute;
-    left: 12px;
+    left: -38px;
     width: 20px;
     height: 20px;
     background: white;
@@ -842,11 +857,47 @@ select:focus {
     align-items: center;
     justify-content: center;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    transform: scale(0);
+    transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1),
+                top 0.8s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.bus-position-indicator.visible {
+    transform: scale(1);
 }
 
 .stop-item-timeline {
     padding: 15px 0;
     position: relative;
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.stop-item-timeline.visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.bus-position-indicator.moving {
+    animation: pulse 1s infinite;
+}
+
+.timeline-progress {
+    position: absolute;
+    left: 20px;
+    top: 0;
+    width: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.3);
+    transform-origin: top;
+    transition: transform 0.8s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
 .stop-name {
@@ -871,6 +922,14 @@ select:focus {
     cursor: pointer;
     font-weight: bold;
     transition: all 0.3s ease;
+    transform: translateY(100%);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.show-in-map-btn.visible {
+    transform: translateY(0);
+    opacity: 1;
 }
 
 .show-in-map-btn:hover {
@@ -887,6 +946,12 @@ select:focus {
     background: rgba(0, 0, 0, 0.5);
     z-index: 999;
     display: none;
+    opacity: 0;
+    transition: opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.overlay.visible {
+    opacity: 1;
 }
 
     </style>
@@ -1682,15 +1747,41 @@ async function loadCalendar(fileContent) {
     }
 }
 
+let updatePositionInterval;
+let currentVehicleId;
+let currentTripId;
+
 function showStopsTimeline(vehicleId, tripId) {
+    currentVehicleId = vehicleId;
+    currentTripId = tripId;
+    
     const overlay = document.getElementById('overlay');
     const menu = document.getElementById('stops-timeline-menu');
     const content = document.getElementById('stops-timeline-content');
+    const header = menu.querySelector('.stops-timeline-header');
     
-    const tripStopsData = stopTimes[tripId];
+    overlay.style.display = 'block';
+    menu.style.display = 'block';
+    menu.offsetHeight;
+    
+    overlay.classList.add('visible');
+    menu.classList.add('visible');
+    header.classList.add('visible');
+    
+    updateStopsTimeline();
+    
+    if (updatePositionInterval) {
+        clearInterval(updatePositionInterval);
+    }
+    updatePositionInterval = setInterval(updateStopsTimeline, 10000); 
+}
+
+function updateStopsTimeline() {
+    const content = document.getElementById('stops-timeline-content');
+    const tripStopsData = stopTimes[currentTripId];
     if (!tripStopsData) return;
     
-    const realtimeUpdates = getRealtimeUpdatesForTrip(tripId);
+    const realtimeUpdates = getRealtimeUpdatesForTrip(currentTripId);
     
     content.innerHTML = '';
     const timelineDiv = document.createElement('div');
@@ -1701,14 +1792,26 @@ function showStopsTimeline(vehicleId, tripId) {
     verticalLine.style.background = routes[currentRouteId].route_color;
     timelineDiv.appendChild(verticalLine);
     
-    let currentPosition = calculateBusPosition(tripStopsData, realtimeUpdates);
+    const progressLine = document.createElement('div');
+    progressLine.className = 'timeline-progress';
+    progressLine.style.background = routes[currentRouteId].route_color;
+    timelineDiv.appendChild(progressLine);
+    
+    const currentPosition = calculateBusPosition(tripStopsData, realtimeUpdates);
+    const progress = (currentPosition / (tripStopsData.length - 1)) * 100;
+    
+    setTimeout(() => {
+        progressLine.style.transform = `scaleY(${progress}%)`;
+    }, 100);
+    
+    let busIndicator;
     
     tripStopsData.forEach((stopTime, index) => {
         const stopDiv = document.createElement('div');
         stopDiv.className = 'stop-item-timeline';
         
         if (index === currentPosition) {
-            const busIndicator = document.createElement('div');
+            busIndicator = document.createElement('div');
             busIndicator.className = 'bus-position-indicator';
             busIndicator.innerHTML = `
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="${routes[currentRouteId].route_color}">
@@ -1727,17 +1830,46 @@ function showStopsTimeline(vehicleId, tripId) {
         `;
         
         timelineDiv.appendChild(stopDiv);
+        
+        setTimeout(() => {
+            stopDiv.classList.add('visible');
+        }, index * 100);
     });
     
     content.appendChild(timelineDiv);
     
-    overlay.style.display = 'block';
-    menu.style.display = 'block';
+    if (busIndicator) {
+        setTimeout(() => {
+            busIndicator.classList.add('visible', 'moving');
+        }, 300);
+    }
+    
+    const showInMapBtn = document.querySelector('.show-in-map-btn');
+    setTimeout(() => {
+        showInMapBtn.classList.add('visible');
+    }, tripStopsData.length * 100 + 300);
 }
 
 function closeStopsTimeline() {
-    document.getElementById('overlay').style.display = 'none';
-    document.getElementById('stops-timeline-menu').style.display = 'none';
+    const overlay = document.getElementById('overlay');
+    const menu = document.getElementById('stops-timeline-menu');
+    const header = menu.querySelector('.stops-timeline-header');
+    const showInMapBtn = document.querySelector('.show-in-map-btn');
+    
+    if (updatePositionInterval) {
+        clearInterval(updatePositionInterval);
+        updatePositionInterval = null;
+    }
+    
+    overlay.classList.remove('visible');
+    menu.classList.remove('visible');
+    header.classList.remove('visible');
+    showInMapBtn.classList.remove('visible');
+    
+    setTimeout(() => {
+        overlay.style.display = 'none';
+        menu.style.display = 'none';
+    }, 300);
 }
 
 function getRealtimeUpdatesForTrip(tripId) {
@@ -1761,28 +1893,38 @@ function getRealtimeUpdatesForTrip(tripId) {
 
 function calculateBusPosition(tripStopsData, realtimeUpdates) {
     const now = new Date();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
+    const currentTime = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
     
-    for (let i = 0; i < tripStopsData.length; i++) {
-        const stopTime = tripStopsData[i];
-        const realtimeTime = realtimeUpdates[stopTime.stop_id];
+    for (let i = 0; i < tripStopsData.length - 1; i++) {
+        const currentStop = tripStopsData[i];
+        const nextStop = tripStopsData[i + 1];
         
-        let timeToCompare;
-        if (realtimeTime) {
-            const [hours, minutes] = realtimeTime.split('h').map(Number);
-            timeToCompare = hours * 60 + minutes;
-        } else {
-            const [hours, minutes] = stopTime.arrival_time.split('h').map(Number);
-            timeToCompare = hours * 60 + minutes;
+        const currentStopTime = getTimeInSeconds(realtimeUpdates[currentStop.stop_id] || currentStop.arrival_time);
+        const nextStopTime = getTimeInSeconds(realtimeUpdates[nextStop.stop_id] || nextStop.arrival_time);
+        
+        if (currentTime >= currentStopTime && currentTime <= nextStopTime) {
+            const progress = (currentTime - currentStopTime) / (nextStopTime - currentStopTime);
+            return i + progress;
         }
         
-        if (timeToCompare > currentTime) {
-            return Math.max(0, i - 1);
+        if (currentTime < currentStopTime) {
+            return i;
         }
     }
     
     return tripStopsData.length - 1;
 }
+
+function getTimeInSeconds(timeStr) {
+    const [hours, minutes] = timeStr.split('h').map(Number);
+    return hours * 3600 + minutes * 60;
+}
+
+window.addEventListener('beforeunload', () => {
+    if (updatePositionInterval) {
+        clearInterval(updatePositionInterval);
+    }
+});
 
 function showInMap() {
     const event = {
