@@ -1058,16 +1058,6 @@ select:focus {
     box-shadow: 0 0 0 3px rgba(54, 54, 54, 0.25);
 }
 
-.schedule-destination-select {
-    margin: 15px 0;
-}
-
-.schedule-destination-select .custom-select {
-    background-color: white;
-    margin-top: 10px;
-    width: 100%;
-}
-
     </style>
 </head>
 <body>
@@ -1142,7 +1132,7 @@ select:focus {
                 <h1 id="stop-title"></h1>
                 <div class="destination-select-wrapper schedule-destination-select">
                     <select id="schedule-destination-select" class="custom-select">
-                        <option value="">Changer de destinazione</option>
+                        <option value="">Changer de destination</option>
                     </select>
                 </div>
                 <input type="date" id="date-select" class="date-input">
@@ -2299,71 +2289,38 @@ function updateStopsForDestination(routeId, destinationId) {
 
         let isShowingRealtime = false;
 
-        function showSchedule(routeId, stopId, destinationId) {
+function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
     currentRouteId = routeId;
-    currentDestinationId = destinationId;
     isShowingRealtime = false; 
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
     document.getElementById('route-info').textContent = 
-        `Ligne ${routes[routeId].short_name}`;
+        `Ligne ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
     document.getElementById('stop-title').textContent = 
         `Horaires pour l'arrêt ${stops[stopId].replace(/"/g, '')}`;
 
-    const destinationSelect = document.getElementById('schedule-destination-select');
-    destinationSelect.innerHTML = '<option value="">Changer de destinazione</option>';
-    
-    const destinations = new Set();
-    trips[routeId].forEach(({ trip_id }) => {
-        const tripStops = stopTimes[trip_id];
-        if (tripStops && tripStops.length > 0) {
-            const lastStop = tripStops[tripStops.length - 1].stop_id;
-            destinations.add(lastStop);
-        }
-    });
-    
-    Array.from(destinations).forEach(destId => {
-        const option = document.createElement('option');
-        option.value = destId;
-        option.textContent = stops[destId].replace(/"/g, '');
-        option.selected = destId === destinationId;
-        destinationSelect.appendChild(option);
-    });
-
-    destinationSelect.onchange = function() {
-        const newDestinationId = this.value;
-        if (newDestinationId && newDestinationId !== destinationId) {
-            currentDestinationId = newDestinationId;
-            if (isShowingRealtime) {
-                fetchRealtimeData();
-            } else {
-                updateScheduleByDate(routeId, stopId, newDestinationId, document.getElementById('date-select').value);
-            }
-        }
-    };
-
-    const favoriteButton = document.createElement('div');
-    favoriteButton.className = `favorite-star ${isFavorite(routeId, stopId, destinationId) ? 'active' : ''}`;
-    favoriteButton.innerHTML = `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="${isFavorite(routeId, stopId, destinationId) ? '#FFD700' : 'none'}" stroke="currentColor" stroke-width="1">
-            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-        </svg>
-    `;
-    favoriteButton.onclick = () => {
-        const id = `${routeId}-${stopId}-${destinationId}`;
-        if (isFavorite(routeId, stopId, destinationId)) {
-            removeFromFavorites(id);
-            favoriteButton.classList.remove('active');
-            favoriteButton.querySelector('svg').setAttribute('fill', 'none');
-        } else {
-            addToFavorites(routeId, stopId, destinationId);
-            favoriteButton.classList.add('active');
-            favoriteButton.querySelector('svg').setAttribute('fill', '#FFD700');
-        }
-    };
-    document.querySelector('#controls').parentNode.style.position = 'relative';
-    document.querySelector('#controls').parentNode.appendChild(favoriteButton);
+        const favoriteButton = document.createElement('div');
+favoriteButton.className = `favorite-star ${isFavorite(routeId, stopId, destinationId) ? 'active' : ''}`;
+favoriteButton.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="${isFavorite(routeId, stopId, destinationId) ? '#FFD700' : 'none'}" stroke="currentColor" stroke-width="1">
+        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+    </svg>
+`;
+favoriteButton.onclick = () => {
+    const id = `${routeId}-${stopId}-${destinationId}`;
+    if (isFavorite(routeId, stopId, destinationId)) {
+        removeFromFavorites(id);
+        favoriteButton.classList.remove('active');
+        favoriteButton.querySelector('svg').setAttribute('fill', 'none');
+    } else {
+        addToFavorites(routeId, stopId, destinationId);
+        favoriteButton.classList.add('active');
+        favoriteButton.querySelector('svg').setAttribute('fill', '#FFD700');
+    }
+};
+document.querySelector('#controls').parentNode.style.position = 'relative';
+document.querySelector('#controls').parentNode.appendChild(favoriteButton);
     
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
