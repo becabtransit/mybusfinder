@@ -12,6 +12,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/protobufjs/6.11.2/protobuf.min.js"></script>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
     <meta name="google-adsense-account" content="ca-pub-5815761294049475">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
         <style>
@@ -1048,6 +1050,69 @@ shape.bounce-down {
     transform: scale(0.95);
 }
 
+.leaflet-control-locate a {
+  cursor: pointer;
+}
+.leaflet-control-locate a .leaflet-control-locate-location-arrow {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin: 7px;
+  background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="black" d="M445 4 29 195c-48 23-32 93 19 93h176v176c0 51 70 67 93 19L508 67c16-38-25-79-63-63z"/></svg>');
+}
+.leaflet-control-locate a .leaflet-control-locate-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin: 7px;
+  background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="black" d="M304 48a48 48 0 1 1-96 0 48 48 0 0 1 96 0zm-48 368a48 48 0 1 0 0 96 48 48 0 0 0 0-96zm208-208a48 48 0 1 0 0 96 48 48 0 0 0 0-96zM96 256a48 48 0 1 0-96 0 48 48 0 0 0 96 0zm13 99a48 48 0 1 0 0 96 48 48 0 0 0 0-96zm294 0a48 48 0 1 0 0 96 48 48 0 0 0 0-96zM109 61a48 48 0 1 0 0 96 48 48 0 0 0 0-96z"/></svg>');
+  animation: leaflet-control-locate-spin 2s linear infinite;
+}
+.leaflet-control-locate.active a .leaflet-control-locate-location-arrow {
+  background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="rgb(32, 116, 182)" d="M445 4 29 195c-48 23-32 93 19 93h176v176c0 51 70 67 93 19L508 67c16-38-25-79-63-63z"/></svg>');
+}
+.leaflet-control-locate.following a .leaflet-control-locate-location-arrow {
+  background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="rgb(252, 132, 40)" d="M445 4 29 195c-48 23-32 93 19 93h176v176c0 51 70 67 93 19L508 67c16-38-25-79-63-63z"/></svg>');
+}
+
+.leaflet-touch .leaflet-bar .leaflet-locate-text-active {
+  width: 100%;
+  max-width: 200px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 0 10px;
+}
+.leaflet-touch .leaflet-bar .leaflet-locate-text-active .leaflet-locate-icon {
+  padding: 0 5px 0 0;
+}
+
+.leaflet-control-locate-location circle {
+  animation: leaflet-control-locate-throb 4s ease infinite;
+}
+
+@keyframes leaflet-control-locate-throb {
+  0% {
+    stroke-width: 1;
+  }
+  50% {
+    stroke-width: 3;
+    transform: scale(0.8, 0.8);
+  }
+  100% {
+    stroke-width: 1;
+  }
+}
+@keyframes leaflet-control-locate-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+
     </style>
 
 </head>
@@ -1158,8 +1223,6 @@ const vehicleTypes = {
 
 let map;
 
-
-
 async function setColors() {
     const data = await getSetvar();
     if (data) {
@@ -1172,9 +1235,9 @@ setColors();
 setTimeout(() => {
     const logoscr = document.getElementById('logoscr');
     logoscr.classList.add('logoscrapp');
-    }, 10); 
+}, 10); 
 
-    async function initMap() {
+async function initMap() {
     const data = await getSetvar();
     let defaultCoords = [43.125463, 5.930077];
     let defaultZoom = 13;
@@ -1200,7 +1263,6 @@ setTimeout(() => {
         closeButton: false
     });
     
-    
     mapInstance.on('popupopen', function (e) {
         const popupWrapper = e.popup._wrapper; 
         popupWrapper.classList.remove('popup-zoom-out', 'popup-zoom-in');
@@ -1225,13 +1287,48 @@ setTimeout(() => {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; MyBusFinder X'
     }).addTo(mapInstance);
-    
+
+    const locateControl = L.control.locate({
+        position: 'bottomright',
+        drawCircle: true,
+        followCircleStyle: {
+            color: '#136AEC',
+            fillColor: '#136AEC',
+            fillOpacity: 0.15,
+            weight: 0
+        },
+        followMarkerStyle: {
+            color: '#136AEC',
+            fillColor: '#2A93EE',
+            fillOpacity: 0.7,
+            radius: 5,
+            weight: 2,
+            opacity: 0.9
+        },
+        strings: {
+            title: "Ma position"
+        },
+        locateOptions: {
+            enableHighAccuracy: true
+        }
+    }).addTo(mapInstance);
+
     return mapInstance;
 }
 
 (async function() {
     map = await initMap();
 })();
+
+function locateUser() {
+    if (map) {
+        map.locate({
+            setView: true,
+            maxZoom: 16,
+            enableHighAccuracy: true
+        });
+    }
+}
 
 
         const markers = {};
