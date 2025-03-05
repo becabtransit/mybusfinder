@@ -777,10 +777,11 @@ select:focus {
     transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
-    .stops-timeline-menu {
+.stops-timeline-menu {
     position: fixed;
     top: 50%;
     left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
     background: white;
     border-radius: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -790,15 +791,19 @@ select:focus {
     overflow: hidden;
     max-height: 80vh;
     display: none;
-    transform: translate(-50%, -60%);
     opacity: 0;
-    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    filter: blur(5px);
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1),
+                opacity 0.3s ease-out,
+                filter 0.3s ease-out;
 }
 
 .stops-timeline-menu.visible {
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(1);
     opacity: 1;
+    filter: blur(0);
 }
+
 
 .stops-timeline-header {
     padding: 15px;
@@ -940,12 +945,13 @@ select:focus {
     z-index: 999;
     display: none;
     opacity: 0;
-    transition: opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    transition: opacity 0.3s ease-out;
 }
 
 .overlay.visible {
     opacity: 1;
 }
+
 .stops-timeline-line {
     position: relative;
     padding-left: 50px;
@@ -985,8 +991,9 @@ select:focus {
     flex-direction: column;
 }
 
+/* Mise à jour du style du bouton */
 .show-in-map-btn {
-    margin-top: 20px;
+    margin: 20px;
     padding: 12px;
     background: #363636;
     color: white;
@@ -994,13 +1001,19 @@ select:focus {
     border-radius: 8px;
     cursor: pointer;
     font-weight: bold;
-    transition: all 0.3s ease;
-    align-self: stretch;
+    width: calc(100% - 40px);
+    position: sticky;
+    bottom: 0;
+    transition: transform 0.3s ease, background-color 0.3s ease;
 }
 
 .show-in-map-btn:hover {
     background: #2c2c2c;
     transform: scale(0.98);
+}
+
+.show-in-map-btn:active {
+    transform: scale(0.95);
 }
 
     </style>
@@ -1104,19 +1117,21 @@ select:focus {
         </div>
     </div>
     <div class="overlay" id="overlay"></div>
-<div class="stops-timeline-menu" id="stops-timeline-menu">
-    <div class="stops-timeline-header">
-        <h3>Arrêts à desservir</h3>
-        <button class="stops-timeline-close" onclick="closeStopsTimeline()">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
+    <div class="stops-timeline-menu" id="stops-timeline-menu">
+        <div class="stops-timeline-header">
+            <h3>Arrêts à desservir</h3>
+            <button class="stops-timeline-close" onclick="closeStopsTimeline()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="stops-timeline-content" id="stops-timeline-content"></div>
+        <button class="show-in-map-btn" id="show-in-map-btn" onclick="showInMap()">
+            Afficher dans la carte
         </button>
     </div>
-    <div class="stops-timeline-content" id="stops-timeline-content">
-    </div>
-    <button class="show-in-map-btn" onclick="showInMap()">Afficher dans la carte</button>
-</div>
+
     <script src="src/js/favorites.js"></script>
     <script src="src/js/toastjs.js"></script>       
 
@@ -1806,22 +1821,17 @@ function showStopsTimeline(vehicleId, tripId) {
     
     const overlay = document.getElementById('overlay');
     const menu = document.getElementById('stops-timeline-menu');
-    const content = document.getElementById('stops-timeline-content');
-    const header = menu.querySelector('.stops-timeline-header');
     
     overlay.style.display = 'block';
     menu.style.display = 'block';
     
-    // Force reflow
     menu.offsetHeight;
     
     overlay.classList.add('visible');
     menu.classList.add('visible');
-    header.classList.add('visible');
     
     updateStopsTimeline();
     
-    // Démarrer la mise à jour automatique
     if (updatePositionInterval) {
         clearInterval(updatePositionInterval);
     }
@@ -1837,16 +1847,13 @@ function updateStopsTimeline() {
     const timelineDiv = document.createElement('div');
     timelineDiv.className = 'stops-timeline-line';
     
-    // Créer la ligne verticale
     const verticalLine = document.createElement('div');
     verticalLine.className = 'timeline-vertical-line';
     verticalLine.style.background = routes[currentRouteId].route_color;
     timelineDiv.appendChild(verticalLine);
     
-    // Position actuelle du bus
     const currentPosition = calculateBusPosition(tripStopsData);
     
-    // Créer l'indicateur de bus
     const busIndicator = document.createElement('div');
     busIndicator.className = 'bus-position-indicator visible moving';
     busIndicator.style.top = `${(currentPosition / (tripStopsData.length - 1)) * 100}%`;
@@ -1861,7 +1868,7 @@ function updateStopsTimeline() {
         const stopDiv = document.createElement('div');
         stopDiv.className = 'stop-item-timeline';
         
-        const time = formatTime(stopTime.arrival_time);
+        const time = stopTime.arrival_time;
         
         stopDiv.innerHTML = `
             <div class="stop-name">${stops[stopTime.stop_id].replace(/"/g, '')}</div>
@@ -1885,24 +1892,21 @@ function formatTime(time) {
 function closeStopsTimeline() {
     const overlay = document.getElementById('overlay');
     const menu = document.getElementById('stops-timeline-menu');
-    const header = menu.querySelector('.stops-timeline-header');
-    const showInMapBtn = document.querySelector('.show-in-map-btn');
+    
+    overlay.classList.remove('visible');
+    menu.classList.remove('visible');
     
     if (updatePositionInterval) {
         clearInterval(updatePositionInterval);
         updatePositionInterval = null;
     }
     
-    overlay.classList.remove('visible');
-    menu.classList.remove('visible');
-    header.classList.remove('visible');
-    showInMapBtn.classList.remove('visible');
-    
     setTimeout(() => {
         overlay.style.display = 'none';
         menu.style.display = 'none';
-    }, 300);
+    }, 500); 
 }
+
 
 function getRealtimeUpdatesForTrip(tripId) {
     const updates = {};
