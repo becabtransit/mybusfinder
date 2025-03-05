@@ -394,6 +394,25 @@ select:focus {
     gap: 10px;
     margin-bottom: 20px;
     padding: 0 10px;
+    position: relative;
+}
+
+.tab-wrapper {
+    flex: 1;
+    cursor: grab;
+    user-select: none;
+    position: relative;
+    transition: transform 0.3s ease;
+}
+
+.tab-wrapper.dragging {
+    cursor: grabbing;
+    z-index: 1000;
+    opacity: 0.8;
+}
+
+.tab-wrapper.drag-over {
+    transform: scale(1.05);
 }
 
 .tab-button {
@@ -401,12 +420,14 @@ select:focus {
     background-color: #f5f5f5;
     border: none;
     border-radius: 8px;
-    cursor: pointer;
+    cursor: inherit;
     font-family: 'League Spartan', sans-serif;
     font-weight: bold;
     color: #666;
     transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
     flex: 1;
+    width: 100%;
+    pointer-events: none; 
 }
 
 .tab-button.active {
@@ -417,7 +438,7 @@ select:focus {
 
 .tab-button:hover:not(.active) {
     background-color: #e0e0e0;
-    transform: translateX(-3%) scale(0.9);
+    transform: translateX(-4%) scale(0.9);
 }
 
 .tab-button-gauche {
@@ -425,12 +446,14 @@ select:focus {
     background-color: #f5f5f5;
     border: none;
     border-radius: 8px;
-    cursor: pointer;
+    cursor: inherit;
     font-family: 'League Spartan', sans-serif;
     font-weight: bold;
     color: #666;
     transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
     flex: 1;
+    width: 100%;
+    pointer-events: none; 
 }
 
 .tab-button-gauche.active {
@@ -441,7 +464,7 @@ select:focus {
 
 .tab-button-gauche:hover:not(.active) {
     background-color: #e0e0e0;
-    transform: translateX(3%) scale(0.9);
+    transform: translateX(4%) scale(0.9);
 }
 
 
@@ -871,9 +894,13 @@ select:focus {
 
             </div>
             
-            <div class="schedule-tabs">
-                <button class="tab-button-gauche active" data-tab="theoretical">Planche horaire</button>
-                <button class="tab-button" data-tab="realtime">Prochains passages prévus</button>
+            <div class="schedule-tabs" id="tabsContainer">
+                <div class="tab-wrapper" draggable="true" data-position="0">
+                    <button class="tab-button-gauche" data-tab="theoretical">Planche horaire</button>
+                </div>
+                <div class="tab-wrapper" draggable="true" data-position="1">
+                    <button class="tab-button" data-tab="realtime">Prochains passages prévus</button>
+                </div>
             </div>
         
             <div id="theoretical-view" class="tab-content active">
@@ -1188,6 +1215,75 @@ function getRealtimeArrival(tripId, stopId) {
     }
     
     return new Date(stopUpdate.arrival);
+}
+
+function setupTabDragAndDrop() {
+    const tabsContainer = document.getElementById('tabsContainer');
+    const tabWrappers = document.querySelectorAll('.tab-wrapper');
+    let draggedTab = null;
+    let originalPosition = null;
+
+    tabWrappers.forEach(wrapper => {
+        wrapper.addEventListener('dragstart', (e) => {
+            draggedTab = wrapper;
+            originalPosition = parseInt(wrapper.dataset.position);
+            wrapper.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            
+            const ghost = document.createElement('div');
+            ghost.style.width = '0';
+            ghost.style.height = '0';
+            document.body.appendChild(ghost);
+            e.dataTransfer.setDragImage(ghost, 0, 0);
+            setTimeout(() => document.body.removeChild(ghost), 0);
+        });
+
+        wrapper.addEventListener('dragend', () => {
+            wrapper.classList.remove('dragging');
+            document.querySelectorAll('.tab-wrapper').forEach(tab => {
+                tab.classList.remove('drag-over');
+            });
+        });
+
+        wrapper.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (wrapper !== draggedTab) {
+                wrapper.classList.add('drag-over');
+            }
+        });
+
+        wrapper.addEventListener('dragleave', () => {
+            wrapper.classList.remove('drag-over');
+        });
+
+        wrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (wrapper !== draggedTab) {
+                const newPosition = parseInt(wrapper.dataset.position);
+                const draggedButton = draggedTab.querySelector('button');
+                const targetButton = wrapper.querySelector('button');
+                
+                const draggedClasses = draggedButton.className;
+                const targetClasses = targetButton.className;
+                draggedButton.className = targetClasses;
+                targetButton.className = draggedClasses;
+                
+                wrapper.dataset.position = originalPosition;
+                draggedTab.dataset.position = newPosition;
+                
+                setupTabHandlers();
+            }
+            wrapper.classList.remove('drag-over');
+        });
+    });
+
+    document.addEventListener('dragover', (e) => {
+        if (draggedTab) {
+            const rect = tabsContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            draggedTab.style.transform = `translateX(${x - draggedTab.offsetWidth / 2}px)`;
+        }
+    });
 }
 
 const DB_NAME = 'MyBusFinder';
@@ -1845,6 +1941,7 @@ document.querySelector('#stop-title').parentNode.appendChild(favoriteButton);
         theoreticalTab.click();
     }
     
+    setupTabDragAndDrop();
     setupTabHandlers();
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
