@@ -387,8 +387,6 @@ select:focus {
     transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 
-/* Ajoutez ces styles à votre CSS existant */
-
 .schedule-tabs {
     display: flex;
     gap: 10px;
@@ -398,6 +396,7 @@ select:focus {
     background-color: #f5f5f5;
     border-radius: 8px;
     padding: 8px;
+    touch-action: none; 
 }
 
 .tab-button.active {
@@ -408,7 +407,7 @@ select:focus {
 
 .tab-button:hover:not(.active) {
     background-color: #e0e0e0;
-    transform: translateX(-3%) scale(0.9);
+    transform: translateX(-3%);
 }
 
 
@@ -420,7 +419,7 @@ select:focus {
 
 .tab-button-gauche:hover:not(.active) {
     background-color: #e0e0e0;
-    transform: translateX(3%) scale(0.9);
+    transform: translateX(3%);
 }
 
 .tab-button, .tab-button-gauche {
@@ -428,14 +427,15 @@ select:focus {
     background-color: transparent;
     border: none;
     border-radius: 8px;
-    cursor: pointer;
+    cursor: grab;
     font-family: 'League Spartan', sans-serif;
     font-weight: bold;
     color: #666;
-    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
     flex: 1;
     position: relative;
     z-index: 2;
+    transition: transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+    user-select: none; 
 }
 
 .tab-button.active, .tab-button-gauche.active {
@@ -444,7 +444,10 @@ select:focus {
     box-shadow: none;
 }
 
-
+.tab-button.dragging, .tab-button-gauche.dragging {
+    cursor: grabbing;
+    transform: scale(0.9);
+}
 
 .tab-content {
     display: none;
@@ -803,15 +806,16 @@ select:focus {
 
 .tab-indicator {
     position: absolute;
-    left: 8px; 
-    top: 8px; 
-    width: calc(50% - 5px); 
-    height: calc(100% - 16px); 
+    left: 8px;
+    top: 8px;
+    width: calc(50% - 5px);
+    height: calc(100% - 16px);
     background-color: #363636;
     border-radius: 8px;
-    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    transition: transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1); 
     box-shadow: 0 3px 10px rgba(54, 54, 54, 0.2);
     z-index: 1;
+    will-change: transform; 
 }
 
     </style>
@@ -1871,8 +1875,112 @@ document.querySelector('#stop-title').parentNode.appendChild(favoriteButton);
 
 function setupTabHandlers() {
     const tabs = document.querySelectorAll('.tab-button, .tab-button-gauche');
-    const dateSelect = document.getElementById('date-select');
+    const tabsContainer = document.querySelector('.schedule-tabs');
     const indicator = document.querySelector('.tab-indicator');
+    const dateSelect = document.getElementById('date-select');
+
+    let startX = 0;
+    let currentX = 0;
+    let isDragging = false;
+    let activeTabIndex = 0;
+    let containerWidth = tabsContainer.offsetWidth;
+    let tabWidth = containerWidth / 2;
+
+    tabs.forEach((tab, index) => {
+        tab.addEventListener('mousedown', startDragging);
+        tab.addEventListener('touchstart', startDragging, { passive: true });
+        
+        function startDragging(e) {
+            isDragging = true;
+            startX = e.type === 'mousedown' ? e.pageX : e.touches[0].pageX;
+            currentX = indicator.style.transform ?
+                parseInt(indicator.style.transform.replace('translateX(', '')) :
+                0;
+            
+            tab.classList.add('dragging');
+            
+            activeTabIndex = index;
+            
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('touchmove', drag, { passive: false });
+            document.addEventListener('mouseup', stopDragging);
+            document.addEventListener('touchend', stopDragging);
+        }
+    });
+
+    function drag(e) {
+        if (!isDragging) return;
+        e.preventDefault();
+        
+        const x = e.type === 'mousemove' ? e.pageX : e.touches[0].pageX;
+        const diff = x - startX;
+        const totalMove = currentX + diff;
+        
+        const maxMove = tabWidth;
+        const constrainedMove = Math.max(0, Math.min(maxMove, totalMove));
+        
+        requestAnimationFrame(() => {
+            indicator.style.transform = `translateX(${constrainedMove}px)`;
+        });
+        
+        const newActiveIndex = constrainedMove > tabWidth / 2 ? 1 : 0;
+        if (newActiveIndex !== activeTabIndex) {
+            updateActiveTab(newActiveIndex);
+            activeTabIndex = newActiveIndex;
+        }
+    }
+
+    function stopDragging() {
+        if (!isDragging) return;
+        isDragging = false;
+        
+        tabs.forEach(tab => tab.classList.remove('dragging'));
+        
+        const finalPosition = activeTabIndex * tabWidth;
+        indicator.style.transform = `translateX(${finalPosition}px)`;
+        
+        document.removeEventListener('mousemove', drag);
+        document.removeEventListener('touchmove', drag);
+        document.removeEventListener('mouseup', stopDragging);
+        document.removeEventListener('touchend', stopDragging);
+        
+        const activeTab = tabs[activeTabIndex];
+        updateContent(activeTab.dataset.tab);
+    }
+
+    function updateActiveTab(index) {
+        tabs.forEach((tab, i) => {
+            tab.classList.toggle('active', i === index);
+        });
+    }
+
+    function updateContent(tabName) {
+        isShowingRealtime = tabName === 'realtime';
+        
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        
+        const targetContent = document.getElementById(`${tabName}-view`);
+        if (targetContent) {
+            targetContent.classList.add('active');
+        }
+        
+        if (isShowingRealtime) {
+            startRealtimeUpdates();
+        } else {
+            stopRealtimeUpdates();
+            if (currentRouteId && currentStopId && currentDestinationId) {
+                updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, dateSelect.value);
+            }
+        }
+    }
+
+    window.addEventListener('resize', () => {
+        containerWidth = tabsContainer.offsetWidth;
+        tabWidth = containerWidth / 2;
+        indicator.style.transform = `translateX(${activeTabIndex * tabWidth}px)`;
+    });
 
     if (!dateSelect.hasEventListener) {
         dateSelect.hasEventListener = true;
@@ -1882,38 +1990,6 @@ function setupTabHandlers() {
             }
         });
     }
-
-    tabs.forEach((tab, index) => {
-        if (!tab.hasEventListener) {
-            tab.hasEventListener = true;
-            tab.addEventListener('click', () => {
-                const targetTab = tab.dataset.tab;
-                
-                indicator.style.transform = `translateX(${index * 100}%)`;
-                
-                tabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.remove('active');
-                });
-                const targetContent = document.getElementById(`${targetTab}-view`);
-                if (targetContent) {
-                    targetContent.classList.add('active');
-                }
-                
-                isShowingRealtime = targetTab === 'realtime';
-                if (isShowingRealtime) {
-                    startRealtimeUpdates();
-                } else {
-                    stopRealtimeUpdates();
-                    if (currentRouteId && currentStopId && currentDestinationId) {
-                        updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, dateSelect.value);
-                    }
-                }
-            });
-        }
-    });
 }
 
 function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
