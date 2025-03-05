@@ -781,7 +781,6 @@ select:focus {
     <div class="container">
         <div id="loading-view" class="view active">
             <div id="loading-indicator">
-                <p style="margin-top: 15px; color: #666;">Téléchargement des données les plus récentes...</p>
             </div>
         </div>
         
@@ -897,17 +896,14 @@ select:focus {
         tab.addEventListener('click', () => {
             const targetTab = tab.dataset.tab;
             
-            // Mise à jour des boutons
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             
-            // Mise à jour du contenu
             document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.remove('active');
             });
             document.getElementById(`${targetTab}-view`).classList.add('active');
             
-            // Gestion des mises à jour temps réel
             if (targetTab === 'realtime') {
                 isShowingRealtime = true;
                 startRealtimeUpdates();
@@ -961,15 +957,12 @@ async function fetchRealtimeData() {
         }
         const buffer = await response.arrayBuffer();
         
-        // Décodage des données GTFS-RT
         const root = await protobuf.load('gtfs-realtime.proto');
         const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
         const message = FeedMessage.decode(new Uint8Array(buffer));
         
-        // Mise à jour de l'horodatage
         updateLastUpdateTime(message.header.timestamp);
         
-        // Traiter et afficher les données en temps réel
         const processedData = processRealtimeData(message);
         displayRealtimeSchedule(processedData);
         
@@ -1169,13 +1162,31 @@ function getRealtimeArrival(tripId, stopId) {
     return new Date(stopUpdate.arrival);
 }
 
+function isFirstVisitOfDay() {
+    const lastVisit = localStorage.getItem('lastGTFSUpdate');
+    if (!lastVisit) return true;
+
+    const lastVisitDate = new Date(lastVisit);
+    const currentDate = new Date();
+    
+    return lastVisitDate.getDate() !== currentDate.getDate() ||
+           lastVisitDate.getMonth() !== currentDate.getMonth() ||
+           lastVisitDate.getFullYear() !== currentDate.getFullYear();
+}
+
+function saveToCache(data) {
+    localStorage.setItem('gtfsData', JSON.stringify(data));
+    localStorage.setItem('lastGTFSUpdate', new Date().toISOString());
+}
+
+function getFromCache() {
+    const cachedData = localStorage.getItem('gtfsData');
+    return cachedData ? JSON.parse(cachedData) : null;
+}
+
 async function extractGTFSFiles() {
     try {
-        const response = await fetch('proxy-cors/proxy_gtfs.php');
-        if (!response.ok) {
-            throw new Error(`Échec du téléchargement: ${response.status} ${response.statusText}`);
-        }
-        
+        const response = await fetch('proxy-cors/proxy_gtfs.php');   
         const zipData = await response.arrayBuffer();
         const zip = await JSZip.loadAsync(zipData);
         
@@ -1186,26 +1197,35 @@ async function extractGTFSFiles() {
             if (!zipEntry.dir) {
                 const promise = zipEntry.async("string").then(content => {
                     extractedFiles[relativePath] = content;
-                    console.log(`Fichier extrait: ${relativePath}`);
                 });
                 filePromises.push(promise);
             }
         });
         
         await Promise.all(filePromises);
-        console.log("Fichiers extraits:", Object.keys(extractedFiles));
         
         return extractedFiles;
     } catch (error) {
-        console.error('Erreur lors de l\'extraction des fichiers GTFS:', error);
         throw error;
     }
 }
 
-
 async function loadGtfsData() {
     try {
-        const extractedFiles = await extractGTFSFiles();
+        let extractedFiles;
+        
+        if (isFirstVisitOfDay()) {
+            toastBottomRight.info('Téléchargement des données quotidiennes..')
+            extractedFiles = await extractGTFSFiles();
+            saveToCache(extractedFiles);
+        } else {
+            extractedFiles = getFromCache();
+            if (!extractedFiles) {
+                toastBottomRight.info('Téléchargement des données quotidiennes..')
+                extractedFiles = await extractGTFSFiles();
+                saveToCache(extractedFiles);
+            }
+        }
         
         routes = {};
         trips = {};
