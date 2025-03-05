@@ -777,6 +777,125 @@ select:focus {
     transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
+.vehicle-timeline-container {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.98);
+    z-index: 1000;
+    transition: right 0.3s ease-in-out;
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.vehicle-timeline-container.active {
+    right: 0;
+}
+
+.timeline {
+    position: relative;
+    margin: 40px 0;
+    padding-left: 50px;
+}
+
+.timeline-line {
+    position: absolute;
+    left: 20px;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    border-radius: 2px;
+}
+
+.timeline-stop {
+    position: relative;
+    margin-bottom: 30px;
+    padding-bottom: 10px;
+}
+
+.timeline-stop::before {
+    content: '';
+    position: absolute;
+    left: -44px;
+    top: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: white;
+    border: 2px solid;
+    z-index: 1;
+}
+
+.timeline-bus-icon {
+    position: absolute;
+    left: -52px;
+    width: 32px;
+    height: 32px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    z-index: 2;
+}
+
+.timeline-stop-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 5px;
+}
+
+.timeline-time {
+    font-size: 0.9em;
+    color: #666;
+}
+
+.timeline-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.timeline-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 10px;
+}
+
+.timeline-title {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+.show-on-map-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #363636;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 25px;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: bold;
+    transition: transform 0.2s ease;
+}
+
+.show-on-map-btn:active {
+    transform: scale(0.95);
+}
+
     </style>
 </head>
 <body>
@@ -876,6 +995,19 @@ select:focus {
                 <button class="btn" onclick="showLines()">Ajouter un arrêt</button>
             </div>
         </div>
+    </div>
+    <div class="vehicle-timeline-container">
+        <div class="timeline-header">
+            <div class="timeline-title">Parcours du bus</div>
+            <button class="timeline-close">&times;</button>
+        </div>
+        <div class="timeline"></div>
+        <button class="show-on-map-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            Afficher sur la carte
+        </button>
     </div>
     <script src="src/js/favorites.js"></script>
     <script src="src/js/toastjs.js"></script>       
@@ -1130,6 +1262,14 @@ function displayRealtimeSchedule(arrivals) {
         item.addEventListener('click', () => {
             sendVehicleIdToParent(arrival.vehicleId, arrival.tripId);
         });
+
+        item.addEventListener('click', () => {
+            vehicleTimeline.show({
+                vehicleId: arrival.vehicleId,
+                tripId: arrival.tripId,
+                routeId: currentRouteId
+            });
+        });
         
         container.appendChild(item);
     });
@@ -1152,6 +1292,130 @@ function sendVehicleIdToParent(vehicleId, tripId) {
         console.log('Message envoyé à la page parente:', message);
     }
 }
+
+class VehicleTimeline {
+    constructor() {
+        this.container = document.querySelector('.vehicle-timeline-container');
+        this.timeline = this.container.querySelector('.timeline');
+        this.closeButton = this.container.querySelector('.timeline-close');
+        this.showOnMapButton = this.container.querySelector('.show-on-map-btn');
+        
+        this.initializeEvents();
+    }
+
+    initializeEvents() {
+        this.closeButton.addEventListener('click', () => this.hide());
+        this.showOnMapButton.addEventListener('click', () => this.showOnMap());
+        
+        let startX;
+        this.container.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+        });
+        
+        this.container.addEventListener('touchmove', (e) => {
+            if (!startX) return;
+            
+            const currentX = e.touches[0].clientX;
+            const diff = currentX - startX;
+            
+            if (diff > 0) {
+                this.container.style.right = `-${diff}px`;
+            }
+        });
+        
+        this.container.addEventListener('touchend', (e) => {
+            const diff = parseInt(this.container.style.right || 0);
+            if (diff < -50) {
+                this.hide();
+            } else {
+                this.container.style.right = '0';
+            }
+            startX = null;
+        });
+    }
+
+    show(vehicleInfo) {
+        this.container.classList.add('active');
+        this.updateTimeline(vehicleInfo);
+    }
+
+    hide() {
+        this.container.classList.remove('active');
+        this.container.style.right = '';
+    }
+
+    updateTimeline(vehicleInfo) {
+        this.timeline.innerHTML = '';
+        let timelineContent = '';
+        const lineColor = routes[vehicleInfo.routeId].route_color;
+        const textColor = routes[vehicleInfo.routeId].route_text_color;
+        
+        this.container.querySelector('.timeline-title').textContent = 
+            `Ligne ${routes[vehicleInfo.routeId].short_name} - Bus ${vehicleInfo.vehicleId}`;
+        
+        const tripStops = stopTimes[vehicleInfo.tripId] || [];
+        const currentTime = new Date();
+        let busPositionSet = false;
+        
+        timelineContent += `<div class="timeline-line" style="background-color: ${lineColor}"></div>`;
+        
+        tripStops.forEach((stop, index) => {
+            const stopTime = parseTimeString(stop.arrival_time);
+            const stopDate = new Date();
+            stopDate.setHours(stopTime.hours, stopTime.minutes);
+            
+            if (!busPositionSet && stopDate > currentTime && index > 0) {
+                const progressPercentage = calculateProgress(
+                    parseTimeString(tripStops[index-1].arrival_time),
+                    stopTime,
+                    currentTime
+                );
+                
+                timelineContent += `
+                    <div class="timeline-bus-icon" style="top: ${progressPercentage}%">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="${lineColor}" stroke="${textColor}">
+                            <path d="M4 16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v10zm2-8h12v8H6V8zm2.5 6c-.83 0-1.5-.67-1.5-1.5S7.67 11 8.5 11s1.5.67 1.5 1.5S9.33 14 8.5 14zm7 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                        </svg>
+                    </div>
+                `;
+                busPositionSet = true;
+            }
+            
+            timelineContent += `
+                <div class="timeline-stop">
+                    <div class="timeline-stop-name" style="color: ${lineColor}">
+                        ${stops[stop.stop_id].replace(/"/g, '')}
+                    </div>
+                    <div class="timeline-time">${stop.arrival_time}</div>
+                </div>
+            `;
+        });
+        
+        this.timeline.innerHTML = timelineContent;
+    }
+
+    showOnMap() {
+        this.hide();
+        
+        if (window.parent !== window) {
+            window.parent.postMessage({
+                type: 'showVehicleOnMap',
+                vehicleInfo: this.currentVehicleInfo
+            }, '*');
+        }
+    }
+}
+
+function calculateProgress(prevTime, nextTime, currentTime) {
+    const current = currentTime.getHours() * 60 + currentTime.getMinutes();
+    const prev = prevTime.hours * 60 + prevTime.minutes;
+    const next = nextTime.hours * 60 + nextTime.minutes;
+    
+    const progress = (current - prev) / (next - prev);
+    return Math.min(Math.max(progress * 100, 0), 100);
+}
+
+const vehicleTimeline = new VehicleTimeline();
 
 function getRealtimeArrival(tripId, stopId) {
     if (!realtimeData || !realtimeData[tripId]) {
