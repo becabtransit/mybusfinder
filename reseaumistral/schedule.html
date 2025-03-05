@@ -1058,9 +1058,167 @@ select:focus {
     box-shadow: 0 0 0 3px rgba(54, 54, 54, 0.25);
 }
 
+.alerts-button {
+    display: flex;
+    align-items: center;
+    background-color: #000000;
+    color: #ffffff;
+    padding: 15px 18px;
+    margin-bottom: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), 
+                box-shadow 0.5s cubic-bezier(0.25, 1.5, 0.5, 1),
+                background-color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    position: relative;
+    overflow: hidden;
+    animation: fadeInUp 0.3s ease-out forwards;
+}
+
+.alerts-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 120%;
+    height: 100%;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transform: skewX(-25deg);
+    transition: left 1s cubic-bezier(0.25, 1.5, 0.5, 1);
+    z-index: 1;
+}
+
+.alerts-button:hover::before {
+    left: 120%;
+}
+
+.alerts-button:hover {
+    transform: scale(0.98);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+    background-color: #222222;
+}
+
+.alerts-button:active {
+    transform: translateY(0) scale(0.95);
+    transition: transform 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.alerts-icon {
+    margin-right: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.alerts-button:hover .alerts-icon {
+    transform: scale(1.1);
+}
+
+.alerts-icon svg {
+    stroke: #ffffff;
+}
+
+.alerts-content {
+    flex-grow: 1;
+    position: relative;
+    z-index: 2;
+}
+
+.alerts-title {
+    font-weight: bold;
+    font-size: 1.2em;
+    margin-bottom: 3px;
+    transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.alerts-description {
+    font-size: 0.9em;
+    opacity: 0.8;
+    transition: color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.update-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    opacity: 95%;
+    height: 100%;
+    display: none; 
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+	background-color: rgba(255, 255, 255, 0.5); 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+    overflow-y: hidden;
+}
+
+.popup-content {
+    background: white;
+    width: 100%;
+    height: 100%;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    position: relative;
+}
+
+.popup-content h2 {
+    font-size: 24px;
+    font-family: 'League Spartan', sans-serif;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.popup-content {
+            font-family: 'League Spartan', sans-serif;
+            font-size: 12px;
+            line-height: 1.1;
+        }
+
+        .popup-content {
+    animation: zoomFadeIn 0.6s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
+}
+
+.close-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #333;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+.close-btn:hover {
+    background-color: #555;
+}
+
     </style>
 </head>
 <body>
+
+    <div id="update-popup" class="update-popup">
+        <div class="popup-content">
+            <button id="close-popup" class="close-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <iframe id="webview-frame" src="" frameborder="0"></iframe>
+        </div>
+    </div>
+               
     <div class="container">
         <div id="loading-view" class="view active">
             <div id="loading-indicator">
@@ -2071,7 +2229,24 @@ function showInMap() {
     const container = document.getElementById('lines-container');
     container.innerHTML = '';
     
-    // Ajout de la section des favoris
+    // Ajout du bouton d'alertes
+    const alertsButton = document.createElement('div');
+    alertsButton.className = 'alerts-button';
+    alertsButton.innerHTML = `
+        <div class="alerts-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 11a8 8 0 0 1 16 0v6l3 2v1H1v-1l3-2v-6z"></path>
+                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"></path>
+            </svg>
+        </div>
+        <div class="alerts-content">
+            <div class="alerts-title">Alertes de service</div>
+            <div class="alerts-description">Informations sur les perturbations</div>
+        </div>
+    `;
+    alertsButton.onclick = () => showUpdatePopup("alerts.html");
+    container.appendChild(alertsButton);
+    
     const favorites = getFavorites();
     if (favorites.length > 0) {
         const favoritesSection = document.createElement('div');
@@ -2079,32 +2254,32 @@ function showInMap() {
         favoritesSection.innerHTML = '<h3>Mes arrêts favoris</h3>';
         
         favorites.forEach(favorite => {
-    const favoriteItem = document.createElement('div');
-    favoriteItem.className = 'bus-item favorite-item';
-    favoriteItem.setAttribute('data-favorite-id', favorite.id);
-    favoriteItem.style.backgroundColor = routes[favorite.routeId].route_color;
-    favoriteItem.style.color = routes[favorite.routeId].route_text_color;
-    
-    favoriteItem.innerHTML = `
-        <div class="favorite-info">
-            <div class="favorite-main-info">
-                Ligne ${favorite.routeName} → ${favorite.destinationName}
-            </div>            
-            <div class="favorite-main-info" style="font-style: italic;">
-                à l'arrêt ${favorite.stopName}
-            </div>
-            <div class="realtime-info"></div>
-        </div>
-        <button class="favorite-button" onclick="event.stopPropagation(); removeFromFavorites('${favorite.id}'); showLines();">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-        </button>
-    `;
-    
-    favoriteItem.onclick = () => showSchedule(favorite.routeId, favorite.stopId, favorite.destinationId);
-    favoritesSection.appendChild(favoriteItem);
-});
+            const favoriteItem = document.createElement('div');
+            favoriteItem.className = 'bus-item favorite-item';
+            favoriteItem.setAttribute('data-favorite-id', favorite.id);
+            favoriteItem.style.backgroundColor = routes[favorite.routeId].route_color;
+            favoriteItem.style.color = routes[favorite.routeId].route_text_color;
+            
+            favoriteItem.innerHTML = `
+                <div class="favorite-info">
+                    <div class="favorite-main-info">
+                        Ligne ${favorite.routeName} → ${favorite.destinationName}
+                    </div>            
+                    <div class="favorite-main-info" style="font-style: italic; font-size: 1em">
+                        à l'arrêt ${favorite.stopName}
+                    </div>
+                    <div class="realtime-info"></div>
+                </div>
+                <button class="favorite-button" onclick="event.stopPropagation(); removeFromFavorites('${favorite.id}'); showLines();">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            `;
+            
+            favoriteItem.onclick = () => showSchedule(favorite.routeId, favorite.stopId, favorite.destinationId);
+            favoritesSection.appendChild(favoriteItem);
+        });
 
         container.appendChild(favoritesSection);
         updateFavoritesRealtimeData();
@@ -2136,6 +2311,13 @@ function showInMap() {
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('lines-view');
+}
+
+function showUpdatePopup(link) {
+    const popup = document.getElementById('update-popup');
+    const iframe = document.getElementById('webview-frame');
+    iframe.src = link; 
+    popup.style.display = 'flex'; 
 }
 
 function processRealtimeDataForStop(message, routeId, stopId) {
