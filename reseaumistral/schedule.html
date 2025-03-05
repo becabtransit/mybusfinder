@@ -391,12 +391,11 @@ select:focus {
     display: flex;
     gap: 10px;
     margin-bottom: 20px;
-    padding: 0 10px;
+    padding: 8px;
     position: relative;
     background-color: #f5f5f5;
     border-radius: 8px;
-    padding: 8px;
-    touch-action: none; 
+    touch-action: pan-y pinch-zoom;
 }
 
 .tab-button.active {
@@ -427,25 +426,22 @@ select:focus {
     background-color: transparent;
     border: none;
     border-radius: 8px;
-    cursor: grab;
+    cursor: pointer;
     font-family: 'League Spartan', sans-serif;
     font-weight: bold;
     color: #666;
     flex: 1;
     position: relative;
     z-index: 2;
-    transition: transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
-    user-select: none; 
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    user-select: none;
 }
 
 .tab-button.active, .tab-button-gauche.active {
     color: white;
-    background-color: transparent;
-    box-shadow: none;
 }
 
-.tab-button.dragging, .tab-button-gauche.dragging {
-    cursor: grabbing;
+.tab-button.pressed, .tab-button-gauche.pressed {
     transform: scale(0.9);
 }
 
@@ -788,14 +784,6 @@ select:focus {
     font-size: 0.9em;
 }
 
-.schedule-tabs {
-    background-color: white;
-    border-radius: 12px;
-    padding: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    margin: 15px 0;
-}
-
 .date-input {
     width: -webkit-fill-available;
     border: 1px solid #ddd;
@@ -812,10 +800,9 @@ select:focus {
     height: calc(100% - 16px);
     background-color: #363636;
     border-radius: 8px;
-    transition: transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1); 
     box-shadow: 0 3px 10px rgba(54, 54, 54, 0.2);
     z-index: 1;
-    will-change: transform; 
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
     </style>
@@ -1874,98 +1861,38 @@ document.querySelector('#stop-title').parentNode.appendChild(favoriteButton);
 }
 
 function setupTabHandlers() {
-    const tabs = document.querySelectorAll('.tab-button, .tab-button-gauche');
     const tabsContainer = document.querySelector('.schedule-tabs');
-    const indicator = document.querySelector('.tab-indicator');
+    const tabs = tabsContainer.querySelectorAll('.tab-button, .tab-button-gauche');
+    const indicator = tabsContainer.querySelector('.tab-indicator');
     const dateSelect = document.getElementById('date-select');
 
     let startX = 0;
-    let currentX = 0;
     let isDragging = false;
-    let activeTabIndex = 0;
-    let containerWidth = tabsContainer.offsetWidth;
-    let tabWidth = containerWidth / 2;
+    let currentTab = 0;
 
-    tabs.forEach((tab, index) => {
-        tab.addEventListener('mousedown', startDragging);
-        tab.addEventListener('touchstart', startDragging, { passive: true });
-        
-        function startDragging(e) {
-            isDragging = true;
-            startX = e.type === 'mousedown' ? e.pageX : e.touches[0].pageX;
-            currentX = indicator.style.transform ?
-                parseInt(indicator.style.transform.replace('translateX(', '')) :
-                0;
-            
-            tab.classList.add('dragging');
-            
-            activeTabIndex = index;
-            
-            document.addEventListener('mousemove', drag);
-            document.addEventListener('touchmove', drag, { passive: false });
-            document.addEventListener('mouseup', stopDragging);
-            document.addEventListener('touchend', stopDragging);
-        }
-    });
-
-    function drag(e) {
-        if (!isDragging) return;
-        e.preventDefault();
-        
-        const x = e.type === 'mousemove' ? e.pageX : e.touches[0].pageX;
-        const diff = x - startX;
-        const totalMove = currentX + diff;
-        
-        const maxMove = tabWidth;
-        const constrainedMove = Math.max(0, Math.min(maxMove, totalMove));
-        
-        requestAnimationFrame(() => {
-            indicator.style.transform = `translateX(${constrainedMove}px)`;
-        });
-        
-        const newActiveIndex = constrainedMove > tabWidth / 2 ? 1 : 0;
-        if (newActiveIndex !== activeTabIndex) {
-            updateActiveTab(newActiveIndex);
-            activeTabIndex = newActiveIndex;
-        }
+    function updateIndicatorPosition(position, animate = true) {
+        indicator.style.transition = animate ? 'transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)' : 'none';
+        indicator.style.transform = `translateX(${position}px)`;
     }
 
-    function stopDragging() {
-        if (!isDragging) return;
-        isDragging = false;
-        
-        tabs.forEach(tab => tab.classList.remove('dragging'));
-        
-        const finalPosition = activeTabIndex * tabWidth;
-        indicator.style.transform = `translateX(${finalPosition}px)`;
-        
-        document.removeEventListener('mousemove', drag);
-        document.removeEventListener('touchmove', drag);
-        document.removeEventListener('mouseup', stopDragging);
-        document.removeEventListener('touchend', stopDragging);
-        
-        const activeTab = tabs[activeTabIndex];
-        updateContent(activeTab.dataset.tab);
-    }
+    function switchTab(index) {
+        const targetTab = tabs[index];
+        if (!targetTab) return;
 
-    function updateActiveTab(index) {
-        tabs.forEach((tab, i) => {
-            tab.classList.toggle('active', i === index);
-        });
-    }
+        tabs.forEach(tab => tab.classList.remove('active'));
+        targetTab.classList.add('active');
 
-    function updateContent(tabName) {
-        isShowingRealtime = tabName === 'realtime';
-        
+        const targetTabName = targetTab.dataset.tab;
         document.querySelectorAll('.tab-content').forEach(content => {
             content.classList.remove('active');
         });
-        
-        const targetContent = document.getElementById(`${tabName}-view`);
+
+        const targetContent = document.getElementById(`${targetTabName}-view`);
         if (targetContent) {
             targetContent.classList.add('active');
         }
-        
+
+        isShowingRealtime = targetTabName === 'realtime';
         if (isShowingRealtime) {
             startRealtimeUpdates();
         } else {
@@ -1974,12 +1901,73 @@ function setupTabHandlers() {
                 updateScheduleByDate(currentRouteId, currentStopId, currentDestinationId, dateSelect.value);
             }
         }
+
+        currentTab = index;
     }
 
+    tabs.forEach((tab, index) => {
+        tab.addEventListener('click', (e) => {
+            if (!isDragging) {
+                const offset = index * (tabsContainer.offsetWidth / 2);
+                updateIndicatorPosition(offset);
+                switchTab(index);
+            }
+        });
+
+        tab.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+            isDragging = true;
+            tab.classList.add('pressed');
+        }, { passive: true });
+
+        tab.addEventListener('mousedown', (e) => {
+            startX = e.clientX;
+            isDragging = true;
+            tab.classList.add('pressed');
+        });
+    });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        const x = e.touches[0].clientX;
+        const delta = x - startX;
+        const tabWidth = tabsContainer.offsetWidth / 2;
+        const maxMove = tabWidth;
+        const move = Math.max(0, Math.min(maxMove, currentTab * tabWidth + delta));
+        updateIndicatorPosition(move, false);
+    }, { passive: true });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const x = e.clientX;
+        const delta = x - startX;
+        const tabWidth = tabsContainer.offsetWidth / 2;
+        const maxMove = tabWidth;
+        const move = Math.max(0, Math.min(maxMove, currentTab * tabWidth + delta));
+        updateIndicatorPosition(move, false);
+    });
+
+    function endDrag(e) {
+        if (!isDragging) return;
+        isDragging = false;
+
+        tabs.forEach(tab => tab.classList.remove('pressed'));
+
+        const tabWidth = tabsContainer.offsetWidth / 2;
+        const currentPosition = parseFloat(indicator.style.transform.replace('translateX(', '')) || 0;
+        const newIndex = Math.round(currentPosition / tabWidth);
+
+        updateIndicatorPosition(newIndex * tabWidth);
+        switchTab(newIndex);
+    }
+
+    document.addEventListener('touchend', endDrag);
+    document.addEventListener('touchcancel', endDrag);
+    document.addEventListener('mouseup', endDrag);
+
     window.addEventListener('resize', () => {
-        containerWidth = tabsContainer.offsetWidth;
-        tabWidth = containerWidth / 2;
-        indicator.style.transform = `translateX(${activeTabIndex * tabWidth}px)`;
+        const offset = currentTab * (tabsContainer.offsetWidth / 2);
+        updateIndicatorPosition(offset, false);
     });
 
     if (!dateSelect.hasEventListener) {
