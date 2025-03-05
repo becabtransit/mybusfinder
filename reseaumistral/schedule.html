@@ -788,9 +788,9 @@ select:focus {
     width: 90%;
     max-width: 400px;
     z-index: 1000;
-    overflow: hidden;
     max-height: 80vh;
-    display: none;
+    display: flex;
+    flex-direction: column;
     opacity: 0;
     filter: blur(5px);
     transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1),
@@ -804,14 +804,33 @@ select:focus {
     filter: blur(0);
 }
 
-
 .stops-timeline-header {
     padding: 15px;
     border-bottom: 1px solid #eee;
     position: relative;
-    transform: translateY(-20px);
-    opacity: 0;
-    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    flex-shrink: 0;
+}
+
+.stops-timeline-header h3 {
+    margin: 0;
+    font-size: 1.2em;
+    color: #333;
+}
+
+.stops-timeline-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.stops-timeline-content {
+    padding: 20px;
+}
+
+.stops-timeline-footer {
+    padding: 15px;
+    border-top: 1px solid #eee;
+    flex-shrink: 0;
 }
 
 .stops-timeline-header.visible {
@@ -822,7 +841,8 @@ select:focus {
 .stops-timeline-close {
     position: absolute;
     right: 15px;
-    top: 15px;
+    top: 50%;
+    transform: translateY(-50%);
     background: none;
     border: none;
     padding: 5px;
@@ -910,8 +930,7 @@ select:focus {
 
 .show-in-map-btn {
     display: block;
-    width: calc(100% - 40px);
-    margin: 20px;
+    width: 100%;
     padding: 12px;
     background: #363636;
     color: white;
@@ -919,20 +938,16 @@ select:focus {
     border-radius: 8px;
     cursor: pointer;
     font-weight: bold;
-    transition: all 0.3s ease;
-    transform: translateY(100%);
-    opacity: 0;
-    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-}
-
-.show-in-map-btn.visible {
-    transform: translateY(0);
-    opacity: 1;
+    transition: transform 0.3s ease, background-color 0.3s ease;
 }
 
 .show-in-map-btn:hover {
     background: #2c2c2c;
     transform: scale(0.98);
+}
+
+.show-in-map-btn:active {
+    transform: scale(0.95);
 }
 
 .overlay {
@@ -1116,7 +1131,7 @@ select:focus {
             </div>
         </div>
     </div>
-    <div class="overlay" id="overlay"></div>
+    <<div class="overlay" id="overlay"></div>
     <div class="stops-timeline-menu" id="stops-timeline-menu">
         <div class="stops-timeline-header">
             <h3>Arrêts à desservir</h3>
@@ -1126,10 +1141,12 @@ select:focus {
                 </svg>
             </button>
         </div>
-        <div class="stops-timeline-content" id="stops-timeline-content"></div>
-        <button class="show-in-map-btn" id="show-in-map-btn" onclick="showInMap()">
-            Afficher dans la carte
-        </button>
+        <div class="stops-timeline-wrapper">
+            <div class="stops-timeline-content" id="stops-timeline-content"></div>
+        </div>
+        <div class="stops-timeline-footer">
+            <button class="show-in-map-btn" onclick="showInMap()">Afficher dans la carte</button>
+        </div>
     </div>
 
     <script src="src/js/favorites.js"></script>
@@ -1822,8 +1839,10 @@ function showStopsTimeline(vehicleId, tripId) {
     const overlay = document.getElementById('overlay');
     const menu = document.getElementById('stops-timeline-menu');
     
+    if (!overlay || !menu) return;
+    
     overlay.style.display = 'block';
-    menu.style.display = 'block';
+    menu.style.display = 'flex'; 
     
     menu.offsetHeight;
     
@@ -1893,6 +1912,8 @@ function closeStopsTimeline() {
     const overlay = document.getElementById('overlay');
     const menu = document.getElementById('stops-timeline-menu');
     
+    if (!overlay || !menu) return;
+    
     overlay.classList.remove('visible');
     menu.classList.remove('visible');
     
@@ -1904,7 +1925,7 @@ function closeStopsTimeline() {
     setTimeout(() => {
         overlay.style.display = 'none';
         menu.style.display = 'none';
-    }, 500); 
+    }, 500);
 }
 
 
