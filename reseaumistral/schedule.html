@@ -1204,6 +1204,46 @@ select:focus {
     background-color: #555;
 }
 
+.content-wrapper {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: contentFadeIn 0.5s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
+}
+
+.bus-item {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: itemFadeIn 0.5s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
+}
+
+@keyframes contentFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes itemFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alerts-button {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: itemFadeIn 0.5s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
+}
+
     </style>
 </head>
 <body>
@@ -2229,6 +2269,9 @@ function showInMap() {
     const container = document.getElementById('lines-container');
     container.innerHTML = '';
     
+    const contentWrapper = document.createElement('div');
+    contentWrapper.className = 'content-wrapper initial-fade-in';
+    
     const alertsButton = document.createElement('div');
     alertsButton.className = 'alerts-button';
     alertsButton.innerHTML = `
@@ -2249,7 +2292,7 @@ function showInMap() {
             url: 'alerts.html'
         }, '*');
     };
-    container.appendChild(alertsButton);
+    contentWrapper.appendChild(alertsButton);
     
     const favorites = getFavorites();
     if (favorites.length > 0) {
@@ -2257,12 +2300,13 @@ function showInMap() {
         favoritesSection.className = 'favorites-section';
         favoritesSection.innerHTML = '<h3>Mes arrêts favoris</h3>';
         
-        favorites.forEach(favorite => {
+        favorites.forEach((favorite, index) => {
             const favoriteItem = document.createElement('div');
             favoriteItem.className = 'bus-item favorite-item';
             favoriteItem.setAttribute('data-favorite-id', favorite.id);
             favoriteItem.style.backgroundColor = routes[favorite.routeId].route_color;
             favoriteItem.style.color = routes[favorite.routeId].route_text_color;
+            favoriteItem.style.animationDelay = `${index * 0.1}s`;
             
             favoriteItem.innerHTML = `
                 <div class="favorite-info">
@@ -2285,9 +2329,7 @@ function showInMap() {
             favoritesSection.appendChild(favoriteItem);
         });
 
-        container.appendChild(favoritesSection);
-        updateFavoritesRealtimeData();
-        startFavoritesUpdate();
+        contentWrapper.appendChild(favoritesSection);
     }
     
     const linesSection = document.createElement('div');
@@ -2296,14 +2338,15 @@ function showInMap() {
         linesSection.innerHTML = '<h3>Toutes les lignes</h3>';
     }
     
-    Object.entries(routes).forEach(([routeId, route]) => {
+    Object.entries(routes).forEach(([routeId, route], index) => {
         const lineItem = document.createElement('div');
         lineItem.className = 'bus-item';
+        lineItem.style.animationDelay = `${(favorites.length + index) * 0.1}s`;
         lineItem.innerHTML = `
             <div class="line-details">
                 <span class="line-number">Ligne ${route.short_name}</span>
             </div>
-            <div style="text-align: right;">${route.long_name.replace(/"/g, '')}</div>
+            <div style="text-align: right;">${route.long_name.replace(/\"/g, '')}</div>
         `;
         lineItem.style.backgroundColor = `${route.route_color}`;
         lineItem.style.color = `${route.route_text_color}`;
@@ -2311,7 +2354,8 @@ function showInMap() {
         linesSection.appendChild(lineItem);
     });
     
-    container.appendChild(linesSection);
+    contentWrapper.appendChild(linesSection);
+    container.appendChild(contentWrapper);
     
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('lines-view');
