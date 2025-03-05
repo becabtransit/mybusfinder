@@ -796,6 +796,7 @@ select:focus {
     transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1),
                 opacity 0.3s ease-out,
                 filter 0.3s ease-out;
+    overflow: hidden; 
 }
 
 .stops-timeline-menu.visible {
@@ -821,6 +822,7 @@ select:focus {
     flex: 1;
     overflow-y: auto;
     min-height: 0;
+    position: relative; 
 }
 
 .stops-timeline-content {
@@ -848,12 +850,6 @@ select:focus {
     padding: 5px;
     cursor: pointer;
     color: #666;
-}
-
-.stops-timeline-content {
-    padding: 20px;
-    overflow-y: auto;
-    max-height: calc(80vh - 60px);
 }
 
 .stops-timeline-line {
@@ -967,13 +963,6 @@ select:focus {
     opacity: 1;
 }
 
-.stops-timeline-line {
-    position: relative;
-    padding-left: 50px;
-    margin-bottom: 30px;
-    height: 100%;
-}
-
 .timeline-vertical-line {
     position: absolute;
     left: 20px;
@@ -1006,7 +995,6 @@ select:focus {
     flex-direction: column;
 }
 
-/* Mise à jour du style du bouton */
 .show-in-map-btn {
     margin: 20px;
     padding: 12px;
@@ -1029,6 +1017,11 @@ select:focus {
 
 .show-in-map-btn:active {
     transform: scale(0.95);
+}
+
+.current-stop {
+    background-color: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
 }
 
     </style>
@@ -1883,6 +1876,8 @@ function updateStopsTimeline() {
     `;
     timelineDiv.appendChild(busIndicator);
     
+    let currentStopElement = null;
+    
     tripStopsData.forEach((stopTime, index) => {
         const stopDiv = document.createElement('div');
         stopDiv.className = 'stop-item-timeline';
@@ -1896,14 +1891,32 @@ function updateStopsTimeline() {
         
         timelineDiv.appendChild(stopDiv);
         
+        if (index === Math.floor(currentPosition)) {
+            currentStopElement = stopDiv;
+            stopDiv.classList.add('current-stop');
+        }
+        
         setTimeout(() => {
             stopDiv.classList.add('visible');
         }, index * 50);
     });
     
     content.appendChild(timelineDiv);
-}
 
+    setTimeout(() => {
+        const wrapper = document.querySelector('.stops-timeline-wrapper');
+        if (currentStopElement && wrapper) {
+            const parentRect = wrapper.getBoundingClientRect();
+            const elementRect = currentStopElement.getBoundingClientRect();
+            const scrollTop = elementRect.top - parentRect.top - (parentRect.height / 2) + wrapper.scrollTop;
+            
+            wrapper.scrollTo({
+                top: scrollTop,
+                behavior: 'smooth'
+            });
+        }
+    }, 100);
+}
 function formatTime(time) {
     return time; 
 }
