@@ -1010,6 +1010,120 @@ select:focus {
     border-radius: 8px;
 }
 
+.select-menu {
+    padding: 15px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    margin: 15px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.select-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.select-wrapper::after {
+    content: "▼";
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
+    pointer-events: none;
+    font-size: 0.8em;
+    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.select-wrapper:hover::after {
+    transform: translateY(-50%) scale(1.1);
+}
+
+.custom-select {
+    width: 100%;
+    padding: 12px 35px 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-family: 'League Spartan', sans-serif;
+    font-size: 1em;
+    background-color: #f9f9f9;
+    cursor: pointer;
+    appearance: none;
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    color: #333;
+}
+
+.custom-select:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+    color: #999;
+}
+
+.custom-select:hover:not(:disabled) {
+    border-color: #363636;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.custom-select:focus {
+    outline: none;
+    border-color: #363636;
+    box-shadow: 0 0 0 3px rgba(54, 54, 54, 0.25);
+}
+
+/* Animation lors du chargement des options */
+.select-wrapper.loading::after {
+    content: "...";
+    animation: loading 1s infinite;
+}
+
+@keyframes loading {
+    0% { opacity: 0.3; }
+    50% { opacity: 1; }
+    100% { opacity: 0.3; }
+}
+
+/* Style pour les options du select */
+.custom-select option {
+    padding: 10px;
+    font-family: 'League Spartan', sans-serif;
+}
+
+/* Animation d'entrée */
+.select-menu {
+    animation: slideIn 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Effet de focus sur le wrapper */
+.select-wrapper:focus-within {
+    transform: translateY(-2px);
+}
+
+/* Style pour les options sélectionnées */
+.custom-select option:checked {
+    background-color: #363636;
+    color: white;
+}
+
+/* Style pour le survol des options */
+.custom-select option:hover {
+    background-color: #f5f5f5;
+}
+
     </style>
 </head>
 <body>
@@ -1045,6 +1159,25 @@ select:focus {
             <div class="textpop">
                 <h4>Sélectionnez une destination</h4>
                 <h1 id="route-title"></h1>
+            </div>
+            <div class="select-menu">
+                <div class="select-wrapper">
+                    <select id="line-select" class="custom-select">
+                        <option value="">Sélectionnez une ligne</option>
+                    </select>
+                </div>
+                
+                <div class="select-wrapper">
+                    <select id="destination-select" class="custom-select" disabled>
+                        <option value="">Sélectionnez une destination</option>
+                    </select>
+                </div>
+                
+                <div class="select-wrapper">
+                    <select id="stop-select" class="custom-select" disabled>
+                        <option value="">Sélectionnez un arrêt</option>
+                    </select>
+                </div>
             </div>
             <div id="destinations-container"></div>
         </div>
@@ -1189,12 +1322,118 @@ function stopRealtimeUpdates() {
     }
 }
 
+function initializeSelects() {
+    const lineSelect = document.getElementById('line-select');
+    const destinationSelect = document.getElementById('destination-select');
+    const stopSelect = document.getElementById('stop-select');
+
+    // Remplir la liste des lignes
+    Object.entries(routes).forEach(([routeId, route]) => {
+        const option = document.createElement('option');
+        option.value = routeId;
+        option.textContent = `Ligne ${route.short_name} - ${route.long_name.replace(/"/g, '')}`;
+        option.style.backgroundColor = route.route_color;
+        option.style.color = route.route_text_color;
+        lineSelect.appendChild(option);
+    });
+
+    // Événement de changement de ligne
+    lineSelect.addEventListener('change', function() {
+        const routeId = this.value;
+        destinationSelect.disabled = !routeId;
+        stopSelect.disabled = true;
+        
+        if (!routeId) {
+            destinationSelect.innerHTML = '<option value="">Sélectionnez une destination</option>';
+            stopSelect.innerHTML = '<option value="">Sélectionnez un arrêt</option>';
+            return;
+        }
+
+        updateDestinations(routeId);
+    });
+
+    // Événement de changement de destination
+    destinationSelect.addEventListener('change', function() {
+        const routeId = lineSelect.value;
+        const destinationId = this.value;
+        stopSelect.disabled = !destinationId;
+        
+        if (!destinationId) {
+            stopSelect.innerHTML = '<option value="">Sélectionnez un arrêt</option>';
+            return;
+        }
+
+        updateStops(routeId, destinationId);
+    });
+
+    // Événement de sélection d'arrêt
+    stopSelect.addEventListener('change', function() {
+        const routeId = lineSelect.value;
+        const destinationId = destinationSelect.value;
+        const stopId = this.value;
+        
+        if (stopId) {
+            showSchedule(routeId, stopId, destinationId);
+        }
+    });
+}
+
+function updateDestinations(routeId) {
+    const destinationSelect = document.getElementById('destination-select');
+    destinationSelect.innerHTML = '<option value="">Sélectionnez une destination</option>';
+    
+    const destinations = new Set();
+    
+    trips[routeId].forEach(({ trip_id }) => {
+        const tripStops = stopTimes[trip_id];
+        if (tripStops && tripStops.length > 0) {
+            const lastStop = tripStops[tripStops.length - 1].stop_id;
+            destinations.add(lastStop);
+        }
+    });
+    
+    Array.from(destinations).forEach(destinationId => {
+        const option = document.createElement('option');
+        option.value = destinationId;
+        option.textContent = stops[destinationId].replace(/"/g, '');
+        destinationSelect.appendChild(option);
+    });
+}
+
+function updateStops(routeId, destinationId) {
+    const stopSelect = document.getElementById('stop-select');
+    stopSelect.innerHTML = '<option value="">Sélectionnez un arrêt</option>';
+    
+    const stopSet = new Set();
+    
+    trips[routeId].forEach(({ trip_id }) => {
+        const tripStops = stopTimes[trip_id];
+        if (tripStops) {
+            const destIndex = tripStops.findIndex(stop => stop.stop_id === destinationId);
+            if (destIndex !== -1) {
+                for (let i = 0; i < destIndex; i++) {
+                    stopSet.add(tripStops[i].stop_id);
+                }
+            }
+        }
+    });
+    
+    Array.from(stopSet).forEach(stopId => {
+        const option = document.createElement('option');
+        option.value = stopId;
+        option.textContent = stops[stopId].replace(/"/g, '');
+        stopSelect.appendChild(option);
+    });
+}
+
+
         
         function loadData() {
             showView('loading-view');
             
 
                 loadGtfsData().then(() => {
+                    initializeSelects();
                     showLines();
                 }).catch(error => {
                     console.error('Erreur lors du chargement des données:', error);
