@@ -1107,7 +1107,7 @@ select:focus {
                 </button>
             </div>
             <div class="textpop">
-                <h4>Sélectionnez un arrêt</h4>
+                <h4>Sélectionnez un arrêt et une destination</h4>
                 <h1 id="destination-title"></h1>
             </div>
             <div class="destination-select-wrapper">
@@ -2128,7 +2128,7 @@ function showInMap() {
         `;
         lineItem.style.backgroundColor = `${route.route_color}`;
         lineItem.style.color = `${route.route_text_color}`;
-        lineItem.onclick = () => showDestinations(routeId);
+        lineItem.onclick = () => showStops(routeId);
         linesSection.appendChild(lineItem);
     });
     
@@ -2613,24 +2613,20 @@ function cleanup() {
 }
 
 function goBack() {
-            if (navigationHistory.length === 0) {
-                showLines();
-                return;
-            }
-            
-            const previousState = navigationHistory.pop();
-            
-            if (previousState.view === 'lines-view') {
-                showLines();
-            } else if (previousState.view === 'destinations-view') {
-                showDestinations(previousState.routeId);
-            } else if (previousState.view === 'stops-view') {
-                showStops(previousState.routeId, previousState.destinationId);
-                cleanup()
-            }
-        }
-
-
+    if (navigationHistory.length === 0) {
+        showLines();
+        return;
+    }
+    
+    const previousState = navigationHistory.pop();
+    
+    if (previousState.view === 'lines-view') {
+        showLines();
+    } else if (previousState.view === 'stops-view' && previousState.routeId) {
+        showStops(previousState.routeId);
+        cleanup();
+    }
+}
 
     </script>
 </body>
