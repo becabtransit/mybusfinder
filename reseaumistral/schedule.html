@@ -869,14 +869,7 @@ select:focus {
 .stop-item-timeline {
     padding: 15px 0;
     position: relative;
-    opacity: 0;
-    transform: translateX(-20px);
     transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.stop-item-timeline.visible {
-    opacity: 1;
-    transform: translateX(0);
 }
 
 @keyframes pulse {
@@ -952,6 +945,62 @@ select:focus {
 
 .overlay.visible {
     opacity: 1;
+}
+.stops-timeline-line {
+    position: relative;
+    padding-left: 50px;
+    margin-bottom: 30px;
+    height: 100%;
+}
+
+.timeline-vertical-line {
+    position: absolute;
+    left: 20px;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    border-radius: 2px;
+}
+
+.bus-position-indicator {
+    position: absolute;
+    left: 12px;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    z-index: 2;
+}
+
+.stops-timeline-content {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(80vh - 60px);
+    display: flex;
+    flex-direction: column;
+}
+
+.show-in-map-btn {
+    margin-top: 20px;
+    padding: 12px;
+    background: #363636;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    align-self: stretch;
+}
+
+.show-in-map-btn:hover {
+    background: #2c2c2c;
+    transform: scale(0.98);
 }
 
     </style>
@@ -1762,6 +1811,8 @@ function showStopsTimeline(vehicleId, tripId) {
     
     overlay.style.display = 'block';
     menu.style.display = 'block';
+    
+    // Force reflow
     menu.offsetHeight;
     
     overlay.classList.add('visible');
@@ -1770,10 +1821,11 @@ function showStopsTimeline(vehicleId, tripId) {
     
     updateStopsTimeline();
     
+    // Démarrer la mise à jour automatique
     if (updatePositionInterval) {
         clearInterval(updatePositionInterval);
     }
-    updatePositionInterval = setInterval(updateStopsTimeline, 10000); 
+    updatePositionInterval = setInterval(updateStopsTimeline, 10000);
 }
 
 function updateStopsTimeline() {
@@ -1781,73 +1833,53 @@ function updateStopsTimeline() {
     const tripStopsData = stopTimes[currentTripId];
     if (!tripStopsData) return;
     
-    const realtimeUpdates = getRealtimeUpdatesForTrip(currentTripId);
-    
     content.innerHTML = '';
     const timelineDiv = document.createElement('div');
     timelineDiv.className = 'stops-timeline-line';
     
+    // Créer la ligne verticale
     const verticalLine = document.createElement('div');
     verticalLine.className = 'timeline-vertical-line';
     verticalLine.style.background = routes[currentRouteId].route_color;
     timelineDiv.appendChild(verticalLine);
     
-    const progressLine = document.createElement('div');
-    progressLine.className = 'timeline-progress';
-    progressLine.style.background = routes[currentRouteId].route_color;
-    timelineDiv.appendChild(progressLine);
+    // Position actuelle du bus
+    const currentPosition = calculateBusPosition(tripStopsData);
     
-    const currentPosition = calculateBusPosition(tripStopsData, realtimeUpdates);
-    const progress = (currentPosition / (tripStopsData.length - 1)) * 100;
-    
-    setTimeout(() => {
-        progressLine.style.transform = `scaleY(${progress}%)`;
-    }, 100);
-    
-    let busIndicator;
+    // Créer l'indicateur de bus
+    const busIndicator = document.createElement('div');
+    busIndicator.className = 'bus-position-indicator visible moving';
+    busIndicator.style.top = `${(currentPosition / (tripStopsData.length - 1)) * 100}%`;
+    busIndicator.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="${routes[currentRouteId].route_color}">
+            <path d="M4 16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v10zm2-10h12v8H6V6z"/>
+        </svg>
+    `;
+    timelineDiv.appendChild(busIndicator);
     
     tripStopsData.forEach((stopTime, index) => {
         const stopDiv = document.createElement('div');
         stopDiv.className = 'stop-item-timeline';
         
-        if (index === currentPosition) {
-            busIndicator = document.createElement('div');
-            busIndicator.className = 'bus-position-indicator';
-            busIndicator.innerHTML = `
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="${routes[currentRouteId].route_color}">
-                    <path d="M4 16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v10zm2-10h12v8H6V6z"/>
-                </svg>
-            `;
-            stopDiv.appendChild(busIndicator);
-        }
+        const time = formatTime(stopTime.arrival_time);
         
-        const realtimeTime = realtimeUpdates[stopTime.stop_id];
-        const displayTime = realtimeTime || stopTime.arrival_time;
-        
-        stopDiv.innerHTML += `
+        stopDiv.innerHTML = `
             <div class="stop-name">${stops[stopTime.stop_id].replace(/"/g, '')}</div>
-            <div class="stop-time">${displayTime}</div>
+            <div class="stop-time">${time}</div>
         `;
         
         timelineDiv.appendChild(stopDiv);
         
         setTimeout(() => {
             stopDiv.classList.add('visible');
-        }, index * 100);
+        }, index * 50);
     });
     
     content.appendChild(timelineDiv);
-    
-    if (busIndicator) {
-        setTimeout(() => {
-            busIndicator.classList.add('visible', 'moving');
-        }, 300);
-    }
-    
-    const showInMapBtn = document.querySelector('.show-in-map-btn');
-    setTimeout(() => {
-        showInMapBtn.classList.add('visible');
-    }, tripStopsData.length * 100 + 300);
+}
+
+function formatTime(time) {
+    return time; 
 }
 
 function closeStopsTimeline() {
@@ -1875,7 +1907,11 @@ function closeStopsTimeline() {
 function getRealtimeUpdatesForTrip(tripId) {
     const updates = {};
     try {
-        realtimeData.entity.forEach(entity => {
+        if (!window.realtimeData || !window.realtimeData.entity) {
+            return updates;
+        }
+        
+        window.realtimeData.entity.forEach(entity => {
             if (entity.tripUpdate && entity.tripUpdate.trip.tripId === tripId) {
                 entity.tripUpdate.stopTimeUpdate.forEach(update => {
                     if (update.arrival && update.arrival.time) {
@@ -1891,24 +1927,17 @@ function getRealtimeUpdatesForTrip(tripId) {
     return updates;
 }
 
-function calculateBusPosition(tripStopsData, realtimeUpdates) {
+function calculateBusPosition(tripStopsData) {
     const now = new Date();
-    const currentTime = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
     
-    for (let i = 0; i < tripStopsData.length - 1; i++) {
-        const currentStop = tripStopsData[i];
-        const nextStop = tripStopsData[i + 1];
+    for (let i = 0; i < tripStopsData.length; i++) {
+        const stopTime = tripStopsData[i];
+        const [hours, minutes] = stopTime.arrival_time.split('h').map(Number);
+        const stopTimeInMinutes = hours * 60 + minutes;
         
-        const currentStopTime = getTimeInSeconds(realtimeUpdates[currentStop.stop_id] || currentStop.arrival_time);
-        const nextStopTime = getTimeInSeconds(realtimeUpdates[nextStop.stop_id] || nextStop.arrival_time);
-        
-        if (currentTime >= currentStopTime && currentTime <= nextStopTime) {
-            const progress = (currentTime - currentStopTime) / (nextStopTime - currentStopTime);
-            return i + progress;
-        }
-        
-        if (currentTime < currentStopTime) {
-            return i;
+        if (stopTimeInMinutes > currentTime) {
+            return Math.max(0, i - 1);
         }
     }
     
