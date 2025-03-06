@@ -3203,85 +3203,166 @@ const menubottom1 = document.getElementById('menubtm');
 
 
 let lastTripUpdateTimestamp = 0;
+// Constantes pour l'optimisation et la configuration
+const TIME_FORMAT_OPTIONS = { hour: '2-digit', minute: '2-digit' };
+const TIME_CACHE = new Map(); // Cache pour les horodatages formatés
+const STOP_ID_CACHE = new Map(); // Cache pour les IDs d'arrêts nettoyés
+const UPDATE_THRESHOLD = 30; // Seuil en secondes pour considérer une mise à jour comme pertinente
+
+/**
+ * Formate et met en cache un horodatage
+ * @param {number} timestamp - Horodatage UNIX
+ * @returns {string} - Heure formatée
+ */
+function getCachedFormattedTime(timestamp) {
+    if (!timestamp) return "Heure inconnue";
+    
+    const cached = TIME_CACHE.get(timestamp);
+    if (cached) return cached;
+    
+    const formatted = new Date(timestamp * 1000).toLocaleTimeString([], TIME_FORMAT_OPTIONS);
+    TIME_CACHE.set(timestamp, formatted);
+    
+    return formatted;
+}
+
+/**
+ * Nettoie et met en cache un ID d'arrêt
+ * @param {string} stopId - ID d'arrêt brut
+ * @returns {string} - ID d'arrêt nettoyé
+ */
+function getCleanStopId(stopId) {
+    const cached = STOP_ID_CACHE.get(stopId);
+    if (cached) return cached;
+    
+    const cleaned = stopId.replace(/^0:/, "");
+    STOP_ID_CACHE.set(stopId, cleaned);
+    
+    return cleaned;
+}
+
+/**
+ * Traite les informations d'un arrêt
+ * @param {Object} stop - Données de l'arrêt
+ * @param {number} now - Horodatage actuel
+ * @returns {Object} - Informations traitées de l'arrêt
+ */
+function processStopUpdate(stop, now) {
+    const stopId = getCleanStopId(stop.stopId);
+    const arrival = stop.arrival?.time ?? null;
+    const departure = stop.departure?.time ?? null;
+    const delay = stop.arrival?.delay ?? stop.departure?.delay ?? 0;
+    
+    // Détermine l'heure la plus pertinente (arrivée ou départ)
+    const relevantTime = arrival || departure;
+    const formattedTime = getCachedFormattedTime(relevantTime);
+    
+    // Calcule si l'arrêt est dépassé
+    const isPassed = relevantTime && relevantTime < now;
+    
+    return {
+        stopId,
+        scheduledTime: formattedTime,
+        delay,
+        isPassed,
+        estimatedTime: relevantTime ? getCachedFormattedTime(relevantTime + delay) : "Heure inconnue",
+        isRealtime: Boolean(delay || delay === 0)
+    };
+}
+
+/**
+ * Récupère et traite les mises à jour GTFS-RT TripUpdates
+ * @returns {Promise<Object>} - Mises à jour traitées
+ */
 async function fetchTripUpdates() {
     try {
-        const response = await fetch('proxy-cors/proxy_tripupdate.php');
+        const response = await fetch('proxy-cors/proxy_tripupdate.php', {
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
+        const now = Math.floor(Date.now() / 1000);
+        
+        // Nettoyage du cache des heures toutes les 5 minutes
+        if (TIME_CACHE.size > 1000) TIME_CACHE.clear();
+        
+        const processedUpdates = {};
 
-        // Process trip updates directly instead of using a worker
-        const now = Date.now() / 1000;
-        const processedTripUpdates = {};
-
-        // Process each entity
         for (const entity of data.entity) {
             const { tripUpdate } = entity;
             if (!tripUpdate?.stopTimeUpdate?.length) continue;
 
             const { trip, stopTimeUpdate: stops } = tripUpdate;
-            const processedStops = [];
-            const arrivalDelays = {};
+            const tripId = trip.tripId;
+            const routeId = trip.routeId;
+            
+            // Filtre et traite les arrêts pertinents
+            const relevantStops = stops
+                .filter(stop => {
+                    const timeStamp = stop.arrival?.time || stop.departure?.time;
+                    return timeStamp && (timeStamp + UPDATE_THRESHOLD) >= now;
+                })
+                .map(stop => processStopUpdate(stop, now));
 
-            // Process each stop
-            for (const stop of stops) {
-                const stopId = stop.stopId.replace("0:", "");
-                const arrivalTime = stop.arrival?.time ?? null;
-                const departureTime = stop.departure?.time ?? null;
+            if (relevantStops.length === 0) continue;
 
-                // Format times
-                const formattedArrivalTime = arrivalTime ? 
-                    new Date(arrivalTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
-                    "Heure inconnue";
-                
-                const formattedDepartureTime = departureTime ? 
-                    new Date(departureTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
-                    "Heure inconnue";
+            // Calcule les statistiques du trajet
+            const delays = relevantStops.map(stop => stop.delay).filter(d => d !== null);
+            const averageDelay = delays.length > 0 
+                ? Math.round(delays.reduce((a, b) => a + b, 0) / delays.length) 
+                : 0;
 
-                const processedStop = {
-                    stopId,
-                    arrivalTime: formattedArrivalTime,
-                    departureTime: formattedDepartureTime,
-                    unifiedTime: formattedArrivalTime !== "Heure inconnue" ? formattedArrivalTime : formattedDepartureTime
-                };
-
-                if (arrivalTime) {
-                    const delay = arrivalTime - now;
-                    processedStop.delay = delay;
-                    arrivalDelays[stopId] = delay;
-                }
-
-                processedStops.push(processedStop);
-            }
-
-            const lastStopId = processedStops[processedStops.length - 1]?.stopId ?? "Inconnu";
-
-            processedTripUpdates[trip.tripId] = {
-                stopUpdates: processedStops,
-                lastStopId,
-                nextStops: processedStops,
-                arrivalDelays
+            processedUpdates[tripId] = {
+                routeId,
+                tripId,
+                startTime: trip.startTime,
+                startDate: trip.startDate,
+                stops: relevantStops,
+                lastStopId: relevantStops[relevantStops.length - 1].stopId,
+                nextStops: relevantStops.filter(stop => !stop.isPassed),
+                averageDelay,
+                updateTimestamp: now,
+                isActive: relevantStops.some(stop => !stop.isPassed)
             };
         }
 
-        // Update the global tripUpdates variable
-        tripUpdates = processedTripUpdates;
-        return processedTripUpdates;
+        // Met à jour la variable globale
+        tripUpdates = processedUpdates;
+        
+        // Log des statistiques pour le debugging
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`Processed ${Object.keys(processedUpdates).length} active trips`);
+        }
+
+        return processedUpdates;
 
     } catch (error) {
-        console.error('Erreur récupération trip updates !', error);
+        console.error('Erreur lors de la récupération des trip updates:', error);
+        toastBottomRight.error(
+            'Erreur de mise à jour des horaires en temps réel. Réessai dans quelques secondes...'
+        );
         throw error;
     }
 }
 
+
 function fetchAndScheduleNext() {
-    fetchTripUpdates()
-        .then(() => {
-            fetchAndScheduleNext();
-        })
-        .catch(error => {
-            toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : trip updates fetching error');
-            setTimeout(fetchAndScheduleNext, 1000);
-        });
+  fetchTripUpdates()
+    .then(() => {
+      fetchAndScheduleNext();
+    })
+    .catch(error => {
+        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : trip updates fetching error');
+      setTimeout(fetchAndScheduleNext, 1000);
+    });
 }
 
 
