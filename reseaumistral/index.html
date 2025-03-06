@@ -3168,25 +3168,6 @@ function updateMenu() {
     transportStateContainer.appendChild(transportStateTextContainer);
     menu.appendChild(transportStateContainer);
 
-    Object.keys(markers).forEach(id => {
-        const vehicle = markers[id];
-        const line = vehicle.line;
-        const destination = vehicle.getPopup().getContent().match(/Destination\s*<strong.*?>(.*?)<\/strong>/)?.[1] || "Inconnue";
-
-        if (!busesByLineAndDestination[line]) {
-            busesByLineAndDestination[line] = {};
-        }
-
-        if (!busesByLineAndDestination[line][destination]) {
-            busesByLineAndDestination[line][destination] = [];
-        }
-
-        busesByLineAndDestination[line][destination].push({
-            parkNumber: vehicle.id,
-            vehicle
-        });
-    });
-
     // Ajout du bouton de localisation
     const locationButton = document.createElement('div');
     locationButton.className = 'alerts-button';
@@ -3264,7 +3245,42 @@ function updateMenu() {
 
     const busesByLineAndDestination = {};
 
+    Object.keys(markers).forEach(id => {
+    const vehicle = markers[id];
+    const line = vehicle.line;
+    
+    let destination = "Inconnue";
+    const popupContent = vehicle.getPopup().getContent();
+    
+    const patterns = [
+        /<strong[^>]*>➜\s*(.*?)<\/strong>/,
+        />➜\s*(.*?)</,
+        /Ligne \d+<\/p>\s*<strong[^>]*>➜\s*(.*?)<\/strong>/
+    ];
 
+    for (const pattern of patterns) {
+        const match = popupContent.match(pattern);
+        if (match && match[1]) {
+            destination = match[1].trim();
+            if (destination.toLowerCase() !== 'inconnue') {
+                break;
+            }
+        }
+    }
+
+    if (!busesByLineAndDestination[line]) {
+        busesByLineAndDestination[line] = {};
+    }
+
+    if (!busesByLineAndDestination[line][destination]) {
+        busesByLineAndDestination[line][destination] = [];
+    }
+
+    busesByLineAndDestination[line][destination].push({
+        parkNumber: vehicle.id,
+        vehicle
+    });
+});
 
     const sortedLines = Object.keys(busesByLineAndDestination)
         .sort((a, b) => {
