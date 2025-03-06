@@ -3224,31 +3224,137 @@ function getEmojiForEffect(effect) {
 
 
 let lastTripUpdateTimestamp = 0;
-const worker = new Worker('worker.js');
 
 async function fetchTripUpdates() {
     try {
         const response = await fetch('proxy-cors/proxy_tripupdate.php');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const buffer = await response.arrayBuffer();
-        const data = await decodeProtobuf(buffer);
-
-        return new Promise((resolve, reject) => {
-            worker.onmessage = (e) => {
-                tripUpdates = e.data; 
-                resolve(e.data);
-            };
-            
-            worker.onerror = (error) => {
-                reject(new Error(`Erreur du worker: ${error.message}`));
-            };
-            
-            worker.postMessage(data);
-        });
+        
+        const root = await protobuf.load('gtfs-realtime.proto');
+        const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
+        const message = FeedMessage.decode(new Uint8Array(buffer));
+        
+        lastTripUpdateTimestamp = message.header.timestamp;
+        
+        const tripUpdates = processTripUpdates(message);
+        
+        return tripUpdates;
     } catch (error) {
-        console.error('Err récup trip updates !', error);
+        console.error('Err récup trip updates ! ', error);
         throw error;
     }
 }
+
+function processTripUpdates(data) {
+    const tripUpdates = Object.create(null);
+    const now = Date.now() / 1000;
+    
+    const timeFormatCache = new Map();
+    const stopIdCache = Object.create(null);
+    
+    const entities = data.entity;
+    const entityLength = entities.length;
+    
+    for (let i = 0; i < entityLength; i++) {
+        const entity = entities[i];
+        if (!entity.tripUpdate?.stopTimeUpdate?.length) continue;
+        
+        const tripUpdate = entity.tripUpdate;
+        const trip = tripUpdate.trip;
+        const tripId = trip.tripId;
+        
+        const stops = tripUpdate.stopTimeUpdate;
+        const stopsLength = stops.length;
+        
+        const processedStops = new Array(stopsLength);
+        const arrivalDelays = Object.create(null);
+        
+        const vehicleId = tripUpdate.vehicle ? 
+                         tripUpdate.vehicle.id || 
+                         tripUpdate.vehicle.label || 
+                         'inconnu' : 'inconnu';
+        
+        for (let j = 0; j < stopsLength; j++) {
+            const stop = stops[j];
+            const rawStopId = stop.stopId;
+            
+            let stopId = stopIdCache[rawStopId];
+            if (!stopId) {
+                stopId = rawStopId.replace("0:", "");
+                stopIdCache[rawStopId] = stopId;
+            }
+            
+            const arrivalTime = stop.arrival?.time ?? null;
+            const departureTime = stop.departure?.time ?? null;
+            
+            processedStops[j] = {
+                stopId,
+                arrivalTime: formatTime(arrivalTime, timeFormatCache),
+                departureTime: formatTime(departureTime, timeFormatCache),
+                unifiedTime: formatTime(arrivalTime || departureTime, timeFormatCache),
+                delay: calculateDelay(arrivalTime, stopId, tripId)
+            };
+            
+            if (arrivalTime) {
+                arrivalDelays[stopId] = arrivalTime - now;
+            }
+        }
+        
+        const lastStop = stops[stopsLength - 1];
+        const lastStopId = stopIdCache[lastStop.stopId] || 
+                          (stopIdCache[lastStop.stopId] = lastStop.stopId.replace("0:", ""));
+        
+        tripUpdates[tripId] = {
+            stopUpdates: processedStops,
+            lastStopId,
+            nextStops: processedStops,
+            arrivalDelays,
+            vehicleId 
+        };
+    }
+    
+    return tripUpdates;
+}
+
+function formatTime(timestamp, cache) {
+    if (!timestamp) return "Heure inconnue";
+    
+    const cachedTime = cache.get(timestamp);
+    if (cachedTime) return cachedTime;
+    
+    const date = new Date(timestamp * 1000);
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const formattedTime = `${hours}:${minutes}`;
+    
+    cache.set(timestamp, formattedTime);
+    return formattedTime;
+}
+
+function calculateDelay(arrivalTime, stopId, tripId) {
+    if (!arrivalTime) return 0;
+    
+    const theoreticalTime = getTheoreticalTime(tripId, stopId);
+    if (!theoreticalTime) return 0;
+    
+    return Math.round((arrivalTime * 1000 - theoreticalTime.getTime()) / 60000);
+}
+
+function getTheoreticalTime(tripId, stopId) {
+    const tripStopTimes = stopTimes[tripId];
+    if (!tripStopTimes) return null;
+
+    const stopTime = tripStopTimes.find(st => st.stop_id === stopId);
+    if (!stopTime) return null;
+
+    const [hours, minutes] = stopTime.arrival_time.split('h').map(Number);
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+}
+
 
 async function main() {
     try {                
