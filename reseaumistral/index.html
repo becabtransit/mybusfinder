@@ -3203,192 +3203,57 @@ const menubottom1 = document.getElementById('menubtm');
 
 
 let lastTripUpdateTimestamp = 0;
-// Constantes pour les formats de temps et messages d'erreur
-const TIME_FORMAT = {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-};
+const tripUpdatesWorker = new Worker('worker.js');
+let lastUpdateTime = 0;
+const MIN_UPDATE_INTERVAL = 8000; 
 
-// Cache pour les timestamps et les stopIds pour éviter les conversions répétées
-const timeCache = new Map();
-const stopIdCache = new Map();
-
-/**
- * Convertit un timestamp en heure formatée avec cache
- * @param {number} timestamp - Timestamp UNIX
- * @returns {string} Heure formatée
- */
-function formatTimeWithCache(timestamp) {
-    if (!timestamp) return "Heure inconnue";
-    
-    const cached = timeCache.get(timestamp);
-    if (cached) return cached;
-    
-    const formatted = new Date(timestamp * 1000).toLocaleTimeString([], TIME_FORMAT);
-    timeCache.set(timestamp, formatted);
-    
-    // Limiter la taille du cache pour éviter les fuites mémoire
-    if (timeCache.size > 1000) {
-        const firstKey = timeCache.keys().next().value;
-        timeCache.delete(firstKey);
-    }
-    
-    return formatted;
-}
-
-/**
- * Nettoie et met en cache un stopId
- * @param {string} rawStopId - StopId brut du flux GTFS-RT
- * @returns {string} StopId nettoyé
- */
-function cleanStopId(rawStopId) {
-    if (!rawStopId) return "Inconnu";
-    
-    const cached = stopIdCache.get(rawStopId);
-    if (cached) return cached;
-    
-    const cleaned = rawStopId.replace(/^0:/, "");
-    stopIdCache.set(rawStopId, cleaned);
-    return cleaned;
-}
-
-/**
- * Traite un arrêt individuel du flux GTFS-RT
- * @param {Object} stop - Objet arrêt du flux GTFS-RT
- * @param {number} now - Timestamp actuel
- * @returns {Object} Arrêt traité
- */
-function processStop(stop, now) {
-    const stopId = cleanStopId(stop.stopId);
-    const arrival = stop.arrival?.time;
-    const departure = stop.departure?.time;
-    
-    // Utiliser le temps le plus pertinent disponible
-    const relevantTime = arrival || departure;
-    const delay = arrival ? arrival - now : null;
-    
-    return {
-        stopId,
-        arrivalTime: formatTimeWithCache(arrival),
-        departureTime: formatTimeWithCache(departure),
-        unifiedTime: formatTimeWithCache(relevantTime),
-        delay,
-        timestamp: relevantTime // Conservé pour le tri
-    };
-}
-
-/**
- * Fonction principale de récupération et traitement des TripUpdates
- */
 async function fetchTripUpdates() {
     try {
-        const startTime = performance.now();
-        
-        // Récupération et décodage des données
+        const now = Date.now();
+        if (now - lastUpdateTime < MIN_UPDATE_INTERVAL) {
+            return;
+        }
+
         const response = await fetch('proxy-cors/proxy_tripupdate.php');
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
-        
-        const now = Math.floor(Date.now() / 1000);
-        const processedUpdates = new Map();
-        
-        // Pré-allouer les tableaux pour les performances
-        const entities = data.entity;
-        const entitiesLength = entities.length;
-        
-        // Traitement optimisé des entités
-        for (let i = 0; i < entitiesLength; i++) {
-            const { tripUpdate } = entities[i];
-            if (!tripUpdate?.stopTimeUpdate?.length) continue;
-            
-            const { trip, stopTimeUpdate } = tripUpdate;
-            const tripId = trip.tripId;
-            
-            // Pré-allouer le tableau des arrêts
-            const stopsLength = stopTimeUpdate.length;
-            const processedStops = new Array(stopsLength);
-            const arrivalDelays = new Map();
-            
-            // Traitement en batch des arrêts
-            let validStopsCount = 0;
-            for (let j = 0; j < stopsLength; j++) {
-                const stop = stopTimeUpdate[j];
-                if (!stop) continue;
+
+        return new Promise((resolve, reject) => {
+            tripUpdatesWorker.onmessage = function(e) {
+                const { tripUpdates: updates, processTime } = e.data;
                 
-                const processedStop = processStop(stop, now);
-                if (processedStop.timestamp && processedStop.timestamp >= now) {
-                    processedStops[validStopsCount++] = processedStop;
-                    
-                    if (processedStop.delay !== null) {
-                        arrivalDelays.set(processedStop.stopId, processedStop.delay);
-                    }
+                if (processTime > 100) {
+                    console.warn(`TripUpdates processing took ${processTime.toFixed(2)}ms`);
                 }
-            }
-            
-            // Nettoyer les entrées nulles si nécessaire
-            if (validStopsCount < stopsLength) {
-                processedStops.length = validStopsCount;
-            }
-            
-            // Trier les arrêts par timestamp si nécessaire
-            if (validStopsCount > 1) {
-                processedStops.sort((a, b) => a.timestamp - b.timestamp);
-            }
-            
-            const lastStopId = processedStops[validStopsCount - 1]?.stopId ?? "Inconnu";
-            
-            processedUpdates.set(tripId, {
-                stopUpdates: processedStops,
-                lastStopId,
-                nextStops: processedStops,
-                arrivalDelays: Object.fromEntries(arrivalDelays)
-            });
-        }
-        
-        // Mise à jour de la variable globale
-        tripUpdates = Object.fromEntries(processedUpdates);
-        
-        const processTime = performance.now() - startTime;
-        if (processTime > 100) {
-            console.warn(`TripUpdates processing took ${processTime.toFixed(2)}ms`);
-        }
-        
-        return tripUpdates;
-        
+                
+                tripUpdates = updates; 
+                lastUpdateTime = now;
+                resolve(updates);
+            };
+
+            tripUpdatesWorker.onerror = function(error) {
+                reject(new Error('Worker error: ' + error.message));
+            };
+
+            tripUpdatesWorker.postMessage(data);
+        });
+
     } catch (error) {
         console.error('Erreur récupération trip updates:', error);
         throw error;
     }
 }
 
-// Nettoyage périodique des caches
-setInterval(() => {
-    const now = Date.now() / 1000;
-    for (const [timestamp] of timeCache) {
-        if (timestamp < now - 3600) { // Supprimer les entrées plus vieilles d'une heure
-            timeCache.delete(timestamp);
-        }
-    }
-}, 300000); // Toutes les 5 minutes
-
-let updateInterval = 8000; // Intervalle initial de 8 secondes
-
 function fetchAndScheduleNext() {
-    const startTime = performance.now();
-    
     fetchTripUpdates()
         .then(() => {
-            const processingTime = performance.now() - startTime;
-            // Ajuster l'intervalle en fonction du temps de traitement
-            updateInterval = Math.max(8000, Math.min(15000, processingTime * 4));
-            setTimeout(fetchAndScheduleNext, updateInterval);
+            setTimeout(fetchAndScheduleNext, MIN_UPDATE_INTERVAL);
         })
         .catch(error => {
             toastBottomRight.error('Erreur de mise à jour des horaires.');
-            setTimeout(fetchAndScheduleNext, 15000); // Intervalle plus long en cas d'erreur
+            setTimeout(fetchAndScheduleNext, 15000); 
         });
 }
 
