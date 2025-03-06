@@ -1,8 +1,4 @@
-// Pré-allocation des Maps pour éviter les réallocations
-const timestampCache = new Map();
-const stopIdCache = new Map();
-const timeFormatOptions = { hour: '2-digit', minute: '2-digit' };
-
+// worker.js
 self.onmessage = ({ data }) => {
     const processedData = processTripUpdates(data);
     self.postMessage(processedData);
@@ -12,47 +8,44 @@ function processTripUpdates(data) {
     const tripUpdates = Object.create(null);
     const now = Date.now() / 1000;
 
-    // Pré-allouer la taille du tableau
-    const entities = data.entity;
-    const len = entities.length;
+    const localCache = {
+        timestampCache: new Map(),
+        stopIdCache: new Map()
+    };
 
-    for (let i = 0; i < len; i++) {
-        const tripUpdate = entities[i].tripUpdate;
+    for (let i = 0, len = data.entity.length; i < len; i++) {
+        const { tripUpdate } = data.entity[i];
         if (!tripUpdate?.stopTimeUpdate?.length) continue;
 
         const { trip, stopTimeUpdate: stops } = tripUpdate;
         const tripId = trip.tripId;
-        const stopsLength = stops.length;
-        
-        // Pré-allouer les tableaux
-        const processedStops = new Array(stopsLength);
+
+        const processedStops = [];
         const arrivalDelays = Object.create(null);
         let lastStopId = 'Inconnu';
 
-        for (let j = 0; j < stopsLength; j++) {
+        for (let j = 0, stopLen = stops.length; j < stopLen; j++) {
             const stop = stops[j];
-            // Optimisation de la recherche dans le cache
-            let stopId = stopIdCache.get(stop.stopId);
-            if (!stopId) {
-                stopId = stop.stopId.replace("0:", "");
-                stopIdCache.set(stop.stopId, stopId);
-            }
-
+            const stopId = localCache.stopIdCache.get(stop.stopId) || 
+                           localCache.stopIdCache.set(stop.stopId, stop.stopId.replace("0:", "")).get(stop.stopId);
+            
             const arrivalTime = stop.arrival?.time ?? null;
             const departureTime = stop.departure?.time ?? null;
 
-            processedStops[j] = {
+            const processedStop = {
                 stopId,
-                arrivalTime: formatTime(arrivalTime),
-                departureTime: formatTime(departureTime),
-                unifiedTime: formatTime(arrivalTime || departureTime)
+                arrivalTime: formatTime(arrivalTime, localCache.timestampCache),
+                departureTime: formatTime(departureTime, localCache.timestampCache),
+                unifiedTime: formatTime(arrivalTime || departureTime, localCache.timestampCache)
             };
+
+            processedStops.push(processedStop);
 
             if (arrivalTime) {
                 arrivalDelays[stopId] = arrivalTime - now;
             }
 
-            if (j === stopsLength - 1) {
+            if (j === stops.length - 1) {
                 lastStopId = stopId;
             }
         }
@@ -68,14 +61,18 @@ function processTripUpdates(data) {
     return tripUpdates;
 }
 
-function formatTime(timestamp) {
+function formatTime(timestamp, cache) {
     if (!timestamp) return "Heure inconnue";
 
-    let formatted = timestampCache.get(timestamp);
-    if (formatted) return formatted;
+    if (cache.has(timestamp)) {
+        return cache.get(timestamp);
+    }
 
-    formatted = new Date(timestamp * 1000).toLocaleTimeString([], timeFormatOptions);
-    timestampCache.set(timestamp, formatted);
-    
-    return formatted;
+    const formattedTime = new Date(timestamp * 1000).toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+
+    cache.set(timestamp, formattedTime);
+    return formattedTime;
 }
