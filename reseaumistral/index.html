@@ -1968,13 +1968,18 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
 
     const arrowStyle = `
         position: absolute;
-        width: 0;
-        height: 0;
-        border-left: 6px solid transparent;
-        border-right: 6px solid transparent;
-        border-bottom: 12px solid ${color};
-        transform-origin: center bottom;
-        transform: translateX(-6px) translateY(-20px) rotate(${bearing}deg);
+        color: ${color};
+        font-size: 24px;
+        font-weight: bold;
+        left: -12px;
+        top: -12px;
+        transform-origin: center center;
+        transform: rotate(${bearing}deg);
+        text-shadow: 
+            -1px -1px 0 #fff,
+            1px -1px 0 #fff,
+            -1px 1px 0 #fff,
+            1px 1px 0 #fff;
     `;
 
     const icon = L.divIcon({
@@ -1982,13 +1987,14 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         iconAnchor: [0, 0],
         popupAnchor: [0, 5],
         html: `
-            <span style="${markerHtmlStyles}" class="marker-icon" />
-            <span style="${arrowStyle}" class="marker-arrow" />
+            <div style="position: relative;">
+                <span style="${arrowStyle}" class="marker-arrow">&gt;</span>
+                <span style="${markerHtmlStyles}" class="marker-icon" />
+            </div>
         `
     });
 
-    const marker = L.marker([lat, lon], { icon });
-    
+    const marker = L.marker([lat, lon], { icon });    
     const styleId = generateUniqueId();
     
     marker.on('popupopen', function(e) {
@@ -2733,8 +2739,10 @@ filteredStops.forEach(stop => {
                 `;
                 if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
-    markers[id].getElement().querySelector('.marker-arrow').style.transform = 
-        `translateX(-6px) translateY(-20px) rotate(${bearing}deg)`;
+    const arrowElement = markers[id].getElement().querySelector('.marker-arrow');
+    if (arrowElement) {
+        arrowElement.style.transform = `rotate(${bearing}deg)`;
+    }
 
     const existingPopup = markers[id].getPopup();
     const currentContent = existingPopup ? existingPopup.getContent() : '';
