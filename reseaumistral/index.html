@@ -2427,99 +2427,102 @@ async function fetchVehiclePositions() {
                 }
                 
                 const popupContent = `
-    <div style="position: relative; font-family: 'League Spartan', sans-serif; line-height: 1.4; color: ${textColor}; border-radius: 15px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25); overflow: hidden; background-color: ${backgroundColor}88; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-        
-        <!-- En-tête avec numéro de ligne -->
-        <div style="position: relative; padding: 15px; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.2); border-radius: 12px; margin: 8px; background-color: ${backgroundColor}aa;">
-            <!-- Texte principal -->
-            <div style="z-index: 2; text-align: left; width: 100%;">
-                <strong style="font-size: 22px; display: block; margin-bottom: 5px;">Ligne ${lineName[line] || "interne au réseau"}</strong>
-                <p style="margin: 0; font-size: 15px; margin-bottom: 3px;">➜ Destination <strong>${lastStopName}</strong></p>
-                <p style="margin: 0; font-size: 15px;">🏁 Arrivée au terminus dans <strong>${remainingTimeMessage}</strong></p>
-            </div>
+                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; line-height: 1.4; color: #333; border-radius: 15px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); overflow: hidden; background-color: ${backgroundColor}77; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+                        
+                        <!-- En-tête avec numéro de parc en arrière-plan -->
+                <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
+                    <!-- Texte principal -->
+                    <div style="z-index: 2; text-align: left; width: 100%;">
+                        <strong style="font-size: 20px;">Ligne ${lineName[line] || "interne au réseau"}</strong>
+                        <p style="margin: 0; font-size: 14px;">➜ Destination <strong style="color: ${textColor};">${lastStopName}</strong></p>
+                        <p style="margin: 0; font-size: 14px;">🏁 Arrivée au terminus dans <strong style="color: ${textColor};">${remainingTimeMessage}</strong></p>
+                    </div>
 
-            <!-- Texte en arrière-plan -->
-            <div style="
-                position: absolute;
-                right: 10px;
-                top: 0;
-                bottom: 0;
-                z-index: 1;
-                opacity: 0.1;
-                font-size: 100px;
-                font-weight: bold;
-                display: flex;
-                align-items: center;
-                justify-content: flex-end;
-                white-space: nowrap;
-            ">
-                ${lineName[line] || "🚌"}
-            </div>
-        </div>
-
-        <!-- Informations sur le véhicule -->
-        <div style="padding: 0 15px; margin-bottom: 15px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <span style="
-                    background: #00000077;
-                    color: #ffffff;
-                    padding: 6px 12px;
-                    border-radius: 10px;
-                    font-size: 14px;
-                    -webkit-backdrop-filter: blur(8px);
-                ">
-                    Véhicule ${vehicle.vehicle.label}
-                </span>
-                <div style="text-align: right;">
-                    ${vehicleBrandHtml}
+                    <!-- Texte en arrière-plan -->
+                    <div style="
+                        position: absolute;
+                        right: 10px;
+                        top: 0;
+                        bottom: 0;
+                        z-index: 1;
+                        opacity: 0.1;
+                        font-size: 100px;
+                        font-weight: bold;
+                        color: ${textColor};
+                        display: flex;
+                        align-items: center;
+                        justify-content: flex-end;
+                        white-space: nowrap;
+                    ">
+                        Ligne ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Badges des options du véhicule -->
-            <div style="
-                display: flex;
-                gap: 10px;
-                padding: 5px 0;
-                white-space: nowrap;
-                overflow-x: auto;
-                scrollbar-width: thin; 
-                scrollbar-color: ${textColor}44 transparent;
-            " class="custom-scrollbar">
-                ${vehicleOptionsBadges}
-            </div>
-        </div>
 
-        <!-- Informations sur le trajet -->
-        <div style="background-color: ${backgroundColor}aa; border-radius: 12px; margin: 0 8px 15px 8px; padding: 12px 15px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                <span style="display: flex; align-items: center;"><strong style="margin-right: 5px;">📍</strong> Prochain arrêt</span>
-                <span style="font-weight: bold;">${stopNameMap[stopId] || stopId}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-                <span style="display: flex; align-items: center;"><strong style="margin-right: 5px;">💨</strong> Vitesse</span>
-                <span style="font-weight: bold;">${speed}</span>
-            </div>
-        </div>
+                <div style="margin-right: 10px; margin-top: 10px; margin-bottom: 5px; text-align: right;">
+                ${vehicleBrandHtml}
+                </div>
 
-        <!-- Prochains arrêts -->
-        <div style="padding: 0 15px 15px 15px;">
-            <h2 style="margin: 0 0 10px 0; font-size: 18px; font-weight: bold; display: flex; align-items: center;">
-                <span style="margin-right: 5px;">🚏</span> Arrêts à l'approche
-            </h2>
-            <div id="nextStopsContent" class="next-stops-content" style="
-                max-height: 200px;
-                overflow-y: auto;
-                scrollbar-width: thin;
-                scrollbar-color: ${textColor}44 transparent;
-                border-radius: 10px;
-                background-color: ${backgroundColor}55;
-                padding: 10px;
-            ">
-                ${nextStopsHTML}
-            </div>   
-        </div>
-    </div>
-`;
+                <div style="padding: 0 10px 10px 10px;">
+                    <div style="position: relative; display: flex; align-items: center; ">
+                        <!-- Conteneur pour le texte défilant avec effet fondu -->
+                        <div style="
+                            position: relative;
+                            flex: 1;
+                            overflow: hidden;
+                            border-radius: 10px;
+                        ">
+                            <!-- Contenu défilant horizontalement -->
+                            <div style="
+                                display: flex;
+                                gap: 10px;
+                                padding: 0px;
+                                white-space: nowrap;
+                                overflow-x: auto;
+                                scrollbar-width: thin; 
+                                scrollbar-color: #888 #f1f1f1;
+                            " class="custom-scrollbar">
+                                <!-- Numéro de parc -->
+                                <span style="
+                                    background: #00000077;
+                                    color: #ffffff;
+                                    padding: 6px 12px;
+                                    border-radius: 10px;
+                                    font-weight: normal;
+                                    font-size: 14px;
+                                    white-space: nowrap;
+                                    -webkit-backdrop-filter: blur(8px); 
+                                ">
+                                    Véhicule ${vehicle.vehicle.label}
+                                </span>
+                                
+                                <!-- Badges des options du véhicule -->
+                                ${vehicleOptionsBadges}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="color: ${textColor};">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; margin-left: 10px; margin-right: 10px;">
+                        <span>📍 <strong>Prochain arrêt</strong></span>
+                        <span>${stopNameMap[stopId] || stopId}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-left: 10px; margin-right: 10px;">
+                        <span>💨 <strong>Vitesse</strong></span>
+                        <span>${speed}</span>
+                    </div>
+                </div>
+
+                <!-- Prochains arrêts -->
+                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+                    <h2 style="margin: 0; font-size: 18px; font-weight: bold;">Arrêts à l'approche</h2>
+                    <ul>
+                    <div id="nextStopsContent" class="next-stops-content">
+                          ${nextStopsHTML}
+                    </div>   
+                </div>
+                </div>
+                `;
 if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
 
