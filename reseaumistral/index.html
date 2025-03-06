@@ -3202,32 +3202,131 @@ const menubottom1 = document.getElementById('menubtm');
 
 
 
-let lastTripUpdateTimestamp = 0;
-const worker = new Worker('worker.js');
+// Cache pour stocker la dernière réponse valide
+let cachedTripUpdates = null;
+let lastFetchTime = 0;
+const MINIMUM_FETCH_INTERVAL = 5000; // 5 secondes minimum entre chaque requête
 
+/**
+ * Récupère et traite les mises à jour GTFS-RT
+ * @returns {Promise<Object>} Données des mises à jour de trajets traitées
+ */
 async function fetchTripUpdates() {
+    const now = Date.now();
+
+    // Éviter les requêtes trop fréquentes
+    if (cachedTripUpdates && (now - lastFetchTime) < MINIMUM_FETCH_INTERVAL) {
+        return cachedTripUpdates;
+    }
+
     try {
         const response = await fetch('proxy-cors/proxy_tripupdate.php');
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
 
-        const workerResponse = new Promise((resolve) => {
-            worker.onmessage = function(e) {
-                const processedData = e.data;
-                tripUpdates = processedData;
-                resolve(processedData);
-            };
-        });
+        if (!data?.entity) {
+            throw new Error('Données GTFS-RT invalides');
+        }
 
-        worker.postMessage(data);
+        const tripUpdates = processTripUpdates(data);
+        
+        // Mise à jour du cache
+        cachedTripUpdates = tripUpdates;
+        lastFetchTime = now;
 
-        return await workerResponse;
+        return tripUpdates;
 
     } catch (error) {
-        console.error('Err récup trip updates ! ', error);
-        throw error;
+        console.error('Erreur lors de la récupération des mises à jour:', error);
+        // Retourner le dernier cache valide si disponible
+        return cachedTripUpdates || {};
     }
 }
+
+/**
+ * Traite les données GTFS-RT brutes
+ * @param {Object} data Données GTFS-RT décodées
+ * @returns {Object} Données traitées
+ */
+function processTripUpdates(data) {
+    const tripUpdates = {};
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Map pour le cache des heures formatées
+    const timeCache = new Map();
+
+    for (const entity of data.entity) {
+        const { tripUpdate } = entity;
+        if (!tripUpdate?.stopTimeUpdate?.length) continue;
+
+        const { trip, stopTimeUpdate } = tripUpdate;
+        const tripId = trip.tripId;
+        const stops = [];
+        const arrivalDelays = {};
+        let lastStopId = null;
+
+        for (const update of stopTimeUpdate) {
+            const stopId = update.stopId?.replace("0:", "") || "";
+            const arrival = update.arrival?.time;
+            const departure = update.departure?.time;
+
+            if (stopId) {
+                const stopData = {
+                    stopId,
+                    arrivalTime: formatTime(arrival, timeCache),
+                    departureTime: formatTime(departure, timeCache),
+                    unifiedTime: formatTime(arrival || departure, timeCache)
+                };
+
+                stops.push(stopData);
+
+                if (arrival) {
+                    arrivalDelays[stopId] = arrival - now;
+                }
+
+                lastStopId = stopId;
+            }
+        }
+
+        if (stops.length > 0) {
+            tripUpdates[tripId] = {
+                stopUpdates: stops,
+                lastStopId: lastStopId || 'Inconnu',
+                nextStops: stops,
+                arrivalDelays
+            };
+        }
+    }
+
+    return tripUpdates;
+}
+
+/**
+ * Formate un timestamp en heure locale
+ * @param {number} timestamp Timestamp Unix
+ * @param {Map} cache Cache des heures formatées
+ * @returns {string} Heure formatée
+ */
+function formatTime(timestamp, cache) {
+    if (!timestamp) return "Heure inconnue";
+
+    const cached = cache.get(timestamp);
+    if (cached) return cached;
+
+    const time = new Date(timestamp * 1000).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
+    cache.set(timestamp, time);
+    return time;
+}
+
+export { fetchTripUpdates };
 
 async function main() {
     try {                
@@ -3244,7 +3343,7 @@ async function main() {
         fetchTripUpdates()
         setTimeout(() => {
         fetchTripUpdates()
-        }, 2000); 
+        }, 1500); 
 
         function fetchRegularUpdates() {
             fetchVehiclePositions();
