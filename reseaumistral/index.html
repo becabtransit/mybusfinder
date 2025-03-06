@@ -1930,26 +1930,32 @@ function createColoredMarker(lat, lon, route_id) {
 }
 
 
-       function animateMarker(marker, newPosition) {
+function animateMarker(marker, newPosition) {
     const startLatLng = marker.getLatLng();
     const endLatLng = L.latLng(newPosition[0], newPosition[1]);
-    const duration = 15000; 
+    const duration = 1000; 
     const startTime = performance.now();
 
     if (marker.animationFrame) {
         cancelAnimationFrame(marker.animationFrame);
     }
 
+    function easeInOutQuad(t) {
+        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    }
+
     function animate(time) {
         const elapsed = time - startTime;
-        const progress = Math.min(elapsed / duration, 1);
+        const linearProgress = Math.min(elapsed / duration, 1);
         
-        const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * progress;
-        const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * progress;
+        const easedProgress = easeInOutQuad(linearProgress);
+        
+        const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * easedProgress;
+        const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * easedProgress;
         
         marker.setLatLng([lat, lng]);
 
-        if (progress < 1) {
+        if (linearProgress < 1) {
             marker.animationFrame = requestAnimationFrame(animate);
         }
     }
