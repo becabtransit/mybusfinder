@@ -3374,15 +3374,22 @@ setInterval(() => {
     }
 }, 300000); // Toutes les 5 minutes
 
+let updateInterval = 8000; // Intervalle initial de 8 secondes
+
 function fetchAndScheduleNext() {
-  fetchTripUpdates()
-    .then(() => {
-      fetchAndScheduleNext();
-    })
-    .catch(error => {
-        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : trip updates fetching error');
-      setTimeout(fetchAndScheduleNext, 1000);
-    });
+    const startTime = performance.now();
+    
+    fetchTripUpdates()
+        .then(() => {
+            const processingTime = performance.now() - startTime;
+            // Ajuster l'intervalle en fonction du temps de traitement
+            updateInterval = Math.max(8000, Math.min(15000, processingTime * 4));
+            setTimeout(fetchAndScheduleNext, updateInterval);
+        })
+        .catch(error => {
+            toastBottomRight.error('Erreur de mise à jour des horaires.');
+            setTimeout(fetchAndScheduleNext, 15000); // Intervalle plus long en cas d'erreur
+        });
 }
 
 
@@ -3403,7 +3410,6 @@ async function main() {
 
         function fetchRegularUpdates() {
             fetchVehiclePositions();
-            fetchTripUpdates().catch(console.error);
             setTimeout(fetchRegularUpdates, 8000);
         }
         
