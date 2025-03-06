@@ -1949,7 +1949,7 @@ function findMarkerByVehicleId(vehicleId) {
     return null;
 }
 
-function createColoredMarker(lat, lon, route_id) {
+function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const generateUniqueId = () => `popup-style-${Math.random().toString(36).substr(2, 9)}`;
     
     const color = lineColors[route_id] || '#000000';
@@ -1963,14 +1963,28 @@ function createColoredMarker(lat, lon, route_id) {
         position: relative;
         border-radius: 50%;
         border: 2px solid white;
-        transition: transform 0.2s ease; 
+        transition: transform 0.2s ease;
+    `;
+
+    const arrowStyle = `
+        position: absolute;
+        width: 0;
+        height: 0;
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-bottom: 12px solid ${color};
+        transform-origin: center bottom;
+        transform: translateX(-6px) translateY(-20px) rotate(${bearing}deg);
     `;
 
     const icon = L.divIcon({
         className: "my-custom-pin",
         iconAnchor: [0, 0],
         popupAnchor: [0, 5],
-        html: `<span style="${markerHtmlStyles}" class="marker-icon" />`
+        html: `
+            <span style="${markerHtmlStyles}" class="marker-icon" />
+            <span style="${arrowStyle}" class="marker-arrow" />
+        `
     });
 
     const marker = L.marker([lat, lon], { icon });
@@ -2717,8 +2731,10 @@ filteredStops.forEach(stop => {
                 </div>
                 </div>
                 `;
-if (markers[id]) {
+                if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
+    markers[id].getElement().querySelector('.marker-arrow').style.transform = 
+        `translateX(-6px) translateY(-20px) rotate(${bearing}deg)`;
 
     const existingPopup = markers[id].getPopup();
     const currentContent = existingPopup ? existingPopup.getContent() : '';
@@ -2733,12 +2749,11 @@ if (markers[id]) {
         const popupElement = markers[id]._popup._contentNode.parentElement;
         popupElement.classList.remove('hide'); 
         popupElement.classList.add('show'); 
-
-        markers[id].openPopup();
         
+        markers[id].openPopup();
     }
 } else {
-    const marker = createColoredMarker(latitude, longitude, line).addTo(map);
+    const marker = createColoredMarker(latitude, longitude, line, bearing).addTo(map);
     markers[id] = marker;
     markers[id].line = line;
     markers[id].id = id;
