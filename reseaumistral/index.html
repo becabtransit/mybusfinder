@@ -3203,58 +3203,41 @@ const menubottom1 = document.getElementById('menubtm');
 
 
 let lastTripUpdateTimestamp = 0;
-const tripUpdatesWorker = new Worker('worker.js');
-let lastUpdateTime = 0;
-const MIN_UPDATE_INTERVAL = 8000; 
+const worker = new Worker('worker.js');
 
 async function fetchTripUpdates() {
     try {
-        const now = Date.now();
-        if (now - lastUpdateTime < MIN_UPDATE_INTERVAL) {
-            return;
-        }
-
         const response = await fetch('proxy-cors/proxy_tripupdate.php');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
 
         return new Promise((resolve, reject) => {
-            tripUpdatesWorker.onmessage = function(e) {
-                const { tripUpdates: updates, processTime } = e.data;
-                
-                if (processTime > 100) {
-                    console.warn(`TripUpdates processing took ${processTime.toFixed(2)}ms`);
-                }
-                
-                tripUpdates = updates; 
-                lastUpdateTime = now;
-                resolve(updates);
+            worker.onmessage = (e) => {
+                tripUpdates = e.data; 
+                resolve(e.data);
             };
-
-            tripUpdatesWorker.onerror = function(error) {
-                reject(new Error('Worker error: ' + error.message));
+            
+            worker.onerror = (error) => {
+                reject(new Error(`Erreur du worker: ${error.message}`));
             };
-
-            tripUpdatesWorker.postMessage(data);
+            
+            worker.postMessage(data);
         });
-
     } catch (error) {
-        console.error('Erreur récupération trip updates:', error);
+        console.error('Err récup trip updates !', error);
         throw error;
     }
 }
 
 function fetchAndScheduleNext() {
-    fetchTripUpdates()
-        .then(() => {
-            setTimeout(fetchAndScheduleNext, MIN_UPDATE_INTERVAL);
-        })
-        .catch(error => {
-            toastBottomRight.error('Erreur de mise à jour des horaires.');
-            setTimeout(fetchAndScheduleNext, 15000); 
-        });
+  fetchTripUpdates()
+    .then(() => {
+      fetchAndScheduleNext();
+    })
+    .catch(error => {
+        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : trip updates fetching error');
+      setTimeout(fetchAndScheduleNext, 1000);
+    });
 }
 
 
@@ -3275,6 +3258,7 @@ async function main() {
 
         function fetchRegularUpdates() {
             fetchVehiclePositions();
+            fetchTripUpdates().catch(console.error);
             setTimeout(fetchRegularUpdates, 8000);
         }
         
