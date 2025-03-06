@@ -3201,27 +3201,6 @@ const menubottom1 = document.getElementById('menubtm');
 
 
 
-function getEmojiForEffect(effect) {
-    switch (effect) {
-        case 1:
-            return '🚧 Travaux | ';
-        case 6:
-            return '🚑 Accident | ';
-        case 3:
-            return '🌧️ Conditions climatiques | ';
-        case 7:
-            return '⚙️ Panne | ';
-        case 5:
-            return '✊ Manifestations | ';
-        case 4:
-            return '🔻 Service réduit | ';
-        case 2:
-            return '⚠️ Service modifié | ';
-        default:
-            return 'ℹ️ Information | ';
-    }
-}
-
 
 let lastTripUpdateTimestamp = 0;
 const worker = new Worker('worker.js');
@@ -3250,6 +3229,18 @@ async function fetchTripUpdates() {
     }
 }
 
+function fetchAndScheduleNext() {
+  fetchTripUpdates()
+    .then(() => {
+      fetchAndScheduleNext();
+    })
+    .catch(error => {
+        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : trip updates fetching error');
+      setTimeout(fetchAndScheduleNext, 1000);
+    });
+}
+
+
 async function main() {
     try {                
         const gtfsData = await initializeGTFS();
@@ -3262,10 +3253,8 @@ async function main() {
         ]);
         
         hideLoadingScreen();
-        fetchTripUpdates()
-        setTimeout(() => {
-        fetchTripUpdates()
-        }, 1000); 
+        fetchAndScheduleNext();
+
 
         function fetchRegularUpdates() {
             fetchVehiclePositions();
