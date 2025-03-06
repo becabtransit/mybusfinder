@@ -1966,20 +1966,24 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         transition: transform 0.2s ease;
     `;
 
-    const arrowStyle = `
-        position: absolute;
-        color: ${color};
-        font-size: 24px;
-        font-weight: bold;
-        left: -12px;
-        top: -12px;
-        transform-origin: center center;
-        transform: rotate(${bearing}deg);
-        text-shadow: 
-            -1px -1px 0 #fff,
-            1px -1px 0 #fff,
-            -1px 1px 0 #fff,
-            1px 1px 0 #fff;
+    const arrowSvg = `
+        <svg class="marker-arrow" style="
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            left: -10px;
+            top: -10px;
+            transform-origin: center center;
+            transform: rotate(${bearing}deg);"
+            viewBox="0 0 24 24">
+            <path 
+                d="M12 2 L20 12 L12 22 L12 17 L4 17 L4 7 L12 7 Z" 
+                fill="${color}"
+                stroke="white"
+                stroke-width="1"
+                stroke-linejoin="round"
+            />
+        </svg>
     `;
 
     const icon = L.divIcon({
@@ -1988,13 +1992,14 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         popupAnchor: [0, 5],
         html: `
             <div style="position: relative;">
-                <span style="${arrowStyle}" class="marker-arrow">&gt;</span>
+                ${arrowSvg}
                 <span style="${markerHtmlStyles}" class="marker-icon" />
             </div>
         `
     });
 
-    const marker = L.marker([lat, lon], { icon });    
+    const marker = L.marker([lat, lon], { icon });
+    
     const styleId = generateUniqueId();
     
     marker.on('popupopen', function(e) {
