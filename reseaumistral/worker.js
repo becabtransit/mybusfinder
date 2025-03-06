@@ -1,79 +1,132 @@
-// Configuration des options de formatage de l'heure une seule fois
-const TIME_FORMAT_OPTIONS = { hour: '2-digit', minute: '2-digit' };
-const UNKNOWN_TIME = "Heure inconnue";
-const UNKNOWN_STOP = "Inconnu";
-
-// Variables globales pour réduire les allocations mémoire
-const localCache = {
-    timestampCache: new Map(),
-    stopIdCache: new Map()
+const TIME_FORMAT = {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
 };
 
-self.onmessage = ({ data }) => {
-    self.postMessage(processTripUpdates(data));
-};
+const timeCache = new Map();
+const stopIdCache = new Map();
 
-function formatTime(timestamp, cache) {
-    if (!timestamp) return UNKNOWN_TIME;
+
+function formatTimeWithCache(timestamp) {
+    if (!timestamp) return "Heure inconnue";
     
-    let cached = cache.get(timestamp);
+    const cached = timeCache.get(timestamp);
     if (cached) return cached;
     
-    // Utilisation de constantes pour éviter la création d'objets
-    cached = new Date(timestamp * 1000).toLocaleTimeString([], TIME_FORMAT_OPTIONS);
-    cache.set(timestamp, cached);
-    return cached;
+    const formatted = new Date(timestamp * 1000).toLocaleTimeString([], TIME_FORMAT);
+    timeCache.set(timestamp, formatted);
+    
+    if (timeCache.size > 1000) {
+        const firstKey = timeCache.keys().next().value;
+        timeCache.delete(firstKey);
+    }
+    
+    return formatted;
 }
 
-function processStop(stop, now, localCache) {
-    const stopId = stop.stopId.replace("0:", "");
-    localCache.stopIdCache.set(stop.stopId, stopId);
+
+function cleanStopId(rawStopId) {
+    if (!rawStopId) return "Inconnu";
     
-    const arrivalTime = stop.arrival?.time ?? null;
-    const departureTime = stop.departure?.time ?? null;
+    const cached = stopIdCache.get(rawStopId);
+    if (cached) return cached;
+    
+    const cleaned = rawStopId.replace(/^0:/, "");
+    stopIdCache.set(rawStopId, cleaned);
+    return cleaned;
+}
+
+
+function processStop(stop, now) {
+    const stopId = cleanStopId(stop.stopId);
+    const arrival = stop.arrival?.time;
+    const departure = stop.departure?.time;
+    
+    const relevantTime = arrival || departure;
+    const delay = arrival ? arrival - now : null;
     
     return {
         stopId,
-        arrivalTime: formatTime(arrivalTime, localCache.timestampCache),
-        departureTime: formatTime(departureTime, localCache.timestampCache),
-        unifiedTime: formatTime(arrivalTime || departureTime, localCache.timestampCache),
-        delay: arrivalTime ? arrivalTime - now : null
+        arrivalTime: formatTimeWithCache(arrival),
+        departureTime: formatTimeWithCache(departure),
+        unifiedTime: formatTimeWithCache(relevantTime),
+        delay,
+        timestamp: relevantTime
     };
 }
 
-function processTripUpdates(data) {
-    const tripUpdates = Object.create(null);
-    const now = Date.now() / 1000;
-    const entities = data.entity;
-    
-    // Utilisation de for...of pour une meilleure lisibilité et performance similaire
-    for (const entity of entities) {
-        const { tripUpdate } = entity;
-        if (!tripUpdate?.stopTimeUpdate?.length) continue;
 
-        const { trip, stopTimeUpdate: stops } = tripUpdate;
-        const processedStops = new Array(stops.length);
-        const arrivalDelays = Object.create(null);
+function processTripUpdates(data) {
+    const now = Math.floor(Date.now() / 1000);
+    const processedUpdates = new Map();
+    
+    const entities = data.entity;
+    const entitiesLength = entities.length;
+    
+    for (let i = 0; i < entitiesLength; i++) {
+        const { tripUpdate } = entities[i];
+        if (!tripUpdate?.stopTimeUpdate?.length) continue;
         
-        // Traitement des arrêts en une seule passe
-        for (let i = 0; i < stops.length; i++) {
-            const processedStop = processStop(stops[i], now, localCache);
-            processedStops[i] = processedStop;
+        const { trip, stopTimeUpdate } = tripUpdate;
+        const tripId = trip.tripId;
+        
+        const stopsLength = stopTimeUpdate.length;
+        const processedStops = new Array(stopsLength);
+        const arrivalDelays = new Map();
+        
+        let validStopsCount = 0;
+        for (let j = 0; j < stopsLength; j++) {
+            const stop = stopTimeUpdate[j];
+            if (!stop) continue;
             
-            if (processedStop.delay !== null) {
-                arrivalDelays[processedStop.stopId] = processedStop.delay;
+            const processedStop = processStop(stop, now);
+            if (processedStop.timestamp && processedStop.timestamp >= now) {
+                processedStops[validStopsCount++] = processedStop;
+                
+                if (processedStop.delay !== null) {
+                    arrivalDelays.set(processedStop.stopId, processedStop.delay);
+                }
             }
         }
-
-        const lastStopId = processedStops[processedStops.length - 1]?.stopId ?? UNKNOWN_STOP;
-
-        tripUpdates[trip.tripId] = {
+        
+        if (validStopsCount < stopsLength) {
+            processedStops.length = validStopsCount;
+        }
+        
+        if (validStopsCount > 1) {
+            processedStops.sort((a, b) => a.timestamp - b.timestamp);
+        }
+        
+        const lastStopId = processedStops[validStopsCount - 1]?.stopId ?? "Inconnu";
+        
+        processedUpdates.set(tripId, {
             stopUpdates: processedStops,
             lastStopId,
             nextStops: processedStops,
-            arrivalDelays
-        };
+            arrivalDelays: Object.fromEntries(arrivalDelays)
+        });
     }
-
-    return tripUpdates;
+    
+    return Object.fromEntries(processedUpdates);
 }
+
+setInterval(() => {
+    const now = Date.now() / 1000;
+    for (const [timestamp] of timeCache) {
+        if (timestamp < now - 3600) {
+            timeCache.delete(timestamp);
+        }
+    }
+}, 300000);
+
+self.onmessage = function(e) {
+    const startTime = performance.now();
+    const result = processTripUpdates(e.data);
+    const processTime = performance.now() - startTime;
+    
+    self.postMessage({
+        tripUpdates: result,
+        processTime: processTime
+    });
+};
