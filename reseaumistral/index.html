@@ -3229,18 +3229,6 @@ async function fetchTripUpdates() {
     }
 }
 
-function fetchAndScheduleNext() {
-  fetchTripUpdates()
-    .then(() => {
-      fetchAndScheduleNext();
-    })
-    .catch(error => {
-        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : trip updates fetching error');
-      setTimeout(fetchAndScheduleNext, 1000);
-    });
-}
-
-
 async function main() {
     try {                
         const gtfsData = await initializeGTFS();
@@ -3253,8 +3241,10 @@ async function main() {
         ]);
         
         hideLoadingScreen();
-        fetchAndScheduleNext();
-
+        fetchTripUpdates()
+        setTimeout(() => {
+        fetchTripUpdates()
+        }, 1500); 
 
         function fetchRegularUpdates() {
             fetchVehiclePositions();
