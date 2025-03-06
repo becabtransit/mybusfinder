@@ -133,7 +133,7 @@ visibility: hidden;
 }
 
 #menubtm {
-    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out, background-color 0.3s ease;
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
 }
 
 
@@ -1112,7 +1112,79 @@ shape.bounce-down {
   }
 }
 
+.alerts-button {
+    display: flex;
+    align-items: center;
+    background-color: #000000;
+    color: #ffffff;
+    padding: 15px 18px;
+    margin-bottom: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), 
+                box-shadow 0.5s cubic-bezier(0.25, 1.5, 0.5, 1),
+                background-color 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+    position: relative;
+    overflow: hidden;
+    animation: fadeInUp 0.3s ease-out forwards;
+}
 
+.alerts-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 120%;
+    height: 100%;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transform: skewX(-25deg);
+    transition: left 1s cubic-bezier(0.25, 1.5, 0.5, 1);
+    z-index: 1;
+}
+
+.alerts-button:hover::before {
+    left: 120%;
+}
+
+.alerts-button:hover {
+    transform: scale(0.98);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+    background-color: #222222;
+}
+
+.alerts-button:active {
+    transform: translateY(0) scale(0.95);
+    transition: transform 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.alerts-icon {
+    margin-right: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.alerts-button:hover .alerts-icon {
+    transform: scale(1.1);
+}
+
+.alerts-content {
+    z-index: 2;
+}
+
+.alerts-title {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.alerts-description {
+    font-size: 14px;
+    opacity: 0.8;
+}
 
     </style>
 
@@ -1129,10 +1201,6 @@ shape.bounce-down {
 
 <div class="filtre" id="filtre">
     <span class="filtre-texte">Réinitialiser les filtres</span>
-</div>
-
-<div class="filtre" id="locate">
-    <span class="filtre-texte">Me géolocaliser</span>
 </div>
 
 
@@ -1527,20 +1595,6 @@ function hideLoadingScreen() {
 
             setTimeout(() => {
                 loadingScreen.style.display = 'none';
-                setTimeout(() => {
-                const locate = document.getElementById('locate');
-                locate.classList.remove('slide-upc');
-                locate.classList.add('slide-downc');
-                        locate.onclick = () => {
-                        locateUser();
-                        locate.classList.add('slide-upc');
-                        locate.classList.remove('slide-downc');
-                }; 
-                setTimeout(() => {
-                    locate.classList.add('slide-upc');
-                    locate.classList.remove('slide-downc');
-                }, 10000); 
-                }, 1200); 
             }, 300);
         }, 900);
     }, 100);
@@ -1896,6 +1950,8 @@ function findMarkerByVehicleId(vehicleId) {
 }
 
 function createColoredMarker(lat, lon, route_id) {
+    const generateUniqueId = () => `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+    
     const color = lineColors[route_id] || '#000000';
     const markerHtmlStyles = `
         background-color: ${color};
@@ -1919,26 +1975,55 @@ function createColoredMarker(lat, lon, route_id) {
 
     const marker = L.marker([lat, lon], { icon });
     
+    const styleId = generateUniqueId();
+    
     marker.on('popupopen', function(e) {
         const menubtm = document.getElementById('menubtm');
         if (menubtm) {
             const color = lineColors[route_id] || '#000000';
-            menubtm.style.transition = 'background-color 0.3s ease';
-            menubtm.style.backgroundColor = `${color}77`;
+            
+            const oldStyle = document.getElementById(styleId);
+            if (oldStyle) {
+                oldStyle.remove();
+            }
+            
+            const styleSheet = document.createElement('style');
+            styleSheet.id = styleId;
             
             const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+            let textColor = '#FFFFFF';
             if (rgb) {
                 const r = parseInt(rgb[1], 16);
                 const g = parseInt(rgb[2], 16);
                 const b = parseInt(rgb[3], 16);
                 const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-                
-                const menubtmText = menubtm.querySelectorAll('*');
-                menubtmText.forEach(element => {
-                    element.style.transition = 'color 0.3s ease';
-                    element.style.color = brightness > 128 ? '#000000' : '#FFFFFF';
-                });
+                textColor = brightness > 128 ? '#000000' : '#FFFFFF';
             }
+            
+            const animationName = `menubtm-color-${styleId}`;
+            styleSheet.textContent = `
+                @keyframes ${animationName} {
+                    0% {
+                        background-color: ${menubtm.style.backgroundColor || 'transparent'};
+                    }
+                    100% {
+                        background-color: ${color}77;
+                    }
+                }
+                #menubtm.${styleId} {
+                    animation: ${animationName} 0.3s forwards;
+                }
+                #menubtm.${styleId} * {
+                    color: ${textColor};
+                    transition: color 0.3s ease;
+                }
+            `;
+            
+            document.head.appendChild(styleSheet);
+            
+            menubtm.classList.add(styleId);
+            
+            marker.styleId = styleId;
         }
     });
 
@@ -1946,17 +2031,49 @@ function createColoredMarker(lat, lon, route_id) {
         const menubtm = document.getElementById('menubtm');
         if (menubtm) {
             try {
-                const data = await getSetvar(); 
+                if (marker.styleId) {
+                    menubtm.classList.remove(marker.styleId);
+                }
+                
+                const styleElement = document.getElementById(marker.styleId);
+                if (styleElement) {
+                    styleElement.remove();
+                }
+                
+                const data = await getSetvar();
                 if (data) {
-                    menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                    const returnStyleId = generateUniqueId();
+                    const returnStyle = document.createElement('style');
+                    returnStyle.id = returnStyleId;
                     
-                    const menubtmText = menubtm.querySelectorAll('*');
-                    menubtmText.forEach(element => {
-                        element.style.color = ''; 
-                    });
+                    const returnAnimation = `menubtm-return-${returnStyleId}`;
+                    returnStyle.textContent = `
+                        @keyframes ${returnAnimation} {
+                            0% {
+                                background-color: ${menubtm.style.backgroundColor || 'transparent'};
+                            }
+                            100% {
+                                background-color: ${data.colorbkg}77;
+                            }
+                        }
+                        #menubtm.${returnStyleId} {
+                            animation: ${returnAnimation} 0.3s forwards;
+                        }
+                        #menubtm.${returnStyleId} * {
+                            transition: color 0.3s ease;
+                        }
+                    `;
+                    
+                    document.head.appendChild(returnStyle);
+                    menubtm.classList.add(returnStyleId);
+                    
+                    setTimeout(() => {
+                        menubtm.classList.remove(returnStyleId);
+                        returnStyle.remove();
+                    }, 300);
                 }
             } catch (error) {
-                console.error('Erreur lors de la récupération des variables:', error);
+                console.error('Erreur lors de la réinitialisation des couleurs:', error);
             }
         }
     });
@@ -1971,7 +2088,6 @@ function createColoredMarker(lat, lon, route_id) {
 
     return marker;
 }
-
 
 function animateMarker(marker, newPosition) {
     const startLatLng = marker.getLatLng();
@@ -3058,6 +3174,68 @@ function updateMenu() {
     transportStateContainer.appendChild(transportStateTextContainer);
     menu.appendChild(transportStateContainer);
 
+    const locationButton = document.createElement('div');
+locationButton.className = 'alerts-button';
+locationButton.onclick = locateUser;
+
+const locationIcon = document.createElement('div');
+locationIcon.className = 'alerts-icon';
+locationIcon.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <circle cx="12" cy="12" r="3"></circle>
+    </svg>
+`;
+
+const locationContent = document.createElement('div');
+locationContent.className = 'alerts-content';
+
+const locationTitle = document.createElement('div');
+locationTitle.className = 'alerts-title';
+locationTitle.textContent = 'Ma position';
+
+const locationDescription = document.createElement('div');
+locationDescription.className = 'alerts-description';
+locationDescription.textContent = 'Me localiser sur la carte';
+
+locationContent.appendChild(locationTitle);
+locationContent.appendChild(locationDescription);
+
+locationButton.appendChild(locationIcon);
+locationButton.appendChild(locationContent);
+menu.appendChild(locationButton);
+
+const alertsButton = document.createElement('div');
+alertsButton.className = 'alerts-button';
+alertsButton.onclick = () => showUpdatePopup("alerts.html");
+
+const alertsIcon = document.createElement('div');
+alertsIcon.className = 'alerts-icon';
+alertsIcon.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 11a8 8 0 0 1 16 0v6l3 2v1H1v-1l3-2v-6z"></path>
+        <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"></path>
+    </svg>
+`;
+
+const alertsContent = document.createElement('div');
+alertsContent.className = 'alerts-content';
+
+const alertsTitle = document.createElement('div');
+alertsTitle.className = 'alerts-title';
+alertsTitle.textContent = 'Info traffic';
+
+const alertsDescription = document.createElement('div');
+alertsDescription.className = 'alerts-description';
+alertsDescription.textContent = 'Informations sur les perturbations en temps réel';
+
+alertsContent.appendChild(alertsTitle);
+alertsContent.appendChild(alertsDescription);
+
+alertsButton.appendChild(alertsIcon);
+alertsButton.appendChild(alertsContent);
+menu.appendChild(alertsButton);
+
     const busesByLineAndDestination = {};
 
     Object.keys(markers).forEach(id => {
@@ -3197,13 +3375,10 @@ const menubottom1 = document.getElementById('menubtm');
         function showMenu() {
             const menu = document.getElementById('menu');
             const menubotom = document.getElementById('menubottom');
-            const locate = document.getElementById('locate');
             menu.style.display = 'block'; 
             isMenuVisible = true; 
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
-            locate.classList.add('slide-upc');
-            locate.classList.remove('slide-downc');
             if (selectedLine) {
         const filtre = document.getElementById('filtre');
         filtre.classList.add('slide-upc');
