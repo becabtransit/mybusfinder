@@ -3205,27 +3205,69 @@ const menubottom1 = document.getElementById('menubtm');
 let lastTripUpdateTimestamp = 0;
 const worker = new Worker('worker.js');
 
-async function fetchTripUpdates() {
-    try {
-        const response = await fetch('proxy-cors/proxy_tripupdate.php');
-        const buffer = await response.arrayBuffer();
-        const data = await decodeProtobuf(buffer);
+const requestCache = new Map();
+const CACHE_DURATION = 10000; 
 
-        return new Promise((resolve, reject) => {
-            worker.onmessage = (e) => {
-                tripUpdates = e.data; 
-                resolve(e.data);
-            };
-            
-            worker.onerror = (error) => {
-                reject(new Error(`Erreur du worker: ${error.message}`));
-            };
-            
-            worker.postMessage(data);
+async function fetchTripUpdates() {
+    const now = Date.now();
+    
+    if (requestCache.has('tripUpdates')) {
+        const cached = requestCache.get('tripUpdates');
+        if (now - cached.timestamp < CACHE_DURATION) {
+            return cached.data;
+        }
+    }
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch('proxy-cors/proxy_tripupdate.php', {
+            signal: controller.signal,
+            headers: {
+                'Accept': 'application/x-protobuf',
+                'Cache-Control': 'no-cache'
+            }
         });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const buffer = await response.arrayBuffer();
+        
+        const data = await Promise.all([
+            decodeProtobuf(buffer),
+            new Promise(resolve => {
+                worker.onmessage = (e) => resolve(e.data);
+                worker.onerror = (error) => {
+                    toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : worker down');
+                    resolve(null);
+                };
+            })
+        ]);
+
+        const processedData = data[0];
+        
+        requestCache.set('tripUpdates', {
+            timestamp: now,
+            data: processedData
+        });
+
+        worker.postMessage(processedData);
+        return processedData;
+
     } catch (error) {
-        console.error('Err récup trip updates !', error);
-        throw error;
+        if (error.name === 'AbortError') {
+            console.warn('Request Timeout !!');
+            toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : request timeout');
+
+        } else {
+            console.error('Erreur récupération trip updates', error);
+            toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : error while fetching trip update feed');
+
+        }
+        
+        return requestCache.get('tripUpdates')?.data || null;
     }
 }
 
