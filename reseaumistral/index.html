@@ -3203,180 +3203,158 @@ const menubottom1 = document.getElementById('menubtm');
 
 
 let lastTripUpdateTimestamp = 0;
-// Constants pour éviter la création répétée d'objets
-const TIME_FORMAT_OPTIONS = { hour: '2-digit', minute: '2-digit', hour12: false };
-const CACHE_DURATION = 30000; // 30 secondes de cache
-const UPDATE_THRESHOLD = 300; // 5 minutes en secondes
-const UNKNOWN_TIME = "Heure inconnue";
-const UNKNOWN_STOP = "Inconnu";
+// Constants pour les états connus en GTFS-RT
+const SCHEDULED = 0;
+const ADDED = 1;
+const UNSCHEDULED = 2;
+const CANCELED = 3;
 
-// Cache pour les timestamps formatés
-const timeFormatCache = new Map();
-const stopIdCache = new Map();
+// Constantes pour l'optimisation du formatage du temps
+const TIME_FORMAT_OPTIONS = { hour: '2-digit', minute: '2-digit' };
+const TIME_CACHE = new Map(); // Cache pour les timestamps formatés
+const STOP_ID_CACHE = new Map(); // Cache pour les IDs d'arrêts nettoyés
 
-// Cache pour les dernières mises à jour
-let lastTripUpdateData = null;
-let lastUpdateTime = 0;
-
-/**
- * Formate un timestamp en heure locale avec cache
- * @param {number} timestamp - Timestamp Unix
- * @returns {string} Heure formatée
- */
-function formatTimeWithCache(timestamp) {
-    if (!timestamp) return UNKNOWN_TIME;
+// Fonction optimisée pour le formatage du temps avec mise en cache
+function getCachedFormattedTime(timestamp) {
+    if (!timestamp) return null;
     
-    const cacheKey = Math.floor(timestamp / 60) * 60; // Arrondir à la minute
-    let cachedTime = timeFormatCache.get(cacheKey);
+    let cached = TIME_CACHE.get(timestamp);
+    if (cached) return cached;
     
-    if (!cachedTime) {
-        cachedTime = new Date(timestamp * 1000).toLocaleTimeString([], TIME_FORMAT_OPTIONS);
-        timeFormatCache.set(cacheKey, cachedTime);
-        
-        // Nettoyage du cache toutes les 30 secondes
-        if (timeFormatCache.size > 1000) {
-            const now = Date.now() / 1000;
-            for (const [key] of timeFormatCache) {
-                if (key < now - 3600) timeFormatCache.delete(key);
-            }
-        }
+    cached = new Date(timestamp * 1000).toLocaleTimeString([], TIME_FORMAT_OPTIONS);
+    TIME_CACHE.set(timestamp, cached);
+    
+    // Limiter la taille du cache pour éviter les fuites mémoire
+    if (TIME_CACHE.size > 1000) {
+        const oldestKey = TIME_CACHE.keys().next().value;
+        TIME_CACHE.delete(oldestKey);
     }
     
-    return cachedTime;
+    return cached;
 }
 
-/**
- * Traite un arrêt individuel du flux GTFS-RT
- * @param {Object} stop - Données de l'arrêt
- * @param {number} now - Timestamp actuel
- * @returns {Object} Données d'arrêt traitées
- */
-function processStop(stop, now) {
-    let stopId = stopIdCache.get(stop.stopId);
-    if (!stopId) {
-        stopId = stop.stopId.replace(/^0:/, "");
-        stopIdCache.set(stop.stopId, stopId);
-    }
+// Fonction optimisée pour le nettoyage des IDs d'arrêts avec mise en cache
+function getCleanStopId(rawStopId) {
+    if (!rawStopId) return null;
     
-    const arrivalTime = stop.arrival?.time;
-    const departureTime = stop.departure?.time;
-    const delay = stop.arrival?.delay || stop.departure?.delay || 0;
+    let cached = STOP_ID_CACHE.get(rawStopId);
+    if (cached) return cached;
     
-    // Utiliser le temps le plus pertinent
-    const relevantTime = arrivalTime || departureTime;
+    cached = rawStopId.replace(/^0:/, '');
+    STOP_ID_CACHE.set(rawStopId, cached);
     
-    return {
-        stopId,
-        timestamp: relevantTime,
-        scheduledTime: formatTimeWithCache(relevantTime),
-        delay,
-        realtime: relevantTime ? formatTimeWithCache(relevantTime + delay) : UNKNOWN_TIME,
-        isRealtime: Boolean(relevantTime && Math.abs(delay) <= UPDATE_THRESHOLD)
-    };
+    return cached;
 }
 
-/**
- * Récupère et traite les mises à jour GTFS-RT
- * @returns {Promise<Object>} Données de mise à jour traitées
- */
 async function fetchTripUpdates() {
     try {
-        const now = Date.now();
-        
-        // Vérifier si nous pouvons utiliser le cache
-        if (lastTripUpdateData && (now - lastUpdateTime) < CACHE_DURATION) {
-            return lastTripUpdateData;
-        }
-        
+        const startTime = performance.now();
         const response = await fetch('proxy-cors/proxy_tripupdate.php', {
-            headers: {
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache'
-            }
+            priority: 'high', // Prioriser cette requête
+            cache: 'no-store' // Toujours obtenir les données fraîches
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
         
-        const currentTime = Math.floor(now / 1000);
-        const processedTripUpdates = {};
-        
-        // Traiter chaque entité du flux
-        for (const entity of data.entity) {
-            const { tripUpdate } = entity;
+        // Pré-allocation de l'objet résultat
+        const processedTripUpdates = Object.create(null); // Plus rapide que {}
+        const now = Math.floor(Date.now() / 1000); // Timestamp actuel en secondes
+
+        // Traitement optimisé des entités
+        const entities = data.entity;
+        if (!Array.isArray(entities)) return processedTripUpdates;
+
+        for (let i = 0, len = entities.length; i < len; i++) {
+            const tripUpdate = entities[i].tripUpdate;
             if (!tripUpdate?.stopTimeUpdate?.length) continue;
-            
+
             const { trip, stopTimeUpdate: stops } = tripUpdate;
-            const tripId = trip.tripId;
-            
-            // Ignorer les voyages terminés
-            if (trip.scheduleRelationship === 'CANCELED' || 
-                trip.scheduleRelationship === 'DELETED') {
-                continue;
-            }
-            
-            const processedStops = [];
-            const arrivalDelays = {};
-            let hasValidUpdates = false;
-            
-            // Traiter chaque arrêt du voyage
-            for (const stop of stops) {
-                // Ignorer les arrêts passés
-                if (stop.arrival?.time && stop.arrival.time < currentTime - 300) continue;
+            if (!trip?.tripId) continue;
+
+            // Pré-allocation des tableaux pour les arrêts
+            const stopCount = stops.length;
+            const processedStops = new Array(stopCount);
+            const arrivalDelays = Object.create(null);
+
+            let hasValidStops = false;
+
+            // Traitement optimisé des arrêts
+            for (let j = 0; j < stopCount; j++) {
+                const stop = stops[j];
+                if (!stop) continue;
+
+                const stopId = getCleanStopId(stop.stopId);
+                if (!stopId) continue;
+
+                const arrival = stop.arrival;
+                const departure = stop.departure;
                 
-                const processedStop = processStop(stop, currentTime);
-                if (processedStop.isRealtime) {
-                    hasValidUpdates = true;
-                }
-                
-                processedStops.push(processedStop);
-                arrivalDelays[processedStop.stopId] = processedStop.delay;
-            }
-            
-            // N'inclure que les voyages avec des mises à jour valides
-            if (hasValidUpdates && processedStops.length > 0) {
-                processedTripUpdates[tripId] = {
-                    routeId: trip.routeId,
-                    directionId: trip.directionId,
-                    startTime: trip.startTime,
-                    startDate: trip.startDate,
-                    stopUpdates: processedStops,
-                    lastStopId: processedStops[processedStops.length - 1]?.stopId || UNKNOWN_STOP,
-                    nextStops: processedStops.filter(stop => 
-                        stop.timestamp > currentTime
-                    ).sort((a, b) => a.timestamp - b.timestamp),
-                    arrivalDelays
+                // Optimisation : utiliser les timestamps bruts quand possible
+                const arrivalTime = arrival?.time ?? null;
+                const departureTime = departure?.time ?? null;
+                const delay = arrival?.delay ?? departure?.delay ?? 0;
+
+                // Ne traiter que les arrêts pertinents (dans le futur)
+                if (arrivalTime && arrivalTime < now - 300) continue; // Ignorer les arrêts passés de plus de 5 minutes
+
+                const formattedTime = getCachedFormattedTime(arrivalTime || departureTime);
+                if (!formattedTime) continue;
+
+                hasValidStops = true;
+
+                processedStops[j] = {
+                    stopId,
+                    arrivalTime: formattedTime,
+                    departureTime: getCachedFormattedTime(departureTime) || formattedTime,
+                    delay,
+                    timestamp: arrivalTime || departureTime,
+                    status: stop.scheduleRelationship || SCHEDULED
                 };
+
+                if (delay) {
+                    arrivalDelays[stopId] = delay;
+                }
             }
+
+            // Ne pas inclure les voyages sans arrêts valides
+            if (!hasValidStops) continue;
+
+            // Filtrer les arrêts null et trier par timestamp
+            const filteredStops = processedStops
+                .filter(Boolean)
+                .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+            if (filteredStops.length === 0) continue;
+
+            processedTripUpdates[trip.tripId] = {
+                stopUpdates: filteredStops,
+                lastStopId: filteredStops[filteredStops.length - 1].stopId,
+                nextStops: filteredStops,
+                arrivalDelays,
+                scheduleRelationship: trip.scheduleRelationship || SCHEDULED,
+                routeId: trip.routeId,
+                directionId: trip.directionId
+            };
         }
-        
-        // Mettre à jour le cache
-        lastTripUpdateData = processedTripUpdates;
-        lastUpdateTime = now;
-        tripUpdates = processedTripUpdates; // Mise à jour de la variable globale
-        
+
+        // Mettre à jour la variable globale
+        tripUpdates = processedTripUpdates;
+
+        const endTime = performance.now();
+        console.debug(`Processing time: ${(endTime - startTime).toFixed(2)}ms`);
+
         return processedTripUpdates;
-        
+
     } catch (error) {
-        console.error('Erreur récupération trip updates!', error);
-        // En cas d'erreur, utiliser les dernières données valides si disponibles
-        if (lastTripUpdateData) {
-            return lastTripUpdateData;
-        }
+        console.error('Erreur récupération trip updates:', error);
         throw error;
     }
 }
-
-// Nettoyage périodique des caches
-setInterval(() => {
-    if (timeFormatCache.size > 1000) timeFormatCache.clear();
-    if (stopIdCache.size > 1000) stopIdCache.clear();
-}, 3600000); // Toutes les heures
-
 
 function fetchAndScheduleNext() {
   fetchTripUpdates()
