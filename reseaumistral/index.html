@@ -2219,7 +2219,7 @@ function getVehicleBrandHtml(parkNumber) {
 function getVehicleDisplay(parkNumber) {
     const model = getVehicleModel(parkNumber);
     let html = '';
-    
+
     if (model) {
         html += `
             <div class="vehicle-model">
@@ -2227,43 +2227,56 @@ function getVehicleDisplay(parkNumber) {
                 <span style="margin-top: 10px;">🚎 ${model.name}</span>
             </div>
         `;
-        
+
         const badges = [];
         const params = model.params;
-        
-        if (params.isElectric) {
-            badges.push(`<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
-                <img src="src/elec.png" alt="Électrique" style="height: 20px; vertical-align: middle;">
-            </span>`);
+
+        const badgeTemplates = {
+            isElectric: { img: "src/elec.png", alt: "Électrique" },
+            isHybrid: { img: "src/hyb.png", alt: "Hybride" },
+            isGnv: { img: "src/gnv.png", alt: "Gaz Naturel" },
+            isUsbPlugs: { emoji: "⚡ USB", style: "background: linear-gradient(45deg, #5856d677, #4b42d077); color: white;" },
+            isAirConditioned: { emoji: "❄️ Climatisé", style: "background: linear-gradient(45deg, #ADD8E677, #91c1d477); color: black;" },
+            isHeatingUnit: { emoji: "🌡️ Chauffé", style: "background: linear-gradient(45deg, #C21E5677, #9b164777); color: white;" }
+        };
+
+        for (const [key, value] of Object.entries(badgeTemplates)) {
+            if (params[key]) {
+                if (value.img) {
+                    badges.push(`
+                        <span class="badge" style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
+                            <img src="${value.img}" alt="${value.alt}" style="height: 20px; vertical-align: middle;">
+                        </span>
+                    `);
+                } else if (value.emoji) {
+                    badges.push(`
+                        <span class="badge" style="${value.style} border-radius: 10px; display: flex; align-items: center; cursor: pointer;" onclick="toggleBadgeDetails(this)">
+                            ${value.emoji}
+                            <span class="badge-details" style="display: none; margin-left: 5px;">${value.emoji} Option disponible</span>
+                        </span>
+                    `);
+                }
+            }
         }
-        if (params.isHybrid) {
-            badges.push(`<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
-                <img src="src/hyb.png" alt="Hybride" style="height: 20px; vertical-align: middle;">
-            </span>`);
-        }
-        if (params.isGnv) {
-            badges.push(`<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
-                <img src="src/gnv.png" alt="Gaz Naturel" style="height: 20px; vertical-align: middle;">
-            </span>`);
-        }
-        if (params.isUsbPlugs) {
-            badges.push(`<span style="padding: 6px 10px; background: linear-gradient(45deg, #5856d677, #4b42d077); color: white; border-radius: 10px;">⚡ USB</span>`);
-        }
-        if (params.isAirConditioned) {
-            badges.push(`<span style="padding: 6px 10px; background: linear-gradient(45deg, #ADD8E677, #91c1d477); color: black; border-radius: 10px;">❄️ Climatisé</span>`);
-        }
-        if (params.isHeatingUnit) {
-            badges.push(`<span style="padding: 6px 10px; background: linear-gradient(45deg, #C21E5677, #9b164777); color: white; border-radius: 10px;">🌡️ Chauffé</span>`);
-        }
-        
+
         if (badges.length > 0) {
             html += `<div class="vehicle-badges">${badges.join(' ')}</div>`;
         }
     } else {
         html = `<span>🚎 Un bus</span>`;
     }
-    
+
     return html;
+}
+
+function toggleBadgeDetails(el) {
+    const details = el.querySelector('.badge-details');
+    if (details) {
+        const isVisible = details.style.display === 'inline';
+        details.style.display = isVisible ? 'none' : 'inline';
+        details.style.opacity = isVisible ? 0 : 1;
+        details.style.transition = 'opacity 0.3s';
+    }
 }
 
 async function initializeApp() {
@@ -2331,7 +2344,7 @@ async function fetchVehiclePositions() {
                 const tripId = vehicle.trip && vehicle.trip.tripId ? vehicle.trip.tripId : 'Inconnu';
 
                 const lastStopId = tripUpdates[tripId] ? tripUpdates[tripId].lastStopId : 'Inconnu';
-                const lastStopNameun = stopNameMap[lastStopId] || 'Destination inconnue';
+                const lastStopNameun = stopNameMap[lastStopId] || 'inconnue';
                 let lastStopName = lastStopNameun.replace("0:", "");
                 
                 const nextStops = tripUpdates[tripId]?.nextStops || [];
