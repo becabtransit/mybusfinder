@@ -1,57 +1,78 @@
 // worker.js
-onmessage = function(e) {
-    const data = e.data;
-
+self.onmessage = ({ data }) => {
     const processedData = processTripUpdates(data);
-
-    postMessage(processedData);
+    self.postMessage(processedData);
 };
 
 function processTripUpdates(data) {
-    const tripUpdates = {};
+    const tripUpdates = Object.create(null);
+    const now = Date.now() / 1000;
 
-    data.entity.forEach(entity => {
-        const tripUpdate = entity.tripUpdate;
-        if (tripUpdate && tripUpdate.stopTimeUpdate) {
-            const tripId = tripUpdate.trip.tripId;
-            const stopTimeUpdates = tripUpdate.stopTimeUpdate;
+    const localCache = {
+        timestampCache: new Map(),
+        stopIdCache: new Map()
+    };
 
-            const lastStopId = stopTimeUpdates.length > 0 ? stopTimeUpdates[stopTimeUpdates.length - 1].stopId.replace("0:", "") : 'Inconnu';
+    for (let i = 0, len = data.entity.length; i < len; i++) {
+        const { tripUpdate } = data.entity[i];
+        if (!tripUpdate?.stopTimeUpdate?.length) continue;
 
-            const nextStops = stopTimeUpdates.map(update => {
-                const stopId = update.stopId.replace("0:", "");
-                const arrivalTime = update.arrival?.time ?? null; 
-                const departureTime = update.departure?.time ?? null;
+        const { trip, stopTimeUpdate: stops } = tripUpdate;
+        const tripId = trip.tripId;
 
-                const unifiedTime = arrivalTime 
-                    ? new Date(arrivalTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-                    : departureTime 
-                        ? new Date(departureTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-                        : "Heure inconnue";
+        const processedStops = [];
+        const arrivalDelays = Object.create(null);
+        let lastStopId = 'Inconnu';
 
-                return {
-                    stopId,
-                    arrivalTime: arrivalTime ? new Date(arrivalTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
-                    departureTime: departureTime ? new Date(departureTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
-                    unifiedTime 
-                };
-            });
+        for (let j = 0, stopLen = stops.length; j < stopLen; j++) {
+            const stop = stops[j];
+            const stopId = localCache.stopIdCache.get(stop.stopId) || 
+                           localCache.stopIdCache.set(stop.stopId, stop.stopId.replace("0:", "")).get(stop.stopId);
+            
+            const arrivalTime = stop.arrival?.time ?? null;
+            const departureTime = stop.departure?.time ?? null;
 
-            tripUpdates[tripId] = {
-                stopUpdates: stopTimeUpdates,
-                lastStopId: lastStopId,
-                arrivalDelays: {},
-                nextStops: nextStops
+            const processedStop = {
+                stopId,
+                arrivalTime: formatTime(arrivalTime, localCache.timestampCache),
+                departureTime: formatTime(departureTime, localCache.timestampCache),
+                unifiedTime: formatTime(arrivalTime || departureTime, localCache.timestampCache)
             };
 
-            stopTimeUpdates.forEach(update => {
-                if (update.arrival) {
-                    const arrivalDelay = update.arrival.time - Date.now() / 1000; 
-                    tripUpdates[tripId].arrivalDelays[update.stopId] = arrivalDelay;
-                }
-            });
+            processedStops.push(processedStop);
+
+            if (arrivalTime) {
+                arrivalDelays[stopId] = arrivalTime - now;
+            }
+
+            if (j === stops.length - 1) {
+                lastStopId = stopId;
+            }
         }
+
+        tripUpdates[tripId] = {
+            stopUpdates: processedStops,
+            lastStopId,
+            nextStops: processedStops,
+            arrivalDelays
+        };
+    }
+
+    return tripUpdates;
+}
+
+function formatTime(timestamp, cache) {
+    if (!timestamp) return "Heure inconnue";
+
+    if (cache.has(timestamp)) {
+        return cache.get(timestamp);
+    }
+
+    const formattedTime = new Date(timestamp * 1000).toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
     });
 
-    return tripUpdates; 
+    cache.set(timestamp, formattedTime);
+    return formattedTime;
 }
