@@ -1527,7 +1527,6 @@ function hideLoadingScreen() {
             setTimeout(() => {
                 loadingScreen.style.display = 'none';
                 setTimeout(() => {
-                fetchTripUpdates()
                 const locate = document.getElementById('locate');
                 locate.classList.remove('slide-upc');
                 locate.classList.add('slide-downc');
@@ -3233,20 +3232,20 @@ async function fetchTripUpdates() {
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
 
-        const workerResponse = new Promise((resolve) => {
-            worker.onmessage = function(e) {
-                const processedData = e.data;
-                tripUpdates = processedData;
-                resolve(processedData);
+        return new Promise((resolve, reject) => {
+            worker.onmessage = (e) => {
+                tripUpdates = e.data; 
+                resolve(e.data);
             };
+            
+            worker.onerror = (error) => {
+                reject(new Error(`Erreur du worker: ${error.message}`));
+            };
+            
+            worker.postMessage(data);
         });
-
-        worker.postMessage(data);
-
-        return await workerResponse;
-
     } catch (error) {
-        console.error('Err récup trip updates ! ', error);
+        console.error('Err récup trip updates !', error);
         throw error;
     }
 }
