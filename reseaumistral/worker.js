@@ -1,73 +1,56 @@
-// Configuration des options de formatage de l'heure une seule fois
-const TIME_FORMAT_OPTIONS = { hour: '2-digit', minute: '2-digit' };
-const UNKNOWN_TIME = "Heure inconnue";
-const UNKNOWN_STOP = "Inconnu";
-
-// Variables globales pour réduire les allocations mémoire
-const localCache = {
-    timestampCache: new Map(),
-    stopIdCache: new Map()
-};
-
+// worker.js
 self.onmessage = ({ data }) => {
-    self.postMessage(processTripUpdates(data));
+    const processedData = processTripUpdates(data);
+    self.postMessage(processedData);
 };
-
-function formatTime(timestamp, cache) {
-    if (!timestamp) return UNKNOWN_TIME;
-    
-    let cached = cache.get(timestamp);
-    if (cached) return cached;
-    
-    // Utilisation de constantes pour éviter la création d'objets
-    cached = new Date(timestamp * 1000).toLocaleTimeString([], TIME_FORMAT_OPTIONS);
-    cache.set(timestamp, cached);
-    return cached;
-}
-
-function processStop(stop, now, localCache) {
-    const stopId = stop.stopId.replace("0:", "");
-    localCache.stopIdCache.set(stop.stopId, stopId);
-    
-    const arrivalTime = stop.arrival?.time ?? null;
-    const departureTime = stop.departure?.time ?? null;
-    
-    return {
-        stopId,
-        arrivalTime: formatTime(arrivalTime, localCache.timestampCache),
-        departureTime: formatTime(departureTime, localCache.timestampCache),
-        unifiedTime: formatTime(arrivalTime || departureTime, localCache.timestampCache),
-        delay: arrivalTime ? arrivalTime - now : null
-    };
-}
 
 function processTripUpdates(data) {
     const tripUpdates = Object.create(null);
     const now = Date.now() / 1000;
-    const entities = data.entity;
-    
-    // Utilisation de for...of pour une meilleure lisibilité et performance similaire
-    for (const entity of entities) {
-        const { tripUpdate } = entity;
+
+    const localCache = {
+        timestampCache: new Map(),
+        stopIdCache: new Map()
+    };
+
+    for (let i = 0, len = data.entity.length; i < len; i++) {
+        const { tripUpdate } = data.entity[i];
         if (!tripUpdate?.stopTimeUpdate?.length) continue;
 
         const { trip, stopTimeUpdate: stops } = tripUpdate;
-        const processedStops = new Array(stops.length);
+        const tripId = trip.tripId;
+
+        const processedStops = [];
         const arrivalDelays = Object.create(null);
-        
-        // Traitement des arrêts en une seule passe
-        for (let i = 0; i < stops.length; i++) {
-            const processedStop = processStop(stops[i], now, localCache);
-            processedStops[i] = processedStop;
+        let lastStopId = 'Inconnu';
+
+        for (let j = 0, stopLen = stops.length; j < stopLen; j++) {
+            const stop = stops[j];
+            const stopId = localCache.stopIdCache.get(stop.stopId) || 
+                           localCache.stopIdCache.set(stop.stopId, stop.stopId.replace("0:", "")).get(stop.stopId);
             
-            if (processedStop.delay !== null) {
-                arrivalDelays[processedStop.stopId] = processedStop.delay;
+            const arrivalTime = stop.arrival?.time ?? null;
+            const departureTime = stop.departure?.time ?? null;
+
+            const processedStop = {
+                stopId,
+                arrivalTime: formatTime(arrivalTime, localCache.timestampCache),
+                departureTime: formatTime(departureTime, localCache.timestampCache),
+                unifiedTime: formatTime(arrivalTime || departureTime, localCache.timestampCache)
+            };
+
+            processedStops.push(processedStop);
+
+            if (arrivalTime) {
+                arrivalDelays[stopId] = arrivalTime - now;
+            }
+
+            if (j === stops.length - 1) {
+                lastStopId = stopId;
             }
         }
 
-        const lastStopId = processedStops[processedStops.length - 1]?.stopId ?? UNKNOWN_STOP;
-
-        tripUpdates[trip.tripId] = {
+        tripUpdates[tripId] = {
             stopUpdates: processedStops,
             lastStopId,
             nextStops: processedStops,
@@ -76,4 +59,20 @@ function processTripUpdates(data) {
     }
 
     return tripUpdates;
+}
+
+function formatTime(timestamp, cache) {
+    if (!timestamp) return "Heure inconnue";
+
+    if (cache.has(timestamp)) {
+        return cache.get(timestamp);
+    }
+
+    const formattedTime = new Date(timestamp * 1000).toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+
+    cache.set(timestamp, formattedTime);
+    return formattedTime;
 }
