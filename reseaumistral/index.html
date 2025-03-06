@@ -2219,7 +2219,7 @@ function getVehicleBrandHtml(parkNumber) {
 function getVehicleDisplay(parkNumber) {
     const model = getVehicleModel(parkNumber);
     let html = '';
-
+    
     if (model) {
         html += `
             <div class="vehicle-model">
@@ -2227,56 +2227,43 @@ function getVehicleDisplay(parkNumber) {
                 <span style="margin-top: 10px;">🚎 ${model.name}</span>
             </div>
         `;
-
+        
         const badges = [];
         const params = model.params;
-
-        const badgeTemplates = {
-            isElectric: { img: "src/elec.png", alt: "Électrique" },
-            isHybrid: { img: "src/hyb.png", alt: "Hybride" },
-            isGnv: { img: "src/gnv.png", alt: "Gaz Naturel" },
-            isUsbPlugs: { emoji: "⚡ USB", style: "background: linear-gradient(45deg, #5856d677, #4b42d077); color: white;" },
-            isAirConditioned: { emoji: "❄️ Climatisé", style: "background: linear-gradient(45deg, #ADD8E677, #91c1d477); color: black;" },
-            isHeatingUnit: { emoji: "🌡️ Chauffé", style: "background: linear-gradient(45deg, #C21E5677, #9b164777); color: white;" }
-        };
-
-        for (const [key, value] of Object.entries(badgeTemplates)) {
-            if (params[key]) {
-                if (value.img) {
-                    badges.push(`
-                        <span class="badge" style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
-                            <img src="${value.img}" alt="${value.alt}" style="height: 20px; vertical-align: middle;">
-                        </span>
-                    `);
-                } else if (value.emoji) {
-                    badges.push(`
-                        <span class="badge" style="${value.style} border-radius: 10px; display: flex; align-items: center; cursor: pointer;" onclick="toggleBadgeDetails(this)">
-                            ${value.emoji}
-                            <span class="badge-details" style="display: none; margin-left: 5px;">${value.emoji} Option disponible</span>
-                        </span>
-                    `);
-                }
-            }
+        
+        if (params.isElectric) {
+            badges.push(`<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
+                <img src="src/elec.png" alt="Électrique" style="height: 20px; vertical-align: middle;">
+            </span>`);
         }
-
+        if (params.isHybrid) {
+            badges.push(`<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
+                <img src="src/hyb.png" alt="Hybride" style="height: 20px; vertical-align: middle;">
+            </span>`);
+        }
+        if (params.isGnv) {
+            badges.push(`<span style="padding: 6px 10px; background: #00000077; border-radius: 10px;">
+                <img src="src/gnv.png" alt="Gaz Naturel" style="height: 20px; vertical-align: middle;">
+            </span>`);
+        }
+        if (params.isUsbPlugs) {
+            badges.push(`<span style="padding: 6px 10px; background: linear-gradient(45deg, #5856d677, #4b42d077); color: white; border-radius: 10px;">⚡ USB</span>`);
+        }
+        if (params.isAirConditioned) {
+            badges.push(`<span style="padding: 6px 10px; background: linear-gradient(45deg, #ADD8E677, #91c1d477); color: black; border-radius: 10px;">❄️ Climatisé</span>`);
+        }
+        if (params.isHeatingUnit) {
+            badges.push(`<span style="padding: 6px 10px; background: linear-gradient(45deg, #C21E5677, #9b164777); color: white; border-radius: 10px;">🌡️ Chauffé</span>`);
+        }
+        
         if (badges.length > 0) {
             html += `<div class="vehicle-badges">${badges.join(' ')}</div>`;
         }
     } else {
         html = `<span>🚎 Un bus</span>`;
     }
-
+    
     return html;
-}
-
-function toggleBadgeDetails(el) {
-    const details = el.querySelector('.badge-details');
-    if (details) {
-        const isVisible = details.style.display === 'inline';
-        details.style.display = isVisible ? 'none' : 'inline';
-        details.style.opacity = isVisible ? 0 : 1;
-        details.style.transition = 'opacity 0.3s';
-    }
 }
 
 async function initializeApp() {
@@ -2440,102 +2427,103 @@ async function fetchVehiclePositions() {
                 }
                 
                 const popupContent = `
-                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; line-height: 1.4; color: #333; border-radius: 15px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); overflow: hidden; background-color: ${backgroundColor}77; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-                        
-                        <!-- En-tête avec numéro de parc en arrière-plan -->
-                <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
-                    <!-- Texte principal -->
-                    <div style="z-index: 2; text-align: left; width: 100%;">
-                        <strong style="font-size: 20px;">Ligne ${lineName[line] || "interne au réseau"}</strong>
-                        <p style="margin: 0; font-size: 14px;">➜ Destination <strong style="color: ${textColor};">${lastStopName}</strong></p>
-                        <p style="margin: 0; font-size: 14px;">🏁 Arrivée au terminus dans <strong style="color: ${textColor};">${remainingTimeMessage}</strong></p>
-                    </div>
+    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; line-height: 1.4; color: #333; border-radius: 15px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); overflow: hidden; background-color: ${backgroundColor}77; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+        
+        <!-- En-tête avec numéro de parc en arrière-plan -->
+        <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px;">
+            <!-- Texte principal -->
+            <div style="z-index: 2; text-align: left; width: 100%;">
+                <strong style="font-size: 20px;">Ligne ${lineName[line] || "interne au réseau"}</strong>
+                <p style="margin: 0; font-size: 14px;">➜ Destination <strong style="color: ${textColor};">${lastStopName}</strong></p>
+                <p style="margin: 0; font-size: 14px;">🏁 Arrivée au terminus dans <strong style="color: ${textColor};">${remainingTimeMessage}</strong></p>
+            </div>
 
-                    <!-- Texte en arrière-plan -->
+            <!-- Texte en arrière-plan -->
+            <div style="
+                position: absolute;
+                right: 10px;
+                top: 0;
+                bottom: 0;
+                z-index: 1;
+                opacity: 0.1;
+                font-size: 100px;
+                font-weight: bold;
+                color: ${textColor};
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                white-space: nowrap;
+            ">
+                Ligne ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
+            </div>
+        </div>
+
+        <div style="margin-right: 10px; margin-top: 10px; margin-bottom: 5px; text-align: right;">
+            ${vehicleBrandHtml}
+        </div>
+
+        <div style="padding: 0 10px 10px 10px;">
+            <div style="position: relative; display: flex; align-items: center;">
+                <!-- Conteneur pour le texte défilant avec effet fondu -->
+                <div style="
+                    position: relative;
+                    flex: 1;
+                    overflow: hidden;
+                    border-radius: 10px;
+                ">
+                    <!-- Contenu défilant horizontalement -->
                     <div style="
-                        position: absolute;
-                        right: 10px;
-                        top: 0;
-                        bottom: 0;
-                        z-index: 1;
-                        opacity: 0.1;
-                        font-size: 100px;
-                        font-weight: bold;
-                        color: ${textColor};
                         display: flex;
-                        align-items: center;
-                        justify-content: flex-end;
+                        gap: 10px;
+                        padding: 0px;
                         white-space: nowrap;
-                    ">
-                        Ligne ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
-                    </div>
-                </div>
-
-                <div style="margin-right: 10px; margin-top: 10px; margin-bottom: 5px; text-align: right;">
-                ${vehicleBrandHtml}
-                </div>
-
-                <div style="padding: 0 10px 10px 10px;">
-                    <div style="position: relative; display: flex; align-items: center; ">
-                        <!-- Conteneur pour le texte défilant avec effet fondu -->
-                        <div style="
-                            position: relative;
-                            flex: 1;
-                            overflow: hidden;
+                        overflow-x: auto;
+                        scrollbar-width: thin; 
+                        scrollbar-color: #888 #f1f1f1;
+                    " class="custom-scrollbar">
+                        <!-- Numéro de parc -->
+                        <span style="
+                            background: #00000077;
+                            color: #ffffff;
+                            padding: 6px 12px;
                             border-radius: 10px;
+                            font-weight: normal;
+                            font-size: 14px;
+                            white-space: nowrap;
+                            -webkit-backdrop-filter: blur(8px); 
                         ">
-                            <!-- Contenu défilant horizontalement -->
-                            <div style="
-                                display: flex;
-                                gap: 10px;
-                                padding: 0px;
-                                white-space: nowrap;
-                                overflow-x: auto;
-                                scrollbar-width: thin; 
-                                scrollbar-color: #888 #f1f1f1;
-                            " class="custom-scrollbar">
-                                <!-- Numéro de parc -->
-                                <span style="
-                                    background: #00000077;
-                                    color: #ffffff;
-                                    padding: 6px 12px;
-                                    border-radius: 10px;
-                                    font-weight: normal;
-                                    font-size: 14px;
-                                    white-space: nowrap;
-                                    -webkit-backdrop-filter: blur(8px); 
-                                ">
-                                    Véhicule ${vehicle.vehicle.label}
-                                </span>
-                                
-                                <!-- Badges des options du véhicule -->
-                                ${vehicleOptionsBadges}
-                            </div>
-                        </div>
+                            Véhicule ${vehicle.vehicle.label}
+                        </span>
+                        
+                        <!-- Badges des options du véhicule -->
+                        ${vehicleOptionsBadges}
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div style="color: ${textColor};">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; margin-left: 10px; margin-right: 10px;">
-                        <span>📍 <strong>Prochain arrêt</strong></span>
-                        <span>${stopNameMap[stopId] || stopId}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-left: 10px; margin-right: 10px;">
-                        <span>💨 <strong>Vitesse</strong></span>
-                        <span>${speed}</span>
-                    </div>
-                </div>
+        <div style="color: ${textColor};">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px; margin-left: 10px; margin-right: 10px;">
+                <span>📍 <strong>Prochain arrêt</strong></span>
+                <span>${stopNameMap[stopId] || stopId}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-left: 10px; margin-right: 10px;">
+                <span>💨 <strong>Vitesse</strong></span>
+                <span>${speed}</span>
+            </div>
+        </div>
 
-                <!-- Prochains arrêts -->
-                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
-                    <h2 style="margin: 0; font-size: 18px; font-weight: bold;">Arrêts à l'approche</h2>
-                    <ul>
-                    <div id="nextStopsContent" class="next-stops-content">
-                          ${nextStopsHTML}
-                    </div>   
-                </div>
-                </div>
-                `;
+        <!-- Prochains arrêts -->
+        <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+            <h2 style="margin: 0; font-size: 18px; font-weight: bold;">Arrêts à l'approche</h2>
+            <ul>
+                <div id="nextStopsContent" class="next-stops-content">
+                    ${nextStopsHTML}
+                </div>   
+            </ul>
+        </div>
+    </div>
+`;
 if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
 
