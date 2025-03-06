@@ -3246,23 +3246,47 @@ function updateMenu() {
     const busesByLineAndDestination = {};
 
     Object.keys(markers).forEach(id => {
-        const vehicle = markers[id];
-        const line = vehicle.line;
-        const destination = vehicle.getPopup().getContent().match(/Destination\s*<strong.*?>(.*?)<\/strong>/)?.[1] || "Inconnue";
+    const vehicle = markers[id];
+    const line = vehicle.line;
+    
+    // Nouvelle méthode pour extraire la destination
+    let destination = "Inconnue";
+    const popupContent = vehicle.getPopup().getContent();
+    
+    // Plusieurs patterns possibles pour extraire la destination
+    const patterns = [
+        /Destination\s*<strong.*?>(.*?)<\/strong>/,
+        /Destination.*?:\s*(.*?)(?:<\/|$)/,
+        /Direction\s*:\s*(.*?)(?:<\/|$)/,
+        /Terminus\s*:\s*(.*?)(?:<\/|$)/
+    ];
 
-        if (!busesByLineAndDestination[line]) {
-            busesByLineAndDestination[line] = {};
+    for (const pattern of patterns) {
+        const match = popupContent.match(pattern);
+        if (match && match[1]) {
+            destination = match[1].trim();
+            break;
         }
+    }
 
-        if (!busesByLineAndDestination[line][destination]) {
-            busesByLineAndDestination[line][destination] = [];
-        }
+    // Pour le débogage, ajouter ces lignes temporairement
+    console.log('Bus ID:', id);
+    console.log('Popup content:', popupContent);
+    console.log('Extracted destination:', destination);
 
-        busesByLineAndDestination[line][destination].push({
-            parkNumber: vehicle.id,
-            vehicle
-        });
+    if (!busesByLineAndDestination[line]) {
+        busesByLineAndDestination[line] = {};
+    }
+
+    if (!busesByLineAndDestination[line][destination]) {
+        busesByLineAndDestination[line][destination] = [];
+    }
+
+    busesByLineAndDestination[line][destination].push({
+        parkNumber: vehicle.id,
+        vehicle
     });
+});
 
     const sortedLines = Object.keys(busesByLineAndDestination)
         .sort((a, b) => {
