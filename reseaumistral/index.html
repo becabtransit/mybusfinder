@@ -1187,29 +1187,6 @@ shape.bounce-down {
     opacity: 0.8;
 }
 
-.marker-container {
-    position: relative;
-    width: 0;
-    height: 0;
-}
-
-.marker-wrapper {
-    position: absolute;
-    transition: transform 0.2s ease;
-}
-
-.marker-icon {
-    transition: transform 0.2s ease;
-}
-
-.marker-arrow {
-    transition: transform 0.5s ease;
-}
-
-.my-custom-pin {
-    contain: layout style;
-}
-
     </style>
 
 </head>
@@ -1998,8 +1975,8 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             left: -2px;
             top: -2px;
             transform-origin: center center;
-            transform: rotate(${bearing}deg);
-            transition: transform 0.5s ease;"
+            transform: rotate(${bearing}deg);\"\
+            transition: transform 0.5s ease;\"\
             viewBox="0 0 24 24">
             <path 
                 d="M8 4 L16 12 L8 20"
@@ -2025,41 +2002,37 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         iconAnchor: [0, 0],
         popupAnchor: [0, 5],
         html: `
-            <div class="marker-container">
-                <div class="marker-wrapper">
-                    <span class="marker-icon" style="${markerHtmlStyles}"></span>
-                    ${arrowSvg}
-                </div>
+            <div class="marker-container" style="position: relative;">
+                <span class="marker-dot" style="${markerHtmlStyles}" />
+                ${arrowSvg}
             </div>
         `
     });
 
     const marker = L.marker([lat, lon], { icon });
     const styleId = generateUniqueId();
-
-    marker.updateRotation = function(bearing) {
+    
+    marker.on('mouseover', function() {
         if (this._icon) {
-            const arrow = this._icon.querySelector('.marker-arrow');
-            if (arrow) {
-                arrow.style.transform = `rotate(${bearing}deg)`;
+            const markerDot = this._icon.querySelector('.marker-dot');
+            if (markerDot) {
+                markerDot.style.transform = 'scale(1.2)';
             }
         }
-    };
-
-    marker.updateScale = function(scale) {
+    });
+    
+    marker.on('mouseout', function() {
         if (this._icon) {
-            const container = this._icon.querySelector('.marker-wrapper');
-            if (container) {
-                container.style.transform = `scale(${scale})`;
+            const markerDot = this._icon.querySelector('.marker-dot');
+            if (markerDot) {
+                markerDot.style.transform = 'scale(1)';
             }
         }
-    };
+    });
 
     marker.on('popupopen', function(e) {
         const menubtm = document.getElementById('menubtm');
-        if (!menubtm) return;
-
-        try {
+        if (menubtm) {
             const color = lineColors[route_id] || '#000000';
             
             const oldStyle = document.getElementById(styleId);
@@ -2102,70 +2075,60 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             document.head.appendChild(styleSheet);
             menubtm.classList.add(styleId);
             marker.styleId = styleId;
-        } catch (error) {
-            console.error('Erreur lors de l\'ouverture du popup:', error);
         }
     });
 
     marker.on('popupclose', async function(e) {
         const menubtm = document.getElementById('menubtm');
-        if (!menubtm) return;
-
-        try {
-            const currentColor = window.getComputedStyle(menubtm).backgroundColor;
-            const data = await getSetvar();
-            
-            if (data) {
-                requestAnimationFrame(() => {
-                    const returnStyleId = generateUniqueId();
-                    const returnStyle = document.createElement('style');
-                    returnStyle.id = returnStyleId;
-                    
-                    menubtm.style.backgroundColor = currentColor;
-                    
-                    const returnAnimation = `menubtm-return-${returnStyleId}`;
-                    returnStyle.textContent = `
-                        @keyframes ${returnAnimation} {
-                            from {
+        if (menubtm) {
+            try {
+                const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+                const data = await getSetvar();
+                
+                if (data) {
+                    requestAnimationFrame(() => {
+                        const returnStyleId = generateUniqueId();
+                        const returnStyle = document.createElement('style');
+                        returnStyle.id = returnStyleId;
+                        
+                        menubtm.style.backgroundColor = currentColor;
+                        
+                        const returnAnimation = `menubtm-return-${returnStyleId}`;
+                        returnStyle.textContent = `
+                            @keyframes ${returnAnimation} {
+                                from {
+                                    background-color: ${currentColor};
+                                }
+                                to {
+                                    background-color: ${data.colorbkg}77;
+                                }
+                            }
+                            #menubtm.${returnStyleId} {
                                 background-color: ${currentColor};
+                                animation: ${returnAnimation} 0.3s ease-out forwards;
                             }
-                            to {
-                                background-color: ${data.colorbkg}77;
-                            }
+                        `;
+                        
+                        if (marker.styleId) {
+                            const oldStyle = document.getElementById(marker.styleId);
+                            if (oldStyle) oldStyle.remove();
+                            menubtm.classList.remove(marker.styleId);
                         }
-                        #menubtm.${returnStyleId} {
-                            background-color: ${currentColor};
-                            animation: ${returnAnimation} 0.3s ease-out forwards;
-                        }
-                    `;
-                    
-                    if (marker.styleId) {
-                        const oldStyle = document.getElementById(marker.styleId);
-                        if (oldStyle) oldStyle.remove();
-                        menubtm.classList.remove(marker.styleId);
-                    }
-                    
-                    document.head.appendChild(returnStyle);
-                    menubtm.classList.add(returnStyleId);
-                    
-                    setTimeout(() => {
-                        menubtm.classList.remove(returnStyleId);
-                        returnStyle.remove();
-                        menubtm.style.backgroundColor = `${data.colorbkg}77`;
-                    }, 300);
-                });
+                        
+                        document.head.appendChild(returnStyle);
+                        menubtm.classList.add(returnStyleId);
+                        
+                        setTimeout(() => {
+                            menubtm.classList.remove(returnStyleId);
+                            returnStyle.remove();
+                            menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                        }, 300);
+                    });
+                }
+            } catch (error) {
+                console.error('Erreur lors de la réinitialisation des couleurs:', error);
             }
-        } catch (error) {
-            console.error('Erreur lors de la réinitialisation des couleurs:', error);
         }
-    });
-
-    marker.on('mouseover', function() {
-        this.updateScale(1.2);
-    });
-    
-    marker.on('mouseout', function() {
-        this.updateScale(1);
     });
 
     return marker;
