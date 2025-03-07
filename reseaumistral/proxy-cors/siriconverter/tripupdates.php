@@ -5,6 +5,7 @@
  * Ce script convertit les données SIRI (Service Interface for Real Time Information)
  * en format GTFS-RT (General Transit Feed Specification - Realtime) pour les màj des trajets
  * Par Becab Systems - pour MyBusFinder 3X
+ * !!! A n'utiliser uniquement si vous ne disposez pas de données GTFSRT, les données sont peut être inexactes !
  */
 
 require_once 'vendor/autoload.php';
