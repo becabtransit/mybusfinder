@@ -3426,6 +3426,31 @@ function updateButtonText() {
     }
 }
 
+function getNextStopInfo(vehicleId) {
+    const vehicle = markers[vehicleId];
+    if (!vehicle) return null;
+    
+    const currentStopId = vehicle.stopId ? vehicle.stopId.replace("0:", "") : null;
+    
+    for (const [tripId, tripData] of Object.entries(tripUpdates)) {
+        if (!tripData.nextStops || !tripData.nextStops.length) continue;
+        
+        const currentStopIndex = tripData.nextStops.findIndex(stop => 
+            stop.stopId.replace("0:", "") === currentStopId
+        );
+        
+        if (currentStopIndex !== -1 && tripData.nextStops[currentStopIndex + 1]) {
+            const nextStop = tripData.nextStops[currentStopIndex + 1];
+            return {
+                name: stopNameMap[nextStop.stopId] || nextStop.stopId,
+                delay: nextStop.delay,
+                departureTime: nextStop.departureTime
+            };
+        }
+    }
+    return null;
+}
+
 const satelliteIcon = document.createElement('div');
 satelliteIcon.className = 'alerts-icon';
 satelliteIcon.innerHTML = `
@@ -3595,44 +3620,19 @@ menu.appendChild(satelliteButton);
         destinationSection.appendChild(destinationTitle);
 
         busesByLineAndDestination[line][destination].forEach(bus => {
-        const busItem = document.createElement('div');
+            const busItem = document.createElement('div');
+            const nextStop = getNextStopInfo(bus.parkNumber);
             
-            const vehicle = markers[bus.parkNumber];
-            
-            let nextStopInfo = '';
-            if (vehicle) {
-                // Récupérer le stopId actuel du véhicule
-                const currentStopId = vehicle.stopId ? vehicle.stopId.replace("0:", "") : null;
-                
-                // Parcourir les tripUpdates pour trouver les informations du prochain arrêt
-                for (const [tripId, tripData] of Object.entries(tripUpdates)) {
-                    if (tripData.nextStops && tripData.nextStops.length > 0) {
-                        const currentStopIndex = tripData.nextStops.findIndex(stop => 
-                            stop.stopId.replace("0:", "") === currentStopId
-                        );
-                        
-                        if (currentStopIndex !== -1 && tripData.nextStops[currentStopIndex + 1]) {
-                            const nextStop = tripData.nextStops[currentStopIndex + 1];
-                            const nextStopName = stopNameMap[nextStop.stopId] || nextStop.stopId;
-                            
-                            // Si nous avons un temps de départ
-                            if (nextStop.departureTime) {
-                                const timeLeft = nextStop.delay ? Math.round(nextStop.delay / 60) : null;
-                                let timeText = '';
-                                
-                                if (timeLeft !== null) {
-                                    timeText = timeLeft <= 0 ? 'imminent' : `dans ${timeLeft} min`;
-                                }
-                                
-                                nextStopInfo = ` 🚏 ${nextStopName.replace("0:", "")} (${timeText})`;
-                                break; // On a trouvé les infos, on sort de la boucle
-                            }
-                        }
-                    }
-                }
+            let displayText = `Bus ${bus.parkNumber}`;
+            if (nextStop) {
+                const timeLeft = nextStop.delay ? Math.round(nextStop.delay / 60) : null;
+                const timeText = timeLeft !== null 
+                    ? (timeLeft <= 0 ? 'imminent' : `dans ${timeLeft} min`)
+                    : '';
+                displayText += ` 🚏 ${nextStop.name.replace("0:", "")} (${timeText})`;
             }
             
-            busItem.textContent = `Bus ${bus.parkNumber}${nextStopInfo || ''}`;
+            busItem.textContent = displayText;
             busItem.style.cursor = 'pointer';
             busItem.classList.add('menu-item');
             busItem.style.fontFamily = 'League Spartan';
