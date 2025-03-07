@@ -3607,43 +3607,68 @@ menu.appendChild(satelliteButton);
 
         busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
-            const marker = bus.vehicle;
-            const popupContent = marker.getPopup().getContent();
-            
-            let nextStopInfo = '';
-            
-            const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
-            
-            if (nextStopsDiv && nextStopsDiv[0]) {
-                const firstStopMatch = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/);
-                if (firstStopMatch && firstStopMatch[1]) {
-                    const stopInfo = firstStopMatch[1]
-                        .replace(/<[^>]*>/g, '')  
-                        .replace(/\s+/g, ' ')     
-                        .replace(/\s*\|.*$/, '')  
-                        .trim();
+                    const marker = bus.vehicle;
+                    const popupContent = marker.getPopup().getContent();
                     
-                    const [stopName, timeInfo] = stopInfo.split(/(?=dans|imminent)/);
+                    let nextStopInfo = '';
+                    let terminusInfo = '';
                     
-                    if (stopName && timeInfo) {
-                        nextStopInfo = ` | ${stopName.trim()}\nArrivée ${timeInfo.trim()}`;
+                    const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
+                    
+                    if (nextStopsDiv && nextStopsDiv[0]) {
+                        const allStops = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
+                        
+                        if (allStops && allStops.length > 0) {
+                            const firstStop = allStops[0]
+                                .replace(/<[^>]*>/g, '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/\s*\|.*$/, '')
+                                .trim();
+                                
+                            const lastStop = allStops[allStops.length - 1]
+                                .replace(/<[^>]*>/g, '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/\s*\|.*$/, '')
+                                .trim();
+                            
+                            const [stopName, timeInfo] = firstStop.split(/(?=dans|imminent)/);
+                            const [terminusName, terminusTime] = lastStop.split(/(?=dans|imminent)/);
+                            
+                            if (stopName && timeInfo) {
+                                nextStopInfo = `-> ${stopName.trim()}`;
+                            }
+                            
+                            if (terminusName && terminusTime) {
+                                terminusInfo = `Arrivée au terminus ${terminusTime.trim()}`;
+                            }
+                        }
                     }
-                }
-            }
 
-            busItem.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`; // Espace ajouté après le numéro du bus
-            busItem.style.cursor = 'pointer';
-            busItem.classList.add('menu-item');
-            busItem.style.fontFamily = 'League Spartan';
-            busItem.style.color = 'white';
-            busItem.style.padding = '5px 10px';
-            busItem.style.marginBottom = '5px';
-            busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
-            busItem.style.borderRadius = '8px';
-            busItem.style.whiteSpace = 'pre';
-            busItem.style.overflow = 'hidden';
-            busItem.style.textOverflow = 'ellipsis';
-            busItem.style.maxWidth = '300px';
+                    const mainText = document.createElement('div');
+                    mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
+                    mainText.style.fontSize = '1.2em';  
+                    mainText.style.fontWeight = '500';  
+                    
+                    const arrivalText = document.createElement('div');
+                    arrivalText.textContent = terminusInfo;
+                    arrivalText.style.fontSize = '0.9em'; 
+                    arrivalText.style.fontStyle = 'italic';  
+                    arrivalText.style.opacity = '0.8';  
+                    
+                    busItem.textContent = '';
+                    busItem.appendChild(mainText);
+                    busItem.appendChild(arrivalText);
+                    
+                    busItem.style.cursor = 'pointer';
+                    busItem.classList.add('menu-item');
+                    busItem.style.fontFamily = 'League Spartan';
+                    busItem.style.color = 'white';
+                    busItem.style.padding = '5px 10px';
+                    busItem.style.marginBottom = '5px';
+                    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+                    busItem.style.borderRadius = '8px';
+                    busItem.style.overflow = 'hidden';
+                    busItem.style.maxWidth = '300px';
                     lineSection.onclick = () => {
                         const lineId = line;
                         selectedLine = lineId;
