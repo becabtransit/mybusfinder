@@ -44,6 +44,7 @@ function fetchSiriData() {
     
     $context = stream_context_create($options);
     $response = file_get_contents($config['siri_url'], false, $context);
+    var_dump($http_response_header);
     
     if ($response === false) {
         throw new Exception("Impossible de récupérer les données SIRI");
