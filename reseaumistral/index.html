@@ -1472,6 +1472,8 @@ function showUpdatePopup(link) {
 
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
+            filtre.classList.remove('slide-downb');
+            filtre.classList.add('slide-upb');
             if (selectedLine) {
         const filtre = document.getElementById('filtre');
         filtre.classList.add('slide-upc');
@@ -2187,21 +2189,37 @@ async function loadGeoJsonLines() {
     }).addTo(map);
 }
 
+let selectedLines = [];
+
 function filterByLine(lineId) {
+    if (selectedLines.includes(lineId)) {
+        selectedLines = selectedLines.filter(id => id !== lineId);
+    } 
+    else {
+        selectedLines.push(lineId);
+    }
+    
     geoJsonLines.forEach(layer => {
         map.removeLayer(layer);
     });
     
-    const selectedLineLayer = geoJsonLines.find(layer => 
-        layer.feature.properties.route_id === lineId
-    );
-    
-    if (selectedLineLayer) {
-        map.addLayer(selectedLineLayer);
+    if (selectedLines.length === 0) {
+        geoJsonLines.forEach(layer => {
+            map.addLayer(layer);
+        });
+    } 
+    else {
+        const selectedLineLayers = geoJsonLines.filter(layer => 
+            selectedLines.includes(layer.feature.properties.route_id)
+        );
+        
+        selectedLineLayers.forEach(layer => {
+            map.addLayer(layer);
+        });
     }
 
     Object.entries(markers).forEach(([id, marker]) => {
-        if (marker.line === lineId) {
+        if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
             if (!map.hasLayer(marker)) {
                 map.addLayer(marker);
             }
@@ -2214,11 +2232,12 @@ function filterByLine(lineId) {
             }
         }
     });
-    
-    selectedLine = lineId;
 }
 
+
 function resetMapView() {
+    selectedLines = [];
+    
     selectedLine = null;
     
     geoJsonLines.forEach(layer => {
@@ -2247,6 +2266,8 @@ function showPopup() {
             const menubotom = document.getElementById('menubottom');
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
+            filtre.classList.remove('slide-downb');
+            filtre.classList.add('slide-upb');
             if (selectedLine) {
         const filtre = document.getElementById('filtre');
         filtre.classList.add('slide-upc');
@@ -3279,7 +3300,6 @@ function updateMenu() {
     transportStateContainer.appendChild(transportStateTextContainer);
     menu.appendChild(transportStateContainer);
 
-    // Ajout du bouton de localisation
     const locationButton = document.createElement('div');
     locationButton.className = 'alerts-button';
     locationButton.onclick = () => {
@@ -3292,6 +3312,8 @@ function updateMenu() {
         setTimeout(() => {
             menubottom1.classList.remove('slide-upb');
             menubottom1.classList.add('slide-downb');
+            filtre.classList.remove('slide-upb');
+            filtre.classList.add('slide-downb');
         }, 10);
     };
 
@@ -3517,11 +3539,12 @@ const menubottom1 = document.getElementById('menubtm');
             isMenuVisible = true; 
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
+            filtre.classList.remove('slide-downb');
+            filtre.classList.add('slide-upb');
             if (selectedLine) {
         const filtre = document.getElementById('filtre');
         filtre.classList.add('slide-upc');
         filtre.classList.remove('slide-downc');
-        resetMapView();
         }
 
             menubottom1.addEventListener('transitionend', () => {
