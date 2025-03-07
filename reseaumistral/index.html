@@ -3619,11 +3619,15 @@ menu.appendChild(satelliteButton);
                 if (firstStopMatch && firstStopMatch[1]) {
                     const stopInfo = firstStopMatch[1]
                         .replace(/<[^>]*>/g, '')  
-                        .replace(/\s+/g, ' ')     
+                        .replace(/\s+/g, ' ')   
                         .replace(/\s*\|.*$/, '')  
                         .trim();
                     
-                    nextStopInfo = ` | ${stopInfo}`;
+                    const [stopName, timeInfo] = stopInfo.split(/(?=dans|imminent)/);
+                    
+                    if (stopName && timeInfo) {
+                        nextStopInfo = `\n-> ${stopName.trim()}\nArrivée à l'arrêt ${timeInfo.trim()}`;
+                    }
                 }
             }
 
@@ -3636,11 +3640,10 @@ menu.appendChild(satelliteButton);
             busItem.style.marginBottom = '5px';
             busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
             busItem.style.borderRadius = '8px';
-            busItem.style.whiteSpace = 'nowrap';
+            busItem.style.whiteSpace = 'pre';  
             busItem.style.overflow = 'hidden';
             busItem.style.textOverflow = 'ellipsis';
             busItem.style.maxWidth = '300px';
-
                     lineSection.onclick = () => {
                         const lineId = line;
                         selectedLine = lineId;
