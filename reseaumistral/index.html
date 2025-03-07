@@ -2063,55 +2063,65 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     });
 
     marker.on('popupclose', async function(e) {
-        const menubtm = document.getElementById('menubtm');
-        if (menubtm) {
-            try {
-                if (marker.styleId) {
-                    menubtm.classList.remove(marker.styleId);
-                }
-                
-                const styleElement = document.getElementById(marker.styleId);
-                if (styleElement) {
-                    styleElement.remove();
-                }
-                
-                const data = await getSetvar();
-                if (data) {
-                    const returnStyleId = generateUniqueId();
-                    const returnStyle = document.createElement('style');
-                    returnStyle.id = returnStyleId;
-                    
-                    const returnAnimation = `menubtm-return-${returnStyleId}`;
-                    returnStyle.textContent = `
-                        @keyframes ${returnAnimation} {
-                            0% {
-                                background-color: ${menubtm.style.backgroundColor || 'transparent'};
-                            }
-                            100% {
-                                background-color: ${data.colorbkg}77;
-                            }
-                        }
-                        #menubtm.${returnStyleId} {
-                            animation: ${returnAnimation} 0.3s forwards;
-                        }
-                        #menubtm.${returnStyleId} * {
-                            transition: color 0.3s ease;
-                        }
-                    `;
-                    
-                    document.head.appendChild(returnStyle);
-                    menubtm.classList.add(returnStyleId);
-                    
-                    setTimeout(() => {
-                        menubtm.classList.remove(returnStyleId);
-                        returnStyle.remove();
-                    }, 300);
-                }
-            } catch (error) {
-                console.error('Erreur lors de la réinitialisation des couleurs:', error);
+    const menubtm = document.getElementById('menubtm');
+    if (menubtm) {
+        try {
+            const currentStyle = window.getComputedStyle(menubtm);
+            const currentColor = currentStyle.backgroundColor;
+
+            if (marker.styleId) {
+                menubtm.classList.remove(marker.styleId);
             }
+            
+            const styleElement = document.getElementById(marker.styleId);
+            if (styleElement) {
+                styleElement.remove();
+            }
+            
+            const data = await getSetvar();
+            if (data) {
+                const returnStyleId = generateUniqueId();
+                const returnStyle = document.createElement('style');
+                returnStyle.id = returnStyleId;
+                
+                const hex = data.colorbkg.replace('#', '');
+                const r = parseInt(hex.substring(0, 2), 16);
+                const g = parseInt(hex.substring(2, 2), 16);
+                const b = parseInt(hex.substring(4, 2), 16);
+                
+                const returnAnimation = `menubtm-return-${returnStyleId}`;
+                returnStyle.textContent = `
+                    @keyframes ${returnAnimation} {
+                        0% {
+                            background-color: ${currentColor};
+                        }
+                        100% {
+                            background-color: rgba(${r}, ${g}, ${b}, 0.47);
+                        }
+                    }
+                    #menubtm.${returnStyleId} {
+                        animation: ${returnAnimation} 0.3s ease-in-out forwards;
+                    }
+                    #menubtm.${returnStyleId} * {
+                        transition: all 0.3s ease-in-out;
+                    }
+                `;
+                
+                document.head.appendChild(returnStyle);
+                menubtm.classList.add(returnStyleId);
+                
+                setTimeout(() => {
+                    menubtm.classList.remove(returnStyleId);
+                    returnStyle.remove();
+                    
+                    menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                }, 300);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la réinitialisation des couleurs:', error);
         }
-    });
+    }
+});
 
     marker.on('mouseover', function() {
         this._icon.firstChild.style.transform = 'scale(1.2)';
