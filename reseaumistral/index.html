@@ -1359,8 +1359,8 @@ async function initMap() {
         );
     });
     
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-}).addTo(mapInstance);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    }).addTo(mapInstance);
 
 mapInstance.attributionControl.setPrefix('');
 
@@ -3354,7 +3354,13 @@ function updateMenu() {
     const satelliteButton = document.createElement('div');
 satelliteButton.className = 'alerts-button';
 
-let isStandardView = false;
+let isStandardView = localStorage.getItem('isStandardView') === 'true';
+
+window.addEventListener('DOMContentLoaded', () => {
+    applyMapView();
+    
+    updateButtonText();
+});
 
 satelliteButton.onclick = () => {
     toggleMapView();
@@ -3375,31 +3381,36 @@ satelliteButton.onclick = () => {
 };
 
 function toggleMapView() {
+    isStandardView = !isStandardView;
+    
+    localStorage.setItem('isStandardView', isStandardView);
+    
+    applyMapView();
+    
+    updateButtonText();
+}
+
+function applyMapView() {
+    map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer) {
+            map.removeLayer(layer);
+        }
+    });
+    
     if (isStandardView) {
-        map.eachLayer(function(layer) {
-            if (layer instanceof L.TileLayer) {
-                map.removeLayer(layer);
-            }
-        });
-        
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         }).addTo(map);
-        
-        isStandardView = false;
+    } else {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        }).addTo(map);
+    }
+}
+
+function updateButtonText() {
+    if (isStandardView) {
         satelliteTitle.textContent = 'Vue satellite';
         satelliteDescription.textContent = 'Passer à la vue standard';
     } else {
-        map.eachLayer(function(layer) {
-            if (layer instanceof L.TileLayer) {
-                map.removeLayer(layer);
-            }
-        });
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-        
-        isStandardView = true;
         satelliteTitle.textContent = 'Vue standard';
         satelliteDescription.textContent = 'Passer à la vue satellite';
     }
@@ -3420,11 +3431,11 @@ satelliteContent.className = 'alerts-content';
 
 const satelliteTitle = document.createElement('div');
 satelliteTitle.className = 'alerts-title';
-satelliteTitle.textContent = 'Vue Satellite';
 
 const satelliteDescription = document.createElement('div');
 satelliteDescription.className = 'alerts-description';
-satelliteDescription.textContent = 'Passer à la vue standard';
+
+updateButtonText();
 
 satelliteContent.appendChild(satelliteTitle);
 satelliteContent.appendChild(satelliteDescription);
@@ -3432,7 +3443,6 @@ satelliteContent.appendChild(satelliteDescription);
 satelliteButton.appendChild(satelliteIcon);
 satelliteButton.appendChild(satelliteContent);
 menu.appendChild(satelliteButton);
-
 
 
 
