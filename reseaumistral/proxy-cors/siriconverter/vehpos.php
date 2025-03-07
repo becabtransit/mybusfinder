@@ -21,8 +21,8 @@ use transit_realtime\VehicleDescriptor;
 // Charger la configuration depuis un fichier ou utiliser des valeurs par défaut
 $configFile = __DIR__ . '/config.php';
 $defaultConfig = [
-    'siri_url' => 'https://api.okina.fr/gateway/cae/realtime/anshar/ws/services', // URL du service SIRI
-    'siri_api_key' => 'opendata', // Clé API pour SIRI
+    'siri_url' => 'https://saes.ratpdev.com/rdtpm', // URL du service SIRI
+    'siri_api_key' => 'OPENDATA', // Clé API pour SIRI
     'agency_timezone' => 'Europe/Paris', // Fuseau horaire par défaut
     'request_timeout' => 30, // Timeout en secondes
     'retry_delay' => 5, // Délai entre les tentatives en secondes
