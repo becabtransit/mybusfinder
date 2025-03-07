@@ -3738,61 +3738,142 @@ const menubottom1 = document.getElementById('menubtm');
 
 
 let lastTripUpdateTimestamp = 0;
-const worker = new Worker('worker.js');
+let worker;
+let fetchInProgress = false;
+const FETCH_INTERVAL = 8000; // 8 secondes entre chaque mise à jour
 
+// Initialisation optimisée du worker
+function initWorker() {
+    worker = new Worker('worker.js');
+    
+    // Gestion des erreurs du worker
+    worker.onerror = (error) => {
+        console.error('Erreur worker:', error);
+        // Redémarrage du worker en cas d'erreur
+        setTimeout(() => {
+            worker.terminate();
+            initWorker();
+        }, 1000);
+    };
+}
+
+// Fonction optimisée pour récupérer les mises à jour
 async function fetchTripUpdates() {
+    // Éviter les requêtes simultanées
+    if (fetchInProgress) return Promise.resolve(null);
+    
+    fetchInProgress = true;
+    const fetchStartTime = performance.now();
+    
     try {
-        const response = await fetch('proxy-cors/proxy_tripupdate.php');
+        // Utilisation de AbortController pour limiter le temps de requête
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // timeout après 5s
+        
+        const response = await fetch('proxy-cors/proxy_tripupdate.php', {
+            signal: controller.signal,
+            cache: 'no-store' // Forcer le rafraîchissement
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        
+        // Utilisation de arrayBuffer pour performance
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
-
+        
+        // Mesurer le temps de récupération des données
+        const fetchTime = performance.now() - fetchStartTime;
+        console.debug(`Données GTFS récupérées en ${fetchTime.toFixed(2)}ms`);
+        
         return new Promise((resolve, reject) => {
+            // Gestion de la réponse du worker avec timeout
+            const workerTimeoutId = setTimeout(() => {
+                reject(new Error('Worker timeout'));
+            }, 3000);
+            
             worker.onmessage = (e) => {
-                tripUpdates = e.data; 
-                resolve(e.data);
+                clearTimeout(workerTimeoutId);
+                const processTime = performance.now() - fetchStartTime;
+                console.debug(`Traitement complet en ${processTime.toFixed(2)}ms`);
+                
+                // Mise à jour des données
+                tripUpdates = e.data.tripUpdates;
+                
+                // Afficher les métriques si disponibles
+                if (e.data.metrics) {
+                    console.debug(`Métriques: ${JSON.stringify(e.data.metrics)}`);
+                }
+                
+                resolve(e.data.tripUpdates);
+                fetchInProgress = false;
             };
             
-            worker.onerror = (error) => {
-                reject(new Error(`Erreur du worker: ${error.message}`));
-            };
-            
+            // Envoi des données au worker
             worker.postMessage(data);
         });
     } catch (error) {
-        console.error('Err récup trip updates !', error);
+        console.error('Erreur récupération trip updates:', error);
+        fetchInProgress = false;
         throw error;
     }
 }
 
+let lastUpdateTime = 0;
+function scheduleFetchUpdates(timestamp) {
+    if (!lastUpdateTime || timestamp - lastUpdateTime >= FETCH_INTERVAL) {
+        lastUpdateTime = timestamp;
+        
+        // Exécution en parallèle des requêtes
+        Promise.all([
+            fetchTripUpdates().catch(() => null),
+            fetchVehiclePositions().catch(() => null)
+        ]).catch(error => {
+            console.warn('Erreur lors des mises à jour:', error);
+        });
+    }
+    
+    requestAnimationFrame(scheduleFetchUpdates);
+}
+
 async function main() {
-    try {                
-        const gtfsData = await initializeGTFS();
+    try {
+        // Initialisation du worker avant toute opération
+        initWorker();
+        
+        // Chargement des données initial en parallèle
+        const initialDataPromise = Promise.all([
+            initializeGTFS(),
+            loadGeoJsonLines()
+        ]);
+        
+        // Attendre l'initialisation des données essentielles
+        await initialDataPromise;
         gtfsInitialized = true;
         
-        await loadGeoJsonLines();
-        
+        // Premier chargement des données dynamiques
         await Promise.all([
             fetchTripUpdates().catch(console.error),
             fetchVehiclePositions(),
             hideLoadingScreen()
-            ]);
+        ]);
         
-
-
-        function fetchRegularUpdates() {
-            fetchVehiclePositions();
-            fetchTripUpdates().catch(console.error);
-            setTimeout(fetchRegularUpdates, 8000);
-        }
-        
-        setTimeout(fetchRegularUpdates, 8000);
+        // Démarrage des mises à jour régulières avec requestAnimationFrame
+        requestAnimationFrame(scheduleFetchUpdates);
         
     } catch (error) {
-        console.error("Erreur dans main():", error);
+        console.error("Erreur critique dans main():", error);
         showErrorMessage("Erreur de chargement des données. Veuillez rafraîchir la page.");
     }
 }
 
-document.addEventListener('DOMContentLoaded', main);
-    </script>
+// Démarrage de l'application quand le DOM est prêt
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', main);
+} else {
+    main();
+}    </script>
 </html>
