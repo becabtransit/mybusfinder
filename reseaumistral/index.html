@@ -2066,44 +2066,30 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const menubtm = document.getElementById('menubtm');
     if (menubtm) {
         try {
-            menubtm.classList.forEach(className => {
-                if (className.startsWith('popup-style-')) {
-                    menubtm.classList.remove(className);
-                }
-            });
-            
             const data = await getSetvar();
             if (data) {
-                const transitionId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
-                const style = document.createElement('style');
-                style.id = transitionId;
+                // Stocke la couleur actuelle avant le changement
+                const currentColor = getComputedStyle(menubtm).backgroundColor;
                 
-                const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+                // Crée une transition douce
+                menubtm.style.transition = 'background-color 0.3s ease';
                 
-                style.textContent = `
-                    @keyframes returnToDefault-${transitionId} {
-                        from {
-                            background-color: ${currentColor};
-                        }
-                        to {
-                            background-color: ${data.colorbkg}77;
-                        }
-                    }
-                    #menubtm.${transitionId} {
-                        animation: returnToDefault-${transitionId} 0.3s ease forwards;
-                    }
-                    #menubtm.${transitionId} * {
-                        transition: color 0.3s ease;
-                        color: initial;
-                    }
-                `;
+                // Applique la nouvelle couleur avec l'opacité
+                menubtm.style.backgroundColor = `${data.colorbkg}77`;
                 
-                document.head.appendChild(style);
-                menubtm.classList.add(transitionId);
+                // Réinitialise la couleur du texte avec transition
+                const menubtmText = menubtm.querySelectorAll('*');
+                menubtmText.forEach(element => {
+                    element.style.transition = 'color 0.3s ease';
+                    element.style.color = '';
+                });
                 
+                // Nettoie la transition après qu'elle soit terminée
                 setTimeout(() => {
-                    style.remove();
-                    menubtm.classList.remove(transitionId);
+                    menubtm.style.transition = '';
+                    menubtmText.forEach(element => {
+                        element.style.transition = '';
+                    });
                 }, 300);
             }
         } catch (error) {
@@ -2111,7 +2097,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         }
     }
 });
-
 
 marker.on('mouseover', function() {
         this._icon.firstChild.style.transform = 'scale(1.2)';
