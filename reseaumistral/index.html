@@ -2206,10 +2206,20 @@ function filterByLine(lineId) {
     }
 
     const currentMarkers = new Set(); 
-
+    
+    const savedRotations = {};
+    
     if (typeof markers === 'object') {
         Object.keys(markers).forEach(id => {
             if (markers[id] && map.hasLayer(markers[id])) {
+                const arrowElement = markers[id].getElement()?.querySelector('.marker-arrow');
+                if (arrowElement) {
+                    const currentTransform = arrowElement.style.transform;
+                    const rotationMatch = currentTransform.match(/rotate\(([^)]+)\)/);
+                    if (rotationMatch && rotationMatch[1]) {
+                        savedRotations[id] = rotationMatch[1];
+                    }
+                }
                 map.removeLayer(markers[id]);
             }
         });
@@ -2220,6 +2230,20 @@ function filterByLine(lineId) {
                 if (!map.hasLayer(marker)) {
                     marker.addTo(map);
                     currentMarkers.add(id);
+                    
+                    if (savedRotations[id]) {
+                        setTimeout(() => {
+                            const arrowElement = marker.getElement()?.querySelector('.marker-arrow');
+                            if (arrowElement) {
+                                arrowElement.style.transition = 'none'; 
+                                arrowElement.style.transform = `rotate(${savedRotations[id]}) translateX(10px)`;
+                                
+                                setTimeout(() => {
+                                    arrowElement.style.transition = 'transform 0.5s ease';
+                                }, 50);
+                            }
+                        }, 10);
+                    }
                 }
             }
         });
@@ -2232,7 +2256,6 @@ function filterByLine(lineId) {
         }
     });
 }
-
 
 function resetMapView() {
     geoJsonLines.forEach(layer => {
