@@ -2066,25 +2066,44 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const menubtm = document.getElementById('menubtm');
     if (menubtm) {
         try {
-            const currentBackgroundColor = getComputedStyle(menubtm).backgroundColor;
+            menubtm.classList.forEach(className => {
+                if (className.startsWith('popup-style-')) {
+                    menubtm.classList.remove(className);
+                }
+            });
             
             const data = await getSetvar();
             if (data) {
-                menubtm.style.transition = 'background-color 0.3s ease';
+                const transitionId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+                const style = document.createElement('style');
+                style.id = transitionId;
                 
-                menubtm.style.backgroundColor = `${data.colorbkg}77`;
-
-                const menubtmText = menubtm.querySelectorAll('*');
-                menubtmText.forEach(element => {
-                    element.style.transition = 'color 0.3s ease';
-                    element.style.color = '';
-                });
-
+                const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+                
+                style.textContent = `
+                    @keyframes returnToDefault-${transitionId} {
+                        from {
+                            background-color: ${currentColor};
+                        }
+                        to {
+                            background-color: ${data.colorbkg}77;
+                        }
+                    }
+                    #menubtm.${transitionId} {
+                        animation: returnToDefault-${transitionId} 0.3s ease forwards;
+                    }
+                    #menubtm.${transitionId} * {
+                        transition: color 0.3s ease;
+                        color: initial;
+                    }
+                `;
+                
+                document.head.appendChild(style);
+                menubtm.classList.add(transitionId);
+                
                 setTimeout(() => {
-                    menubtm.style.transition = '';
-                    menubtmText.forEach(element => {
-                        element.style.transition = '';
-                    });
+                    style.remove();
+                    menubtm.classList.remove(transitionId);
                 }, 300);
             }
         } catch (error) {
@@ -2092,7 +2111,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         }
     }
 });
-
     marker.on('mouseover', function() {
         this._icon.firstChild.style.transform = 'scale(1.2)';
     });
