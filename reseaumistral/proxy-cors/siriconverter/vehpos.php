@@ -19,7 +19,7 @@ use transit_realtime\Position;
 use transit_realtime\VehicleDescriptor;
 
 $config = [
-    'siri_url' => 'https://votreserveur.com/siri-service', // URL du service SIRI
+    'siri_url' => 'https://saes.ratpdev.com/rdtpm', // URL du service SIRI
     'siri_api_key' => 'VOTRE_CLE_API', // Clé API pour SIRI (si nécessaire)
     'agency_timezone' => 'Europe/Paris', // Fuseau horaire par défaut
 ];
