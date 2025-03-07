@@ -2187,24 +2187,22 @@ async function loadGeoJsonLines() {
     }).addTo(map);
 }
 
+// Variable globale pour stocker les lignes sélectionnées
 let selectedLines = [];
 
 function filterByLine(lineId) {
-    console.log("Filtrage pour la ligne:", lineId);
-    console.log("Lignes sélectionnées avant:", [...selectedLines]);
+    console.log("Début du filtrage pour la ligne:", lineId);
     
     // Si la ligne est déjà sélectionnée, on la retire
     if (selectedLines.includes(lineId)) {
         selectedLines = selectedLines.filter(id => id !== lineId);
-        console.log("Ligne retirée, nouvelle sélection:", [...selectedLines]);
     } 
     // Sinon, on l'ajoute
     else {
         selectedLines.push(lineId);
-        console.log("Ligne ajoutée, nouvelle sélection:", [...selectedLines]);
     }
     
-    // On sauvegarde la valeur de selectedLine pour compatibilité
+    // Pour compatibilité avec le reste du code
     if (selectedLines.length === 1) {
         selectedLine = selectedLines[0];
     } else {
@@ -2212,7 +2210,6 @@ function filterByLine(lineId) {
     }
     
     // Étape 1: Gérer les lignes GeoJSON
-    console.log("Mise à jour des lignes GeoJSON");
     geoJsonLines.forEach(layer => {
         const routeId = layer.feature.properties.route_id;
         
@@ -2222,37 +2219,32 @@ function filterByLine(lineId) {
         if (shouldDisplay) {
             if (!map.hasLayer(layer)) {
                 map.addLayer(layer);
-                console.log("  Ajout de la ligne:", routeId);
             }
         } else {
             if (map.hasLayer(layer)) {
                 map.removeLayer(layer);
-                console.log("  Retrait de la ligne:", routeId);
             }
         }
     });
     
     // Étape 2: Gérer les marqueurs
-    console.log("Mise à jour des marqueurs");
-    // Créons un tableau explicite des marqueurs à afficher
-    const markersToShow = [];
+    // Collecter d'abord tous les ID de marqueurs à afficher
+    const markerIdsToShow = [];
     
     Object.entries(markers).forEach(([id, marker]) => {
+        // Si aucune ligne n'est sélectionnée OU si le marqueur appartient à une ligne sélectionnée
         if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
-            markersToShow.push(id);
+            markerIdsToShow.push(id);
         }
     });
     
-    console.log("  Marqueurs à afficher:", markersToShow);
-    
-    // Maintenant, appliquons les changements
+    // Maintenant, mettre à jour les marqueurs
     Object.entries(markers).forEach(([id, marker]) => {
-        const shouldDisplay = markersToShow.includes(id);
+        const shouldDisplay = markerIdsToShow.includes(id);
         
         if (shouldDisplay) {
             if (!map.hasLayer(marker)) {
                 map.addLayer(marker);
-                console.log("  Ajout du marqueur:", id, "de la ligne:", marker.line);
             }
         } else {
             if (map.hasLayer(marker)) {
@@ -2260,12 +2252,11 @@ function filterByLine(lineId) {
                 if (marker.isPopupOpen()) {
                     marker.closePopup();
                 }
-                console.log("  Retrait du marqueur:", id, "de la ligne:", marker.line);
             }
         }
     });
     
-    console.log("Filtrage terminé");
+    console.log("Filtrage terminé avec", selectedLines.length, "lignes sélectionnées");
 }
 
 function resetMapView() {
