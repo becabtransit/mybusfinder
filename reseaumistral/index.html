@@ -3581,59 +3581,76 @@ menu.appendChild(satelliteButton);
         lineSection.appendChild(favoriteButton);
 
         Object.keys(busesByLineAndDestination[line])
-            .sort()
-            .forEach(destination => {
-                const destinationSection = document.createElement('div');
-                destinationSection.style.marginTop = '5px';
-                destinationSection.style.paddingLeft = '10px';
+    .sort()
+    .forEach(destination => {
+        const destinationSection = document.createElement('div');
+        destinationSection.style.marginTop = '5px';
+        destinationSection.style.paddingLeft = '10px';
 
-                const destinationTitle = document.createElement('div');
-                destinationTitle.textContent = `➜ ${destination}`;
-                destinationTitle.style.fontSize = '16px';
-                destinationTitle.style.fontWeight = 'normal';
-                destinationTitle.style.color = '#fff';
-                destinationSection.appendChild(destinationTitle);
+        const destinationTitle = document.createElement('div');
+        destinationTitle.textContent = `➜ ${destination}`;
+        destinationTitle.style.fontSize = '16px';
+        destinationTitle.style.fontWeight = 'normal';
+        destinationTitle.style.color = '#fff';
+        destinationSection.appendChild(destinationTitle);
 
-                busesByLineAndDestination[line][destination].forEach(bus => {
-                    const busItem = document.createElement('div');
+        busesByLineAndDestination[line][destination].forEach(bus => {
+            const busItem = document.createElement('div');
+            
+            // Récupérer le popup content pour extraire le tripId
+            const popupContent = bus.vehicle.getPopup().getContent();
+            // Trouver le tripId dans le contenu du popup
+            const tripIdMatch = popupContent.match(/tripId:\s*['"]([^'"]+)['"]/);
+            const tripId = tripIdMatch ? tripIdMatch[1] : null;
 
-                    const tripId = bus.vehicle.tripId; 
-                    if (tripUpdates[tripId] && tripUpdates[tripId].nextStops && tripUpdates[tripId].nextStops.length > 0) {
-                        const currentStopId = bus.vehicle.stopId ? bus.vehicle.stopId.replace("0:", "") : null;
-                        const nextStops = tripUpdates[tripId].nextStops;
-                        
-                        const currentStopIndex = nextStops.findIndex(stop => 
-                            stop.stopId.replace("0:", "") === currentStopId
-                        );
-                        
-                        const nextStop = currentStopIndex !== -1 && nextStops[currentStopIndex + 1] 
-                            ? nextStops[currentStopIndex + 1] 
-                            : nextStops[0];
-                        
-                        if (nextStop) {
-                            const nextStopName = stopNameMap[nextStop.stopId] || nextStop.stopId;
-                            const timeLeft = nextStop.delay ? Math.round(nextStop.delay / 60) : null;
-                            
-                            let timeText = '';
-                            if (timeLeft !== null) {
-                                if (timeLeft <= 0) {
-                                    timeText = '(imminent)';
-                                } else {
-                                    timeText = `(dans ${timeLeft} min)`;
-                                }
-                            }
-                            
-                            busItem.textContent = `Bus ${bus.parkNumber} - ${nextStopName} ${timeText}`;
+            if (tripId && tripUpdates[tripId] && tripUpdates[tripId].nextStops && tripUpdates[tripId].nextStops.length > 0) {
+                // Récupérer le stopId actuel depuis le popup content également si nécessaire
+                const currentStopId = bus.vehicle.stopId ? bus.vehicle.stopId.replace("0:", "") : null;
+                const nextStops = tripUpdates[tripId].nextStops;
+                
+                // Trouver l'index de l'arrêt actuel
+                const currentStopIndex = nextStops.findIndex(stop => 
+                    stop.stopId.replace("0:", "") === currentStopId
+                );
+                
+                // Obtenir le prochain arrêt
+                const nextStop = currentStopIndex !== -1 && nextStops[currentStopIndex + 1] 
+                    ? nextStops[currentStopIndex + 1] 
+                    : nextStops[0];
+                
+                if (nextStop) {
+                    const nextStopName = stopNameMap[nextStop.stopId] || nextStop.stopId;
+                    const timeLeft = nextStop.delay ? Math.round(nextStop.delay / 60) : null;
+                    
+                    let timeText = '';
+                    if (timeLeft !== null) {
+                        if (timeLeft <= 0) {
+                            timeText = '(imminent)';
+                        } else {
+                            timeText = `(dans ${timeLeft} min)`;
                         }
                     }
-                    busItem.style.cursor = 'pointer';
-                    busItem.classList.add('menu-item');
-                    busItem.style.fontFamily = 'League Spartan';
-                    busItem.style.color = 'white';
-                    busItem.style.padding = '5px 10px';
-                    busItem.style.marginBottom = '5px';
-                    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
-                    busItem.style.borderRadius = '8px';
+                    
+                    const stopIcon = '🚏';
+                    busItem.textContent = `Bus ${bus.parkNumber} ${stopIcon} ${nextStopName} ${timeText}`;
+                } else {
+                    busItem.textContent = `Bus ${bus.parkNumber}`;
+                }
+            } else {
+                busItem.textContent = `Bus ${bus.parkNumber}`;
+            }
+
+            busItem.style.cursor = 'pointer';
+            busItem.classList.add('menu-item');
+            busItem.style.fontFamily = 'League Spartan';
+            busItem.style.color = 'white';
+            busItem.style.padding = '5px 10px';
+            busItem.style.marginBottom = '5px';
+            busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+            busItem.style.borderRadius = '8px';
+            busItem.style.whiteSpace = 'nowrap';
+            busItem.style.overflow = 'hidden';
+            busItem.style.textOverflow = 'ellipsis';
 
                     lineSection.onclick = () => {
                         const lineId = line;
