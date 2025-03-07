@@ -2180,82 +2180,78 @@ async function loadGeoJsonLines() {
 }
 
 function filterByLine(lineId) {
-    if (!lineId || !map || !geoJsonLines || !markers) {
+    if (!lineId || !map) {
+        console.warn('Paramètres invalides ou map non initialisée');
         return;
     }
 
     const normalizedLineId = String(lineId);
 
-    if (Array.isArray(geoJsonLines)) {
-        geoJsonLines.forEach(layer => {
-            if (layer && map.hasLayer(layer)) {
-                map.removeLayer(layer);
-            }
-        });
-    }
-
-    const selectedLineLayer = geoJsonLines.find(layer => 
-        layer && 
-        layer.feature && 
-        layer.feature.properties && 
-        String(layer.feature.properties.route_id) === normalizedLineId
-    );
-
-    if (selectedLineLayer) {
-        map.addLayer(selectedLineLayer);
-    }
-
-    const currentMarkers = new Set(); 
-    
-    const savedRotations = {};
-    
-    if (typeof markers === 'object') {
-        Object.keys(markers).forEach(id => {
-            if (markers[id] && map.hasLayer(markers[id])) {
-                const arrowElement = markers[id].getElement()?.querySelector('.marker-arrow');
-                if (arrowElement) {
-                    const currentTransform = arrowElement.style.transform;
-                    const rotationMatch = currentTransform.match(/rotate\(([^)]+)\)/);
-                    if (rotationMatch && rotationMatch[1]) {
-                        savedRotations[id] = rotationMatch[1];
-                    }
+    try {
+        if (Array.isArray(geoJsonLines)) {
+            geoJsonLines.forEach(layer => {
+                if (layer && map.hasLayer(layer)) {
+                    map.removeLayer(layer);
                 }
-                map.removeLayer(markers[id]);
-            }
-        });
+            });
 
-        Object.keys(markers).forEach(id => {
-            const marker = markers[id];
-            if (marker && String(marker.line) === normalizedLineId) {
+            const selectedLineLayer = geoJsonLines.find(layer => 
+                layer?.feature?.properties?.route_id === lineId ||
+                String(layer?.feature?.properties?.route_id) === normalizedLineId
+            );
+
+            if (selectedLineLayer) {
+                selectedLineLayer.addTo(map);
+            }
+        }
+
+        if (markers && typeof markers === 'object') {
+            for (const id in markers) {
+                const marker = markers[id];
+                if (marker && map.hasLayer(marker)) {
+                    map.removeLayer(marker);
+                }
+            }
+
+            for (const id in markers) {
+                const marker = markers[id];
+                if (marker && (
+                    marker.line === lineId || 
+                    String(marker.line) === normalizedLineId
+                )) {
+                    marker.addTo(map);
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('Erreur lors du filtrage de la ligne:', error);
+        refreshMarkers(lineId);
+    }
+}
+
+/**
+ * Fonction de rafraîchissement des marqueurs en cas de problème
+ * @param {string|number} lineId - Identifiant de la ligne
+ */
+function refreshMarkers(lineId) {
+    if (!markers) return;
+    
+    const normalizedLineId = String(lineId);
+    
+    Object.values(markers).forEach(marker => {
+        if (marker) {
+            if (String(marker.line) === normalizedLineId) {
                 if (!map.hasLayer(marker)) {
                     marker.addTo(map);
-                    currentMarkers.add(id);
-                    
-                    if (savedRotations[id]) {
-                        setTimeout(() => {
-                            const arrowElement = marker.getElement()?.querySelector('.marker-arrow');
-                            if (arrowElement) {
-                                arrowElement.style.transition = 'none'; 
-                                arrowElement.style.transform = `rotate(${savedRotations[id]}) translateX(10px)`;
-                                
-                                setTimeout(() => {
-                                    arrowElement.style.transition = 'transform 0.5s ease';
-                                }, 50);
-                            }
-                        }, 10);
-                    }
                 }
+            } else if (map.hasLayer(marker)) {
+                map.removeLayer(marker);
             }
-        });
-    }
-
-    Object.keys(markers).forEach(id => {
-        const marker = markers[id];
-        if (marker && map.hasLayer(marker) && !currentMarkers.has(id)) {
-            map.removeLayer(marker);
         }
     });
 }
+
 
 function resetMapView() {
     geoJsonLines.forEach(layer => {
