@@ -2011,6 +2011,20 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
 
     const marker = L.marker([lat, lon], { icon });
     const styleId = generateUniqueId();
+    
+    marker.on('mouseover', function() {
+    const markerIcon = this._icon.querySelector('.marker-icon');
+    if (markerIcon) {
+        markerIcon.style.transform = 'scale(1.2)';
+    }
+});
+
+marker.on('mouseout', function() {
+    const markerIcon = this._icon.querySelector('.marker-icon');
+    if (markerIcon) {
+        markerIcon.style.transform = 'scale(1)';
+    }
+});
 
     marker.on('popupopen', function(e) {
         const menubtm = document.getElementById('menubtm');
@@ -2174,24 +2188,27 @@ function filterByLine(lineId) {
         map.removeLayer(layer);
     });
     
-    const selectedLineLayer = geoJsonLines.find(layer => layer.feature.properties.route_id === lineId);
+    const selectedLineLayer = geoJsonLines.find(layer => 
+        layer.feature.properties.route_id === lineId
+    );
+    
     if (selectedLineLayer) {
         map.addLayer(selectedLineLayer);
     }
-    
-    Object.keys(markers).forEach(id => {
-        map.removeLayer(markers[id]);
-    });
-    
-    Object.keys(markers).forEach(id => {
-        if (markers[id].line === lineId) {
-            markers[id].addTo(map);
-            if (!markers[id]._icon) {
-                markers[id].setLatLng(markers[id].getLatLng());
+
+    Object.values(markers).forEach(marker => {
+        if (marker.line === lineId) {
+            if (!map.hasLayer(marker)) {
+                map.addLayer(marker);
+            }
+        } else {
+            if (map.hasLayer(marker)) {
+                map.removeLayer(marker);
             }
         }
     });
 }
+
 function resetMapView() {
     selectedLine = null;
     
