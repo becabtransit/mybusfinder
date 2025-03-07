@@ -2066,6 +2066,9 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const menubtm = document.getElementById('menubtm');
     if (menubtm) {
         try {
+            const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+            const currentTextColor = window.getComputedStyle(menubtm).color;
+
             if (marker.styleId) {
                 menubtm.classList.remove(marker.styleId);
             }
@@ -2081,26 +2084,21 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                 const returnStyle = document.createElement('style');
                 returnStyle.id = returnStyleId;
                 
-                const computedStyle = window.getComputedStyle(menubtm);
-                const currentBgColor = computedStyle.backgroundColor;
+                menubtm.style.backgroundColor = currentColor;
                 
                 const returnAnimation = `menubtm-return-${returnStyleId}`;
                 returnStyle.textContent = `
                     @keyframes ${returnAnimation} {
                         0% {
-                            background-color: ${currentBgColor};
+                            background-color: ${currentColor};
                         }
                         100% {
                             background-color: ${data.colorbkg}77;
                         }
                     }
                     #menubtm.${returnStyleId} {
-                        background-color: ${currentBgColor};
-                        animation: ${returnAnimation} 0.5s ease-in-out forwards;
-                    }
-                    #menubtm.${returnStyleId} * {
-                        transition: color 0.5s ease-in-out;
-                        color: inherit;
+                        background-color: ${currentColor};
+                        animation: ${returnAnimation} 0.3s ease-out forwards;
                     }
                 `;
                 
@@ -2111,7 +2109,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                     menubtm.classList.remove(returnStyleId);
                     returnStyle.remove();
                     menubtm.style.backgroundColor = `${data.colorbkg}77`;
-                }, 500);
+                }, 300);
             }
         } catch (error) {
             console.error('Erreur lors de la réinitialisation des couleurs:', error);
