@@ -1359,7 +1359,31 @@ async function initMap() {
         );
     });
 
-    toggleMapView();
+    let isStandardView = localStorage.getItem('isStandardView') === 'true';
+function toggleMapView() {
+    isStandardView = !isStandardView;
+    
+    localStorage.setItem('isStandardView', isStandardView);
+    
+    applyMapView();
+    
+}
+
+function applyMapView() {
+    map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer) {
+            map.removeLayer(layer);
+        }
+    });
+    
+    if (isStandardView) {
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        }).addTo(map);
+    } else {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        }).addTo(map);
+    }
+}
 
 
 mapInstance.attributionControl.setPrefix('');
