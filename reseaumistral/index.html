@@ -3622,54 +3622,71 @@ menu.appendChild(satelliteButton);
         busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
     
-            // Accéder au marker du véhicule et à ses propriétés
-            const marker = bus.vehicle;
-            let nextStopInfo = '';
-            
-            // Obtenir le stopId du véhicule à partir du popup
-            const popupContent = marker.getPopup().getContent();
-            
-            // Récupérer le contenu nextStopsHTML du popup
-            const nextStopsMatch = popupContent.match(/<div id="nextStopsContent" class="next-stops-content">([\s\S]*?)<\/div>/);
-            if (nextStopsMatch) {
-                // Extraire le premier arrêt de la liste
-                const firstStopMatch = nextStopsMatch[1].match(/<li[^>]*>([\s\S]*?)<\/li>/);
-                if (firstStopMatch) {
-                    const stopInfo = firstStopMatch[1];
-                    // Nettoyer le HTML et extraire le texte
-                    const cleanStopInfo = stopInfo
-                        .replace(/<[^>]*>/g, '') // Enlever les balises HTML
-                        .replace(/\s+/g, ' ') // Normaliser les espaces
-                        .trim();
-                    
-                    // Séparer le nom de l'arrêt et l'horaire
-                    const [stopName, timeInfo] = cleanStopInfo.split(/(?=dans|imminent|\d{2}:\d{2})/);
-                    if (stopName) {
-                        nextStopInfo = ` 🚏 ${stopName.trim()}`;
-                        if (timeInfo) {
-                            // Extraire seulement la partie "dans X min" ou "imminent"
-                            const timeMatch = timeInfo.match(/(dans \d+ min|imminent)/);
-                            if (timeMatch) {
-                                nextStopInfo += ` (${timeMatch[1]})`;
-                            }
-                        }
+    // Debug - Affichons les données disponibles
+    console.log('Bus data:', bus);
+    console.log('Bus vehicle:', bus.vehicle);
+    console.log('Popup content:', bus.vehicle.getPopup().getContent());
+    
+    const marker = bus.vehicle;
+    let nextStopInfo = '';
+    
+    // Affichons le contenu complet du popup pour voir sa structure
+    const popupContent = marker.getPopup().getContent();
+    console.log('Full popup content:', popupContent);
+    
+    // Recherchons spécifiquement la div next-stops-content
+    const nextStopsContent = popupContent.match(/<div id="nextStopsContent"[^>]*>([\s\S]*?)<\/div>/);
+    console.log('Next stops content match:', nextStopsContent);
+
+    if (nextStopsContent && nextStopsContent[1]) {
+        // Cherchons le premier <li> avec son contenu
+        const firstStop = nextStopsContent[1].match(/<li[^>]*>([\s\S]*?)<\/li>/);
+        console.log('First stop match:', firstStop);
+
+        if (firstStop && firstStop[1]) {
+            const stopText = firstStop[1]
+                .replace(/<[^>]*>/g, '')
+                .trim();
+            console.log('Stop text:', stopText);
+
+            // Séparons le nom de l'arrêt et le temps
+            const [stopName, ...timeInfo] = stopText.split(/(?=(?:dans|imminent|\d{2}:\d{2}))/);
+            console.log('Stop name:', stopName);
+            console.log('Time info:', timeInfo);
+
+            if (stopName) {
+                nextStopInfo = ` 🚏 ${stopName.trim()}`;
+                if (timeInfo.length > 0) {
+                    const timeText = timeInfo[0].match(/(dans \d+ min|imminent)/);
+                    if (timeText) {
+                        nextStopInfo += ` (${timeText[1]})`;
                     }
                 }
             }
+        }
+    }
 
-            busItem.textContent = `Bus ${bus.parkNumber}${nextStopInfo}`;
-            busItem.style.cursor = 'pointer';
-            busItem.classList.add('menu-item');
-            busItem.style.fontFamily = 'League Spartan';
-            busItem.style.color = 'white';
-            busItem.style.padding = '5px 10px';
-            busItem.style.marginBottom = '5px';
-            busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
-            busItem.style.borderRadius = '8px';
-            busItem.style.whiteSpace = 'nowrap';
-            busItem.style.overflow = 'hidden';
-            busItem.style.textOverflow = 'ellipsis';
-            busItem.style.maxWidth = '300px';
+    console.log('Final nextStopInfo:', nextStopInfo);
+    
+    busItem.textContent = `Bus ${bus.parkNumber}${nextStopInfo}`;
+    
+    // Log du texte final
+    console.log('Final busItem text:', busItem.textContent);
+
+    busItem.style.cursor = 'pointer';
+    busItem.classList.add('menu-item');
+    busItem.style.fontFamily = 'League Spartan';
+    busItem.style.color = 'white';
+    busItem.style.padding = '5px 10px';
+    busItem.style.marginBottom = '5px';
+    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+    busItem.style.borderRadius = '8px';
+    busItem.style.whiteSpace = 'nowrap';
+    busItem.style.overflow = 'hidden';
+    busItem.style.textOverflow = 'ellipsis';
+    busItem.style.maxWidth = '300px';
+
+    
                     lineSection.onclick = () => {
                         const lineId = line;
                         selectedLine = lineId;
