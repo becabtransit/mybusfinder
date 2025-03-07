@@ -1189,15 +1189,21 @@ shape.bounce-down {
 
 .marker-container {
     position: relative;
+    width: 0;
+    height: 0;
+}
+
+.marker-wrapper {
+    position: absolute;
+    transition: transform 0.2s ease;
+}
+
+.marker-icon {
     transition: transform 0.2s ease;
 }
 
 .marker-arrow {
     transition: transform 0.5s ease;
-}
-
-.marker-icon {
-    transition: transform 0.2s ease;
 }
 
 .my-custom-pin {
@@ -2020,18 +2026,40 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         popupAnchor: [0, 5],
         html: `
             <div class="marker-container">
-                <span class="marker-icon" style="${markerHtmlStyles}" />
-                ${arrowSvg}
+                <div class="marker-wrapper">
+                    <span class="marker-icon" style="${markerHtmlStyles}"></span>
+                    ${arrowSvg}
+                </div>
             </div>
         `
     });
 
     const marker = L.marker([lat, lon], { icon });
     const styleId = generateUniqueId();
-    
+
+    marker.updateRotation = function(bearing) {
+        if (this._icon) {
+            const arrow = this._icon.querySelector('.marker-arrow');
+            if (arrow) {
+                arrow.style.transform = `rotate(${bearing}deg)`;
+            }
+        }
+    };
+
+    marker.updateScale = function(scale) {
+        if (this._icon) {
+            const container = this._icon.querySelector('.marker-wrapper');
+            if (container) {
+                container.style.transform = `scale(${scale})`;
+            }
+        }
+    };
+
     marker.on('popupopen', function(e) {
         const menubtm = document.getElementById('menubtm');
-        if (menubtm) {
+        if (!menubtm) return;
+
+        try {
             const color = lineColors[route_id] || '#000000';
             
             const oldStyle = document.getElementById(styleId);
@@ -2074,74 +2102,70 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             document.head.appendChild(styleSheet);
             menubtm.classList.add(styleId);
             marker.styleId = styleId;
+        } catch (error) {
+            console.error('Erreur lors de l\'ouverture du popup:', error);
         }
     });
 
     marker.on('popupclose', async function(e) {
         const menubtm = document.getElementById('menubtm');
-        if (menubtm) {
-            try {
-                const currentColor = window.getComputedStyle(menubtm).backgroundColor;
-                const data = await getSetvar();
-                
-                if (data) {
-                    requestAnimationFrame(() => {
-                        const returnStyleId = generateUniqueId();
-                        const returnStyle = document.createElement('style');
-                        returnStyle.id = returnStyleId;
-                        
-                        menubtm.style.backgroundColor = currentColor;
-                        
-                        const returnAnimation = `menubtm-return-${returnStyleId}`;
-                        returnStyle.textContent = `
-                            @keyframes ${returnAnimation} {
-                                from {
-                                    background-color: ${currentColor};
-                                }
-                                to {
-                                    background-color: ${data.colorbkg}77;
-                                }
-                            }
-                            #menubtm.${returnStyleId} {
+        if (!menubtm) return;
+
+        try {
+            const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+            const data = await getSetvar();
+            
+            if (data) {
+                requestAnimationFrame(() => {
+                    const returnStyleId = generateUniqueId();
+                    const returnStyle = document.createElement('style');
+                    returnStyle.id = returnStyleId;
+                    
+                    menubtm.style.backgroundColor = currentColor;
+                    
+                    const returnAnimation = `menubtm-return-${returnStyleId}`;
+                    returnStyle.textContent = `
+                        @keyframes ${returnAnimation} {
+                            from {
                                 background-color: ${currentColor};
-                                animation: ${returnAnimation} 0.3s ease-out forwards;
                             }
-                        `;
-                        
-                        if (marker.styleId) {
-                            const oldStyle = document.getElementById(marker.styleId);
-                            if (oldStyle) oldStyle.remove();
-                            menubtm.classList.remove(marker.styleId);
+                            to {
+                                background-color: ${data.colorbkg}77;
+                            }
                         }
-                        
-                        document.head.appendChild(returnStyle);
-                        menubtm.classList.add(returnStyleId);
-                        
-                        setTimeout(() => {
-                            menubtm.classList.remove(returnStyleId);
-                            returnStyle.remove();
-                            menubtm.style.backgroundColor = `${data.colorbkg}77`;
-                        }, 300);
-                    });
-                }
-            } catch (error) {
-                console.error('Erreur lors de la réinitialisation des couleurs:', error);
+                        #menubtm.${returnStyleId} {
+                            background-color: ${currentColor};
+                            animation: ${returnAnimation} 0.3s ease-out forwards;
+                        }
+                    `;
+                    
+                    if (marker.styleId) {
+                        const oldStyle = document.getElementById(marker.styleId);
+                        if (oldStyle) oldStyle.remove();
+                        menubtm.classList.remove(marker.styleId);
+                    }
+                    
+                    document.head.appendChild(returnStyle);
+                    menubtm.classList.add(returnStyleId);
+                    
+                    setTimeout(() => {
+                        menubtm.classList.remove(returnStyleId);
+                        returnStyle.remove();
+                        menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                    }, 300);
+                });
             }
+        } catch (error) {
+            console.error('Erreur lors de la réinitialisation des couleurs:', error);
         }
     });
 
     marker.on('mouseover', function() {
-        const container = this._icon.querySelector('.marker-container');
-        if (container) {
-            container.style.transform = 'scale(1.2)';
-        }
+        this.updateScale(1.2);
     });
     
     marker.on('mouseout', function() {
-        const container = this._icon.querySelector('.marker-container');
-        if (container) {
-            container.style.transform = 'scale(1)';
-        }
+        this.updateScale(1);
     });
 
     return marker;
