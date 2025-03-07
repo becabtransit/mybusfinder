@@ -352,7 +352,7 @@ function convertSiriToGtfsRtVehiclePositions($siriData) {
 // Point d'entrée principal
 try {
     // Définir le mode de développement (changer en production)
-    define('DEVELOPMENT_MODE', false);
+    define('DEVELOPMENT_MODE', true);
     
     // Récupérer les données SIRI
     $siriData = fetchSiriData();
