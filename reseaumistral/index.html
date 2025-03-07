@@ -3622,57 +3622,34 @@ menu.appendChild(satelliteButton);
         busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
     
-    // Debug - Affichons les données disponibles
-    console.log('Bus data:', bus);
-    console.log('Bus vehicle:', bus.vehicle);
-    console.log('Popup content:', bus.vehicle.getPopup().getContent());
-    
-    const marker = bus.vehicle;
     let nextStopInfo = '';
     
-    // Affichons le contenu complet du popup pour voir sa structure
-    const popupContent = marker.getPopup().getContent();
-    console.log('Full popup content:', popupContent);
-    
-    // Recherchons spécifiquement la div next-stops-content
-    const nextStopsContent = popupContent.match(/<div id="nextStopsContent"[^>]*>([\s\S]*?)<\/div>/);
-    console.log('Next stops content match:', nextStopsContent);
-
-    if (nextStopsContent && nextStopsContent[1]) {
-        // Cherchons le premier <li> avec son contenu
-        const firstStop = nextStopsContent[1].match(/<li[^>]*>([\s\S]*?)<\/li>/);
-        console.log('First stop match:', firstStop);
-
-        if (firstStop && firstStop[1]) {
-            const stopText = firstStop[1]
-                .replace(/<[^>]*>/g, '')
-                .trim();
-            console.log('Stop text:', stopText);
-
-            // Séparons le nom de l'arrêt et le temps
-            const [stopName, ...timeInfo] = stopText.split(/(?=(?:dans|imminent|\d{2}:\d{2}))/);
-            console.log('Stop name:', stopName);
-            console.log('Time info:', timeInfo);
-
-            if (stopName) {
-                nextStopInfo = ` 🚏 ${stopName.trim()}`;
-                if (timeInfo.length > 0) {
-                    const timeText = timeInfo[0].match(/(dans \d+ min|imminent)/);
-                    if (timeText) {
-                        nextStopInfo += ` (${timeText[1]})`;
-                    }
+    // Parcourir tous les tripUpdates pour trouver les informations correspondant à ce bus
+    for (const [tripId, tripData] of Object.entries(tripUpdates)) {
+        // Vérifier si ce tripUpdate correspond à ce bus (via vehicle.id)
+        const tripVehicleId = tripData.vehicle && tripData.vehicle.id;
+        if (tripVehicleId === bus.parkNumber && tripData.nextStops && tripData.nextStops.length > 0) {
+            // Prendre le premier arrêt de la liste
+            const nextStop = tripData.nextStops[0];
+            const stopName = stopNameMap[nextStop.stopId] || nextStop.stopId;
+            
+            // Calculer le temps d'attente
+            let timeInfo = '';
+            if (nextStop.departureTime) {
+                if (nextStop.delay) {
+                    const delayMinutes = Math.round(nextStop.delay / 60);
+                    timeInfo = delayMinutes <= 0 ? 'imminent' : `dans ${delayMinutes} min`;
+                } else {
+                    timeInfo = nextStop.departureTime;
                 }
             }
+            
+            nextStopInfo = ` 🚏 ${stopName.replace("0:", "")} (${timeInfo})`;
+            break; // Sortir de la boucle une fois qu'on a trouvé les informations
         }
     }
-
-    console.log('Final nextStopInfo:', nextStopInfo);
     
     busItem.textContent = `Bus ${bus.parkNumber}${nextStopInfo}`;
-    
-    // Log du texte final
-    console.log('Final busItem text:', busItem.textContent);
-
     busItem.style.cursor = 'pointer';
     busItem.classList.add('menu-item');
     busItem.style.fontFamily = 'League Spartan';
