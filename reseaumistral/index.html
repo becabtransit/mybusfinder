@@ -3607,42 +3607,40 @@ menu.appendChild(satelliteButton);
 
         busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
-    
-    const marker = bus.vehicle;
-    
-    const popupContent = marker.getPopup().getContent();
-    
-    let nextStopInfo = '';
-    
-    const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
-    
-    if (nextStopsDiv && nextStopsDiv[0]) {
-        const firstStopMatch = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/);
-        if (firstStopMatch && firstStopMatch[1]) {
-            const stopInfo = firstStopMatch[1]
-                .replace(/<[^>]*>/g, '')  
-                .replace(/\s+/g, ' ')     
-                .trim();
+            const marker = bus.vehicle;
+            const popupContent = marker.getPopup().getContent();
             
-            nextStopInfo = ` - ${stopInfo}`;
-        }
-    }
+            let nextStopInfo = '';
+            
+            const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
+            
+            if (nextStopsDiv && nextStopsDiv[0]) {
+                const firstStopMatch = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/);
+                if (firstStopMatch && firstStopMatch[1]) {
+                    const stopInfo = firstStopMatch[1]
+                        .replace(/<[^>]*>/g, '')  
+                        .replace(/\s+/g, ' ')     
+                        .replace(/\s*\|.*$/, '')  
+                        .trim();
+                    
+                    nextStopInfo = ` 🚏 ${stopInfo}`;
+                }
+            }
 
+            busItem.textContent = `Bus ${bus.parkNumber}${nextStopInfo}`;
+            busItem.style.cursor = 'pointer';
+            busItem.classList.add('menu-item');
+            busItem.style.fontFamily = 'League Spartan';
+            busItem.style.color = 'white';
+            busItem.style.padding = '5px 10px';
+            busItem.style.marginBottom = '5px';
+            busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+            busItem.style.borderRadius = '8px';
+            busItem.style.whiteSpace = 'nowrap';
+            busItem.style.overflow = 'hidden';
+            busItem.style.textOverflow = 'ellipsis';
+            busItem.style.maxWidth = '300px';
 
-    busItem.textContent = `Bus ${bus.parkNumber}${nextStopInfo}`;
-    busItem.style.cursor = 'pointer';
-    busItem.classList.add('menu-item');
-    busItem.style.fontFamily = 'League Spartan';
-    busItem.style.color = 'white';
-    busItem.style.padding = '5px 10px';
-    busItem.style.marginBottom = '5px';
-    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
-    busItem.style.borderRadius = '8px';
-    busItem.style.whiteSpace = 'nowrap';
-    busItem.style.overflow = 'hidden';
-    busItem.style.textOverflow = 'ellipsis';
-    busItem.style.maxWidth = '300px';
-    
                     lineSection.onclick = () => {
                         const lineId = line;
                         selectedLine = lineId;
