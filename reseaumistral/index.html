@@ -2133,6 +2133,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
 
     return marker;
 }
+
 function animateMarker(marker, newPosition) {
     const startLatLng = marker.getLatLng();
     const endLatLng = L.latLng(newPosition[0], newPosition[1]);
@@ -2199,7 +2200,7 @@ function filterByLine(lineId) {
         map.addLayer(selectedLineLayer);
     }
 
-    Object.values(markers).forEach(marker => {
+    Object.entries(markers).forEach(([id, marker]) => {
         if (marker.line === lineId) {
             if (!map.hasLayer(marker)) {
                 map.addLayer(marker);
@@ -2207,9 +2208,14 @@ function filterByLine(lineId) {
         } else {
             if (map.hasLayer(marker)) {
                 map.removeLayer(marker);
+                if (marker.isPopupOpen()) {
+                    marker.closePopup();
+                }
             }
         }
     });
+    
+    selectedLine = lineId;
 }
 
 function resetMapView() {
@@ -2736,15 +2742,13 @@ filteredStops.forEach(stop => {
                 if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
     
-    const arrowElement = markers[id].getElement().querySelector('.marker-arrow');
+    const arrowElement = markers[id].getElement()?.querySelector('.marker-arrow');
     if (arrowElement) {
         const currentRotation = arrowElement._currentRotation || (bearing - 90);
         const targetRotation = bearing - 90;
         
         arrowElement.style.transition = 'transform 0.5s ease';
-        
-        arrowElement.style.transform = `rotate(${targetRotation}deg) translateX(10px)`;
-        
+        arrowElement.style.transform = `rotate(${targetRotation}deg)`;
         arrowElement._currentRotation = targetRotation;
     }
 
@@ -2761,30 +2765,40 @@ filteredStops.forEach(stop => {
         const popupElement = markers[id]._popup._contentNode.parentElement;
         popupElement.classList.remove('hide'); 
         popupElement.classList.add('show'); 
-        
         markers[id].openPopup();
     }
+
+    if (selectedLine && markers[id].line !== selectedLine) {
+        if (map.hasLayer(markers[id])) {
+            map.removeLayer(markers[id]);
+        }
+    } else {
+        if (!map.hasLayer(markers[id])) {
+            map.addLayer(markers[id]);
+        }
+    }
 } else {
-    const marker = createColoredMarker(latitude, longitude, line, bearing).addTo(map);
+    const marker = createColoredMarker(latitude, longitude, line, bearing);
     markers[id] = marker;
     markers[id].line = line;
     markers[id].id = id;
 
+    if (!selectedLine || selectedLine === line) {
+        marker.addTo(map);
+    }
+    
     marker.bindPopup(popupContent);
 
     marker.on('popupopen', function (e) {
         const popupElement = e.popup._contentNode.parentElement;
         popupElement.classList.remove('hide'); 
         popupElement.classList.add('show');  
-
     });
 
     marker.on('popupclose', function (e) {
         const popupElement = e.popup._contentNode.parentElement;
-
         popupElement.classList.remove('show');
         popupElement.classList.add('hide');
-
 
         setTimeout(() => {
             e.popup.remove(); 
