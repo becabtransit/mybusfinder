@@ -20,7 +20,7 @@ use transit_realtime\VehicleDescriptor;
 
 $config = [
     'siri_url' => 'https://api.okina.fr/gateway/cae/realtime/anshar/ws/services', // URL du service SIRI
-    'siri_api_key' => 'OPENDATA', // Clé API pour SIRI (si nécessaire)
+    'siri_api_key' => 'opendata', // Clé API pour SIRI (si nécessaire)
     'agency_timezone' => 'Europe/Paris', // Fuseau horaire par défaut
 ];
 
