@@ -875,7 +875,7 @@ shape.bounce-down {
   transform: translateY(100%) translateX(-50%);
   opacity: 0; 
   filter: blur(5px); 
-  transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.2s ease-in, filter 0.2s ease-in;
+  transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
 }
 
 
@@ -2187,62 +2187,21 @@ async function loadGeoJsonLines() {
     }).addTo(map);
 }
 
-// Variable globale pour stocker les lignes sélectionnées
-let selectedLines = [];
-
 function filterByLine(lineId) {
-    console.log("Début du filtrage pour la ligne:", lineId);
-    
-    // Si la ligne est déjà sélectionnée, on la retire
-    if (selectedLines.includes(lineId)) {
-        selectedLines = selectedLines.filter(id => id !== lineId);
-    } 
-    // Sinon, on l'ajoute
-    else {
-        selectedLines.push(lineId);
-    }
-    
-    // Pour compatibilité avec le reste du code
-    if (selectedLines.length === 1) {
-        selectedLine = selectedLines[0];
-    } else {
-        selectedLine = null;
-    }
-    
-    // Étape 1: Gérer les lignes GeoJSON
     geoJsonLines.forEach(layer => {
-        const routeId = layer.feature.properties.route_id;
-        
-        // Soit on affiche tout, soit on affiche uniquement les lignes sélectionnées
-        const shouldDisplay = selectedLines.length === 0 || selectedLines.includes(routeId);
-        
-        if (shouldDisplay) {
-            if (!map.hasLayer(layer)) {
-                map.addLayer(layer);
-            }
-        } else {
-            if (map.hasLayer(layer)) {
-                map.removeLayer(layer);
-            }
-        }
+        map.removeLayer(layer);
     });
     
-    // Étape 2: Gérer les marqueurs
-    // Collecter d'abord tous les ID de marqueurs à afficher
-    const markerIdsToShow = [];
+    const selectedLineLayer = geoJsonLines.find(layer => 
+        layer.feature.properties.route_id === lineId
+    );
     
+    if (selectedLineLayer) {
+        map.addLayer(selectedLineLayer);
+    }
+
     Object.entries(markers).forEach(([id, marker]) => {
-        // Si aucune ligne n'est sélectionnée OU si le marqueur appartient à une ligne sélectionnée
-        if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
-            markerIdsToShow.push(id);
-        }
-    });
-    
-    // Maintenant, mettre à jour les marqueurs
-    Object.entries(markers).forEach(([id, marker]) => {
-        const shouldDisplay = markerIdsToShow.includes(id);
-        
-        if (shouldDisplay) {
+        if (marker.line === lineId) {
             if (!map.hasLayer(marker)) {
                 map.addLayer(marker);
             }
@@ -2256,12 +2215,10 @@ function filterByLine(lineId) {
         }
     });
     
-    console.log("Filtrage terminé avec", selectedLines.length, "lignes sélectionnées");
+    selectedLine = lineId;
 }
 
 function resetMapView() {
-    selectedLines = [];
-    
     selectedLine = null;
     
     geoJsonLines.forEach(layer => {
@@ -2294,6 +2251,7 @@ function showPopup() {
         const filtre = document.getElementById('filtre');
         filtre.classList.add('slide-upc');
         filtre.classList.remove('slide-downc');
+        resetMapView();
         }
 
             menubottom1.addEventListener('transitionend', () => {
@@ -3321,6 +3279,7 @@ function updateMenu() {
     transportStateContainer.appendChild(transportStateTextContainer);
     menu.appendChild(transportStateContainer);
 
+    // Ajout du bouton de localisation
     const locationButton = document.createElement('div');
     locationButton.className = 'alerts-button';
     locationButton.onclick = () => {
@@ -3333,11 +3292,6 @@ function updateMenu() {
         setTimeout(() => {
             menubottom1.classList.remove('slide-upb');
             menubottom1.classList.add('slide-downb');
-            if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.add('slide-upc');
-        filtre.classList.remove('slide-downc');
-        }
         }, 10);
     };
 
@@ -3567,6 +3521,7 @@ const menubottom1 = document.getElementById('menubtm');
         const filtre = document.getElementById('filtre');
         filtre.classList.add('slide-upc');
         filtre.classList.remove('slide-downc');
+        resetMapView();
         }
 
             menubottom1.addEventListener('transitionend', () => {
@@ -3589,11 +3544,6 @@ const menubottom1 = document.getElementById('menubtm');
     setTimeout(() => {
         menubottom1.classList.remove('slide-upb');
         menubottom1.classList.add('slide-downb');
-        if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.add('slide-upc');
-        filtre.classList.remove('slide-downc');
-        }
     }, 10);
     
         };
