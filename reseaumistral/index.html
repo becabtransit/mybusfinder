@@ -2066,31 +2066,56 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const menubtm = document.getElementById('menubtm');
     if (menubtm) {
         try {
+            if (marker.styleId) {
+                menubtm.classList.remove(marker.styleId);
+            }
+            
+            const styleElement = document.getElementById(marker.styleId);
+            if (styleElement) {
+                styleElement.remove();
+            }
+            
             const data = await getSetvar();
             if (data) {
-                // Stocke la couleur actuelle avant le changement
-                const currentColor = getComputedStyle(menubtm).backgroundColor;
+                const returnStyleId = generateUniqueId();
+                const returnStyle = document.createElement('style');
+                returnStyle.id = returnStyleId;
                 
-                // Crée une transition douce
-                menubtm.style.transition = 'background-color 0.3s ease';
+                const currentColor = window.getComputedStyle(menubtm).backgroundColor;
                 
-                // Applique la nouvelle couleur avec l'opacité
-                menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                const returnAnimation = `menubtm-return-${returnStyleId}`;
+                returnStyle.textContent = `
+                    @keyframes ${returnAnimation} {
+                        from {
+                            background-color: ${currentColor};
+                            color: ${window.getComputedStyle(menubtm).color};
+                        }
+                        to {
+                            background-color: ${data.colorbkg}77;
+                            color: initial;
+                        }
+                    }
+                    #menubtm.${returnStyleId} {
+                        animation: ${returnAnimation} 0.5s ease-in-out forwards;
+                    }
+                    #menubtm.${returnStyleId} * {
+                        animation: text-color-return 0.5s ease-in-out forwards;
+                    }
+                    @keyframes text-color-return {
+                        to {
+                            color: initial;
+                        }
+                    }
+                `;
                 
-                // Réinitialise la couleur du texte avec transition
-                const menubtmText = menubtm.querySelectorAll('*');
-                menubtmText.forEach(element => {
-                    element.style.transition = 'color 0.3s ease';
-                    element.style.color = '';
-                });
+                document.head.appendChild(returnStyle);
+                menubtm.classList.add(returnStyleId);
                 
-                // Nettoie la transition après qu'elle soit terminée
                 setTimeout(() => {
-                    menubtm.style.transition = '';
-                    menubtmText.forEach(element => {
-                        element.style.transition = '';
-                    });
-                }, 300);
+                    menubtm.classList.remove(returnStyleId);
+                    returnStyle.remove();
+                    menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                }, 500);
             }
         } catch (error) {
             console.error('Erreur lors de la réinitialisation des couleurs:', error);
@@ -2098,7 +2123,8 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     }
 });
 
-marker.on('mouseover', function() {
+
+    marker.on('mouseover', function() {
         this._icon.firstChild.style.transform = 'scale(1.2)';
     });
     
