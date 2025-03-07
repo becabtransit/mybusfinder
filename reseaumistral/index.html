@@ -1187,6 +1187,23 @@ shape.bounce-down {
     opacity: 0.8;
 }
 
+.marker-container {
+    position: relative;
+    transition: transform 0.2s ease;
+}
+
+.marker-arrow {
+    transition: transform 0.5s ease;
+}
+
+.marker-icon {
+    transition: transform 0.2s ease;
+}
+
+.my-custom-pin {
+    contain: layout style;
+}
+
     </style>
 
 </head>
@@ -1972,9 +1989,9 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             position: absolute;
             width: 16px;
             height: 16px;
-            left: -6px;
-            top: -6px;
-            transform-origin: 50% 50%;
+            left: -2px;
+            top: -2px;
+            transform-origin: center center;
             transform: rotate(${bearing}deg);
             transition: transform 0.5s ease;"
             viewBox="0 0 24 24">
@@ -2001,7 +2018,12 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         className: "my-custom-pin",
         iconAnchor: [0, 0],
         popupAnchor: [0, 5],
-        html: `<span style="${markerHtmlStyles}" />${arrowSvg}`
+        html: `
+            <div class="marker-container">
+                <span class="marker-icon" style="${markerHtmlStyles}" />
+                ${arrowSvg}
+            </div>
+        `
     });
 
     const marker = L.marker([lat, lon], { icon });
@@ -2109,14 +2131,16 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     });
 
     marker.on('mouseover', function() {
-        if (this._icon) {
-            this._icon.firstChild.style.transform = 'scale(1.2)';
+        const container = this._icon.querySelector('.marker-container');
+        if (container) {
+            container.style.transform = 'scale(1.2)';
         }
     });
     
     marker.on('mouseout', function() {
-        if (this._icon) {
-            this._icon.firstChild.style.transform = 'scale(1)';
+        const container = this._icon.querySelector('.marker-container');
+        if (container) {
+            container.style.transform = 'scale(1)';
         }
     });
 
