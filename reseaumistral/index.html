@@ -1472,8 +1472,6 @@ function showUpdatePopup(link) {
 
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
-            filtre.classList.remove('slide-downb');
-            filtre.classList.add('slide-upb');
             if (selectedLine) {
         const filtre = document.getElementById('filtre');
         filtre.classList.add('slide-upc');
@@ -2207,31 +2205,41 @@ function filterByLine(lineId) {
         geoJsonLines.forEach(layer => {
             map.addLayer(layer);
         });
-    } 
-    else {
-        const selectedLineLayers = geoJsonLines.filter(layer => 
-            selectedLines.includes(layer.feature.properties.route_id)
-        );
         
-        selectedLineLayers.forEach(layer => {
-            map.addLayer(layer);
-        });
-    }
-
-    Object.entries(markers).forEach(([id, marker]) => {
-        if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
+        Object.values(markers).forEach(marker => {
             if (!map.hasLayer(marker)) {
                 map.addLayer(marker);
             }
-        } else {
+        });
+    } 
+    else {
+        geoJsonLines.forEach(layer => {
+            if (selectedLines.includes(layer.feature.properties.route_id)) {
+                map.addLayer(layer);
+            }
+        });
+        
+        Object.values(markers).forEach(marker => {
             if (map.hasLayer(marker)) {
                 map.removeLayer(marker);
                 if (marker.isPopupOpen()) {
                     marker.closePopup();
                 }
             }
-        }
-    });
+        });
+        
+        Object.values(markers).forEach(marker => {
+            if (selectedLines.includes(marker.line)) {
+                map.addLayer(marker);
+            }
+        });
+    }
+    
+    if (selectedLines.length === 1) {
+        selectedLine = selectedLines[0];
+    } else {
+        selectedLine = null;
+    }
 }
 
 
@@ -2266,13 +2274,10 @@ function showPopup() {
             const menubotom = document.getElementById('menubottom');
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
-            filtre.classList.remove('slide-downb');
-            filtre.classList.add('slide-upb');
             if (selectedLine) {
         const filtre = document.getElementById('filtre');
         filtre.classList.add('slide-upc');
         filtre.classList.remove('slide-downc');
-        resetMapView();
         }
 
             menubottom1.addEventListener('transitionend', () => {
@@ -3312,8 +3317,11 @@ function updateMenu() {
         setTimeout(() => {
             menubottom1.classList.remove('slide-upb');
             menubottom1.classList.add('slide-downb');
-            filtre.classList.remove('slide-upb');
-            filtre.classList.add('slide-downb');
+            if (selectedLine) {
+        const filtre = document.getElementById('filtre');
+        filtre.classList.add('slide-upc');
+        filtre.classList.remove('slide-downc');
+        }
         }, 10);
     };
 
@@ -3539,8 +3547,6 @@ const menubottom1 = document.getElementById('menubtm');
             isMenuVisible = true; 
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
-            filtre.classList.remove('slide-downb');
-            filtre.classList.add('slide-upb');
             if (selectedLine) {
         const filtre = document.getElementById('filtre');
         filtre.classList.add('slide-upc');
@@ -3567,6 +3573,11 @@ const menubottom1 = document.getElementById('menubtm');
     setTimeout(() => {
         menubottom1.classList.remove('slide-upb');
         menubottom1.classList.add('slide-downb');
+        if (selectedLine) {
+        const filtre = document.getElementById('filtre');
+        filtre.classList.add('slide-upc');
+        filtre.classList.remove('slide-downc');
+        }
     }, 10);
     
         };
