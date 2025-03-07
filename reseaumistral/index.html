@@ -2187,41 +2187,42 @@ async function loadGeoJsonLines() {
     }).addTo(map);
 }
 
-// Tableau pour stocker les identifiants des lignes sélectionnées
 let selectedLines = [];
 
 function filterByLine(lineId) {
-  // Vérifier si la ligne est déjà sélectionnée
   const lineIndex = selectedLines.indexOf(lineId);
   
   if (lineIndex !== -1) {
-    // Si la ligne est déjà sélectionnée, on la retire
     selectedLines.splice(lineIndex, 1);
   } else {
-    // Sinon on l'ajoute
     selectedLines.push(lineId);
   }
   
-  // Si aucune ligne n'est sélectionnée, afficher toutes les lignes
+  updateLinesDisplay();
+}
+
+function updateLinesDisplay() {
   if (selectedLines.length === 0) {
     geoJsonLines.forEach(layer => {
-      map.addLayer(layer);
+      if (!map.hasLayer(layer)) {
+        map.addLayer(layer);
+      }
     });
   } else {
-    // Retirer d'abord toutes les lignes
     geoJsonLines.forEach(layer => {
-      map.removeLayer(layer);
-    });
-    
-    // Ajouter uniquement les lignes sélectionnées
-    geoJsonLines.forEach(layer => {
-      if (selectedLines.includes(layer.feature.properties.route_id)) {
-        map.addLayer(layer);
+      const routeId = layer.feature.properties.route_id;
+      if (selectedLines.includes(routeId)) {
+        if (!map.hasLayer(layer)) {
+          map.addLayer(layer);
+        }
+      } else {
+        if (map.hasLayer(layer)) {
+          map.removeLayer(layer);
+        }
       }
     });
   }
   
-  // Gestion des marqueurs
   Object.entries(markers).forEach(([id, marker]) => {
     if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
       if (!map.hasLayer(marker)) {
@@ -2762,6 +2763,7 @@ filteredStops.forEach(stop => {
                 `;
                 if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
+    updateLinesDisplay();
     
     if (markers[id]._icon) {
         const markerContainer = markers[id]._icon.querySelector('.marker-icon');
@@ -2809,6 +2811,7 @@ filteredStops.forEach(stop => {
     }
 } else {
     const marker = createColoredMarker(latitude, longitude, line, bearing);
+    updateLinesDisplay();
     markers[id] = marker;
     markers[id].line = line;
     markers[id].id = id;
