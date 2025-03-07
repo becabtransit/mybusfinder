@@ -66,7 +66,7 @@ function buildSiriRequest() {
 <Siri xmlns="http://www.siri.org.uk/siri" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.0">
     <ServiceRequest>
         <RequestTimestamp>{$timestamp}</RequestTimestamp>
-        <RequestorRef>PHP_SIRI_CONVERTER</RequestorRef>
+        <RequestorRef>opendata</RequestorRef>
         <MessageIdentifier>{$messageId}</MessageIdentifier>
         <VehicleMonitoringRequest version="2.0">
             <RequestTimestamp>{$timestamp}</RequestTimestamp>
