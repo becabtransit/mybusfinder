@@ -3621,18 +3621,43 @@ menu.appendChild(satelliteButton);
 
         busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
-            const nextStop = getNextStopInfo(bus.parkNumber);
+    
+            // Accéder au marker du véhicule et à ses propriétés
+            const marker = bus.vehicle;
+            let nextStopInfo = '';
             
-            let displayText = `Bus ${bus.parkNumber}`;
-            if (nextStop) {
-                const timeLeft = nextStop.delay ? Math.round(nextStop.delay / 60) : null;
-                const timeText = timeLeft !== null 
-                    ? (timeLeft <= 0 ? 'imminent' : `dans ${timeLeft} min`)
-                    : '';
-                displayText += ` 🚏 ${nextStop.name.replace("0:", "")} (${timeText})`;
+            // Obtenir le stopId du véhicule à partir du popup
+            const popupContent = marker.getPopup().getContent();
+            
+            // Récupérer le contenu nextStopsHTML du popup
+            const nextStopsMatch = popupContent.match(/<div id="nextStopsContent" class="next-stops-content">([\s\S]*?)<\/div>/);
+            if (nextStopsMatch) {
+                // Extraire le premier arrêt de la liste
+                const firstStopMatch = nextStopsMatch[1].match(/<li[^>]*>([\s\S]*?)<\/li>/);
+                if (firstStopMatch) {
+                    const stopInfo = firstStopMatch[1];
+                    // Nettoyer le HTML et extraire le texte
+                    const cleanStopInfo = stopInfo
+                        .replace(/<[^>]*>/g, '') // Enlever les balises HTML
+                        .replace(/\s+/g, ' ') // Normaliser les espaces
+                        .trim();
+                    
+                    // Séparer le nom de l'arrêt et l'horaire
+                    const [stopName, timeInfo] = cleanStopInfo.split(/(?=dans|imminent|\d{2}:\d{2})/);
+                    if (stopName) {
+                        nextStopInfo = ` 🚏 ${stopName.trim()}`;
+                        if (timeInfo) {
+                            // Extraire seulement la partie "dans X min" ou "imminent"
+                            const timeMatch = timeInfo.match(/(dans \d+ min|imminent)/);
+                            if (timeMatch) {
+                                nextStopInfo += ` (${timeMatch[1]})`;
+                            }
+                        }
+                    }
+                }
             }
-            
-            busItem.textContent = displayText;
+
+            busItem.textContent = `Bus ${bus.parkNumber}${nextStopInfo}`;
             busItem.style.cursor = 'pointer';
             busItem.classList.add('menu-item');
             busItem.style.fontFamily = 'League Spartan';
@@ -3645,7 +3670,6 @@ menu.appendChild(satelliteButton);
             busItem.style.overflow = 'hidden';
             busItem.style.textOverflow = 'ellipsis';
             busItem.style.maxWidth = '300px';
-
                     lineSection.onclick = () => {
                         const lineId = line;
                         selectedLine = lineId;
