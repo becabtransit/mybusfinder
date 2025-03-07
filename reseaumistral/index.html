@@ -3596,61 +3596,40 @@ menu.appendChild(satelliteButton);
 
         busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
+    
+    const popupContent = bus.vehicle.getPopup().getContent();
+    
+    let nextStopInfo = '';
+    try {
+        const nextStopsMatch = popupContent.match(/<li[^>]*>([^<]+)<\/li>/);
+        if (nextStopsMatch && nextStopsMatch[1]) {
+            const stopInfo = nextStopsMatch[1].trim();
+            const timeMatch = stopInfo.match(/(.+?)(?=\s*(?:imminent|dans \d+ min|\|\s*\d+:\d+))/);
+            const timeInfoMatch = stopInfo.match(/(imminent|dans \d+ min)/);
             
-            // Récupérer le popup content pour extraire le tripId
-            const popupContent = bus.vehicle.getPopup().getContent();
-            // Trouver le tripId dans le contenu du popup
-            const tripIdMatch = popupContent.match(/tripId:\s*['"]([^'"]+)['"]/);
-            const tripId = tripIdMatch ? tripIdMatch[1] : null;
-
-            if (tripId && tripUpdates[tripId] && tripUpdates[tripId].nextStops && tripUpdates[tripId].nextStops.length > 0) {
-                // Récupérer le stopId actuel depuis le popup content également si nécessaire
-                const currentStopId = bus.vehicle.stopId ? bus.vehicle.stopId.replace("0:", "") : null;
-                const nextStops = tripUpdates[tripId].nextStops;
-                
-                // Trouver l'index de l'arrêt actuel
-                const currentStopIndex = nextStops.findIndex(stop => 
-                    stop.stopId.replace("0:", "") === currentStopId
-                );
-                
-                // Obtenir le prochain arrêt
-                const nextStop = currentStopIndex !== -1 && nextStops[currentStopIndex + 1] 
-                    ? nextStops[currentStopIndex + 1] 
-                    : nextStops[0];
-                
-                if (nextStop) {
-                    const nextStopName = stopNameMap[nextStop.stopId] || nextStop.stopId;
-                    const timeLeft = nextStop.delay ? Math.round(nextStop.delay / 60) : null;
-                    
-                    let timeText = '';
-                    if (timeLeft !== null) {
-                        if (timeLeft <= 0) {
-                            timeText = '(imminent)';
-                        } else {
-                            timeText = `(dans ${timeLeft} min)`;
-                        }
-                    }
-                    
-                    const stopIcon = '🚏';
-                    busItem.textContent = `Bus ${bus.parkNumber} ${stopIcon} ${nextStopName} ${timeText}`;
-                } else {
-                    busItem.textContent = `Bus ${bus.parkNumber}`;
-                }
-            } else {
-                busItem.textContent = `Bus ${bus.parkNumber}`;
+            if (timeMatch && timeInfoMatch) {
+                const stopName = timeMatch[1].trim();
+                const timeInfo = timeInfoMatch[1];
+                nextStopInfo = ` 🚏 ${stopName} (${timeInfo})`;
             }
-
-            busItem.style.cursor = 'pointer';
-            busItem.classList.add('menu-item');
-            busItem.style.fontFamily = 'League Spartan';
-            busItem.style.color = 'white';
-            busItem.style.padding = '5px 10px';
-            busItem.style.marginBottom = '5px';
-            busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
-            busItem.style.borderRadius = '8px';
-            busItem.style.whiteSpace = 'nowrap';
-            busItem.style.overflow = 'hidden';
-            busItem.style.textOverflow = 'ellipsis';
+        }
+    } catch (error) {
+        console.error('Erreur lors de l\'extraction des informations d\'arrêt:', error);
+    }
+    
+    busItem.textContent = `Bus ${bus.parkNumber}${nextStopInfo}`;
+    
+    busItem.style.cursor = 'pointer';
+    busItem.classList.add('menu-item');
+    busItem.style.fontFamily = 'League Spartan';
+    busItem.style.color = 'white';
+    busItem.style.padding = '5px 10px';
+    busItem.style.marginBottom = '5px';
+    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+    busItem.style.borderRadius = '8px';
+    busItem.style.whiteSpace = 'nowrap';
+    busItem.style.overflow = 'hidden';
+    busItem.style.textOverflow = 'ellipsis';
 
                     lineSection.onclick = () => {
                         const lineId = line;
