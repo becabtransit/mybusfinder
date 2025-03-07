@@ -2180,12 +2180,10 @@ async function loadGeoJsonLines() {
 }
 
 function filterByLine(lineId) {
-    if (!lineId || !map) {
-        console.warn('Paramètres invalides ou map non initialisée');
+    if (!lineId) {
+        console.warn('filterByLine: lineId is required');
         return;
     }
-
-    const normalizedLineId = String(lineId);
 
     try {
         if (Array.isArray(geoJsonLines)) {
@@ -2196,60 +2194,36 @@ function filterByLine(lineId) {
             });
 
             const selectedLineLayer = geoJsonLines.find(layer => 
-                layer?.feature?.properties?.route_id === lineId ||
-                String(layer?.feature?.properties?.route_id) === normalizedLineId
+                layer && 
+                layer.feature && 
+                layer.feature.properties && 
+                layer.feature.properties.route_id === lineId
             );
 
             if (selectedLineLayer) {
-                selectedLineLayer.addTo(map);
+                map.addLayer(selectedLineLayer);
             }
         }
 
         if (markers && typeof markers === 'object') {
-            for (const id in markers) {
-                const marker = markers[id];
-                if (marker && map.hasLayer(marker)) {
-                    map.removeLayer(marker);
-                }
-            }
+            const markerIds = Object.keys(markers);
 
-            for (const id in markers) {
+            markerIds.forEach(id => {
+                if (markers[id] && map.hasLayer(markers[id])) {
+                    map.removeLayer(markers[id]);
+                }
+            });
+
+            markerIds.forEach(id => {
                 const marker = markers[id];
-                if (marker && (
-                    marker.line === lineId || 
-                    String(marker.line) === normalizedLineId
-                )) {
+                if (marker && marker.line === lineId && !map.hasLayer(marker)) {
                     marker.addTo(map);
                 }
-            }
+            });
         }
-
     } catch (error) {
-        console.error('Erreur lors du filtrage de la ligne:', error);
-        refreshMarkers(lineId);
+        console.error('Error in filterByLine:', error);
     }
-}
-
-/**
- * Fonction de rafraîchissement des marqueurs en cas de problème
- * @param {string|number} lineId - Identifiant de la ligne
- */
-function refreshMarkers(lineId) {
-    if (!markers) return;
-    
-    const normalizedLineId = String(lineId);
-    
-    Object.values(markers).forEach(marker => {
-        if (marker) {
-            if (String(marker.line) === normalizedLineId) {
-                if (!map.hasLayer(marker)) {
-                    marker.addTo(map);
-                }
-            } else if (map.hasLayer(marker)) {
-                map.removeLayer(marker);
-            }
-        }
-    });
 }
 
 
