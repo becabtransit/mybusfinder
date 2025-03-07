@@ -2202,26 +2202,19 @@ function filterByLine(lineId) {
 }
 
 function updateLinesDisplay() {
-  if (selectedLines.length === 0) {
-    geoJsonLines.forEach(layer => {
+  geoJsonLines.forEach(layer => {
+    const routeId = layer.feature.properties.route_id;
+    
+    if (selectedLines.length === 0 || selectedLines.includes(routeId)) {
       if (!map.hasLayer(layer)) {
         map.addLayer(layer);
       }
-    });
-  } else {
-    geoJsonLines.forEach(layer => {
-      const routeId = layer.feature.properties.route_id;
-      if (selectedLines.includes(routeId)) {
-        if (!map.hasLayer(layer)) {
-          map.addLayer(layer);
-        }
-      } else {
-        if (map.hasLayer(layer)) {
-          map.removeLayer(layer);
-        }
+    } else {
+      if (map.hasLayer(layer)) {
+        map.removeLayer(layer);
       }
-    });
-  }
+    }
+  });
   
   Object.entries(markers).forEach(([id, marker]) => {
     if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
