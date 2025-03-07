@@ -3571,9 +3571,11 @@ menu.appendChild(satelliteButton);
         const lineTitle = document.createElement('div');
         lineTitle.textContent = `Ligne ${lineNameText}`;
         lineTitle.style.fontSize = '18px';
-        lineTitle.style.fontWeight = 'bold';
+        lineTitle.style.fontWeight = 'normal';
         lineTitle.style.color = '#fff';
         lineTitle.style.paddingRight = '30px';
+        lineTitle.style.paddingLeft = '10px';
+
 
         lineSection.appendChild(lineTitle);
         lineSection.appendChild(favoriteButton);
@@ -3588,13 +3590,43 @@ menu.appendChild(satelliteButton);
                 const destinationTitle = document.createElement('div');
                 destinationTitle.textContent = `➜ ${destination}`;
                 destinationTitle.style.fontSize = '16px';
-                destinationTitle.style.fontWeight = 'bold';
+                destinationTitle.style.fontWeight = 'normal';
                 destinationTitle.style.color = '#fff';
                 destinationSection.appendChild(destinationTitle);
 
                 busesByLineAndDestination[line][destination].forEach(bus => {
                     const busItem = document.createElement('div');
                     busItem.textContent = `Bus ${bus.parkNumber}`;
+
+                    const tripId = bus.vehicle.tripId; 
+                    if (tripUpdates[tripId] && tripUpdates[tripId].nextStops && tripUpdates[tripId].nextStops.length > 0) {
+                        const currentStopId = bus.vehicle.stopId ? bus.vehicle.stopId.replace("0:", "") : null;
+                        const nextStops = tripUpdates[tripId].nextStops;
+                        
+                        const currentStopIndex = nextStops.findIndex(stop => 
+                            stop.stopId.replace("0:", "") === currentStopId
+                        );
+                        
+                        const nextStop = currentStopIndex !== -1 && nextStops[currentStopIndex + 1] 
+                            ? nextStops[currentStopIndex + 1] 
+                            : nextStops[0];
+                        
+                        if (nextStop) {
+                            const nextStopName = stopNameMap[nextStop.stopId] || nextStop.stopId;
+                            const timeLeft = nextStop.delay ? Math.round(nextStop.delay / 60) : null;
+                            
+                            let timeText = '';
+                            if (timeLeft !== null) {
+                                if (timeLeft <= 0) {
+                                    timeText = '(imminent)';
+                                } else {
+                                    timeText = `(dans ${timeLeft} min)`;
+                                }
+                            }
+                            
+                            busItem.textContent = `Bus ${bus.parkNumber} - ${nextStopName} ${timeText}`;
+                        }
+                    }
                     busItem.style.cursor = 'pointer';
                     busItem.classList.add('menu-item');
                     busItem.style.fontFamily = 'League Spartan';
