@@ -2742,14 +2742,18 @@ filteredStops.forEach(stop => {
                 if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
     
-    const arrowElement = markers[id].getElement()?.querySelector('.marker-arrow');
-    if (arrowElement) {
-        const currentRotation = arrowElement._currentRotation || (bearing - 90);
-        const targetRotation = bearing - 90;
+    if (markers[id]._icon) {
+        const markerContainer = markers[id]._icon.querySelector('.marker-icon');
+        const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
         
-        arrowElement.style.transition = 'transform 0.5s ease';
-        arrowElement.style.transform = `rotate(${targetRotation}deg)`;
-        arrowElement._currentRotation = targetRotation;
+        if (arrowElement) {
+            const currentRotation = arrowElement._currentRotation || (bearing - 90);
+            const targetRotation = bearing - 90;
+            
+            arrowElement.style.transition = 'transform 0.5s ease';
+            arrowElement.style.transform = `rotate(${targetRotation}deg)`;
+            arrowElement._currentRotation = targetRotation;
+        }
     }
 
     const existingPopup = markers[id].getPopup();
@@ -2762,10 +2766,15 @@ filteredStops.forEach(stop => {
     markers[id].setPopupContent(popupContent);
 
     if (markers[id].isPopupOpen()) {
-        const popupElement = markers[id]._popup._contentNode.parentElement;
-        popupElement.classList.remove('hide'); 
-        popupElement.classList.add('show'); 
-        markers[id].openPopup();
+        const popup = markers[id]._popup;
+        if (popup && popup._contentNode) {
+            const popupElement = popup._contentNode.parentElement;
+            if (popupElement) {
+                popupElement.classList.remove('hide'); 
+                popupElement.classList.add('show'); 
+                markers[id].openPopup();
+            }
+        }
     }
 
     if (selectedLine && markers[id].line !== selectedLine) {
@@ -2790,22 +2799,49 @@ filteredStops.forEach(stop => {
     marker.bindPopup(popupContent);
 
     marker.on('popupopen', function (e) {
-        const popupElement = e.popup._contentNode.parentElement;
-        popupElement.classList.remove('hide'); 
-        popupElement.classList.add('show');  
+        if (e.popup && e.popup._contentNode) {
+            const popupElement = e.popup._contentNode.parentElement;
+            if (popupElement) {
+                popupElement.classList.remove('hide'); 
+                popupElement.classList.add('show');  
+            }
+        }
     });
 
     marker.on('popupclose', function (e) {
-        const popupElement = e.popup._contentNode.parentElement;
-        popupElement.classList.remove('show');
-        popupElement.classList.add('hide');
+        if (e.popup && e.popup._contentNode) {
+            const popupElement = e.popup._contentNode.parentElement;
+            if (popupElement) {
+                popupElement.classList.remove('show');
+                popupElement.classList.add('hide');
 
-        setTimeout(() => {
-            e.popup.remove(); 
-        }, 200); 
+                setTimeout(() => {
+                    if (e.popup) {
+                        e.popup.remove(); 
+                    }
+                }, 200); 
+            }
+        }
+    });
+
+    marker.on('mouseover', function() {
+        if (this._icon) {
+            const markerIcon = this._icon.querySelector('.marker-icon');
+            if (markerIcon) {
+                markerIcon.style.transform = 'scale(1.2)';
+            }
+        }
+    });
+    
+    marker.on('mouseout', function() {
+        if (this._icon) {
+            const markerIcon = this._icon.querySelector('.marker-icon');
+            if (markerIcon) {
+                markerIcon.style.transform = 'scale(1)';
+            }
+        }
     });
 }
-
                     }
                 });
 
