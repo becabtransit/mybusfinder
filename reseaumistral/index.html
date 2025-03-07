@@ -3622,60 +3622,48 @@ menu.appendChild(satelliteButton);
         busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
     
+    // Récupérer le marker Leaflet
+    const marker = bus.vehicle;
+    
+    // Récupérer le contenu du popup
+    const popupContent = marker.getPopup().getContent();
+    
+    let nextStopInfo = '';
+    
+    // Chercher la div qui contient les prochains arrêts
+    const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
+    
+    if (nextStopsDiv && nextStopsDiv[0]) {
+        // Chercher le premier li (premier arrêt)
+        const firstStopMatch = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/);
+        if (firstStopMatch && firstStopMatch[1]) {
+            // Nettoyer le HTML et les espaces
+            const stopInfo = firstStopMatch[1]
+                .replace(/<[^>]*>/g, '')  // Enlever les balises HTML
+                .replace(/\s+/g, ' ')     // Normaliser les espaces
+                .trim();
             
-                // Récupérer le tripId du véhicule
-                const marker = bus.vehicle;
-                let nextStopInfo = '';
-                
-                // Logique similaire à celle de nextStopsHTML
-                const currentStopId = marker.stopId ? marker.stopId.replace("0:", "") : null;
-                const tripId = bus.vehicle.tripId;  // Récupérer le tripId du véhicule
+            nextStopInfo = ` 🚏 ${stopInfo}`;
+        }
+    }
 
-                if (tripUpdates[tripId] && tripUpdates[tripId].nextStops) {
-                    const nextStops = tripUpdates[tripId].nextStops;
-                    
-                    // Trouver l'index de l'arrêt actuel
-                    const currentStopIndex = nextStops.findIndex(stop => 
-                        stop.stopId.replace("0:", "") === currentStopId
-                    );
-                    
-                    // Obtenir le prochain arrêt
-                    if (currentStopIndex !== -1 && nextStops[currentStopIndex + 1]) {
-                        const nextStop = nextStops[currentStopIndex + 1];
-                        const nextStopName = stopNameMap[nextStop.stopId.replace("0:", "")] || nextStop.stopId;
-                        const timeLeft = nextStop.delay ? Math.round(nextStop.delay / 60) : null;
-                        
-                        let timeText = '';
-                        if (timeLeft !== null) {
-                            timeText = timeLeft <= 0 ? 'imminent' : `dans ${timeLeft} min`;
-                        } else if (nextStop.departureTime) {
-                            timeText = nextStop.departureTime;
-                        }
-                        
-                        nextStopInfo = ` 🚏 ${nextStopName} (${timeText})`;
-                    }
-                }
+    // Debug logs
+    console.log('Bus:', bus.parkNumber);
+    console.log('Next stop info:', nextStopInfo);
 
-                console.log('Bus data:', {
-    parkNumber: bus.parkNumber,
-    tripId: bus.vehicle.tripId,
-    currentStopId: bus.vehicle.stopId,
-    tripUpdatesData: tripUpdates[bus.vehicle.tripId]
-});
-
-                busItem.textContent = `Bus ${bus.parkNumber}${nextStopInfo}`;
-                busItem.style.cursor = 'pointer';
-                busItem.classList.add('menu-item');
-                busItem.style.fontFamily = 'League Spartan';
-                busItem.style.color = 'white';
-                busItem.style.padding = '5px 10px';
-                busItem.style.marginBottom = '5px';
-                busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
-                busItem.style.borderRadius = '8px';
-                busItem.style.whiteSpace = 'nowrap';
-                busItem.style.overflow = 'hidden';
-                busItem.style.textOverflow = 'ellipsis';
-                busItem.style.maxWidth = '300px';
+    busItem.textContent = `Bus ${bus.parkNumber}${nextStopInfo}`;
+    busItem.style.cursor = 'pointer';
+    busItem.classList.add('menu-item');
+    busItem.style.fontFamily = 'League Spartan';
+    busItem.style.color = 'white';
+    busItem.style.padding = '5px 10px';
+    busItem.style.marginBottom = '5px';
+    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+    busItem.style.borderRadius = '8px';
+    busItem.style.whiteSpace = 'nowrap';
+    busItem.style.overflow = 'hidden';
+    busItem.style.textOverflow = 'ellipsis';
+    busItem.style.maxWidth = '300px';
     
                     lineSection.onclick = () => {
                         const lineId = line;
