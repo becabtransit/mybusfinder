@@ -3346,7 +3346,96 @@ function updateMenu() {
     locationButton.appendChild(locationContent);
     menu.appendChild(locationButton);
 
-    // Ajout du bouton des alertes
+
+
+
+
+
+    const satelliteButton = document.createElement('div');
+satelliteButton.className = 'alerts-button';
+
+let isStandardView = false;
+
+satelliteButton.onclick = () => {
+    toggleMapView();
+    const menubottom1 = document.getElementById('menubtm');
+    const menu = document.getElementById('menu');
+    menu.style.display = 'none';
+    isMenuVisible = false;
+    menubottom1.style.display = 'flex';
+    setTimeout(() => {
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
+        if (selectedLine) {
+            const filtre = document.getElementById('filtre');
+            filtre.classList.remove('slide-upc');
+            filtre.classList.add('slide-downc');
+        }
+    }, 10);
+};
+
+function toggleMapView() {
+    if (isStandardView) {
+        map.eachLayer(function(layer) {
+            if (layer instanceof L.TileLayer) {
+                map.removeLayer(layer);
+            }
+        });
+        
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        }).addTo(map);
+        
+        isStandardView = false;
+        satelliteTitle.textContent = 'Vue satellite';
+        satelliteDescription.textContent = 'Passer à la vue standard';
+    } else {
+        map.eachLayer(function(layer) {
+            if (layer instanceof L.TileLayer) {
+                map.removeLayer(layer);
+            }
+        });
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        isStandardView = true;
+        satelliteTitle.textContent = 'Vue standard';
+        satelliteDescription.textContent = 'Passer à la vue satellite';
+    }
+}
+
+const satelliteIcon = document.createElement('div');
+satelliteIcon.className = 'alerts-icon';
+satelliteIcon.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M 7,7 L 17,17"></path>
+        <path d="M 7,17 L 17,7"></path>
+    </svg>
+`;
+
+const satelliteContent = document.createElement('div');
+satelliteContent.className = 'alerts-content';
+
+const satelliteTitle = document.createElement('div');
+satelliteTitle.className = 'alerts-title';
+satelliteTitle.textContent = 'Vue Satellite';
+
+const satelliteDescription = document.createElement('div');
+satelliteDescription.className = 'alerts-description';
+satelliteDescription.textContent = 'Passer à la vue standard';
+
+satelliteContent.appendChild(satelliteTitle);
+satelliteContent.appendChild(satelliteDescription);
+
+satelliteButton.appendChild(satelliteIcon);
+satelliteButton.appendChild(satelliteContent);
+menu.appendChild(satelliteButton);
+
+
+
+
     const alertsButton = document.createElement('div');
     alertsButton.className = 'alerts-button';
     alertsButton.onclick = () => showUpdatePopup("alerts.html");
