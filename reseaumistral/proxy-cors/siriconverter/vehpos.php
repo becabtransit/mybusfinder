@@ -20,7 +20,7 @@ use transit_realtime\VehicleDescriptor;
 
 $config = [
     'siri_url' => 'https://api.okina.fr/gateway/cae/realtime/anshar/ws/services', // URL du service SIRI
-    'siri_api_key' => '', // Clé API pour SIRI (si nécessaire)
+    'siri_api_key' => 'OPENDATA', // Clé API pour SIRI (si nécessaire)
     'agency_timezone' => 'Europe/Paris', // Fuseau horaire par défaut
 ];
 
@@ -29,59 +29,28 @@ $config = [
  * 
  * @return SimpleXMLElement Les données SIRI sous forme d'objet XML
  */
-function fetchSiriData($maxRetries = 3) {
+function fetchSiriData() {
     global $config;
     
-    $attempt = 0;
-    $backoffSeconds = 1;
+    $options = [
+        'http' => [
+            'header' => "Content-Type: text/xml\r\n" .
+                        "Authorization: " . $config['siri_api_key'] . "\r\n",
+            'method' => 'POST',
+            'content' => buildSiriRequest(),
+            'timeout' => 30,
+        ],
+    ];
     
-    while ($attempt < $maxRetries) {
-        $options = [
-            'http' => [
-                'header' => "Content-Type: text/xml\r\n" .
-                            "Authorization: " . $config['siri_api_key'] . "\r\n",
-                'method' => 'POST',
-                'content' => buildSiriRequest(),
-                'timeout' => 30,
-                'ignore_errors' => true, // Pour obtenir la réponse même en cas d'erreur HTTP
-            ],
-        ];
-        
-        $context = stream_context_create($options);
-        $http_response_header = []; // Va être rempli par file_get_contents
-        $response = file_get_contents($config['siri_url'], false, $context);
-        
-        // Vérification du code HTTP
-        $responseCode = 0;
-        foreach ($http_response_header as $header) {
-            if (strpos($header, 'HTTP/') === 0) {
-                $parts = explode(' ', $header);
-                $responseCode = intval($parts[1]);
-                break;
-            }
-        }
-        
-        if ($responseCode === 429) {
-            // Rate limit atteint, on attend avant de réessayer
-            $attempt++;
-            $waitTime = $backoffSeconds * pow(2, $attempt - 1); // Backoff exponentiel
-            error_log("API rate limit atteint. Attente de {$waitTime} secondes avant nouvel essai (tentative {$attempt}/{$maxRetries})");
-            sleep($waitTime);
-            continue;
-        } else if ($responseCode >= 400) {
-            // Autre erreur HTTP
-            throw new Exception("Erreur HTTP {$responseCode} lors de la récupération des données SIRI");
-        } else if ($response === false) {
-            // Erreur réseau ou autre
-            throw new Exception("Impossible de récupérer les données SIRI");
-        }
-        
-        // Si on arrive ici, la requête a réussi
-        return new SimpleXMLElement($response);
+    $context = stream_context_create($options);
+    $response = file_get_contents($config['siri_url'], false, $context);
+    var_dump($http_response_header);
+    
+    if ($response === false) {
+        throw new Exception("Impossible de récupérer les données SIRI");
     }
     
-    // Si on a épuisé toutes les tentatives
-    throw new Exception("Impossible de récupérer les données SIRI après {$maxRetries} tentatives (rate limit)");
+    return new SimpleXMLElement($response);
 }
 
 /**
