@@ -1975,6 +1975,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             top: -2px;
             transform-origin: center center;
             transform: rotate(${bearing}deg);"
+            transition: transform 0.5s ease;"
             viewBox="0 0 24 24">
             <path 
                 d="M8 4 L16 12 L8 20"
@@ -2752,9 +2753,17 @@ filteredStops.forEach(stop => {
                 `;
                 if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
+    
     const arrowElement = markers[id].getElement().querySelector('.marker-arrow');
     if (arrowElement) {
-        arrowElement.style.transform = `rotate(${bearing - 90}deg) translateX(10px)`;
+        const currentRotation = arrowElement._currentRotation || (bearing - 90);
+        const targetRotation = bearing - 90;
+        
+        arrowElement.style.transition = 'transform 0.5s ease';
+        
+        arrowElement.style.transform = `rotate(${targetRotation}deg) translateX(10px)`;
+        
+        arrowElement._currentRotation = targetRotation;
     }
 
     const existingPopup = markers[id].getPopup();
