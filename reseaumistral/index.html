@@ -3740,16 +3740,13 @@ const menubottom1 = document.getElementById('menubtm');
 let lastTripUpdateTimestamp = 0;
 let worker;
 let fetchInProgress = false;
-const FETCH_INTERVAL = 8000; // 8 secondes entre chaque mise à jour
+const FETCH_INTERVAL = 8000; 
 
-// Initialisation optimisée du worker
 function initWorker() {
     worker = new Worker('worker.js');
     
-    // Gestion des erreurs du worker
     worker.onerror = (error) => {
-        console.error('Erreur worker:', error);
-        // Redémarrage du worker en cas d'erreur
+        console.error('Erreur worker', error);
         setTimeout(() => {
             worker.terminate();
             initWorker();
@@ -3757,22 +3754,19 @@ function initWorker() {
     };
 }
 
-// Fonction optimisée pour récupérer les mises à jour
 async function fetchTripUpdates() {
-    // Éviter les requêtes simultanées
     if (fetchInProgress) return Promise.resolve(null);
     
     fetchInProgress = true;
     const fetchStartTime = performance.now();
     
     try {
-        // Utilisation de AbortController pour limiter le temps de requête
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // timeout après 5s
         
         const response = await fetch('proxy-cors/proxy_tripupdate.php', {
             signal: controller.signal,
-            cache: 'no-store' // Forcer le rafraîchissement
+            cache: 'no-store' 
         });
         
         clearTimeout(timeoutId);
@@ -3781,16 +3775,13 @@ async function fetchTripUpdates() {
             throw new Error(`Erreur HTTP: ${response.status}`);
         }
         
-        // Utilisation de arrayBuffer pour performance
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
         
-        // Mesurer le temps de récupération des données
         const fetchTime = performance.now() - fetchStartTime;
         console.debug(`Données GTFS récupérées en ${fetchTime.toFixed(2)}ms`);
         
         return new Promise((resolve, reject) => {
-            // Gestion de la réponse du worker avec timeout
             const workerTimeoutId = setTimeout(() => {
                 reject(new Error('Worker timeout'));
             }, 3000);
@@ -3800,19 +3791,13 @@ async function fetchTripUpdates() {
                 const processTime = performance.now() - fetchStartTime;
                 console.debug(`Traitement complet en ${processTime.toFixed(2)}ms`);
                 
-                // Mise à jour des données
                 tripUpdates = e.data.tripUpdates;
                 
-                // Afficher les métriques si disponibles
-                if (e.data.metrics) {
-                    console.debug(`Métriques: ${JSON.stringify(e.data.metrics)}`);
-                }
                 
                 resolve(e.data.tripUpdates);
                 fetchInProgress = false;
             };
             
-            // Envoi des données au worker
             worker.postMessage(data);
         });
     } catch (error) {
@@ -3827,7 +3812,6 @@ function scheduleFetchUpdates(timestamp) {
     if (!lastUpdateTime || timestamp - lastUpdateTime >= FETCH_INTERVAL) {
         lastUpdateTime = timestamp;
         
-        // Exécution en parallèle des requêtes
         Promise.all([
             fetchTripUpdates().catch(() => null),
             fetchVehiclePositions().catch(() => null)
@@ -3841,27 +3825,22 @@ function scheduleFetchUpdates(timestamp) {
 
 async function main() {
     try {
-        // Initialisation du worker avant toute opération
         initWorker();
         
-        // Chargement des données initial en parallèle
         const initialDataPromise = Promise.all([
             initializeGTFS(),
             loadGeoJsonLines()
         ]);
         
-        // Attendre l'initialisation des données essentielles
         await initialDataPromise;
         gtfsInitialized = true;
         
-        // Premier chargement des données dynamiques
         await Promise.all([
             fetchTripUpdates().catch(console.error),
             fetchVehiclePositions(),
             hideLoadingScreen()
         ]);
         
-        // Démarrage des mises à jour régulières avec requestAnimationFrame
         requestAnimationFrame(scheduleFetchUpdates);
         
     } catch (error) {
@@ -3870,10 +3849,10 @@ async function main() {
     }
 }
 
-// Démarrage de l'application quand le DOM est prêt
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', main);
 } else {
     main();
-}    </script>
+}    
+</script>
 </html>
