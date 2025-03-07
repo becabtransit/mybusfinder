@@ -1950,33 +1950,189 @@ function findMarkerByVehicleId(vehicleId) {
     return null;
 }
 
-function createColoredMarker(lat, lon, route_id) {
+function createColoredMarker(lat, lon, route_id, bearing = 0) {
+    const generateUniqueId = () => `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const color = lineColors[route_id] || '#000000';
+    const markerHtmlStyles = `
+        background-color: ${color};
+        width: 12px;
+        height: 12px;
+        display: block;
+        left: -6px;
+        top: -6px;
+        position: relative;
+        border-radius: 50%;
+        border: 2px solid white;
+        transition: transform 0.2s ease;
+    `;
 
-const color = lineColors[route_id] || '#000000';
-const markerHtmlStyles = `
-    background-color: ${color};
-    width: 12px;
-    height: 12px;
-    display: block;
-    left: -6px;
-    top: -6px;
-    position: relative;
-    border-radius: 50%;
-    border: 2px solid white;
-    transition: transform 0.2s ease; 
-`;
+    const arrowSvg = `
+        <svg class="marker-arrow" style="
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            left: -2px;
+            top: -2px;
+            transform-origin: center center;
+            transform: rotate(${bearing}deg);
+            transition: transform 0.5s ease;"
+            viewBox="0 0 24 24">
+            <path 
+                d="M8 4 L16 12 L8 20"
+                fill="none"
+                stroke="white"
+                stroke-width="6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+            <path 
+                d="M8 4 L16 12 L8 20"
+                fill="none"
+                stroke="${color}"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+        </svg>
+    `;
 
+    const icon = L.divIcon({
+        className: "my-custom-pin",
+        iconAnchor: [0, 0],
+        popupAnchor: [0, 5],
+        html: `
+            <div class="marker-container">
+                <span style="${markerHtmlStyles}" class="marker-icon"></span>
+                ${arrowSvg}
+            </div>
+        `
+    });
 
-const icon = L.divIcon({
-    className: "my-custom-pin",
-    iconAnchor: [0, 0],
-    popupAnchor: [0, 5],
-    html: `<span style="${markerHtmlStyles}" class="marker-icon" />`
-});
+    const marker = L.marker([lat, lon], { icon });
+    const styleId = generateUniqueId();
+    
+    marker.on('popupopen', function(e) {
+        const menubtm = document.getElementById('menubtm');
+        if (menubtm) {
+            const color = lineColors[route_id] || '#000000';
+            
+            const oldStyle = document.getElementById(styleId);
+            if (oldStyle) {
+                oldStyle.remove();
+            }
+            
+            const styleSheet = document.createElement('style');
+            styleSheet.id = styleId;
+            
+            const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+            let textColor = '#FFFFFF';
+            if (rgb) {
+                const r = parseInt(rgb[1], 16);
+                const g = parseInt(rgb[2], 16);
+                const b = parseInt(rgb[3], 16);
+                const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                textColor = brightness > 128 ? '#000000' : '#FFFFFF';
+            }
+            
+            const animationName = `menubtm-color-${styleId}`;
+            styleSheet.textContent = `
+                @keyframes ${animationName} {
+                    0% {
+                        background-color: ${menubtm.style.backgroundColor || 'transparent'};
+                    }
+                    100% {
+                        background-color: ${color}77;
+                    }
+                }
+                #menubtm.${styleId} {
+                    animation: ${animationName} 0.3s forwards;
+                }
+                #menubtm.${styleId} * {
+                    color: ${textColor};
+                    transition: color 0.3s ease;
+                }
+            `;
+            
+            document.head.appendChild(styleSheet);
+            menubtm.classList.add(styleId);
+            marker.styleId = styleId;
+        }
+    });
 
-return L.marker([lat, lon], { icon });
+    marker.on('popupclose', async function(e) {
+        const menubtm = document.getElementById('menubtm');
+        if (menubtm) {
+            try {
+                const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+                const data = await getSetvar();
+                
+                if (data) {
+                    requestAnimationFrame(() => {
+                        const returnStyleId = generateUniqueId();
+                        const returnStyle = document.createElement('style');
+                        returnStyle.id = returnStyleId;
+                        
+                        menubtm.style.backgroundColor = currentColor;
+                        
+                        const returnAnimation = `menubtm-return-${returnStyleId}`;
+                        returnStyle.textContent = `
+                            @keyframes ${returnAnimation} {
+                                from {
+                                    background-color: ${currentColor};
+                                }
+                                to {
+                                    background-color: ${data.colorbkg}77;
+                                }
+                            }
+                            #menubtm.${returnStyleId} {
+                                background-color: ${currentColor};
+                                animation: ${returnAnimation} 0.3s ease-out forwards;
+                            }
+                        `;
+                        
+                        if (marker.styleId) {
+                            const oldStyle = document.getElementById(marker.styleId);
+                            if (oldStyle) oldStyle.remove();
+                            menubtm.classList.remove(marker.styleId);
+                        }
+                        
+                        document.head.appendChild(returnStyle);
+                        menubtm.classList.add(returnStyleId);
+                        
+                        setTimeout(() => {
+                            menubtm.classList.remove(returnStyleId);
+                            returnStyle.remove();
+                            menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                        }, 300);
+                    });
+                }
+            } catch (error) {
+                console.error('Erreur lors de la réinitialisation des couleurs:', error);
+            }
+        }
+    });
+
+    marker.on('mouseover', function() {
+        if (this._icon) {
+            const markerIcon = this._icon.getElementsByClassName('marker-icon')[0];
+            if (markerIcon) {
+                markerIcon.style.transform = 'scale(1.2)';
+            }
+        }
+    });
+    
+    marker.on('mouseout', function() {
+        if (this._icon) {
+            const markerIcon = this._icon.getElementsByClassName('marker-icon')[0];
+            if (markerIcon) {
+                markerIcon.style.transform = 'scale(1)';
+            }
+        }
+    });
+
+    return marker;
 }
-
 function animateMarker(marker, newPosition) {
     const startLatLng = marker.getLatLng();
     const endLatLng = L.latLng(newPosition[0], newPosition[1]);
