@@ -2081,30 +2081,26 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                 const returnStyle = document.createElement('style');
                 returnStyle.id = returnStyleId;
                 
-                const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+                const computedStyle = window.getComputedStyle(menubtm);
+                const currentBgColor = computedStyle.backgroundColor;
                 
                 const returnAnimation = `menubtm-return-${returnStyleId}`;
                 returnStyle.textContent = `
                     @keyframes ${returnAnimation} {
-                        from {
-                            background-color: ${currentColor};
-                            color: ${window.getComputedStyle(menubtm).color};
+                        0% {
+                            background-color: ${currentBgColor};
                         }
-                        to {
+                        100% {
                             background-color: ${data.colorbkg}77;
-                            color: initial;
                         }
                     }
                     #menubtm.${returnStyleId} {
+                        background-color: ${currentBgColor};
                         animation: ${returnAnimation} 0.5s ease-in-out forwards;
                     }
                     #menubtm.${returnStyleId} * {
-                        animation: text-color-return 0.5s ease-in-out forwards;
-                    }
-                    @keyframes text-color-return {
-                        to {
-                            color: initial;
-                        }
+                        transition: color 0.5s ease-in-out;
+                        color: inherit;
                     }
                 `;
                 
@@ -2122,7 +2118,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         }
     }
 });
-
 
     marker.on('mouseover', function() {
         this._icon.firstChild.style.transform = 'scale(1.2)';
