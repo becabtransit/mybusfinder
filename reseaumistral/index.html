@@ -1975,7 +1975,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             left: -2px;
             top: -2px;
             transform-origin: center center;
-            transform: rotate(${bearing}deg);"
+            transform: rotate(${bearing}deg);
             transition: transform 0.5s ease;"
             viewBox="0 0 24 24">
             <path 
@@ -2055,72 +2055,80 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             `;
             
             document.head.appendChild(styleSheet);
-            
             menubtm.classList.add(styleId);
-            
             marker.styleId = styleId;
         }
     });
 
     marker.on('popupclose', async function(e) {
-    const menubtm = document.getElementById('menubtm');
-    if (menubtm) {
-        try {
-            const currentColor = window.getComputedStyle(menubtm).backgroundColor;
-            const data = await getSetvar();
-            
-            if (data) {
-                requestAnimationFrame(() => {
-                    const returnStyleId = generateUniqueId();
-                    const returnStyle = document.createElement('style');
-                    returnStyle.id = returnStyleId;
-                    
-                    menubtm.style.backgroundColor = currentColor;
-                    
-                    const returnAnimation = `menubtm-return-${returnStyleId}`;
-                    returnStyle.textContent = `
-                        @keyframes ${returnAnimation} {
-                            from {
+        const menubtm = document.getElementById('menubtm');
+        if (menubtm) {
+            try {
+                const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+                const data = await getSetvar();
+                
+                if (data) {
+                    requestAnimationFrame(() => {
+                        const returnStyleId = generateUniqueId();
+                        const returnStyle = document.createElement('style');
+                        returnStyle.id = returnStyleId;
+                        
+                        menubtm.style.backgroundColor = currentColor;
+                        
+                        const returnAnimation = `menubtm-return-${returnStyleId}`;
+                        returnStyle.textContent = `
+                            @keyframes ${returnAnimation} {
+                                from {
+                                    background-color: ${currentColor};
+                                }
+                                to {
+                                    background-color: ${data.colorbkg}77;
+                                }
+                            }
+                            #menubtm.${returnStyleId} {
                                 background-color: ${currentColor};
+                                animation: ${returnAnimation} 0.3s ease-out forwards;
                             }
-                            to {
-                                background-color: ${data.colorbkg}77;
-                            }
+                        `;
+                        
+                        if (marker.styleId) {
+                            const oldStyle = document.getElementById(marker.styleId);
+                            if (oldStyle) oldStyle.remove();
+                            menubtm.classList.remove(marker.styleId);
                         }
-                        #menubtm.${returnStyleId} {
-                            background-color: ${currentColor};
-                            animation: ${returnAnimation} 0.3s ease-out forwards;
-                        }
-                    `;
-                    
-                    if (marker.styleId) {
-                        const oldStyle = document.getElementById(marker.styleId);
-                        if (oldStyle) oldStyle.remove();
-                        menubtm.classList.remove(marker.styleId);
-                    }
-                    
-                    document.head.appendChild(returnStyle);
-                    menubtm.classList.add(returnStyleId);
-                    
-                    setTimeout(() => {
-                        menubtm.classList.remove(returnStyleId);
-                        returnStyle.remove();
-                        menubtm.style.backgroundColor = `${data.colorbkg}77`;
-                    }, 300);
-                });
+                        
+                        document.head.appendChild(returnStyle);
+                        menubtm.classList.add(returnStyleId);
+                        
+                        setTimeout(() => {
+                            menubtm.classList.remove(returnStyleId);
+                            returnStyle.remove();
+                            menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                        }, 300);
+                    });
+                }
+            } catch (error) {
+                console.error('Erreur lors de la réinitialisation des couleurs:', error);
             }
-        } catch (error) {
-            console.error('Erreur lors de la réinitialisation des couleurs:', error);
         }
-    }
-});
+    });
 
     marker.on('mouseover', function() {
-        this._icon.firstChild.style.transform = 'scale(1.2)';
+        if (this._icon && this._icon.firstChild) {
+            const markerIcon = this._icon.firstChild.querySelector('.marker-icon');
+            if (markerIcon) {
+                markerIcon.style.transform = 'scale(1.2)';
+            }
+        }
     });
     
     marker.on('mouseout', function() {
-        this._icon.firstChild.style.transform = 'scale(1)';
+        if (this._icon && this._icon.firstChild) {
+            const markerIcon = this._icon.firstChild.querySelector('.marker-icon');
+            if (markerIcon) {
+                markerIcon.style.transform = 'scale(1)';
+            }
+        }
     });
 
     return marker;
