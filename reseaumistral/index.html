@@ -2183,16 +2183,40 @@ function filterByLine(lineId) {
     geoJsonLines.forEach(layer => {
         map.removeLayer(layer);
     });
-    const selectedLineLayer = geoJsonLines.find(layer => layer.feature.properties.route_id === lineId);
+    
+    const selectedLineLayer = geoJsonLines.find(layer => 
+        layer.feature.properties.route_id === lineId
+    );
+    
     if (selectedLineLayer) {
         map.addLayer(selectedLineLayer);
     }
-    Object.keys(markers).forEach(id => {
-        map.removeLayer(markers[id]);
+
+    Object.values(markers).forEach(marker => {
+        if (marker.line === lineId) {
+            if (!map.hasLayer(marker)) {
+                map.addLayer(marker);
+            }
+        } else {
+            if (map.hasLayer(marker)) {
+                map.removeLayer(marker);
+            }
+        }
     });
-    Object.keys(markers).forEach(id => {
-        if (markers[id].line === lineId) {
-            markers[id].addTo(map);
+}
+
+function resetMapView() {
+    selectedLine = null;
+    
+    geoJsonLines.forEach(layer => {
+        if (!map.hasLayer(layer)) {
+            map.addLayer(layer);
+        }
+    });
+    
+    Object.values(markers).forEach(marker => {
+        if (!map.hasLayer(marker)) {
+            map.addLayer(marker);
         }
     });
 }
