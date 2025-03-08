@@ -14,6 +14,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
 <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
     <meta name="google-adsense-account" content="ca-pub-5815761294049475">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
         <style>
@@ -1390,13 +1391,31 @@ async function initMap() {
         );
     });
 
+    
+   const getSunTimes = (latitude, longitude) => {
+        const currentDate = new Date();
+        const sunTimes = SunCalc.getTimes(currentDate, latitude, longitude);
+        return {
+            sunrise: sunTimes.sunrise,
+            sunset: sunTimes.sunset
+        };
+    };
+
+    const { sunrise, sunset } = getSunTimes(defaultCoords[0], defaultCoords[1]);
+    const currentTime = new Date();
+    
+    const isNightMode = currentTime >= sunset || currentTime <= sunrise;
+
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
     
     if (isStandardView) {
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        }).addTo(mapInstance);
+        const tileLayerUrl = isNightMode 
+            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'  
+            : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';             
+
+        L.tileLayer(tileLayerUrl, {}).addTo(mapInstance);
     } else {
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         }).addTo(mapInstance);
     }
 
@@ -3420,6 +3439,22 @@ function toggleMapView() {
     isStandardView = !isStandardView;
     
     localStorage.setItem('isStandardView', isStandardView);
+
+    const menubottom1 = document.getElementById('menubtm');
+        const menu = document.getElementById('menu');
+        menu.style.display = 'none';
+        isMenuVisible = false;
+        menubottom1.style.display = 'flex';
+        setTimeout(() => {
+            menubottom1.classList.remove('slide-upb');
+            menubottom1.classList.add('slide-downb');
+            if (selectedLine) {
+        const filtre = document.getElementById('filtre');
+        filtre.classList.remove('slide-upc');
+        filtre.classList.add('slide-downc');
+        }
+        }, 10);
+
     
     applyMapView();
     
@@ -3427,20 +3462,36 @@ function toggleMapView() {
 }
 
 function applyMapView() {
+    const currentDate = new Date();
+    const latitude = map.getCenter().lat;  
+    const longitude = map.getCenter().lng;  
+
+    const sunTimes = SunCalc.getTimes(currentDate, latitude, longitude);
+    const sunrise = sunTimes.sunrise;
+    const sunset = sunTimes.sunset;
+
+    const isNightMode = currentDate >= sunset || currentDate <= sunrise;
+
     map.eachLayer(function(layer) {
         if (layer instanceof L.TileLayer) {
             map.removeLayer(layer);
         }
     });
-    
+
     if (isStandardView) {
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        }).addTo(map);
+        if (isNightMode) {
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            }).addTo(map);
+        } else {
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            }).addTo(map);
+        }
     } else {
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         }).addTo(map);
     }
 }
+
 
 function updateButtonText() {
     if (isStandardView) {
@@ -3534,7 +3585,7 @@ alertsTitle.textContent = 'Histovec';
 
 const alertsDescription = document.createElement('div');
 alertsDescription.className = 'alerts-description';
-alertsDescription.textContent = 'Historique d\'affectations des véhicules par ligne.';
+alertsDescription.textContent = 'Historique d\'affectations des véhicules';
 
 alertsContent.appendChild(alertsTitle);
 alertsContent.appendChild(alertsDescription);
