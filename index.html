@@ -1394,24 +1394,37 @@ function handleLocationError(error) {
     document.getElementById("show-all-button").classList.add("slide-down");
 }
         
-        function findNearestNetwork(userLat, userLon) {
-            if (networks.length === 0) return null;
-            
-            let nearestNetwork = null;
-            let minDistance = Infinity;
-            
-            networks.forEach(network => {
-                const distance = calculateDistance(userLat, userLon, network.lat, network.lon);
-                network.distance = distance;
-                
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    nearestNetwork = network;
-                }
-            });
-            
-            return minDistance < 100 ? nearestNetwork : null;
+function findNearestNetwork(userLat, userLon) {
+    if (networks.length === 0) return null;
+    
+    console.log("Position utilisateur:", userLat, userLon);
+    console.log("Réseaux disponibles:", networks.length);
+    
+    let nearestNetwork = null;
+    let minDistance = Infinity;
+    
+    networks.forEach(network => {
+        console.log(`Vérification de ${network.name}: coord(${network.lat}, ${network.lon})`);
+        
+        if (!network.lat || !network.lon) {
+            console.warn(`Réseau ${network.name} n'a pas de coordonnées valides`);
+            return;
         }
+        
+        const distance = calculateDistance(userLat, userLon, network.lat, network.lon);
+        network.distance = distance;
+        
+        console.log(`Distance pour ${network.name}: ${distance.toFixed(2)}km`);
+        
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestNetwork = network;
+            console.log(`Nouveau réseau le plus proche: ${network.name} (${distance.toFixed(2)}km)`);
+        }
+    });
+    
+    return minDistance < 100 ? nearestNetwork : null;
+}
         
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371; 
