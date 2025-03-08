@@ -2845,112 +2845,128 @@ filteredStops.forEach(stop => {
                 </div>
                 `;
                 if (markers[id]) {
-    animateMarker(markers[id], [latitude, longitude]);
-    
-    if (markers[id]._icon) {
-        const markerContainer = markers[id]._icon.querySelector('.marker-icon');
-        const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
-        
-        if (arrowElement) {
-            const currentRotation = arrowElement._currentRotation || (bearing);
-            const targetRotation = bearing - 90;
-            
-            arrowElement.style.transition = 'transform 0.5s ease';
-            arrowElement.style.transform = `rotate(${targetRotation}deg)`;
-            arrowElement._currentRotation = targetRotation;
-        }
-    }
-
-    updateLinesDisplay();
-
-
-    const existingPopup = markers[id].getPopup();
-    const currentContent = existingPopup ? existingPopup.getContent() : '';
-
-    if (existingPopup && currentContent === popupContent) {
-        return;
-    }
-
-    markers[id].setPopupContent(popupContent);
-
-    if (markers[id].isPopupOpen()) {
-        const popup = markers[id]._popup;
-        if (popup && popup._contentNode) {
-            const popupElement = popup._contentNode.parentElement;
-            if (popupElement) {
-                popupElement.classList.remove('hide'); 
-                popupElement.classList.add('show'); 
-                markers[id].openPopup();
-            }
-        }
-    }
-
-    if (selectedLine && markers[id].line !== selectedLine) {
-        if (map.hasLayer(markers[id])) {
-            map.removeLayer(markers[id]);
-        }
-    } else {
-        if (!map.hasLayer(markers[id])) {
-            map.addLayer(markers[id]);
-        }
-    }
-} else {
-    const marker = createColoredMarker(latitude, longitude, line, bearing);
-    updateLinesDisplay();
-    markers[id] = marker;
-    markers[id].line = line;
-    markers[id].id = id;
-
-    if (!selectedLine || selectedLine === line) {
-        marker.addTo(map);
-    }
-    
-    marker.bindPopup(popupContent);
-
-    marker.on('popupopen', function (e) {
-        if (e.popup && e.popup._contentNode) {
-            const popupElement = e.popup._contentNode.parentElement;
-            if (popupElement) {
-                popupElement.classList.remove('hide'); 
-                popupElement.classList.add('show');  
-            }
-        }
-    });
-
-    marker.on('popupclose', function (e) {
-        if (e.popup && e.popup._contentNode) {
-            const popupElement = e.popup._contentNode.parentElement;
-            if (popupElement) {
-                popupElement.classList.remove('show');
-                popupElement.classList.add('hide');
-
-                setTimeout(() => {
-                    if (e.popup) {
-                        e.popup.remove(); 
+                animateMarker(markers[id], [latitude, longitude]);
+                
+                if (markers[id].line !== line) {
+                    markers[id].line = line;
+                    
+                    const color = lineColors[line] || '#000000';
+                    if (markers[id]._icon) {
+                        const markerIcon = markers[id]._icon.querySelector('.marker-icon');
+                        if (markerIcon) {
+                            markerIcon.style.backgroundColor = color;
+                        }
+                        
+                        const arrowElement = markers[id]._icon.querySelector('.marker-arrow path:last-child');
+                        if (arrowElement) {
+                            arrowElement.setAttribute('stroke', color);
+                        }
                     }
-                }, 200); 
-            }
-        }
-    });
+                }
+                
+                if (markers[id]._icon) {
+                    const markerContainer = markers[id]._icon.querySelector('.marker-icon');
+                    const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
+                    
+                    if (arrowElement) {
+                        const currentRotation = arrowElement._currentRotation || (bearing);
+                        const targetRotation = bearing - 90;
+                        
+                        arrowElement.style.transition = 'transform 0.5s ease';
+                        arrowElement.style.transform = `rotate(${targetRotation}deg)`;
+                        arrowElement._currentRotation = targetRotation;
+                    }
+                }
 
-    marker.on('mouseover', function() {
-        if (this._icon) {
-            const markerIcon = this._icon.querySelector('.marker-icon');
-            if (markerIcon) {
-                markerIcon.style.transform = 'scale(1.2)';
+                updateLinesDisplay();
+
+                const existingPopup = markers[id].getPopup();
+                const currentContent = existingPopup ? existingPopup.getContent() : '';
+
+                if (existingPopup && currentContent === popupContent) {
+                    return;
+                }
+
+                markers[id].setPopupContent(popupContent);
+
+                if (markers[id].isPopupOpen()) {
+                    const popup = markers[id]._popup;
+                    if (popup && popup._contentNode) {
+                        const popupElement = popup._contentNode.parentElement;
+                        if (popupElement) {
+                            popupElement.classList.remove('hide'); 
+                            popupElement.classList.add('show'); 
+                            markers[id].openPopup();
+                        }
+                    }
+                }
+
+                if (selectedLine && markers[id].line !== selectedLine) {
+                    if (map.hasLayer(markers[id])) {
+                        map.removeLayer(markers[id]);
+                    }
+                } else {
+                    if (!map.hasLayer(markers[id])) {
+                        map.addLayer(markers[id]);
+                    }
+                }
+            } else {
+                const marker = createColoredMarker(latitude, longitude, line, bearing);
+                updateLinesDisplay();
+                markers[id] = marker;
+                markers[id].line = line;
+                markers[id].id = id;
+
+                if (!selectedLine || selectedLine === line) {
+                    marker.addTo(map);
+                }
+                
+                marker.bindPopup(popupContent);
+
+                marker.on('popupopen', function (e) {
+                    if (e.popup && e.popup._contentNode) {
+                        const popupElement = e.popup._contentNode.parentElement;
+                        if (popupElement) {
+                            popupElement.classList.remove('hide'); 
+                            popupElement.classList.add('show');  
+                        }
+                    }
+                });
+
+                marker.on('popupclose', function (e) {
+                    if (e.popup && e.popup._contentNode) {
+                        const popupElement = e.popup._contentNode.parentElement;
+                        if (popupElement) {
+                            popupElement.classList.remove('show');
+                            popupElement.classList.add('hide');
+
+                            setTimeout(() => {
+                                if (e.popup) {
+                                    e.popup.remove(); 
+                                }
+                            }, 200); 
+                        }
+                    }
+                });
+
+                marker.on('mouseover', function() {
+                    if (this._icon) {
+                        const markerIcon = this._icon.querySelector('.marker-icon');
+                        if (markerIcon) {
+                            markerIcon.style.transform = 'scale(1.2)';
+                        }
+                    }
+                });
+                
+                marker.on('mouseout', function() {
+                    if (this._icon) {
+                        const markerIcon = this._icon.querySelector('.marker-icon');
+                        if (markerIcon) {
+                            markerIcon.style.transform = 'scale(1)';
+                        }
+                    }
+                });
             }
-        }
-    });
-    
-    marker.on('mouseout', function() {
-        if (this._icon) {
-            const markerIcon = this._icon.querySelector('.marker-icon');
-            if (markerIcon) {
-                markerIcon.style.transform = 'scale(1)';
-            }
-        }
-    });
-}
                     }
                 });
 
