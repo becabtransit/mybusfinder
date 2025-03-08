@@ -1604,9 +1604,7 @@ function focusOnVehicle(vehicleId) {
 }
 
 window.addEventListener('message', function(event) {
-    try {
-        console.log('Received message event:', event.data);
-        
+    try {        
         if (event.data && event.data.type === 'vehicleSelected') {
             const vehicleId = event.data.vehicleId;
             focusOnVehicle(vehicleId);
@@ -2189,23 +2187,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         }
     });
 
-    marker.on('mouseover', function() {
-        if (this._icon && this._icon.firstChild) {
-            const markerIcon = this._icon.firstChild.querySelector('.marker-icon');
-            if (markerIcon) {
-                markerIcon.style.transform = 'scale(1.2)';
-            }
-        }
-    });
-    
-    marker.on('mouseout', function() {
-        if (this._icon && this._icon.firstChild) {
-            const markerIcon = this._icon.firstChild.querySelector('.marker-icon');
-            if (markerIcon) {
-                markerIcon.style.transform = 'scale(1)';
-            }
-        }
-    });
 
     return marker;
 }
@@ -3932,7 +3913,7 @@ async function fetchTripUpdates() {
         const data = await decodeProtobuf(buffer);
         
         const fetchTime = performance.now() - fetchStartTime;
-        console.debug(`Données GTFS récupérées en ${fetchTime.toFixed(2)}ms`);
+        console.debug(`Téléchargement gtfs en ${fetchTime.toFixed(2)}ms`);
         
         return new Promise((resolve, reject) => {
             const workerTimeoutId = setTimeout(() => {
@@ -3942,7 +3923,7 @@ async function fetchTripUpdates() {
             worker.onmessage = (e) => {
                 clearTimeout(workerTimeoutId);
                 const processTime = performance.now() - fetchStartTime;
-                console.debug(`Traitement complet en ${processTime.toFixed(2)}ms`);
+                toastBottomRight.success(`Chargement effectué en ${processTime.toFixed(2)}ms :)`);
                 
                 tripUpdates = e.data.tripUpdates;
                 
@@ -3969,7 +3950,7 @@ function scheduleFetchUpdates(timestamp) {
             fetchTripUpdates().catch(() => null),
             fetchVehiclePositions().catch(() => null)
         ]).catch(error => {
-            console.warn('Erreur lors des mises à jour:', error);
+            console.warn('Erreur lors des mises à jour', error);
         });
     }
     
