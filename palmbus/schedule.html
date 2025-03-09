@@ -1622,9 +1622,12 @@ function getRealtimeArrival(tripId, stopId) {
     return new Date(stopUpdate.arrival);
 }
 
+const response = await fetch('setvar/settings/database/networkId.txt');
+const setvar = await response.text();  
+const networkId = setvar.trim(); 
 const DB_NAME = 'MyBusFinder';
 const DB_VERSION = 3;
-const STORE_NAME = 'gtfsStorePB';
+const STORE_NAME = `gtfsStore${networkId}`;
 
 function initDB() {
     return new Promise((resolve, reject) => {
@@ -2384,11 +2387,9 @@ function showInMap() {
     const container = document.getElementById('lines-container');
     container.innerHTML = '';
     
-    // Vérifier si calendar ou calendar_dates présente des problèmes
     const hasCalendarIssue = !calendar || Object.keys(calendar).length === 0;
     const hasCalendarDatesIssue = !calendarDates || Object.keys(calendarDates).length === 0;
     
-    // Ajouter l'avertissement si nécessaire
     if (hasCalendarIssue || hasCalendarDatesIssue) {
         const warningSection = document.createElement('div');
         warningSection.className = 'warning-section';
