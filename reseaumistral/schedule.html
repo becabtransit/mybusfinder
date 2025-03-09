@@ -1624,7 +1624,7 @@ function getRealtimeArrival(tripId, stopId) {
 
 const DB_NAME = 'MyBusFinder';
 const DB_VERSION = 3;
-const STORE_NAME = 'gtfsStore';
+const STORE_NAME = 'gtfsStorePB';
 
 function initDB() {
     return new Promise((resolve, reject) => {
@@ -1766,21 +1766,61 @@ async function loadGtfsData() {
         calendar = {};
         calendarDates = {};
         
+        let calendarMissing = false;
+        let calendarDatesMissing = false;
+        
         const loadPromises = [];
+        
+        const requiredFiles = ['routes.txt', 'trips.txt', 'stop_times.txt', 'stops.txt'];
+        for (const file of requiredFiles) {
+            if (!extractedFiles[file]) {
+                console.error(`Fichier requis manquant: ${file}`);
+                toastBottomRight.error(`Erreur: fichier ${file} manquant`);
+            }
+        }
         
         if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
         if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
         if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
         if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
         
-        if (extractedFiles['calendar.txt']) loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
-        if (extractedFiles['calendar_dates.txt']) loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
+        if (extractedFiles['calendar.txt']) {
+            loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
+        } else {
+            console.log('calendar.txt non trouvé, fonctionnement en mode limité');
+            calendarMissing = true;
+        }
+        
+        if (extractedFiles['calendar_dates.txt']) {
+            loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
+        } else {
+            console.log('calendar_dates.txt non trouvé, exceptions non disponibles');
+            calendarDatesMissing = true;
+        }
         
         await Promise.all(loadPromises);
         
+        if (calendar && Object.keys(calendar).length === 0) {
+            calendarMissing = true;
+        }
+        
+        if (calendarDates && Object.keys(calendarDates).length === 0) {
+            calendarDatesMissing = true;
+        }
+        
+        if (calendarMissing) {
+            console.warn('Données de calendrier manquantes ou corrompues. Les horaires peuvent être inexacts.');
+        }
+        
+        if (calendarDatesMissing) {
+            console.warn('Données d\'exceptions de calendrier manquantes ou corrompues. Les horaires spéciaux peuvent ne pas être pris en compte.');
+        }
+        
+        console.log('Données GTFS chargées avec succès');
         return true;
     } catch (error) {
-        console.error('Erreur lors du chargement des données gtfs', error);
+        console.error('Erreur lors du chargement des données GTFS', error);
+        toastBottomRight.error('Erreur lors du chargement des données');
         throw error;
     }
 }
@@ -1807,20 +1847,35 @@ async function clearGTFSCache() {
 
 async function loadCalendarDates(fileContent) {
     try {
-        if (!fileContent) {
+        if (!fileContent || fileContent.trim() === '') {
+            console.log('calendar_dates.txt vide/non fourni');
             return;
         }
         
         const lines = fileContent.split('\n');
+        if (lines.length <= 1) {
+            console.log('calendar_dates.txt contient pas de données');
+            return;
+        }
         
         const headers = lines[0].split(',');
         const serviceIdIndex = headers.indexOf('service_id');
         const dateIndex = headers.indexOf('date');
         const exceptionTypeIndex = headers.indexOf('exception_type');
         
+        if (serviceIdIndex === -1 || dateIndex === -1 || exceptionTypeIndex === -1) {
+            console.error('Format de calendar_dates.txt invalide : colonnes requises manquantes..');
+            toastBottomRight.warning('Format des exceptions de calendrier invalide. Certains services spéciaux peuvent ne pas être affichés.');
+            return;
+        }
+        
+        let entriesProcessed = 0;
+        
         lines.slice(1).forEach(line => {
             if (!line.trim()) return;
             const values = line.split(',');
+            if (values.length <= Math.max(serviceIdIndex, dateIndex, exceptionTypeIndex)) return;
+            
             if (values[serviceIdIndex] && values[dateIndex]) {
                 const date = values[dateIndex]; 
                 const exceptionType = parseInt(values[exceptionTypeIndex], 10); 
@@ -1834,16 +1889,22 @@ async function loadCalendarDates(fileContent) {
                 } else if (exceptionType === 2) {
                     calendarDates[date].removed.push(values[serviceIdIndex]);
                 }
+                entriesProcessed++;
             }
         });
         
+        if (entriesProcessed === 0) {
+            console.warn('Aucune entrée valide trouvée dans calendar_dates.txt');
+        }
+        
     } catch (error) {
         console.error('Erreur lors du chargement des exceptions de calendrier', error);
+        toastBottomRight.warning('Erreur lors du chargement des exceptions de calendrier. Certains services spéciaux peuvent ne pas être affichés.');
     }
 }
 
 function isServiceActive(serviceId, dateObj) {
-    const formattedDate = formatDate(dateObj); 
+    const formattedDate = formatDate(dateObj);
     
     if (calendarDates[formattedDate]) {
         if (calendarDates[formattedDate].added.includes(serviceId)) {
@@ -1853,12 +1914,11 @@ function isServiceActive(serviceId, dateObj) {
             return false;
         }
     }
-    
     if (!calendar[serviceId]) {
         return true;
     }
     
-    const day = dateObj.getDay(); 
+    const day = dateObj.getDay();
     const dateNumber = parseInt(formattedDate, 10);
     
     const calendarEntry = calendar[serviceId];
@@ -1875,7 +1935,6 @@ function isServiceActive(serviceId, dateObj) {
     
     return false;
 }
-
 function formatDate(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -1954,30 +2013,55 @@ async function loadStopTimes(fileContent) {
             return;
         }
         
-        const lines = fileContent.split('\n');
-        
-        const headers = lines[0].split(',');
-        const stopTripIdIndex = headers.indexOf('trip_id');
-        const stopIdIndex = headers.indexOf('stop_id');
-        const arrivalTimeIndex = headers.indexOf('arrival_time');
-        
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[stopTripIdIndex]) {
-                if (!stopTimes[values[stopTripIdIndex]]) {
-                    stopTimes[values[stopTripIdIndex]] = [];
+        return new Promise((resolve, reject) => {
+            const worker = new Worker('stop-times-worker.js');
+            
+            worker.onmessage = function(e) {
+                if (e.data.error) {
+                    console.error('Erreur dans le worker:', e.data.error);
+                    reject(e.data.error);
+                } else {
+                    stopTimes = e.data;
+                    console.log('Données stop_times.txt chargées avec succès via worker');
+                    resolve();
                 }
-                stopTimes[values[stopTripIdIndex]].push({
-                    stop_id: values[stopIdIndex],
-                    arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
-                });
-            }
+            };
+            
+            worker.onerror = function(error) {
+                console.error('Erreur du worker:', error);
+                // Fallback au traitement synchrone en cas d'erreur du worker
+                try {
+                    const lines = fileContent.split('\n');
+                    const headers = lines[0].split(',');
+                    const stopTripIdIndex = headers.indexOf('trip_id');
+                    const stopIdIndex = headers.indexOf('stop_id');
+                    const arrivalTimeIndex = headers.indexOf('arrival_time');
+                    
+                    lines.slice(1).forEach(line => {
+                        if (!line.trim()) return;
+                        const values = line.split(',');
+                        if (values[stopTripIdIndex]) {
+                            if (!stopTimes[values[stopTripIdIndex]]) {
+                                stopTimes[values[stopTripIdIndex]] = [];
+                            }
+                            stopTimes[values[stopTripIdIndex]].push({
+                                stop_id: values[stopIdIndex],
+                                arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
+                            });
+                        }
+                    });
+                    resolve();
+                } catch (fallbackError) {
+                    console.error('Erreur lors du traitement synchrone:', fallbackError);
+                    reject(fallbackError);
+                }
+            };
+            
+            worker.postMessage({ fileContent });
         });
-        
     } catch (error) {
-        console.error('Erreur', error);
+        console.error('Erreur lors du chargement des stop_times:', error);
+        throw error;
     }
 }
 
@@ -2009,14 +2093,28 @@ async function loadStops(fileContent) {
 
 async function loadCalendar(fileContent) {
     try {
-        if (!fileContent) {
+        if (!fileContent || fileContent.trim() === '') {
+            console.log('Fichier calendar.txt vide ou non fourni');
+            toastBottomRight.warning('Données de calendrier manquantes. Les horaires peuvent être inexacts.');
             return;
         }
         
         const lines = fileContent.split('\n');
+        if (lines.length <= 1) {
+            console.log('Fichier calendar.txt ne contient pas de données');
+            toastBottomRight.warning('Données de calendrier vides. Les horaires peuvent être inexacts.');
+            return;
+        }
         
         const headers = lines[0].split(',');
         const serviceIdIndex = headers.indexOf('service_id');
+        
+        if (serviceIdIndex === -1) {
+            console.error('Format de calendar.txt invalide: colonne service_id manquante');
+            toastBottomRight.warning('Format de calendrier invalide. Les horaires peuvent être inexacts.');
+            return;
+        }
+        
         const startDateIndex = headers.indexOf('start_date');
         const endDateIndex = headers.indexOf('end_date');
         const mondayIndex = headers.indexOf('monday');
@@ -2027,30 +2125,49 @@ async function loadCalendar(fileContent) {
         const saturdayIndex = headers.indexOf('saturday');
         const sundayIndex = headers.indexOf('sunday');
         
+        let hasRequiredColumns = true;
+        
+        if ([startDateIndex, endDateIndex, mondayIndex, tuesdayIndex, wednesdayIndex, 
+             thursdayIndex, fridayIndex, saturdayIndex, sundayIndex].includes(-1)) {
+            console.warn('Certaines colonnes sont manquantes dans calendar.txt');
+            hasRequiredColumns = false;
+        }
+        
+        let entriesProcessed = 0;
+        
         lines.slice(1).forEach(line => {
             if (!line.trim()) return;
             const values = line.split(',');
+            if (values.length <= serviceIdIndex) return;
+            
             if (values[serviceIdIndex]) {
                 const serviceId = values[serviceIdIndex];
                 
                 calendar[serviceId] = {
                     weekdays: [
-                        parseInt(values[mondayIndex], 10),
-                        parseInt(values[tuesdayIndex], 10),
-                        parseInt(values[wednesdayIndex], 10),
-                        parseInt(values[thursdayIndex], 10),
-                        parseInt(values[fridayIndex], 10)
-                    ].includes(1),
-                    saturday: parseInt(values[saturdayIndex], 10) === 1,
-                    sunday: parseInt(values[sundayIndex], 10) === 1,
-                    start_date: values[startDateIndex],
-                    end_date: values[endDateIndex]
+                        hasRequiredColumns && mondayIndex >= 0 ? parseInt(values[mondayIndex], 10) === 1 : true,
+                        hasRequiredColumns && tuesdayIndex >= 0 ? parseInt(values[tuesdayIndex], 10) === 1 : true,
+                        hasRequiredColumns && wednesdayIndex >= 0 ? parseInt(values[wednesdayIndex], 10) === 1 : true,
+                        hasRequiredColumns && thursdayIndex >= 0 ? parseInt(values[thursdayIndex], 10) === 1 : true,
+                        hasRequiredColumns && fridayIndex >= 0 ? parseInt(values[fridayIndex], 10) === 1 : true
+                    ].includes(true),
+                    saturday: hasRequiredColumns && saturdayIndex >= 0 ? parseInt(values[saturdayIndex], 10) === 1 : true,
+                    sunday: hasRequiredColumns && sundayIndex >= 0 ? parseInt(values[sundayIndex], 10) === 1 : true,
+                    start_date: hasRequiredColumns && startDateIndex >= 0 ? values[startDateIndex] : '20000101',
+                    end_date: hasRequiredColumns && endDateIndex >= 0 ? values[endDateIndex] : '21000101'
                 };
+                entriesProcessed++;
             }
         });
         
+        if (entriesProcessed === 0) {
+            console.warn('Aucune entrée valide trouvée dans calendar.txt');
+            toastBottomRight.warning('Données de calendrier incomplètes. Les horaires peuvent être inexacts.');
+        }
+        
     } catch (error) {
         console.error('Erreur lors du chargement du calendrier', error);
+        toastBottomRight.warning('Erreur lors du chargement du calendrier. Les horaires peuvent être inexacts.');
     }
 }
 
@@ -2267,6 +2384,27 @@ function showInMap() {
     const container = document.getElementById('lines-container');
     container.innerHTML = '';
     
+    const hasCalendarIssue = !calendar || Object.keys(calendar).length === 0;
+    const hasCalendarDatesIssue = !calendarDates || Object.keys(calendarDates).length === 0;
+    
+    if (hasCalendarIssue || hasCalendarDatesIssue) {
+        const warningSection = document.createElement('div');
+        warningSection.className = 'warning-section';
+        warningSection.innerHTML = `
+            <div class="warning-banner">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L1 21h22L12 2z"></path>
+                    <path d="M12 9v4"></path>
+                    <path d="M12 16h.01"></path>
+                </svg>
+                <div>
+                    <h4>Avertissement</h4>
+                    <p>Certaines données horaires peuvent être imprécises en raison d'une indisponibilité temporaire. Nous collaborons activement avec l'exploitant pour résoudre ce problème. Pour des informations fiables, nous vous recommandons de consulter les horaires en temps réel, qui restent exacts.</p>
+                </div>
+            </div>
+        `;
+        container.appendChild(warningSection);
+    }
     
     const favorites = getFavorites();
     if (favorites.length > 0) {
@@ -2338,6 +2476,44 @@ function showInMap() {
         document.getElementById('lines-view').classList.add('slide-in');
     });
 }
+
+// Style CSS pour l'avertissement
+const style = document.createElement('style');
+style.textContent = `
+.warning-section {
+    margin-bottom: 15px;
+    padding: 0 10px;
+}
+
+.warning-banner {
+    display: flex;
+    align-items: center;
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.warning-banner svg {
+    margin-right: 12px;
+    flex-shrink: 0;
+    stroke: #856404;
+}
+
+.warning-banner h4 {
+    margin: 0 0 5px 0;
+    font-weight: bold;
+}
+
+.warning-banner p {
+    margin: 0;
+    font-size: 14px;
+}
+`;
+document.head.appendChild(style);
+
 
 function processRealtimeDataForStop(message, routeId, stopId) {
     const currentTime = new Date();
@@ -2788,38 +2964,63 @@ function displaySchedule(validTrips, stopId, destinationId, container) {
 
 
 function getActiveServiceIds(dayOfWeek, gtfsDate) {
-    const activeServiceIds = [];
+    const date = new Date();
+    const [year, month, day] = [
+        parseInt(gtfsDate.substring(0, 4), 10),
+        parseInt(gtfsDate.substring(4, 6), 10) - 1,
+        parseInt(gtfsDate.substring(6, 8), 10)
+    ];
+    date.setFullYear(year, month, day);
     
-    Object.entries(calendar).forEach(([serviceId, service]) => {
-        const isInDateRange = service.start_date && service.end_date && 
-                              gtfsDate >= service.start_date && 
-                              gtfsDate <= service.end_date;
-        
-        if (isInDateRange && 
-            ((dayOfWeek === 0 && service.sunday) ||
-             (dayOfWeek === 6 && service.saturday) ||
-             (dayOfWeek >= 1 && dayOfWeek <= 5 && service.weekdays))) {
-            activeServiceIds.push(serviceId);
-        }
+    const allServiceIds = new Set();
+    Object.values(trips).forEach(routeTrips => {
+        routeTrips.forEach(trip => {
+            if (trip.service_id) {
+                allServiceIds.add(trip.service_id);
+            }
+        });
     });
     
-    if (calendarDates[gtfsDate]) {
-        calendarDates[gtfsDate].added.forEach(serviceId => {
-            if (!activeServiceIds.includes(serviceId)) {
-                activeServiceIds.push(serviceId);
-            }
-        });
-        
-        calendarDates[gtfsDate].removed.forEach(serviceId => {
-            const index = activeServiceIds.indexOf(serviceId);
-            if (index !== -1) {
-                activeServiceIds.splice(index, 1);
-            }
-        });
+    return Array.from(allServiceIds).filter(serviceId => {
+        return isServiceActive(serviceId, date);
+    });
+}
+
+function isServiceActive(serviceId, dateObj) {
+    const formattedDate = formatDate(dateObj);
+    
+    if (calendarDates[formattedDate]) {
+        if (calendarDates[formattedDate].added.includes(serviceId)) {
+            return true;
+        }
+        if (calendarDates[formattedDate].removed.includes(serviceId)) {
+            return false;
+        }
     }
     
-    return activeServiceIds;
+    if (!calendar[serviceId]) {
+        return true;
+    }
+    
+    const day = dateObj.getDay();
+    const dateNumber = parseInt(formattedDate, 10);
+    
+    const calendarEntry = calendar[serviceId];
+    const startDate = parseInt(calendarEntry.start_date, 10);
+    const endDate = parseInt(calendarEntry.end_date, 10);
+    
+    if (dateNumber < startDate || dateNumber > endDate) {
+        return false;
+    }
+    
+    if (day === 0 && calendarEntry.sunday) return true;
+    if (day === 6 && calendarEntry.saturday) return true;
+    if (day >= 1 && day <= 5 && calendarEntry.weekdays) return true;
+    
+    return false;
 }
+
+
 
 function cleanup() {
     stopRealtimeUpdates();
