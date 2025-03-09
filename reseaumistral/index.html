@@ -2042,7 +2042,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         position: relative;
         border-radius: 50%;
         border: 2px solid white;
-        transition: transform 0.2s ease;
+        transition: transform 0.2s ease, background-color 0.3s ease;
     `;
 
     const arrowSvg = `
@@ -2054,7 +2054,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             top: -2px;
             transform-origin: 2px; 
             transform: rotate(${bearing - 90}deg);
-            transition: transform 0.5s ease;"
+            transition: transform 0.5s ease, stroke 0.3s ease;"
             viewBox="0 0 24 24">
             <path 
                 d="M8 4 L16 12 L8 20"
@@ -2071,6 +2071,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                 stroke-width="3"
                 stroke-linecap="round"
                 stroke-linejoin="round"
+                class="marker-arrow-path"
             />
         </svg>
     `;
@@ -2090,10 +2091,14 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const marker = L.marker([lat, lon], { icon });
     const styleId = generateUniqueId();
     
+    marker.currentMenuColor = null;
+    
     marker.on('popupopen', function(e) {
         const menubtm = document.getElementById('menubtm');
         if (menubtm) {
             const color = lineColors[route_id] || '#000000';
+            
+            marker.currentMenuColor = window.getComputedStyle(menubtm).backgroundColor;
             
             const oldStyle = document.getElementById(styleId);
             if (oldStyle) {
@@ -2117,7 +2122,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             styleSheet.textContent = `
                 @keyframes ${animationName} {
                     0% {
-                        background-color: ${menubtm.style.backgroundColor || 'transparent'};
+                        background-color: ${marker.currentMenuColor || 'transparent'};
                     }
                     100% {
                         background-color: ${color}77;
@@ -2133,6 +2138,14 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             `;
             
             document.head.appendChild(styleSheet);
+            
+            const activeMarkers = document.querySelectorAll('.active-marker-style');
+            activeMarkers.forEach(el => {
+                const id = el.id;
+                menubtm.classList.remove(id);
+                el.remove();
+            });
+            
             menubtm.classList.add(styleId);
             marker.styleId = styleId;
         }
@@ -2142,7 +2155,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         const menubtm = document.getElementById('menubtm');
         if (menubtm) {
             try {
-                const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+                const currentColor = marker.currentMenuColor || window.getComputedStyle(menubtm).backgroundColor;
                 const data = await getSetvar();
                 
                 if (data) {
@@ -2190,7 +2203,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             }
         }
     });
-
 
     return marker;
 }
@@ -2829,111 +2841,171 @@ filteredStops.forEach(stop => {
                 </div>
                 `;
                 if (markers[id]) {
-                animateMarker(markers[id], [latitude, longitude]);
-                
-                if (markers[id].line !== line) {
-                    markers[id].line = line;
-                    
-                    const color = lineColors[line] || '#000000';
-                    if (markers[id]._icon) {
-                        const markerIcon = markers[id]._icon.querySelector('.marker-icon');
-                        if (markerIcon) {
-                            markerIcon.style.backgroundColor = color;
-                        }
-                        
-                        const arrowElement = markers[id]._icon.querySelector('.marker-arrow path:last-child');
-                        if (arrowElement) {
-                            arrowElement.setAttribute('stroke', color);
-                        }
-                    }
+        animateMarker(markers[id], [latitude, longitude]);
+        
+        if (markers[id].line !== line) {
+            const oldLine = markers[id].line;
+            markers[id].line = line;
+            
+            const color = lineColors[line] || '#000000';
+            if (markers[id]._icon) {
+                const markerIcon = markers[id]._icon.querySelector('.marker-icon');
+                if (markerIcon) {
+                    // Transition fluide de la couleur
+                    markerIcon.style.transition = 'background-color 0.3s ease';
+                    markerIcon.style.backgroundColor = color;
                 }
                 
-                if (markers[id]._icon) {
-                    const markerContainer = markers[id]._icon.querySelector('.marker-icon');
-                    const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
-                    
-                    if (arrowElement) {
-                        const currentRotation = arrowElement._currentRotation || (bearing);
-                        const targetRotation = bearing - 90;
-                        
-                        arrowElement.style.transition = 'transform 0.5s ease';
-                        arrowElement.style.transform = `rotate(${targetRotation}deg)`;
-                        arrowElement._currentRotation = targetRotation;
-                    }
+                const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
+                if (arrowElement) {
+                    // Transition fluide de la couleur de la flèche
+                    arrowElement.style.transition = 'stroke 0.3s ease';
+                    arrowElement.setAttribute('stroke', color);
                 }
-
-                updateLinesDisplay();
-
-                const existingPopup = markers[id].getPopup();
-                const currentContent = existingPopup ? existingPopup.getContent() : '';
-
-                if (existingPopup && currentContent === popupContent) {
-                    return;
-                }
-
-                markers[id].setPopupContent(popupContent);
-
-                if (markers[id].isPopupOpen()) {
-                    const popup = markers[id]._popup;
-                    if (popup && popup._contentNode) {
-                        const popupElement = popup._contentNode.parentElement;
-                        if (popupElement) {
-                            popupElement.classList.remove('hide'); 
-                            popupElement.classList.add('show'); 
-                            markers[id].openPopup();
-                        }
-                    }
-                }
-
-                if (selectedLine && markers[id].line !== selectedLine) {
-                    if (map.hasLayer(markers[id])) {
-                        map.removeLayer(markers[id]);
-                    }
-                } else {
-                    if (!map.hasLayer(markers[id])) {
-                        map.addLayer(markers[id]);
-                    }
-                }
-            } else {
-                const marker = createColoredMarker(latitude, longitude, line, bearing);
-                updateLinesDisplay();
-                markers[id] = marker;
-                markers[id].line = line;
-                markers[id].id = id;
-
-                if (!selectedLine || selectedLine === line) {
-                    marker.addTo(map);
-                }
-                
-                marker.bindPopup(popupContent);
-
-                marker.on('popupopen', function (e) {
-                    if (e.popup && e.popup._contentNode) {
-                        const popupElement = e.popup._contentNode.parentElement;
-                        if (popupElement) {
-                            popupElement.classList.remove('hide'); 
-                            popupElement.classList.add('show');  
-                        }
-                    }
-                });
-
-                marker.on('popupclose', function (e) {
-                    if (e.popup && e.popup._contentNode) {
-                        const popupElement = e.popup._contentNode.parentElement;
-                        if (popupElement) {
-                            popupElement.classList.remove('show');
-                            popupElement.classList.add('hide');
-
-                            setTimeout(() => {
-                                if (e.popup) {
-                                    e.popup.remove(); 
-                                }
-                            }, 200); 
-                        }
-                    }
-                });
             }
+            
+            // Si le popup est ouvert, mettre à jour la couleur du menubtm en temps réel
+            if (markers[id].isPopupOpen()) {
+                const menubtm = document.getElementById('menubtm');
+                if (menubtm && markers[id].styleId) {
+                    const oldStyleId = markers[id].styleId;
+                    const newStyleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+                    markers[id].styleId = newStyleId;
+                    
+                    // Récupère la couleur actuelle
+                    const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+                    markers[id].currentMenuColor = currentColor;
+                    
+                    // Crée une nouvelle feuille de style pour la transition
+                    const styleSheet = document.createElement('style');
+                    styleSheet.id = newStyleId;
+                    styleSheet.classList.add('active-marker-style');
+                    
+                    const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+                    let textColor = '#FFFFFF';
+                    if (rgb) {
+                        const r = parseInt(rgb[1], 16);
+                        const g = parseInt(rgb[2], 16);
+                        const b = parseInt(rgb[3], 16);
+                        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                        textColor = brightness > 128 ? '#000000' : '#FFFFFF';
                     }
+                    
+                    const animationName = `menubtm-color-${newStyleId}`;
+                    styleSheet.textContent = `
+                        @keyframes ${animationName} {
+                            0% {
+                                background-color: ${currentColor};
+                            }
+                            100% {
+                                background-color: ${color}77;
+                            }
+                        }
+                        #menubtm.${newStyleId} {
+                            animation: ${animationName} 0.3s forwards;
+                        }
+                        #menubtm.${newStyleId} * {
+                            color: ${textColor};
+                            transition: color 0.3s ease;
+                        }
+                    `;
+                    
+                    document.head.appendChild(styleSheet);
+                    
+                    // Supprime l'ancien style et ajoute le nouveau
+                    const oldStyle = document.getElementById(oldStyleId);
+                    if (oldStyle) oldStyle.remove();
+                    menubtm.classList.remove(oldStyleId);
+                    menubtm.classList.add(newStyleId);
+                }
+            }
+        }
+        
+        // Mise à jour de la rotation de la flèche
+        if (markers[id]._icon) {
+            const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
+            
+            if (arrowElement) {
+                const currentRotation = arrowElement._currentRotation || (bearing);
+                const targetRotation = bearing - 90;
+                
+                arrowElement.style.transition = 'transform 0.5s ease';
+                arrowElement.style.transform = `rotate(${targetRotation}deg)`;
+                arrowElement._currentRotation = targetRotation;
+            }
+        }
+
+        updateLinesDisplay();
+
+        const existingPopup = markers[id].getPopup();
+        const currentContent = existingPopup ? existingPopup.getContent() : '';
+
+        if (existingPopup && currentContent === popupContent) {
+            return;
+        }
+
+        markers[id].setPopupContent(popupContent);
+
+        if (markers[id].isPopupOpen()) {
+            const popup = markers[id]._popup;
+            if (popup && popup._contentNode) {
+                const popupElement = popup._contentNode.parentElement;
+                if (popupElement) {
+                    popupElement.classList.remove('hide'); 
+                    popupElement.classList.add('show'); 
+                    markers[id].openPopup();
+                }
+            }
+        }
+
+        if (selectedLine && markers[id].line !== selectedLine) {
+            if (map.hasLayer(markers[id])) {
+                map.removeLayer(markers[id]);
+            }
+        } else {
+            if (!map.hasLayer(markers[id])) {
+                map.addLayer(markers[id]);
+            }
+        }
+    } else {
+        // Création d'un nouveau marqueur...
+        const marker = createColoredMarker(latitude, longitude, line, bearing);
+        updateLinesDisplay();
+        markers[id] = marker;
+        markers[id].line = line;
+        markers[id].id = id;
+
+        if (!selectedLine || selectedLine === line) {
+            marker.addTo(map);
+        }
+        
+        marker.bindPopup(popupContent);
+
+        marker.on('popupopen', function (e) {
+            if (e.popup && e.popup._contentNode) {
+                const popupElement = e.popup._contentNode.parentElement;
+                if (popupElement) {
+                    popupElement.classList.remove('hide'); 
+                    popupElement.classList.add('show');  
+                }
+            }
+        });
+
+        marker.on('popupclose', function (e) {
+            if (e.popup && e.popup._contentNode) {
+                const popupElement = e.popup._contentNode.parentElement;
+                if (popupElement) {
+                    popupElement.classList.remove('show');
+                    popupElement.classList.add('hide');
+
+                    setTimeout(() => {
+                        if (e.popup) {
+                            e.popup.remove(); 
+                        }
+                    }, 200); 
+                }
+            }
+        });                    }}
                 });
 
                 Object.keys(markers).forEach(id => {
