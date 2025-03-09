@@ -1740,50 +1740,67 @@ async function extractGTFSFiles() {
     }
 }
 
-async function loadCalendarDates(fileContent) {
+async function loadGtfsData() {
     try {
-        if (!fileContent || fileContent.trim() === '') {
-            console.log('Fichier calendar_dates.txt vide ou non fourni');
-            return;
-        }
+        let extractedFiles;
         
-        const lines = fileContent.split('\n');
-        if (lines.length <= 1) {
-            console.log('Fichier calendar_dates.txt ne contient pas de données');
-            return;
-        }
+        const isFirstVisit = await isFirstVisitOfDay();
         
-        const headers = lines[0].split(',');
-        const serviceIdIndex = headers.indexOf('service_id');
-        const dateIndex = headers.indexOf('date');
-        const exceptionTypeIndex = headers.indexOf('exception_type');
-        
-        if (serviceIdIndex === -1 || dateIndex === -1 || exceptionTypeIndex === -1) {
-            console.error('Format de calendar_dates.txt invalide: colonnes requises manquantes');
-            return;
-        }
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[serviceIdIndex] && values[dateIndex]) {
-                const date = values[dateIndex]; 
-                const exceptionType = parseInt(values[exceptionTypeIndex], 10); 
-                
-                if (!calendarDates[date]) {
-                    calendarDates[date] = { added: [], removed: [] };
-                }
-                
-                if (exceptionType === 1) {
-                    calendarDates[date].added.push(values[serviceIdIndex]);
-                } else if (exceptionType === 2) {
-                    calendarDates[date].removed.push(values[serviceIdIndex]);
-                }
+        if (isFirstVisit) {
+            toastBottomRight.info('Téléchargement des données quotidiennes..');
+            extractedFiles = await extractGTFSFiles();
+            await saveToCache(extractedFiles);
+        } else {
+            extractedFiles = await getFromCache();
+            if (!extractedFiles) {
+                toastBottomRight.info('Téléchargement des données quotidiennes..');
+                extractedFiles = await extractGTFSFiles();
+                await saveToCache(extractedFiles);
             }
-        });
+        }
         
+        routes = {};
+        trips = {};
+        stopTimes = {};
+        stops = {};
+        calendar = {};
+        calendarDates = {};
+        
+        const loadPromises = [];
+        
+        const requiredFiles = ['routes.txt', 'trips.txt', 'stop_times.txt', 'stops.txt'];
+        for (const file of requiredFiles) {
+            if (!extractedFiles[file]) {
+                console.error(`Fichier requis manquant: ${file}`);
+                toastBottomRight.error(`Erreur: fichier ${file} manquant`);
+            }
+        }
+        
+        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
+        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
+        if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
+        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
+        
+        if (extractedFiles['calendar.txt']) {
+            loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
+        } else {
+            console.log('calendar.txt non trouvé, fonctionnement en mode limité');
+        }
+        
+        if (extractedFiles['calendar_dates.txt']) {
+            loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
+        } else {
+            console.log('calendar_dates.txt non trouvé, exceptions non disponibles');
+        }
+        
+        await Promise.all(loadPromises);
+        
+        console.log('Données GTFS chargées avec succès');
+        return true;
     } catch (error) {
-        console.error('Erreur lors du chargement des exceptions de calendrier', error);
+        console.error('Erreur lors du chargement des données GTFS', error);
+        toastBottomRight.error('Erreur lors du chargement des données');
+        throw error;
     }
 }
 
