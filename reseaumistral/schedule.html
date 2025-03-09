@@ -1766,14 +1766,17 @@ async function loadGtfsData() {
         calendar = {};
         calendarDates = {};
         
-        await Promise.all([
-            loadRoutes(extractedFiles['routes.txt']),
-            loadTrips(extractedFiles['trips.txt']),
-            loadStopTimes(extractedFiles['stop_times.txt']),
-            loadStops(extractedFiles['stops.txt']),
-            loadCalendar(extractedFiles['calendar.txt']),
-            loadCalendarDates(extractedFiles['calendar_dates.txt'])
-        ]);
+        const loadPromises = [];
+        
+        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
+        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
+        if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
+        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
+        
+        if (extractedFiles['calendar.txt']) loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
+        if (extractedFiles['calendar_dates.txt']) loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
+        
+        await Promise.all(loadPromises);
         
         return true;
     } catch (error) {
@@ -1837,6 +1840,47 @@ async function loadCalendarDates(fileContent) {
     } catch (error) {
         console.error('Erreur lors du chargement des exceptions de calendrier', error);
     }
+}
+
+function isServiceActive(serviceId, dateObj) {
+    const formattedDate = formatDate(dateObj); 
+    
+    if (calendarDates[formattedDate]) {
+        if (calendarDates[formattedDate].added.includes(serviceId)) {
+            return true;
+        }
+        if (calendarDates[formattedDate].removed.includes(serviceId)) {
+            return false;
+        }
+    }
+    
+    if (!calendar[serviceId]) {
+        return true;
+    }
+    
+    const day = dateObj.getDay(); 
+    const dateNumber = parseInt(formattedDate, 10);
+    
+    const calendarEntry = calendar[serviceId];
+    const startDate = parseInt(calendarEntry.start_date, 10);
+    const endDate = parseInt(calendarEntry.end_date, 10);
+    
+    if (dateNumber < startDate || dateNumber > endDate) {
+        return false;
+    }
+    
+    if (day === 0 && calendarEntry.sunday) return true;
+    if (day === 6 && calendarEntry.saturday) return true;
+    if (day >= 1 && day <= 5 && calendarEntry.weekdays) return true;
+    
+    return false;
+}
+
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
 }
 
 async function loadRoutes(fileContent) {
