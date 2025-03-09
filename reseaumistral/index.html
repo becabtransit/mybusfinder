@@ -2028,6 +2028,10 @@ function findMarkerByVehicleId(vehicleId) {
     return null;
 }
 
+let lastActiveMarkerId = null;
+
+let lastActiveColor = null;
+
 function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const generateUniqueId = () => `popup-style-${Math.random().toString(36).substr(2, 9)}`;
     
@@ -2094,38 +2098,74 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     marker.on('popupopen', function(e) {
         const menubtm = document.getElementById('menubtm');
         if (menubtm) {
+            const markerId = marker.id;
             const color = lineColors[route_id] || '#000000';
             
-            const currentColor = window.getComputedStyle(menubtm).backgroundColor;
-            
-            const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-            let textColor = '#FFFFFF';
-            if (rgb) {
-                const r = parseInt(rgb[1], 16);
-                const g = parseInt(rgb[2], 16);
-                const b = parseInt(rgb[3], 16);
-                const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-                textColor = brightness > 128 ? '#000000' : '#FFFFFF';
+
+            if (lastActiveMarkerId !== null && lastActiveMarkerId !== markerId && lastActiveColor !== null) {
+                menubtm.style.transition = 'background-color 0.5s ease';
+                menubtm.style.backgroundColor = `${color}77`;
+                
+                const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+                let textColor = '#FFFFFF';
+                if (rgb) {
+                    const r = parseInt(rgb[1], 16);
+                    const g = parseInt(rgb[2], 16);
+                    const b = parseInt(rgb[3], 16);
+                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                    textColor = brightness > 128 ? '#000000' : '#FFFFFF';
+                }
+                
+                document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
+                
+                const styleSheet = document.createElement('style');
+                styleSheet.id = styleId;
+                styleSheet.classList.add('menu-color-style');
+                
+                styleSheet.textContent = `
+                    #menubtm * {
+                        color: ${textColor};
+                        transition: color 0.5s ease;
+                    }
+                `;
+                
+                document.head.appendChild(styleSheet);
+                marker.styleId = styleId;
+            } else {
+                const currentColor = window.getComputedStyle(menubtm).backgroundColor;
+                
+                const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+                let textColor = '#FFFFFF';
+                if (rgb) {
+                    const r = parseInt(rgb[1], 16);
+                    const g = parseInt(rgb[2], 16);
+                    const b = parseInt(rgb[3], 16);
+                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                    textColor = brightness > 128 ? '#000000' : '#FFFFFF';
+                }
+                
+                document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
+                
+                menubtm.style.transition = 'background-color 0.5s ease';
+                menubtm.style.backgroundColor = `${color}77`;
+                
+                const styleSheet = document.createElement('style');
+                styleSheet.id = styleId;
+                styleSheet.classList.add('menu-color-style');
+                
+                styleSheet.textContent = `
+                    #menubtm * {
+                        color: ${textColor};
+                        transition: color 0.5s ease;
+                    }
+                `;
+                
+                document.head.appendChild(styleSheet);
+                marker.styleId = styleId;
             }
             
-            document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
-            
-            const styleSheet = document.createElement('style');
-            styleSheet.id = styleId;
-            styleSheet.classList.add('menu-color-style');
-            
-            menubtm.style.transition = 'background-color 0.5s ease';
-            menubtm.style.backgroundColor = `${color}77`;
-            
-            styleSheet.textContent = `
-                #menubtm * {
-                    color: ${textColor};
-                    transition: color 0.5s ease;
-                }
-            `;
-            
-            document.head.appendChild(styleSheet);
-            marker.styleId = styleId;
+            lastActiveMarkerId = markerId;
+            lastActiveColor = color;
         }
     });
 
@@ -2133,23 +2173,30 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         const menubtm = document.getElementById('menubtm');
         if (menubtm) {
             try {
-                const data = await getSetvar();
-                
-                if (data) {
-                    menubtm.style.transition = 'background-color 0.5s ease';
-                    menubtm.style.backgroundColor = `${data.colorbkg}77`;
-                    
-                    if (marker.styleId) {
-                        const oldStyle = document.getElementById(marker.styleId);
-                        if (oldStyle) {
-                            setTimeout(() => {
-                                oldStyle.remove();
-                            }, 500);
+                setTimeout(async () => {
+                    if (lastActiveMarkerId === marker.id) {
+                        const data = await getSetvar();
+                        
+                        if (data) {
+                            menubtm.style.transition = 'background-color 0.5s ease';
+                            menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                            
+                            lastActiveMarkerId = null;
+                            lastActiveColor = null;
+                            
+                            if (marker.styleId) {
+                                const oldStyle = document.getElementById(marker.styleId);
+                                if (oldStyle) {
+                                    setTimeout(() => {
+                                        oldStyle.remove();
+                                    }, 500);
+                                }
+                            }
                         }
                     }
-                }
+                }, 50); 
             } catch (error) {
-                console.error('Erreur lors de la réinitialisation des couleurs:', error);
+                console.error('Erreur lors de la réinitialisation des couleurs', error);
             }
         }
     });
@@ -2793,6 +2840,11 @@ filteredStops.forEach(stop => {
                 if (markers[id]) {
         animateMarker(markers[id], [latitude, longitude]);
         
+        // Assigner l'ID au marqueur s'il n'en a pas encore
+        if (!markers[id].id) {
+            markers[id].id = id;
+        }
+        
         if (markers[id].line !== line) {
             const oldLine = markers[id].line;
             markers[id].line = line;
@@ -2801,14 +2853,12 @@ filteredStops.forEach(stop => {
             if (markers[id]._icon) {
                 const markerIcon = markers[id]._icon.querySelector('.marker-icon');
                 if (markerIcon) {
-                    // Utilise une transition CSS directe
                     markerIcon.style.transition = 'background-color 0.5s ease';
                     markerIcon.style.backgroundColor = color;
                 }
                 
                 const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
                 if (arrowElement) {
-                    // Utilise une transition CSS directe pour la flèche
                     arrowElement.style.transition = 'stroke 0.5s ease';
                     arrowElement.setAttribute('stroke', color);
                 }
@@ -2818,7 +2868,14 @@ filteredStops.forEach(stop => {
             if (markers[id].isPopupOpen()) {
                 const menubtm = document.getElementById('menubtm');
                 if (menubtm) {
-                    // Récupère les propriétés de couleur
+                    // Mise à jour de la couleur active
+                    lastActiveColor = color;
+                    
+                    // Transition directe
+                    menubtm.style.transition = 'background-color 0.5s ease';
+                    menubtm.style.backgroundColor = `${color}77`;
+                    
+                    // Détermine la couleur du texte
                     const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
                     let textColor = '#FFFFFF';
                     if (rgb) {
@@ -2828,10 +2885,6 @@ filteredStops.forEach(stop => {
                         const brightness = (r * 299 + g * 587 + b * 114) / 1000;
                         textColor = brightness > 128 ? '#000000' : '#FFFFFF';
                     }
-                    
-                    // Transition directe et fluide
-                    menubtm.style.transition = 'background-color 0.5s ease';
-                    menubtm.style.backgroundColor = `${color}77`;
                     
                     // Met à jour le style pour le texte
                     const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
@@ -2936,7 +2989,7 @@ filteredStops.forEach(stop => {
                     }, 200); 
                 }
             }
-        });                    
+        });
     }}
 });
 
