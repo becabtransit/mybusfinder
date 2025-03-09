@@ -1740,48 +1740,50 @@ async function extractGTFSFiles() {
     }
 }
 
-async function loadGtfsData() {
+async function loadCalendarDates(fileContent) {
     try {
-        let extractedFiles;
-        
-        const isFirstVisit = await isFirstVisitOfDay();
-        
-        if (isFirstVisit) {
-            toastBottomRight.info('Téléchargement des données quotidiennes..');
-            extractedFiles = await extractGTFSFiles();
-            await saveToCache(extractedFiles);
-        } else {
-            extractedFiles = await getFromCache();
-            if (!extractedFiles) {
-                toastBottomRight.info('Téléchargement des données quotidiennes..');
-                extractedFiles = await extractGTFSFiles();
-                await saveToCache(extractedFiles);
-            }
+        if (!fileContent || fileContent.trim() === '') {
+            console.log('Fichier calendar_dates.txt vide ou non fourni');
+            return;
         }
         
-        routes = {};
-        trips = {};
-        stopTimes = {};
-        stops = {};
-        calendar = {};
-        calendarDates = {};
+        const lines = fileContent.split('\n');
+        if (lines.length <= 1) {
+            console.log('Fichier calendar_dates.txt ne contient pas de données');
+            return;
+        }
         
-        const loadPromises = [];
+        const headers = lines[0].split(',');
+        const serviceIdIndex = headers.indexOf('service_id');
+        const dateIndex = headers.indexOf('date');
+        const exceptionTypeIndex = headers.indexOf('exception_type');
         
-        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
-        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
-        if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
-        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
+        if (serviceIdIndex === -1 || dateIndex === -1 || exceptionTypeIndex === -1) {
+            console.error('Format de calendar_dates.txt invalide: colonnes requises manquantes');
+            return;
+        }
         
-        if (extractedFiles['calendar.txt']) loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
-        if (extractedFiles['calendar_dates.txt']) loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
+        lines.slice(1).forEach(line => {
+            if (!line.trim()) return;
+            const values = line.split(',');
+            if (values[serviceIdIndex] && values[dateIndex]) {
+                const date = values[dateIndex]; 
+                const exceptionType = parseInt(values[exceptionTypeIndex], 10); 
+                
+                if (!calendarDates[date]) {
+                    calendarDates[date] = { added: [], removed: [] };
+                }
+                
+                if (exceptionType === 1) {
+                    calendarDates[date].added.push(values[serviceIdIndex]);
+                } else if (exceptionType === 2) {
+                    calendarDates[date].removed.push(values[serviceIdIndex]);
+                }
+            }
+        });
         
-        await Promise.all(loadPromises);
-        
-        return true;
     } catch (error) {
-        console.error('Erreur lors du chargement des données gtfs', error);
-        throw error;
+        console.error('Erreur lors du chargement des exceptions de calendrier', error);
     }
 }
 
@@ -1807,16 +1809,26 @@ async function clearGTFSCache() {
 
 async function loadCalendarDates(fileContent) {
     try {
-        if (!fileContent) {
+        if (!fileContent || fileContent.trim() === '') {
+            console.log('calendar_dates.txt vide/non fourni');
             return;
         }
         
         const lines = fileContent.split('\n');
+        if (lines.length <= 1) {
+            console.log('calendar_dates.txt contient pas de données');
+            return;
+        }
         
         const headers = lines[0].split(',');
         const serviceIdIndex = headers.indexOf('service_id');
         const dateIndex = headers.indexOf('date');
         const exceptionTypeIndex = headers.indexOf('exception_type');
+        
+        if (serviceIdIndex === -1 || dateIndex === -1 || exceptionTypeIndex === -1) {
+            console.error('Format de calendar_dates.txt invalide : colonne requises manquantes..');
+            return;
+        }
         
         lines.slice(1).forEach(line => {
             if (!line.trim()) return;
@@ -1843,7 +1855,7 @@ async function loadCalendarDates(fileContent) {
 }
 
 function isServiceActive(serviceId, dateObj) {
-    const formattedDate = formatDate(dateObj); 
+    const formattedDate = formatDate(dateObj);
     
     if (calendarDates[formattedDate]) {
         if (calendarDates[formattedDate].added.includes(serviceId)) {
@@ -1853,12 +1865,11 @@ function isServiceActive(serviceId, dateObj) {
             return false;
         }
     }
-    
     if (!calendar[serviceId]) {
         return true;
     }
     
-    const day = dateObj.getDay(); 
+    const day = dateObj.getDay();
     const dateNumber = parseInt(formattedDate, 10);
     
     const calendarEntry = calendar[serviceId];
@@ -1875,7 +1886,6 @@ function isServiceActive(serviceId, dateObj) {
     
     return false;
 }
-
 function formatDate(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -2009,14 +2019,30 @@ async function loadStops(fileContent) {
 
 async function loadCalendar(fileContent) {
     try {
-        if (!fileContent) {
+        if (!fileContent || fileContent.trim() === '') {
+            console.log('Fichier calendar.txt vide ou non fourni');
+            toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : calendar not found');
+            toastBottomRight.error('')
             return;
         }
         
         const lines = fileContent.split('\n');
+        if (lines.length <= 1) {
+            console.log('Fichier calendar.txt ne contient pas de données');
+            toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : no data on calendar event');
+
+            return;
+        }
         
         const headers = lines[0].split(',');
         const serviceIdIndex = headers.indexOf('service_id');
+        
+        if (serviceIdIndex === -1) {
+            console.error('Format de calendar.txt invalide: colonne service_id manquante');
+            toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : service id not found');
+            return;
+        }
+        
         const startDateIndex = headers.indexOf('start_date');
         const endDateIndex = headers.indexOf('end_date');
         const mondayIndex = headers.indexOf('monday');
@@ -2027,6 +2053,11 @@ async function loadCalendar(fileContent) {
         const saturdayIndex = headers.indexOf('saturday');
         const sundayIndex = headers.indexOf('sunday');
         
+        if ([startDateIndex, endDateIndex, mondayIndex, tuesdayIndex, wednesdayIndex, 
+             thursdayIndex, fridayIndex, saturdayIndex, sundayIndex].includes(-1)) {
+            console.warn('Certaines colonnes sont manquantes dans calendar.txt');
+        }
+        
         lines.slice(1).forEach(line => {
             if (!line.trim()) return;
             const values = line.split(',');
@@ -2035,16 +2066,16 @@ async function loadCalendar(fileContent) {
                 
                 calendar[serviceId] = {
                     weekdays: [
-                        parseInt(values[mondayIndex], 10),
-                        parseInt(values[tuesdayIndex], 10),
-                        parseInt(values[wednesdayIndex], 10),
-                        parseInt(values[thursdayIndex], 10),
-                        parseInt(values[fridayIndex], 10)
+                        startDateIndex >= 0 && mondayIndex >= 0 ? parseInt(values[mondayIndex], 10) : 1,
+                        startDateIndex >= 0 && tuesdayIndex >= 0 ? parseInt(values[tuesdayIndex], 10) : 1,
+                        startDateIndex >= 0 && wednesdayIndex >= 0 ? parseInt(values[wednesdayIndex], 10) : 1,
+                        startDateIndex >= 0 && thursdayIndex >= 0 ? parseInt(values[thursdayIndex], 10) : 1,
+                        startDateIndex >= 0 && fridayIndex >= 0 ? parseInt(values[fridayIndex], 10) : 1
                     ].includes(1),
-                    saturday: parseInt(values[saturdayIndex], 10) === 1,
-                    sunday: parseInt(values[sundayIndex], 10) === 1,
-                    start_date: values[startDateIndex],
-                    end_date: values[endDateIndex]
+                    saturday: startDateIndex >= 0 && saturdayIndex >= 0 ? parseInt(values[saturdayIndex], 10) === 1 : true,
+                    sunday: startDateIndex >= 0 && sundayIndex >= 0 ? parseInt(values[sundayIndex], 10) === 1 : true,
+                    start_date: startDateIndex >= 0 ? values[startDateIndex] : '20000101',
+                    end_date: endDateIndex >= 0 ? values[endDateIndex] : '21000101'
                 };
             }
         });
@@ -2788,38 +2819,63 @@ function displaySchedule(validTrips, stopId, destinationId, container) {
 
 
 function getActiveServiceIds(dayOfWeek, gtfsDate) {
-    const activeServiceIds = [];
+    const date = new Date();
+    const [year, month, day] = [
+        parseInt(gtfsDate.substring(0, 4), 10),
+        parseInt(gtfsDate.substring(4, 6), 10) - 1,
+        parseInt(gtfsDate.substring(6, 8), 10)
+    ];
+    date.setFullYear(year, month, day);
     
-    Object.entries(calendar).forEach(([serviceId, service]) => {
-        const isInDateRange = service.start_date && service.end_date && 
-                              gtfsDate >= service.start_date && 
-                              gtfsDate <= service.end_date;
-        
-        if (isInDateRange && 
-            ((dayOfWeek === 0 && service.sunday) ||
-             (dayOfWeek === 6 && service.saturday) ||
-             (dayOfWeek >= 1 && dayOfWeek <= 5 && service.weekdays))) {
-            activeServiceIds.push(serviceId);
-        }
+    const allServiceIds = new Set();
+    Object.values(trips).forEach(routeTrips => {
+        routeTrips.forEach(trip => {
+            if (trip.service_id) {
+                allServiceIds.add(trip.service_id);
+            }
+        });
     });
     
-    if (calendarDates[gtfsDate]) {
-        calendarDates[gtfsDate].added.forEach(serviceId => {
-            if (!activeServiceIds.includes(serviceId)) {
-                activeServiceIds.push(serviceId);
-            }
-        });
-        
-        calendarDates[gtfsDate].removed.forEach(serviceId => {
-            const index = activeServiceIds.indexOf(serviceId);
-            if (index !== -1) {
-                activeServiceIds.splice(index, 1);
-            }
-        });
+    return Array.from(allServiceIds).filter(serviceId => {
+        return isServiceActive(serviceId, date);
+    });
+}
+
+function isServiceActive(serviceId, dateObj) {
+    const formattedDate = formatDate(dateObj);
+    
+    if (calendarDates[formattedDate]) {
+        if (calendarDates[formattedDate].added.includes(serviceId)) {
+            return true;
+        }
+        if (calendarDates[formattedDate].removed.includes(serviceId)) {
+            return false;
+        }
     }
     
-    return activeServiceIds;
+    if (!calendar[serviceId]) {
+        return true;
+    }
+    
+    const day = dateObj.getDay();
+    const dateNumber = parseInt(formattedDate, 10);
+    
+    const calendarEntry = calendar[serviceId];
+    const startDate = parseInt(calendarEntry.start_date, 10);
+    const endDate = parseInt(calendarEntry.end_date, 10);
+    
+    if (dateNumber < startDate || dateNumber > endDate) {
+        return false;
+    }
+    
+    if (day === 0 && calendarEntry.sunday) return true;
+    if (day === 6 && calendarEntry.saturday) return true;
+    if (day >= 1 && day <= 5 && calendarEntry.weekdays) return true;
+    
+    return false;
 }
+
+
 
 function cleanup() {
     stopRealtimeUpdates();
