@@ -2112,8 +2112,8 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                     const r = parseInt(rgb[1], 16);
                     const g = parseInt(rgb[2], 16);
                     const b = parseInt(rgb[3], 16);
-                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-                    textColor = brightness > 128 ? '#000000' : '#FFFFFF';
+                    const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+                    textColor = brightness > 150 ? '#000000' : '#FFFFFF';
                 }
                 
                 document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
@@ -2140,8 +2140,8 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                     const r = parseInt(rgb[1], 16);
                     const g = parseInt(rgb[2], 16);
                     const b = parseInt(rgb[3], 16);
-                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-                    textColor = brightness > 128 ? '#000000' : '#FFFFFF';
+                    const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+                    textColor = brightness > 150 ? '#000000' : '#FFFFFF';
                 }
                 
                 document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
@@ -2840,7 +2840,6 @@ filteredStops.forEach(stop => {
                 if (markers[id]) {
         animateMarker(markers[id], [latitude, longitude]);
         
-        // Assigner l'ID au marqueur s'il n'en a pas encore
         if (!markers[id].id) {
             markers[id].id = id;
         }
@@ -2864,29 +2863,24 @@ filteredStops.forEach(stop => {
                 }
             }
             
-            // Si le popup est ouvert, mettre à jour la couleur du menubtm en temps réel
             if (markers[id].isPopupOpen()) {
                 const menubtm = document.getElementById('menubtm');
                 if (menubtm) {
-                    // Mise à jour de la couleur active
                     lastActiveColor = color;
                     
-                    // Transition directe
                     menubtm.style.transition = 'background-color 0.5s ease';
                     menubtm.style.backgroundColor = `${color}77`;
                     
-                    // Détermine la couleur du texte
                     const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
                     let textColor = '#FFFFFF';
                     if (rgb) {
                         const r = parseInt(rgb[1], 16);
                         const g = parseInt(rgb[2], 16);
                         const b = parseInt(rgb[3], 16);
-                        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-                        textColor = brightness > 128 ? '#000000' : '#FFFFFF';
+                        const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+                        textColor = brightness > 150 ? '#000000' : '#FFFFFF';
                     }
                     
-                    // Met à jour le style pour le texte
                     const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
                     const styleSheet = document.createElement('style');
                     styleSheet.id = styleId;
@@ -2899,7 +2893,6 @@ filteredStops.forEach(stop => {
                         }
                     `;
                     
-                    // Supprime l'ancien style avant d'ajouter le nouveau
                     document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
                     document.head.appendChild(styleSheet);
                     markers[id].styleId = styleId;
@@ -2907,7 +2900,6 @@ filteredStops.forEach(stop => {
             }
         }
         
-        // Mise à jour de la rotation de la flèche
         if (markers[id]._icon) {
             const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
             
@@ -2952,7 +2944,6 @@ filteredStops.forEach(stop => {
             }
         }
     } else {
-        // Création d'un nouveau marqueur
         const marker = createColoredMarker(latitude, longitude, line, bearing);
         updateLinesDisplay();
         markers[id] = marker;
