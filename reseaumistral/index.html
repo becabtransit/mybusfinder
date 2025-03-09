@@ -2054,7 +2054,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             top: -2px;
             transform-origin: 2px; 
             transform: rotate(${bearing - 90}deg);
-            transition: transform 0.5s ease, stroke 0.3s ease;"
+            transition: transform 0.5s ease;"
             viewBox="0 0 24 24">
             <path 
                 d="M8 4 L16 12 L8 20"
@@ -2091,22 +2091,12 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const marker = L.marker([lat, lon], { icon });
     const styleId = generateUniqueId();
     
-    marker.currentMenuColor = null;
-    
     marker.on('popupopen', function(e) {
         const menubtm = document.getElementById('menubtm');
         if (menubtm) {
             const color = lineColors[route_id] || '#000000';
             
-            marker.currentMenuColor = window.getComputedStyle(menubtm).backgroundColor;
-            
-            const oldStyle = document.getElementById(styleId);
-            if (oldStyle) {
-                oldStyle.remove();
-            }
-            
-            const styleSheet = document.createElement('style');
-            styleSheet.id = styleId;
+            const currentColor = window.getComputedStyle(menubtm).backgroundColor;
             
             const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
             let textColor = '#FFFFFF';
@@ -2118,35 +2108,23 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                 textColor = brightness > 128 ? '#000000' : '#FFFFFF';
             }
             
-            const animationName = `menubtm-color-${styleId}`;
+            document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
+            
+            const styleSheet = document.createElement('style');
+            styleSheet.id = styleId;
+            styleSheet.classList.add('menu-color-style');
+            
+            menubtm.style.transition = 'background-color 0.5s ease';
+            menubtm.style.backgroundColor = `${color}77`;
+            
             styleSheet.textContent = `
-                @keyframes ${animationName} {
-                    0% {
-                        background-color: ${marker.currentMenuColor || 'transparent'};
-                    }
-                    100% {
-                        background-color: ${color}77;
-                    }
-                }
-                #menubtm.${styleId} {
-                    animation: ${animationName} 0.3s forwards;
-                }
-                #menubtm.${styleId} * {
+                #menubtm * {
                     color: ${textColor};
-                    transition: color 0.3s ease;
+                    transition: color 0.5s ease;
                 }
             `;
             
             document.head.appendChild(styleSheet);
-            
-            const activeMarkers = document.querySelectorAll('.active-marker-style');
-            activeMarkers.forEach(el => {
-                const id = el.id;
-                menubtm.classList.remove(id);
-                el.remove();
-            });
-            
-            menubtm.classList.add(styleId);
             marker.styleId = styleId;
         }
     });
@@ -2155,48 +2133,20 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         const menubtm = document.getElementById('menubtm');
         if (menubtm) {
             try {
-                const currentColor = marker.currentMenuColor || window.getComputedStyle(menubtm).backgroundColor;
                 const data = await getSetvar();
                 
                 if (data) {
-                    requestAnimationFrame(() => {
-                        const returnStyleId = generateUniqueId();
-                        const returnStyle = document.createElement('style');
-                        returnStyle.id = returnStyleId;
-                        
-                        menubtm.style.backgroundColor = currentColor;
-                        
-                        const returnAnimation = `menubtm-return-${returnStyleId}`;
-                        returnStyle.textContent = `
-                            @keyframes ${returnAnimation} {
-                                from {
-                                    background-color: ${currentColor};
-                                }
-                                to {
-                                    background-color: ${data.colorbkg}77;
-                                }
-                            }
-                            #menubtm.${returnStyleId} {
-                                background-color: ${currentColor};
-                                animation: ${returnAnimation} 0.3s ease-out forwards;
-                            }
-                        `;
-                        
-                        if (marker.styleId) {
-                            const oldStyle = document.getElementById(marker.styleId);
-                            if (oldStyle) oldStyle.remove();
-                            menubtm.classList.remove(marker.styleId);
+                    menubtm.style.transition = 'background-color 0.5s ease';
+                    menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                    
+                    if (marker.styleId) {
+                        const oldStyle = document.getElementById(marker.styleId);
+                        if (oldStyle) {
+                            setTimeout(() => {
+                                oldStyle.remove();
+                            }, 500);
                         }
-                        
-                        document.head.appendChild(returnStyle);
-                        menubtm.classList.add(returnStyleId);
-                        
-                        setTimeout(() => {
-                            menubtm.classList.remove(returnStyleId);
-                            returnStyle.remove();
-                            menubtm.style.backgroundColor = `${data.colorbkg}77`;
-                        }, 300);
-                    });
+                    }
                 }
             } catch (error) {
                 console.error('Erreur lors de la réinitialisation des couleurs:', error);
@@ -2851,15 +2801,15 @@ filteredStops.forEach(stop => {
             if (markers[id]._icon) {
                 const markerIcon = markers[id]._icon.querySelector('.marker-icon');
                 if (markerIcon) {
-                    // Transition fluide de la couleur
-                    markerIcon.style.transition = 'background-color 0.3s ease';
+                    // Utilise une transition CSS directe
+                    markerIcon.style.transition = 'background-color 0.5s ease';
                     markerIcon.style.backgroundColor = color;
                 }
                 
                 const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
                 if (arrowElement) {
-                    // Transition fluide de la couleur de la flèche
-                    arrowElement.style.transition = 'stroke 0.3s ease';
+                    // Utilise une transition CSS directe pour la flèche
+                    arrowElement.style.transition = 'stroke 0.5s ease';
                     arrowElement.setAttribute('stroke', color);
                 }
             }
@@ -2867,20 +2817,8 @@ filteredStops.forEach(stop => {
             // Si le popup est ouvert, mettre à jour la couleur du menubtm en temps réel
             if (markers[id].isPopupOpen()) {
                 const menubtm = document.getElementById('menubtm');
-                if (menubtm && markers[id].styleId) {
-                    const oldStyleId = markers[id].styleId;
-                    const newStyleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
-                    markers[id].styleId = newStyleId;
-                    
-                    // Récupère la couleur actuelle
-                    const currentColor = window.getComputedStyle(menubtm).backgroundColor;
-                    markers[id].currentMenuColor = currentColor;
-                    
-                    // Crée une nouvelle feuille de style pour la transition
-                    const styleSheet = document.createElement('style');
-                    styleSheet.id = newStyleId;
-                    styleSheet.classList.add('active-marker-style');
-                    
+                if (menubtm) {
+                    // Récupère les propriétés de couleur
                     const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
                     let textColor = '#FFFFFF';
                     if (rgb) {
@@ -2891,32 +2829,27 @@ filteredStops.forEach(stop => {
                         textColor = brightness > 128 ? '#000000' : '#FFFFFF';
                     }
                     
-                    const animationName = `menubtm-color-${newStyleId}`;
+                    // Transition directe et fluide
+                    menubtm.style.transition = 'background-color 0.5s ease';
+                    menubtm.style.backgroundColor = `${color}77`;
+                    
+                    // Met à jour le style pour le texte
+                    const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+                    const styleSheet = document.createElement('style');
+                    styleSheet.id = styleId;
+                    styleSheet.classList.add('menu-color-style');
+                    
                     styleSheet.textContent = `
-                        @keyframes ${animationName} {
-                            0% {
-                                background-color: ${currentColor};
-                            }
-                            100% {
-                                background-color: ${color}77;
-                            }
-                        }
-                        #menubtm.${newStyleId} {
-                            animation: ${animationName} 0.3s forwards;
-                        }
-                        #menubtm.${newStyleId} * {
+                        #menubtm * {
                             color: ${textColor};
-                            transition: color 0.3s ease;
+                            transition: color 0.5s ease;
                         }
                     `;
                     
+                    // Supprime l'ancien style avant d'ajouter le nouveau
+                    document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
                     document.head.appendChild(styleSheet);
-                    
-                    // Supprime l'ancien style et ajoute le nouveau
-                    const oldStyle = document.getElementById(oldStyleId);
-                    if (oldStyle) oldStyle.remove();
-                    menubtm.classList.remove(oldStyleId);
-                    menubtm.classList.add(newStyleId);
+                    markers[id].styleId = styleId;
                 }
             }
         }
@@ -2926,9 +2859,7 @@ filteredStops.forEach(stop => {
             const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
             
             if (arrowElement) {
-                const currentRotation = arrowElement._currentRotation || (bearing);
                 const targetRotation = bearing - 90;
-                
                 arrowElement.style.transition = 'transform 0.5s ease';
                 arrowElement.style.transform = `rotate(${targetRotation}deg)`;
                 arrowElement._currentRotation = targetRotation;
@@ -2968,7 +2899,7 @@ filteredStops.forEach(stop => {
             }
         }
     } else {
-        // Création d'un nouveau marqueur...
+        // Création d'un nouveau marqueur
         const marker = createColoredMarker(latitude, longitude, line, bearing);
         updateLinesDisplay();
         markers[id] = marker;
@@ -3005,8 +2936,9 @@ filteredStops.forEach(stop => {
                     }, 200); 
                 }
             }
-        });                    }}
-                });
+        });                    
+    }}
+});
 
                 Object.keys(markers).forEach(id => {
             if (!activeVehicleIds.has(id)) {
