@@ -1622,9 +1622,9 @@ function getRealtimeArrival(tripId, stopId) {
     return new Date(stopUpdate.arrival);
 }
 
-const DB_NAME = 'Palm';
-const DB_VERSION = 4;
-const STORE_NAME = 'Palm';
+const DB_NAME = 'MyBusFinder';
+const DB_VERSION = 3;
+const STORE_NAME = 'gtfsStore';
 
 function initDB() {
     return new Promise((resolve, reject) => {
@@ -1642,7 +1642,37 @@ function initDB() {
     });
 }
 
+async function isFirstVisitOfDay() {
+    try {
+        const db = await initDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(STORE_NAME, 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.get('lastUpdate');
 
+            request.onsuccess = () => {
+                const lastVisit = request.result;
+                if (!lastVisit) {
+                    resolve(true);
+                    return;
+                }
+
+                const lastVisitDate = new Date(lastVisit);
+                const currentDate = new Date();
+                
+                resolve(
+                    lastVisitDate.getDate() !== currentDate.getDate() ||
+                    lastVisitDate.getMonth() !== currentDate.getMonth() ||
+                    lastVisitDate.getFullYear() !== currentDate.getFullYear()
+                );
+            };
+
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        return true; 
+    }
+}
 
 async function saveToCache(data) {
     try {
@@ -1680,10 +1710,54 @@ async function getFromCache() {
     }
 }
 
+async function extractGTFSFiles() {
+    try {
+        const response = await fetch('proxy-cors/proxy_gtfs.php');
+        if (!response.ok) {
+            throw new Error(`Échec du téléchargement: ${response.status} ${response.statusText}`);
+        }
+        
+        const zipData = await response.arrayBuffer();
+        const zip = await JSZip.loadAsync(zipData);
+        
+        const extractedFiles = {};
+        
+        const filePromises = [];
+        zip.forEach((relativePath, zipEntry) => {
+            if (!zipEntry.dir) {
+                const promise = zipEntry.async("string").then(content => {
+                    extractedFiles[relativePath] = content;
+                });
+                filePromises.push(promise);
+            }
+        });
+        
+        await Promise.all(filePromises);        
+        return extractedFiles;
+    } catch (error) {
+        console.error('Erreur lors de l\'extraction des fichiers GTFS:', error);
+        throw error;
+    }
+}
 
 async function loadGtfsData() {
     try {
-        let extractedFiles        
+        let extractedFiles;
+        
+        const isFirstVisit = await isFirstVisitOfDay();
+        
+        if (isFirstVisit) {
+            toastBottomRight.info('Téléchargement des données quotidiennes..');
+            extractedFiles = await extractGTFSFiles();
+            await saveToCache(extractedFiles);
+        } else {
+            extractedFiles = await getFromCache();
+            if (!extractedFiles) {
+                toastBottomRight.info('Téléchargement des données quotidiennes..');
+                extractedFiles = await extractGTFSFiles();
+                await saveToCache(extractedFiles);
+            }
+        }
         
         routes = {};
         trips = {};
