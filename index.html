@@ -1095,24 +1095,46 @@ function startCountdown(seconds) {
                 });
         }
         
-        async function processNetworksData(data) {
-            const lines = data.split('\n').filter(line => line.trim() !== '');
-            const networksGrid = document.getElementById('networks-grid');
-            networksGrid.innerHTML = '';
-            
-            networks = [];
-            
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const [name, city, region, logoPath, url] = line.split(',').map(item => item.trim());
-                
-                const coords = await getCoordinatesFromCityName(city);
-                
+        function processNetworksData(data) {
+    const lines = data.split('\n').filter(line => line.trim() !== '');
+    const networksGrid = document.getElementById('networks-grid');
+    networksGrid.innerHTML = '';
+    
+    networks = [];
+    
+    console.log(`Traitement de ${lines.length} réseaux`);
+    
+    if (lines.length === 0) {
+        console.error('Aucun réseau trouvé dans le fichier networks.txt');
+        networksGrid.innerHTML = '<div class="error-message">Aucun réseau disponible pour le moment. Veuillez réessayer plus tard.</div>';
+        return;
+    }
+    
+    let processedNetworks = 0;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const parts = line.split(',').map(item => item.trim());
+        
+        if (parts.length < 3) {
+            console.error(`Ligne de réseau incorrecte: ${line}`);
+            continue;
+        }
+        
+        const [name, city, region, logoPath, url] = parts;
+        
+        if (!name || !city) {
+            console.error(`Informations de réseau incomplètes: ${line}`);
+            continue;
+        }
+        
+        getCoordinatesFromCityName(city)
+            .then(coords => {
                 const network = {
                     id: name.toLowerCase().replace(/\s+/g, ''),
                     name: name,
                     location: city,
-                    region: region,
+                    region: region || 'Région non spécifiée',
                     url: url || '#',
                     logo: logoPath || 'src/default-logo.png',
                     lat: coords.lat,
@@ -1127,12 +1149,13 @@ function startCountdown(seconds) {
                 networkElement.setAttribute('data-coords', `${coords.lat},${coords.lon}`);
                 networkElement.setAttribute('data-id', network.id);
                 networkElement.onclick = function() { location.href = network.url; };
+                networkElement.style.display = 'flex';
 
                 networkElement.innerHTML = `
-                    <img src="${network.logo}" alt="${name}">
+                    <img src="${network.logo}" alt="${name}" onerror="this.src='src/default-logo.png';">
                     <div class="network-info">
                         <span class="network-name">${name}</span>
-                        <span class="network-region">${region}</span>
+                        <span class="network-region">${region || 'Région non spécifiée'}</span>
                     </div>
                     <div class="favorite-btn" data-favorite="${network.id}" onclick="toggleFavorite(event, '${network.id}')">
                         <i class="${isFavorite(network.id) ? 'fas' : 'far'} fa-star"></i>
@@ -1140,9 +1163,19 @@ function startCountdown(seconds) {
                 `;
                 
                 networksGrid.appendChild(networkElement);
-            }
-        }
-        
+                
+                processedNetworks++;
+                
+                if (processedNetworks === lines.length) {
+                    console.log(`${processedNetworks} réseaux ont été chargés avec succès`);
+                    sortNetworksByFavorites();
+                }
+            })
+            .catch(error => {
+                console.error(`Erreur lors du traitement du réseau ${name}:`, error);
+            });
+    }
+}        
         async function getCoordinatesFromCityName(cityName) {
             try {
                 const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityName)},France`);
@@ -1157,43 +1190,51 @@ function startCountdown(seconds) {
             } catch (error) {
                 console.error('Erreur lors de la récupération des coordonnées:', error);
             }
-            
-            const defaultCoords = {
-                'cannes': { lat: 43.552847, lon: 7.017369 },
-                'toulon': { lat: 43.124228, lon: 5.928000 },
-                'bordeaux': { lat: 44.837789, lon: -0.579180 },
-                'rouen': { lat: 49.443232, lon: 1.099971 },
-                'paris': { lat: 48.856614, lon: 2.3522219 },
-                'marseille': { lat: 43.296482, lon: 5.369780 },
-                'lyon': { lat: 45.764043, lon: 4.835659 }
-            };
-            
-            const normalizedCity = cityName.toLowerCase();
-            
-            return defaultCoords[normalizedCity] || { lat: 46.603354, lon: 1.888334 }; 
         }
         
         function showAllNetworks() {
+    showRecentSearches();
 
-            showRecentSearches();
-
-            const locationContainer = document.getElementById("location-container");
-            locationContainer.classList.add("slide-up");
-            
-            const container = document.getElementById("portal-container");
-            container.classList.add("slide-down");
-            
-            const networks = document.querySelectorAll('.network-button');
-            networks.forEach((network, index) => {
-                setTimeout(() => {
-                    network.classList.add("slide-down");
-                }, index * 50); 
-            });
-            
-            setTimeout(() => {
-                document.getElementById('network-search').focus();
-            }, 500);
-        }
+    const locationContainer = document.getElementById("location-container");
+    locationContainer.classList.add("slide-up");
+    
+    const container = document.getElementById("portal-container");
+    container.classList.add("slide-down");
+    
+    container.offsetHeight;
+    
+    const networksGrid = document.getElementById('networks-grid');
+    networksGrid.style.display = 'grid';
+    
+    const networks = document.querySelectorAll('.network-button');
+    
+    networks.forEach(network => {
+        network.style.display = 'flex';
+        network.style.opacity = '0';
+        network.style.transform = 'translateY(20px)';
+    });
+    
+    networksGrid.offsetHeight;
+    
+    networks.forEach((network, index) => {
+        setTimeout(() => {
+            network.classList.add("slide-down");
+            network.style.opacity = '1';
+            network.style.transform = 'translateY(0)';
+        }, index * 50);
+    });
+    
+    setTimeout(() => {
+        document.getElementById('network-search').focus();
+    }, 500);
+    
+    setTimeout(() => {
+        networks.forEach(network => {
+            network.style.opacity = '1';
+            network.style.transform = 'translateY(0)';
+        });
+    }, networks.length * 50 + 100);
+}
         
         function filterNetworks() {
             const searchInput = document.getElementById('network-search').value.toLowerCase();
@@ -1353,24 +1394,37 @@ function handleLocationError(error) {
     document.getElementById("show-all-button").classList.add("slide-down");
 }
         
-        function findNearestNetwork(userLat, userLon) {
-            if (networks.length === 0) return null;
-            
-            let nearestNetwork = null;
-            let minDistance = Infinity;
-            
-            networks.forEach(network => {
-                const distance = calculateDistance(userLat, userLon, network.lat, network.lon);
-                network.distance = distance;
-                
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    nearestNetwork = network;
-                }
-            });
-            
-            return minDistance < 100 ? nearestNetwork : null;
+function findNearestNetwork(userLat, userLon) {
+    if (networks.length === 0) return null;
+    
+    console.log("Position utilisateur:", userLat, userLon);
+    console.log("Réseaux disponibles:", networks.length);
+    
+    let nearestNetwork = null;
+    let minDistance = Infinity;
+    
+    networks.forEach(network => {
+        console.log(`Vérification de ${network.name}: coord(${network.lat}, ${network.lon})`);
+        
+        if (!network.lat || !network.lon) {
+            console.warn(`Réseau ${network.name} n'a pas de coordonnées valides`);
+            return;
         }
+        
+        const distance = calculateDistance(userLat, userLon, network.lat, network.lon);
+        network.distance = distance;
+        
+        console.log(`Distance pour ${network.name}: ${distance.toFixed(2)}km`);
+        
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestNetwork = network;
+            console.log(`Nouveau réseau le plus proche: ${network.name} (${distance.toFixed(2)}km)`);
+        }
+    });
+    
+    return minDistance < 100 ? nearestNetwork : null;
+}
         
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371; 
