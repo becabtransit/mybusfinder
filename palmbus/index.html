@@ -3726,24 +3726,55 @@ menu.appendChild(alertsButton);
         });
 
 
+function hexToRgb(hex) {
+    hex = hex.replace(/^#/, '');
+    
+    if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    return { r, g, b };
+}
+
+
+function calculateLuminance(r, g, b) {
+    return (r * 0.299 + g * 0.587 + b * 0.114);
+}
+
+
+function getTextColor(backgroundColor) {
+    try {
+        let hexColor = backgroundColor;
+        
+        if (!hexColor.startsWith('#')) {
+            hexColor = '#' + hexColor;
+        }
+        
+        const { r, g, b } = hexToRgb(hexColor);
+        
+        const luminance = calculateLuminance(r, g, b);
+        
+        const threshold = 150;
+        
+        console.log(`BG Color: ${backgroundColor}, Luminance: ${luminance}, Text: ${luminance > threshold ? 'NOIR' : 'BLANC'}`);
+        
+        return luminance > threshold ? '#000000' : '#ffffff';
+    } catch (e) {
+        console.error('Erreur dans le calcul de la couleur de texte:', e);
+        return '#ffffff';
+    }
+}
+
+
     sortedLines.forEach(line => {
         const lineNameText = lineName[line] || "Inconnue";
         const lineColor = lineColors[line] || '#000000';
-        let r, g, b;
-        let hexColor = lineColor.startsWith('#') ? lineColor.substring(1) : lineColor;
-        
-        if (hexColor.length === 3) {
-            r = parseInt(hexColor.charAt(0) + hexColor.charAt(0), 16);
-            g = parseInt(hexColor.charAt(1) + hexColor.charAt(1), 16);
-            b = parseInt(hexColor.charAt(2) + hexColor.charAt(2), 16);
-        } else {
-            r = parseInt(hexColor.substring(0, 2), 16);
-            g = parseInt(hexColor.substring(2, 4), 16);
-            b = parseInt(hexColor.substring(4, 6), 16);
-        }
-        
-        const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
-        const textColor = luminance > 128 ? '#000000' : '#ffffff';
+        const textColor = getTextColor(lineColor);
+
 
         const lineSection = document.createElement('div');
         lineSection.dataset.line = line;
