@@ -3725,9 +3725,52 @@ menu.appendChild(alertsButton);
             return isNaN(a) ? (isNaN(b) ? a.localeCompare(b) : 1) : (isNaN(b) ? -1 : parseInt(a) - parseInt(b));
         });
 
+        function hexToRgb(hex) {
+    hex = hex.replace(/^#/, '');
+    
+    if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    return { r, g, b };
+}
+
+
+function calculateLuminance(r, g, b) {
+    return (r * 0.299 + g * 0.587 + b * 0.114);
+}
+
+
+function getTextColor(backgroundColor) {
+    try {
+        let hexColor = backgroundColor;
+        
+        if (!hexColor.startsWith('#')) {
+            hexColor = '#' + hexColor;
+        }
+        
+        const { r, g, b } = hexToRgb(hexColor);
+        
+        const luminance = calculateLuminance(r, g, b);
+        
+        const threshold = 150;
+                
+        return luminance > threshold ? '#000000' : '#ffffff';
+    } catch (e) {
+        return '#ffffff';
+    }
+}
+
+
     sortedLines.forEach(line => {
         const lineNameText = lineName[line] || "Inconnue";
         const lineColor = lineColors[line] || '#000000';
+        const textColor = getTextColor(lineColor);
+
 
         const lineSection = document.createElement('div');
         lineSection.dataset.line = line;
@@ -3744,7 +3787,7 @@ menu.appendChild(alertsButton);
         favoriteButton.style.top = '5px';
         favoriteButton.style.background = 'none';
         favoriteButton.style.border = 'none';
-        favoriteButton.style.color = '#fff';
+        favoriteButton.style.color = textColor;
         favoriteButton.style.fontSize = '20px';
         favoriteButton.style.cursor = 'pointer';
         favoriteButton.innerHTML = favoriteLines.has(line) ? '★' : '☆';
@@ -3759,7 +3802,7 @@ menu.appendChild(alertsButton);
         lineTitle.textContent = `Ligne ${lineNameText}`;
         lineTitle.style.fontSize = '23px';
         lineTitle.style.fontWeight = 'normal';
-        lineTitle.style.color = '#fff';
+        lineTitle.style.color = textColor;
         lineTitle.style.paddingRight = '30px';
         lineTitle.style.paddingLeft = '10px';
 
@@ -3778,7 +3821,7 @@ menu.appendChild(alertsButton);
         destinationTitle.textContent = `➜ ${destination}`;
         destinationTitle.style.fontSize = '16px';
         destinationTitle.style.fontWeight = 'normal';
-        destinationTitle.style.color = '#fff';
+        destinationTitle.style.color = textColor;
         destinationSection.appendChild(destinationTitle);
 
         busesByLineAndDestination[line][destination].forEach(bus => {
@@ -3824,12 +3867,14 @@ menu.appendChild(alertsButton);
                     mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
                     mainText.style.fontSize = '1.2em';  
                     mainText.style.fontWeight = '500';  
+                    mainText.style.color = textColor;
                     
                     const arrivalText = document.createElement('div');
                     arrivalText.textContent = terminusInfo;
                     arrivalText.style.fontSize = '0.9em'; 
                     arrivalText.style.opacity = '0.8';  
                     arrivalText.style.textAlign = 'right';
+                    arrivalText.style.color = textColor;
 
                     busItem.textContent = '';
                     busItem.appendChild(mainText);
@@ -3838,7 +3883,7 @@ menu.appendChild(alertsButton);
                     busItem.style.cursor = 'pointer';
                     busItem.classList.add('menu-item');
                     busItem.style.fontFamily = 'League Spartan';
-                    busItem.style.color = 'white';
+                    busItem.style.color = textColor;
                     busItem.style.padding = '5px 10px';
                     busItem.style.marginBottom = '5px';
                     busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
