@@ -24,6 +24,6 @@ self.onmessage = function(e) {
             }
         });
 
-        self.postMessage(rouotes);
+        self.postMessage(routes);
     }
 };
