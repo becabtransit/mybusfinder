@@ -160,10 +160,13 @@
             justify-content: center;
             align-items: center;
             transition: opacity 1s var(--transition-bezier);
+            pointer-events: none;
+            z-index: 300;
         }
         
         .credits-container.visible {
             opacity: 1;
+            pointer-events: auto;
         }
         
         .credits-wrapper {
@@ -268,10 +271,33 @@
             background: rgba(255, 255, 255, 0.3);
         }
         
-        .skip-button {
+        .close-credits-button {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+        
+        .close-credits-button:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(1.1);
+        }
+        
+        .credits-button {
             position: fixed;
             bottom: 30px;
-            right: 30px;
+            left: 30px;
             padding: 10px 25px;
             background: rgba(0, 86, 179, 0.7);
             color: white;
@@ -287,12 +313,12 @@
             transform: translateY(20px);
         }
         
-        .skip-button.visible {
+        .credits-button.visible {
             opacity: 1;
             transform: translateY(0);
         }
         
-        .skip-button:hover {
+        .credits-button:hover {
             background: var(--primary-color);
             transform: scale(0.98);
             box-shadow: 0 0 20px var(--accent-color);
@@ -306,6 +332,12 @@
             height: 3px;
             background: rgba(255, 255, 255, 0.1);
             z-index: 100;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        
+        .progress-bar-container.visible {
+            opacity: 1;
         }
         
         .progress-bar {
@@ -570,9 +602,9 @@
                 max-width: 100%;
             }
             
-            .skip-button {
+            .credits-button {
                 bottom: 20px;
-                right: 20px;
+                left: 20px;
                 padding: 8px 20px;
                 font-size: 14px;
             }
@@ -623,7 +655,7 @@
                 font-size: 16px;
             }
             
-            .skip-button {
+            .credits-button {
                 padding: 6px 15px;
                 font-size: 12px;
             }
@@ -675,6 +707,9 @@
         
         <div class="credits-container" id="creditsContainer">
             <div class="credits-wrapper">
+                <button class="close-credits-button" id="closeCreditsButton">
+                    <i class="fas fa-times"></i>
+                </button>
                 <div class="credits-content" id="credits">
                     <div class="credits-header">
                         <div class="credits-title">My Bus Finder 3.0X</div>
@@ -713,29 +748,29 @@
                 <div class="features-grid">
                     <div class="feature-card">
                         <div class="feature-image">
-                            <img src="/src/update/timeschedule.png" alt="Prédiction en temps réel" />
+                            <img src="src/update/timeschedule.png" alt="Prédiction en temps réel" />
                         </div>
                         <div class="feature-content">
                             <span class="feature-label">AMÉLIORÉ</span>
                             <h3 class="feature-title">Prédictions en temps réel.</h3>
-                            <p class="feature-description">Des prévisions ultra-précises, même en cas d’imprévu. Ne perdez plus une minute et prenez toujours le bon bus, au bon moment.</p>
+                            <p class="feature-description">Des prévisions ultra-précises, même en cas d'imprévu. Ne perdez plus une minute et prenez toujours le bon bus, au bon moment.</p>
                         </div>
                     </div>
                 
                     <div class="feature-card">
                         <div class="feature-image">
-                            <img src="/src/update/iu.png" alt="Interface repensée" />
+                            <img src="src/update/iu.png" alt="Interface repensée" />
                         </div>
                         <div class="feature-content">
                             <span class="feature-label">AMÉLIORÉ</span>
                             <h3 class="feature-title">Une interface pensée pour vous.</h3>
-                            <p class="feature-description">Encore plus fluide, encore plus intuitive. Tout ce dont vous avez besoin, accessible d’un simple geste.</p>
+                            <p class="feature-description">Encore plus fluide, encore plus intuitive. Tout ce dont vous avez besoin, accessible d'un simple geste.</p>
                         </div>
                     </div>
                 
                     <div class="feature-card">
                         <div class="feature-image">
-                            <img src="/src/update/offline.png" alt="Mode hors connexion" />
+                            <img src="src/update/offline.png" alt="Mode hors connexion" />
                         </div>
                         <div class="feature-content">
                             <span class="feature-label">NOUVEAU</span>
@@ -743,28 +778,30 @@
                             <p class="feature-description">Consultez vos trajets favoris même sans connexion. Vos données se synchronisent dès que vous êtes en ligne.</p>
                         </div>
                     </div>
-            
                 </div>
 
-            </div>
-                
+                <div class="button-container">
+                    <button class="start-app-button" id="startAppButton">Commencer <i class="fas fa-arrow-right"></i></button>
+                </div>
             </div>
         </div>
         
-        <div class="progress-bar-container">
+        <div class="progress-bar-container" id="progressBarContainer">
             <div class="progress-bar" id="progressBar"></div>
         </div>
     </div>
     
-    <button class="skip-button" id="skipButton">Passer <i class="fas fa-arrow-right"></i></button>
+    <button class="credits-button" id="creditsButton">Crédits <i class="fas fa-info-circle"></i></button>
     <div class="back-to-top" id="backToTopButton"><i class="fas fa-arrow-up"></i></div>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const logoContainer = document.getElementById('logoContainer');
             const creditsContainer = document.getElementById('creditsContainer');
-            const skipButton = document.getElementById('skipButton');
+            const creditsButton = document.getElementById('creditsButton');
+            const closeCreditsButton = document.getElementById('closeCreditsButton');
             const progressBar = document.getElementById('progressBar');
+            const progressBarContainer = document.getElementById('progressBarContainer');
             const floatingIcons = document.getElementById('floatingIcons');
             const particles = document.getElementById('particles');
             const featuresSection = document.getElementById('featuresSection');
@@ -825,21 +862,13 @@
                 }, 500);
                 
                 setTimeout(() => {
-                    skipButton.classList.add('visible');
+                    creditsButton.classList.add('visible');
                 }, 1000);
                 
                 setTimeout(() => {
                     logoContainer.classList.remove('visible');
-                    creditsContainer.classList.add('visible');
-                    
-                    startTime = performance.now();
-                    updateProgressBar();
-                }, 4000);
-                
-                setTimeout(() => {
-                    creditsContainer.classList.remove('visible');
                     featuresSection.classList.add('visible');
-                }, totalDuration + 2000);
+                }, 3000);
             }
             
             function updateProgressBar() {
@@ -848,27 +877,36 @@
                 const progress = Math.min(elapsed / totalDuration, 1);
                 
                 progressBar.style.width = `${progress * 100}%`;
-                
-                if (progress < 1) {
-                    animationFrameId = requestAnimationFrame(updateProgressBar);
-                }
-            }
-            
-            skipButton.addEventListener('click', function() {
-                if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                }
-                
-                logoContainer.classList.remove('visible');
-                creditsContainer.classList.remove('visible');
-                skipButton.classList.remove('visible');
-                
-                featuresSection.classList.add('visible');
-            });
-            
-            
-            startIntro();
-        });
-    </script>
-</body>
-</html>
+                progressBar.style.width = `${progress * 100}%`;
+    
+    if (progress < 1) {
+        animationFrameId = requestAnimationFrame(updateProgressBar);
+    } else {
+        progressBarContainer.classList.remove('visible');
+        cancelAnimationFrame(animationFrameId);
+    }
+}
+
+function startProgressBar() {
+    startTime = performance.now();
+    progressBarContainer.classList.add('visible');
+    updateProgressBar();
+}
+
+creditsButton.addEventListener('click', function() {
+    creditsContainer.classList.add('visible');
+    document.getElementById('credits').style.animation = 'scrollCredits 25s linear forwards';
+});
+
+closeCreditsButton.addEventListener('click', function() {
+    creditsContainer.classList.remove('visible');
+});
+
+document.getElementById('startAppButton').addEventListener('click', function() {
+    window.location.href = 'app.html';
+});
+
+startIntro();
+
+startProgressBar();
+});
