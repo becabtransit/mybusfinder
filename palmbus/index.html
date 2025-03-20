@@ -3725,36 +3725,25 @@ menu.appendChild(alertsButton);
             return isNaN(a) ? (isNaN(b) ? a.localeCompare(b) : 1) : (isNaN(b) ? -1 : parseInt(a) - parseInt(b));
         });
 
-        function isLightColor(hexColor) {
-    let r, g, b;
-    
-    if (hexColor.startsWith('#')) {
-        hexColor = hexColor.substring(1);
-    }
-    
-    if (hexColor.length === 3) {
-        r = parseInt(hexColor.charAt(0) + hexColor.charAt(0), 16);
-        g = parseInt(hexColor.charAt(1) + hexColor.charAt(1), 16);
-        b = parseInt(hexColor.charAt(2) + hexColor.charAt(2), 16);
-    } else {
-        r = parseInt(hexColor.substring(0, 2), 16);
-        g = parseInt(hexColor.substring(2, 4), 16);
-        b = parseInt(hexColor.substring(4, 6), 16);
-    }
-    
-
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
-    return luminance > 128;
-}
-
-function getContrastTextColor(backgroundColor) {
-    return isLightColor(backgroundColor) ? '#000000' : '#ffffff';
-}
 
     sortedLines.forEach(line => {
         const lineNameText = lineName[line] || "Inconnue";
         const lineColor = lineColors[line] || '#000000';
-        const textColor = getContrastTextColor(lineColor);  
+        let r, g, b;
+        let hexColor = lineColor.startsWith('#') ? lineColor.substring(1) : lineColor;
+        
+        if (hexColor.length === 3) {
+            r = parseInt(hexColor.charAt(0) + hexColor.charAt(0), 16);
+            g = parseInt(hexColor.charAt(1) + hexColor.charAt(1), 16);
+            b = parseInt(hexColor.charAt(2) + hexColor.charAt(2), 16);
+        } else {
+            r = parseInt(hexColor.substring(0, 2), 16);
+            g = parseInt(hexColor.substring(2, 4), 16);
+            b = parseInt(hexColor.substring(4, 6), 16);
+        }
+        
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+        const textColor = luminance > 128 ? '#000000' : '#ffffff';
 
         const lineSection = document.createElement('div');
         lineSection.dataset.line = line;
