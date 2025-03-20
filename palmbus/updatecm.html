@@ -879,41 +879,43 @@
                 
                 progressBar.style.width = `${progress * 100}%`;
                 progressBar.style.width = `${progress * 100}%`;
-        
-        if (progress < 1) {
-            animationFrameId = requestAnimationFrame(updateProgressBar);
-        } else {
-            progressBarContainer.classList.remove('visible');
-            cancelAnimationFrame(animationFrameId);
-        }
-    }
-
-    function startProgressBar() {
-        startTime = performance.now();
-        progressBarContainer.classList.add('visible');
-        updateProgressBar();
-    }
-
-    creditsButton.addEventListener('click', function() {
-        creditsContainer.classList.add('visible');
-        document.getElementById('credits').style.animation = 'none';
-        setTimeout(() => {
-            document.getElementById('credits').style.animation = 'scrollCredits 25s linear forwards';
-        }, 10);
-    });
-
-    closeCreditsButton.addEventListener('click', function() {
-        creditsContainer.classList.remove('visible');
-    });
-
-    document.getElementById('startAppButton').addEventListener('click', function() {
-        // Redirection vers la page principale de l'application
-        window.location.href = 'app.html';
-    });
-
-    // Démarrer l'animation d'introduction
-    startIntro();
-
-    // Démarrer la barre de progression
-    startProgressBar();
-});
+                
+                if (progress < 1) {
+                    animationFrameId = requestAnimationFrame(updateProgressBar);
+                } else {
+                    cancelAnimationFrame(animationFrameId);
+                    progressBarContainer.classList.remove('visible');
+                    
+                    // Quand la barre de progression est complète, on affiche les fonctionnalités
+                    featuresSection.classList.add('visible');
+                }
+            }
+            
+            function startCredits() {
+                creditsContainer.classList.add('visible');
+                progressBarContainer.classList.add('visible');
+                
+                startTime = performance.now();
+                animationFrameId = requestAnimationFrame(updateProgressBar);
+            }
+            
+            creditsButton.addEventListener('click', startCredits);
+            
+            closeCreditsButton.addEventListener('click', function() {
+                creditsContainer.classList.remove('visible');
+                progressBarContainer.classList.remove('visible');
+                cancelAnimationFrame(animationFrameId);
+            });
+            
+            const startAppButton = document.getElementById('startAppButton');
+            startAppButton.addEventListener('click', function() {
+                // Rediriger vers la page principale de l'application
+                window.location.href = 'app.html';
+            });
+            
+            // Démarre l'animation d'introduction
+            startIntro();
+        });
+    </script>
+</body>
+</html>
