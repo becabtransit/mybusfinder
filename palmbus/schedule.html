@@ -1332,9 +1332,9 @@ select:focus {
     </div>
 
     <script src="src/js/favorites.js"></script>
-    <script src="src/js/toastjs.js"></script>      
+    <script src="src/js/toastjs.js"></script>    
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5815761294049475"
-     crossorigin="anonymous"></script> 
+     crossorigin="anonymous"></script>   
 
     <script>
         let routes = {};
@@ -1397,17 +1397,78 @@ function stopRealtimeUpdates() {
 }
 
         
-        function loadData() {
-            showView('loading-view');
-            
+function loadData() {
+    showView('loading-view');
+    
+    const loadingTimeout = setTimeout(() => {
+        showView('error-view');
+        toastBottomRight.error('Le chargement prend plus de temps que prévu. Veuillez réessayer.');
+    }, 30000); 
 
-                loadGtfsData().then(() => {
-                    showLines();
-                }).catch(error => {
-                    console.error('Erreur lors du chargement des données:', error);
+    loadGtfsDataOptimized()
+        .then(result => {
+            clearTimeout(loadingTimeout);
+            
+            if (result.success) {
+                if (result.warnings && result.warnings.length > 0) {
+                    result.warnings.forEach(warning => {
+                        toastBottomRight.warning(warning);
+                    });
+                }
+
+                if (!routes || Object.keys(routes).length === 0) {
+                    throw new Error('Données des lignes manquantes');
+                }
+                if (!stops || Object.keys(stops).length === 0) {
+                    throw new Error('Données des arrêts manquantes');
+                }
+
+                showLines();
+                
+                localStorage.setItem('lastSuccessfulLoad', new Date().toISOString());
+            } else {
+                console.error('Échec du chargement des données:', result.error);
+                showView('error-view');
+                toastBottomRight.error('Erreur lors du chargement des données');
+            }
+        })
+        .catch(error => {
+            clearTimeout(loadingTimeout);
+            console.error('Erreur critique lors du chargement:', error);
+            
+            getFromCache()
+                .then(cachedData => {
+                    if (cachedData) {
+                        toastBottomRight.warning('Utilisation des données en cache suite à une erreur de chargement');
+                        return loadGtfsDataFromCache(cachedData);
+                    } else {
+                        throw new Error('Aucune donnée en cache disponible');
+                    }
+                })
+                .then(success => {
+                    if (success) {
+                        showLines();
+                    } else {
+                        showView('error-view');
+                    }
+                })
+                .catch(cacheError => {
+                    console.error('Échec de la récupération du cache:', cacheError);
                     showView('error-view');
+                    toastBottomRight.error('Impossible de charger les données. Veuillez réessayer plus tard.');
                 });
-        }
+        });
+}
+
+async function loadGtfsDataFromCache(cachedData) {
+    try {
+        const result = await loadGtfsDataOptimized();
+        return result.success;
+    } catch (error) {
+        console.error('Erreur lors du chargement depuis le cache:', error);
+        return false;
+    }
+}
 
 let realtimeData = null;
 let updateInterval = null;
@@ -1624,9 +1685,10 @@ function getRealtimeArrival(tripId, stopId) {
     return new Date(stopUpdate.arrival);
 }
 
-const DB_NAME = 'MyBusFinderPB';
+
+const DB_NAME = 'MyBusFinderZB';
 const DB_VERSION = 3;
-const STORE_NAME = `gtfsStorePB`;
+const STORE_NAME = `gtfsStoreZB`;
 
 function initDB() {
     return new Promise((resolve, reject) => {
@@ -1742,22 +1804,19 @@ async function extractGTFSFiles() {
     }
 }
 
-async function loadGtfsData() {
+async function loadGtfsDataOptimized() {
     try {
         let extractedFiles;
-        
         const isFirstVisit = await isFirstVisitOfDay();
         
         if (isFirstVisit) {
             toastBottomRight.info('Téléchargement des données quotidiennes..');
-            extractedFiles = await extractGTFSFiles();
-            await saveToCache(extractedFiles);
+            extractedFiles = await loadGtfsFilesWithFallback();
         } else {
             extractedFiles = await getFromCache();
             if (!extractedFiles) {
                 toastBottomRight.info('Téléchargement des données quotidiennes..');
-                extractedFiles = await extractGTFSFiles();
-                await saveToCache(extractedFiles);
+                extractedFiles = await loadGtfsFilesWithFallback();
             }
         }
         
@@ -1767,62 +1826,171 @@ async function loadGtfsData() {
         stops = {};
         calendar = {};
         calendarDates = {};
-        
-        let calendarMissing = false;
-        let calendarDatesMissing = false;
+
+        const fileStatus = validateGtfsFiles(extractedFiles);
         
         const loadPromises = [];
         
-        const requiredFiles = ['routes.txt', 'trips.txt', 'stop_times.txt', 'stops.txt'];
-        for (const file of requiredFiles) {
-            if (!extractedFiles[file]) {
-                console.error(`Fichier requis manquant: ${file}`);
-                toastBottomRight.error(`Erreur: fichier ${file} manquant`);
-            }
+        if (fileStatus.routes) loadPromises.push(loadRoutesOptimized(extractedFiles['routes.txt']));
+        if (fileStatus.trips) loadPromises.push(loadTripsOptimized(extractedFiles['trips.txt']));
+        if (fileStatus.stops) loadPromises.push(loadStopsOptimized(extractedFiles['stops.txt']));
+        
+        if (fileStatus.stopTimes) {
+            loadPromises.push(loadStopTimesChunked(extractedFiles['stop_times.txt']));
         }
         
-        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
-        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
-        if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
-        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
-        
-        if (extractedFiles['calendar.txt']) {
-            loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
-        } else {
-            console.log('calendar.txt non trouvé, fonctionnement en mode limité');
-            calendarMissing = true;
+        if (fileStatus.calendar) {
+            loadPromises.push(loadCalendarOptimized(extractedFiles['calendar.txt']));
         }
-        
-        if (extractedFiles['calendar_dates.txt']) {
-            loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
-        } else {
-            console.log('calendar_dates.txt non trouvé, exceptions non disponibles');
-            calendarDatesMissing = true;
+        if (fileStatus.calendarDates) {
+            loadPromises.push(loadCalendarDatesOptimized(extractedFiles['calendar_dates.txt']));
         }
-        
+
         await Promise.all(loadPromises);
         
-        if (calendar && Object.keys(calendar).length === 0) {
-            calendarMissing = true;
+        if (isFirstVisit) {
+            await saveToCache(extractedFiles);
         }
+
+        return {
+            success: true,
+            warnings: fileStatus.warnings
+        };
         
-        if (calendarDates && Object.keys(calendarDates).length === 0) {
-            calendarDatesMissing = true;
-        }
-        
-        if (calendarMissing) {
-            console.warn('Données de calendrier manquantes ou corrompues. Les horaires peuvent être inexacts.');
-        }
-        
-        if (calendarDatesMissing) {
-            console.warn('Données d\'exceptions de calendrier manquantes ou corrompues. Les horaires spéciaux peuvent ne pas être pris en compte.');
-        }
-        
-        console.log('Données GTFS chargées avec succès');
-        return true;
     } catch (error) {
-        console.error('Erreur lors du chargement des données GTFS', error);
-        toastBottomRight.error('Erreur lors du chargement des données');
+        console.error('Erreur lors du chargement des données GTFS:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+function validateGtfsFiles(files) {
+    const status = {
+        routes: false,
+        trips: false,
+        stops: false,
+        stopTimes: false,
+        calendar: false,
+        calendarDates: false,
+        warnings: []
+    };
+
+    if (!files['routes.txt']) {
+        status.warnings.push('Le fichier routes.txt est manquant - fonctionnement impossible');
+    } else {
+        status.routes = true;
+    }
+
+    if (!files['stops.txt']) {
+        status.warnings.push('Le fichier stops.txt est manquant - fonctionnement impossible');
+    } else {
+        status.stops = true;
+    }
+
+    if (!files['trips.txt']) {
+        status.warnings.push('Le fichier trips.txt est manquant - fonctionnement impossible');
+    } else {
+        status.trips = true;
+    }
+
+    if (!files['stop_times.txt']) {
+        status.warnings.push('Le fichier stop_times.txt est manquant - fonctionnement impossible');
+    } else {
+        status.stopTimes = true;
+    }
+
+    if (!files['calendar.txt']) {
+        status.warnings.push('Le fichier calendar.txt est manquant - utilisation du mode dégradé');
+    } else {
+        status.calendar = true;
+    }
+
+    if (!files['calendar_dates.txt']) {
+        status.warnings.push('Le fichier calendar_dates.txt est manquant - exceptions non prises en compte');
+    } else {
+        status.calendarDates = true;
+    }
+
+    return status;
+}
+
+async function loadStopTimesChunked(fileContent, chunkSize = 1000) {
+    return new Promise((resolve, reject) => {
+        try {
+            const lines = fileContent.split('\n');
+            const headers = lines[0].split(',');
+            const tripIdIndex = headers.indexOf('trip_id');
+            const stopIdIndex = headers.indexOf('stop_id');
+            const arrivalTimeIndex = headers.indexOf('arrival_time');
+            
+            const processChunk = async (startIndex) => {
+                const endIndex = Math.min(startIndex + chunkSize, lines.length);
+                
+                for (let i = startIndex; i < endIndex; i++) {
+                    const line = lines[i];
+                    if (!line.trim()) continue;
+                    
+                    const values = line.split(',');
+                    if (values[tripIdIndex]) {
+                        if (!stopTimes[values[tripIdIndex]]) {
+                            stopTimes[values[tripIdIndex]] = [];
+                        }
+                        stopTimes[values[tripIdIndex]].push({
+                            stop_id: values[stopIdIndex],
+                            arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h')
+                        });
+                    }
+                }
+                
+                if (endIndex < lines.length) {
+                    setTimeout(() => processChunk(endIndex), 0);
+                } else {
+                    resolve();
+                }
+            };
+            
+            processChunk(1); 
+            
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+async function loadGtfsFilesWithFallback() {
+    try {
+        const response = await fetch('proxy-cors/proxy_gtfs.php');
+        if (!response.ok) {
+            throw new Error(`Échec du téléchargement: ${response.status}`);
+        }
+        
+        const zipData = await response.arrayBuffer();
+        const zip = await JSZip.loadAsync(zipData);
+        
+        const extractedFiles = {};
+        const filePromises = [];
+        
+        zip.forEach((relativePath, zipEntry) => {
+            if (!zipEntry.dir) {
+                const promise = zipEntry.async("string").then(content => {
+                    extractedFiles[relativePath] = content;
+                });
+                filePromises.push(promise);
+            }
+        });
+        
+        await Promise.all(filePromises);
+        return extractedFiles;
+        
+    } catch (error) {
+        console.error('Erreur lors du chargement des fichiers GTFS:', error);
+        const cachedData = await getFromCache();
+        if (cachedData) {
+            console.log('Utilisation des données en cache suite à une erreur de chargement');
+            return cachedData;
+        }
         throw error;
     }
 }
@@ -2386,9 +2554,11 @@ function showInMap() {
     const container = document.getElementById('lines-container');
     container.innerHTML = '';
     
+    // Vérifier si calendar ou calendar_dates présente des problèmes
     const hasCalendarIssue = !calendar || Object.keys(calendar).length === 0;
     const hasCalendarDatesIssue = !calendarDates || Object.keys(calendarDates).length === 0;
     
+    // Ajouter l'avertissement si nécessaire
     if (hasCalendarIssue || hasCalendarDatesIssue) {
         const warningSection = document.createElement('div');
         warningSection.className = 'warning-section';
