@@ -2112,6 +2112,222 @@ function formatDate(date) {
     return `${year}${month}${day}`;
 }
 
+// Fonction optimisée pour charger les routes
+async function loadRoutesOptimized(fileContent) {
+    if (!fileContent) {
+        throw new Error('Contenu du fichier routes.txt manquant');
+    }
+
+    // Utiliser les Workers si disponibles
+    if (window.Worker) {
+        return new Promise((resolve, reject) => {
+            const worker = new Worker('gtfs-worker.js');
+            worker.postMessage({
+                type: 'routes',
+                data: fileContent
+            });
+
+            worker.onmessage = function(e) {
+                routes = e.data;
+                resolve();
+            };
+
+            worker.onerror = reject;
+        });
+    }
+
+    // Fallback sans Worker
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    const indices = {
+        routeId: headers.indexOf('route_id'),
+        shortName: headers.indexOf('route_short_name'),
+        longName: headers.indexOf('route_long_name'),
+        routeColor: headers.indexOf('route_color'),
+        routeTextColor: headers.indexOf('route_text_color')
+    };
+
+    // Vérification des colonnes requises
+    if (indices.routeId === -1) {
+        throw new Error('Colonne route_id manquante dans routes.txt');
+    }
+
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const values = line.split(',');
+        const routeId = values[indices.routeId];
+        if (routeId) {
+            routes[routeId] = {
+                short_name: indices.shortName !== -1 ? values[indices.shortName] : '',
+                long_name: indices.longName !== -1 ? values[indices.longName].replace(/\"/g, '') : '',
+                route_color: indices.routeColor !== -1 ? `#${values[indices.routeColor]}` : '#FFFFFF',
+                route_text_color: indices.routeTextColor !== -1 ? `#${values[indices.routeTextColor]}` : '#000000'
+            };
+        }
+    }
+}
+
+// Fonction optimisée pour charger les trips
+async function loadTripsOptimized(fileContent) {
+    if (!fileContent) {
+        throw new Error('Contenu du fichier trips.txt manquant');
+    }
+
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    const indices = {
+        tripRouteId: headers.indexOf('route_id'),
+        tripId: headers.indexOf('trip_id'),
+        serviceId: headers.indexOf('service_id')
+    };
+
+    if (indices.tripRouteId === -1 || indices.tripId === -1) {
+        throw new Error('Colonnes requises manquantes dans trips.txt');
+    }
+
+    const processChunk = (startIndex, endIndex) => {
+        for (let i = startIndex; i < endIndex; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            const values = line.split(',');
+            const routeId = values[indices.tripRouteId];
+            const tripId = values[indices.tripId];
+
+            if (routeId && tripId) {
+                if (!trips[routeId]) {
+                    trips[routeId] = [];
+                }
+                trips[routeId].push({
+                    trip_id: tripId,
+                    service_id: indices.serviceId !== -1 ? values[indices.serviceId] : null
+                });
+            }
+        }
+    };
+
+    const chunkSize = 1000;
+    for (let i = 1; i < lines.length; i += chunkSize) {
+        const end = Math.min(i + chunkSize, lines.length);
+        processChunk(i, end);
+        // Permettre au navigateur de respirer entre les chunks
+        await new Promise(resolve => setTimeout(resolve, 0));
+    }
+}
+
+// Fonction optimisée pour charger les stops
+async function loadStopsOptimized(fileContent) {
+    if (!fileContent) {
+        throw new Error('Contenu du fichier stops.txt manquant');
+    }
+
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    const indices = {
+        stopId: headers.indexOf('stop_id'),
+        stopName: headers.indexOf('stop_name')
+    };
+
+    if (indices.stopId === -1 || indices.stopName === -1) {
+        throw new Error('Colonnes requises manquantes dans stops.txt');
+    }
+
+    lines.slice(1).forEach(line => {
+        const values = line.trim().split(',');
+        if (values[indices.stopId]) {
+            stops[values[indices.stopId]] = values[indices.stopName].replace(/\"/g, '');
+        }
+    });
+}
+
+// Fonction optimisée pour charger le calendar
+async function loadCalendarOptimized(fileContent) {
+    if (!fileContent || fileContent.trim() === '') {
+        console.warn('Fichier calendar.txt vide ou manquant');
+        return;
+    }
+
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    const indices = {
+        serviceId: headers.indexOf('service_id'),
+        monday: headers.indexOf('monday'),
+        tuesday: headers.indexOf('tuesday'),
+        wednesday: headers.indexOf('wednesday'),
+        thursday: headers.indexOf('thursday'),
+        friday: headers.indexOf('friday'),
+        saturday: headers.indexOf('saturday'),
+        sunday: headers.indexOf('sunday'),
+        startDate: headers.indexOf('start_date'),
+        endDate: headers.indexOf('end_date')
+    };
+
+    if (indices.serviceId === -1) {
+        throw new Error('Colonne service_id manquante dans calendar.txt');
+    }
+
+    lines.slice(1).forEach(line => {
+        const values = line.trim().split(',');
+        if (!values[indices.serviceId]) return;
+
+        const weekdays = [
+            indices.monday,
+            indices.tuesday,
+            indices.wednesday,
+            indices.thursday,
+            indices.friday
+        ].some(index => index !== -1 && values[index] === '1');
+
+        calendar[values[indices.serviceId]] = {
+            weekdays,
+            saturday: indices.saturday !== -1 ? values[indices.saturday] === '1' : true,
+            sunday: indices.sunday !== -1 ? values[indices.sunday] === '1' : true,
+            start_date: indices.startDate !== -1 ? values[indices.startDate] : '20000101',
+            end_date: indices.endDate !== -1 ? values[indices.endDate] : '21000101'
+        };
+    });
+}
+
+// Fonction optimisée pour charger les calendar_dates
+async function loadCalendarDatesOptimized(fileContent) {
+    if (!fileContent || fileContent.trim() === '') {
+        console.warn('Fichier calendar_dates.txt vide ou manquant');
+        return;
+    }
+
+    const lines = fileContent.split('\n');
+    const headers = lines[0].split(',');
+    const indices = {
+        serviceId: headers.indexOf('service_id'),
+        date: headers.indexOf('date'),
+        exceptionType: headers.indexOf('exception_type')
+    };
+
+    if ([indices.serviceId, indices.date, indices.exceptionType].includes(-1)) {
+        throw new Error('Colonnes requises manquantes dans calendar_dates.txt');
+    }
+
+    lines.slice(1).forEach(line => {
+        const values = line.trim().split(',');
+        if (!values[indices.serviceId] || !values[indices.date]) return;
+
+        const date = values[indices.date];
+        const exceptionType = parseInt(values[indices.exceptionType], 10);
+
+        if (!calendarDates[date]) {
+            calendarDates[date] = { added: [], removed: [] };
+        }
+
+        if (exceptionType === 1) {
+            calendarDates[date].added.push(values[indices.serviceId]);
+        } else if (exceptionType === 2) {
+            calendarDates[date].removed.push(values[indices.serviceId]);
+        }
+    });
+}
+
 async function loadRoutes(fileContent) {
     try {
         if (!fileContent) {
