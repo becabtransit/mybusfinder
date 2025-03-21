@@ -1744,81 +1744,63 @@ async function extractGTFSFiles() {
 
 async function loadGtfsData() {
     try {
-        let extractedFiles;
+        const loadingIndicator = document.getElementById('loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.innerHTML = '<div class="loader">Chargement des données...</div>';
+        }
+
+        const CACHE_VERSION = '1.0';
+        const cacheKey = `gtfs_cache_${CACHE_VERSION}`;
         
+        let extractedFiles;
         const isFirstVisit = await isFirstVisitOfDay();
         
-        if (isFirstVisit) {
-            toastBottomRight.info('Téléchargement des données quotidiennes..');
-            extractedFiles = await extractGTFSFiles();
-            await saveToCache(extractedFiles);
-        } else {
-            extractedFiles = await getFromCache();
-            if (!extractedFiles) {
-                toastBottomRight.info('Téléchargement des données quotidiennes..');
-                extractedFiles = await extractGTFSFiles();
-                await saveToCache(extractedFiles);
+        if (!isFirstVisit) {
+            try {
+                extractedFiles = await getFromCache();
+                if (extractedFiles) {
+                    console.log('Données chargées depuis le cache');
+                }
+            } catch (e) {
+                console.warn('Erreur de lecture du cache:', e);
             }
         }
-        
+
+        if (!extractedFiles) {
+            toastBottomRight.info('Téléchargement des données...');
+            extractedFiles = await extractGTFSFiles();
+            await saveToCache(extractedFiles);
+        }
+
+        const batchSize = 1000;
+        const processDataInBatches = async (data, processor) => {
+            const chunks = [];
+            for (let i = 0; i < data.length; i += batchSize) {
+                const chunk = data.slice(i, i + batchSize);
+                chunks.push(chunk);
+            }
+
+            for (const chunk of chunks) {
+                await new Promise(resolve => setTimeout(resolve, 0)); 
+                await processor(chunk);
+            }
+        };
+
         routes = {};
         trips = {};
         stopTimes = {};
         stops = {};
         calendar = {};
         calendarDates = {};
-        
-        let calendarMissing = false;
-        let calendarDatesMissing = false;
-        
-        const loadPromises = [];
-        
-        const requiredFiles = ['routes.txt', 'trips.txt', 'stop_times.txt', 'stops.txt'];
-        for (const file of requiredFiles) {
-            if (!extractedFiles[file]) {
-                console.error(`Fichier requis manquant: ${file}`);
-                toastBottomRight.error(`Erreur: fichier ${file} manquant`);
-            }
-        }
-        
-        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
-        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
-        if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
-        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
-        
-        if (extractedFiles['calendar.txt']) {
-            loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
-        } else {
-            console.log('calendar.txt non trouvé, fonctionnement en mode limité');
-            calendarMissing = true;
-        }
-        
-        if (extractedFiles['calendar_dates.txt']) {
-            loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
-        } else {
-            console.log('calendar_dates.txt non trouvé, exceptions non disponibles');
-            calendarDatesMissing = true;
-        }
-        
-        await Promise.all(loadPromises);
-        
-        if (calendar && Object.keys(calendar).length === 0) {
-            calendarMissing = true;
-        }
-        
-        if (calendarDates && Object.keys(calendarDates).length === 0) {
-            calendarDatesMissing = true;
-        }
-        
-        if (calendarMissing) {
-            console.warn('Données de calendrier manquantes ou corrompues. Les horaires peuvent être inexacts.');
-        }
-        
-        if (calendarDatesMissing) {
-            console.warn('Données d\'exceptions de calendrier manquantes ou corrompues. Les horaires spéciaux peuvent ne pas être pris en compte.');
-        }
-        
-        console.log('Données GTFS chargées avec succès');
+
+        await Promise.all([
+            processDataInBatches(extractedFiles['routes.txt']?.split('\n') || [], loadRoutes),
+            processDataInBatches(extractedFiles['trips.txt']?.split('\n') || [], loadTrips),
+            processDataInBatches(extractedFiles['stops.txt']?.split('\n') || [], loadStops),
+            processDataInBatches(extractedFiles['calendar.txt']?.split('\n') || [], loadCalendar),
+            processDataInBatches(extractedFiles['calendar_dates.txt']?.split('\n') || [], loadCalendarDates)
+        ]);
+
         return true;
     } catch (error) {
         console.error('Erreur lors du chargement des données GTFS', error);
