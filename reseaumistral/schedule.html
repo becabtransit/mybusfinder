@@ -1198,38 +1198,6 @@ select:focus {
     background-color: #555;
 }
 
-.loading-spinner {
-    text-align: center;
-    padding: 20px;
-}
-
-.progress-bar {
-    width: 100%;
-    height: 4px;
-    background: #f0f0f0;
-    border-radius: 2px;
-    overflow: hidden;
-    margin: 10px 0;
-}
-
-.progress {
-    width: 0;
-    height: 100%;
-    background: #4CAF50;
-    animation: progress 2s ease-in-out infinite;
-}
-
-@keyframes progress {
-    0% { width: 0; }
-    50% { width: 70%; }
-    100% { width: 100%; }
-}
-
-.loading-text {
-    color: #666;
-    font-size: 14px;
-}
-
     </style>
 </head>
 <body>
@@ -1776,74 +1744,86 @@ async function extractGTFSFiles() {
 
 async function loadGtfsData() {
     try {
-        if (window.isLoadingData) {
-            return;
-        }
-        window.isLoadingData = true;
-
-        const currentVersion = localStorage.getItem('gtfs_version');
-        const serverVersion = await fetchGtfsVersion();
-
         let extractedFiles;
         
-        if (currentVersion === serverVersion && !await isFirstVisitOfDay()) {
-            extractedFiles = await getFromCache();
-        }
-
-        if (!extractedFiles) {
-            showLoadingIndicator();
+        const isFirstVisit = await isFirstVisitOfDay();
+        
+        if (isFirstVisit) {
+            toastBottomRight.info('Téléchargement des données quotidiennes..');
             extractedFiles = await extractGTFSFiles();
             await saveToCache(extractedFiles);
-            localStorage.setItem('gtfs_version', serverVersion);
+        } else {
+            extractedFiles = await getFromCache();
+            if (!extractedFiles) {
+                toastBottomRight.info('Téléchargement des données quotidiennes..');
+                extractedFiles = await extractGTFSFiles();
+                await saveToCache(extractedFiles);
+            }
         }
-
-        await processDataInChunks(extractedFiles);
         
-        window.isLoadingData = false;
+        routes = {};
+        trips = {};
+        stopTimes = {};
+        stops = {};
+        calendar = {};
+        calendarDates = {};
+        
+        let calendarMissing = false;
+        let calendarDatesMissing = false;
+        
+        const loadPromises = [];
+        
+        const requiredFiles = ['routes.txt', 'trips.txt', 'stop_times.txt', 'stops.txt'];
+        for (const file of requiredFiles) {
+            if (!extractedFiles[file]) {
+                console.error(`Fichier requis manquant: ${file}`);
+                toastBottomRight.error(`Erreur: fichier ${file} manquant`);
+            }
+        }
+        
+        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
+        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
+        if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
+        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
+        
+        if (extractedFiles['calendar.txt']) {
+            loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
+        } else {
+            console.log('calendar.txt non trouvé, fonctionnement en mode limité');
+            calendarMissing = true;
+        }
+        
+        if (extractedFiles['calendar_dates.txt']) {
+            loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
+        } else {
+            console.log('calendar_dates.txt non trouvé, exceptions non disponibles');
+            calendarDatesMissing = true;
+        }
+        
+        await Promise.all(loadPromises);
+        
+        if (calendar && Object.keys(calendar).length === 0) {
+            calendarMissing = true;
+        }
+        
+        if (calendarDates && Object.keys(calendarDates).length === 0) {
+            calendarDatesMissing = true;
+        }
+        
+        if (calendarMissing) {
+            console.warn('Données de calendrier manquantes ou corrompues. Les horaires peuvent être inexacts.');
+        }
+        
+        if (calendarDatesMissing) {
+            console.warn('Données d\'exceptions de calendrier manquantes ou corrompues. Les horaires spéciaux peuvent ne pas être pris en compte.');
+        }
+        
+        console.log('Données GTFS chargées avec succès');
         return true;
     } catch (error) {
         console.error('Erreur lors du chargement des données GTFS', error);
-        window.isLoadingData = false;
+        toastBottomRight.error('Erreur lors du chargement des données');
         throw error;
-    }
-}
-
-async function processDataInChunks(extractedFiles) {
-    const chunkSize = 1000; // Adapter selon les besoins
-    
-    // Traiter les fichiers un par un
-    for (const [filename, content] of Object.entries(extractedFiles)) {
-        const lines = content.split('\n');
-        const chunks = [];
-        
-        // Découper en chunks
-        for (let i = 0; i < lines.length; i += chunkSize) {
-            chunks.push(lines.slice(i, i + chunkSize));
-        }
-        
-        // Traiter chaque chunk avec un délai
-        for (const chunk of chunks) {
-            await new Promise(resolve => {
-                setTimeout(() => {
-                    processChunk(filename, chunk);
-                    resolve();
-                }, 0);
-            });
-        }
-    }
-}
-
-function showLoadingIndicator() {
-    const indicator = document.getElementById('loading-indicator');
-    if (indicator) {
-        indicator.innerHTML = `
-            <div class="loading-spinner">
-                <div class="progress-bar">
-                    <div class="progress"></div>
-                </div>
-                <div class="loading-text">Chargement des données...</div>
-            </div>
-        `;
     }
 }
 
@@ -2291,87 +2271,6 @@ function updateStopsTimeline() {
 }
 function formatTime(time) {
     return time; 
-}
-
-class GtfsPatternManager {
-    constructor() {
-        this.patterns = new Map();
-        this.tripPatterns = new Map();
-    }
-
-    identifyPatterns(trips, stopTimes) {
-        trips.forEach(trip => {
-            const stopSequence = this.getStopSequence(trip.trip_id, stopTimes);
-            if (!stopSequence) return;
-            
-            const patternKey = this.getPatternKey(stopSequence);
-            
-            if (!this.patterns.has(patternKey)) {
-                this.patterns.set(patternKey, {
-                    stops: stopSequence,
-                    trips: new Set()
-                });
-            }
-            
-            this.patterns.get(patternKey).trips.add(trip.trip_id);
-            this.tripPatterns.set(trip.trip_id, patternKey);
-        });
-    }
-
-    getStopSequence(tripId, stopTimes) {
-        const tripStopTimes = stopTimes[tripId];
-        if (!tripStopTimes) return null;
-        
-        return tripStopTimes.map(st => st.stop_id);
-    }
-
-    getPatternKey(stopSequence) {
-        return stopSequence.join('|');
-    }
-
-    getTripsForPattern(tripId) {
-        const patternKey = this.tripPatterns.get(tripId);
-        if (!patternKey) return new Set();
-        
-        return this.patterns.get(patternKey).trips;
-    }
-
-    getScheduleForPattern(patternKey, stopId, date) {
-        const pattern = this.patterns.get(patternKey);
-        if (!pattern) return [];
-        
-        const schedules = [];
-        pattern.trips.forEach(tripId => {
-            const tripStopTimes = stopTimes[tripId];
-            if (!tripStopTimes) return;
-            
-            const stopTime = tripStopTimes.find(st => st.stop_id === stopId);
-            if (stopTime) {
-                schedules.push({
-                    tripId,
-                    time: stopTime.arrival_time
-                });
-            }
-        });
-        
-        return schedules.sort((a, b) => this.compareTime(a.time, b.time));
-    }
-
-    compareTime(timeA, timeB) {
-        const [hoursA, minutesA] = timeA.split('h').map(Number);
-        const [hoursB, minutesB] = timeB.split('h').map(Number);
-        
-        if (hoursA !== hoursB) return hoursA - hoursB;
-        return minutesA - minutesB;
-    }
-}
-
-const patternManager = new GtfsPatternManager();
-
-function initializePatterns() {
-    Object.entries(trips).forEach(([routeId, routeTrips]) => {
-        patternManager.identifyPatterns(routeTrips, stopTimes);
-    });
 }
 
 function closeStopsTimeline() {
@@ -2964,44 +2863,39 @@ function setupTabHandlers() {
     }
 }
 
-const scheduleCache = new Map();
-
-function getScheduleCacheKey(routeId, stopId, destinationId, date) {
-    return `${routeId}-${stopId}-${destinationId}-${date}`;
-}
-
-async function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
-    const cacheKey = getScheduleCacheKey(routeId, stopId, destinationId, dateString);
+function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
+    const scheduleContainer = document.getElementById('schedule-container');
+    scheduleContainer.innerHTML = '';
     
-    const cachedSchedule = scheduleCache.get(cacheKey);
-    if (cachedSchedule) {
-        displayCachedSchedule(cachedSchedule);
+    const selectedDate = new Date(dateString);
+    const gtfsDate = selectedDate.toISOString().split('T')[0].replace(/-/g, '');
+    const dayOfWeek = selectedDate.getDay();
+    
+    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const formattedDate = selectedDate.toLocaleDateString('fr-FR', dateOptions);
+    
+    const dateHeader = document.createElement('div');
+    dateHeader.className = 'date-header';
+    dateHeader.innerHTML = `<h3>Horaires pour le ${formattedDate}</h3>`;
+    scheduleContainer.appendChild(dateHeader);
+    
+    const activeServiceIds = getActiveServiceIds(dayOfWeek, gtfsDate);
+    
+    if (activeServiceIds.length === 0) {
+        scheduleContainer.innerHTML += `<p>Pas de service disponible pour cette date.</p>`;
         return;
     }
-
-    const scheduleContainer = document.getElementById('schedule-container');
-    scheduleContainer.innerHTML = '<div class="loading">Calcul des horaires...</div>';
-
-    const worker = new Worker('schedule-worker.js');
     
-    worker.postMessage({
-        routeId,
-        stopId,
-        destinationId,
-        dateString,
-        trips: trips[routeId],
-        stopTimes,
-        calendar,
-        calendarDates
-    });
-
-    worker.onmessage = function(e) {
-        const { schedule, formattedDate } = e.data;
-        
-        scheduleCache.set(cacheKey, { schedule, formattedDate });
-        
-        displaySchedule(schedule, formattedDate, scheduleContainer);
-    };
+    const validTrips = trips[routeId].filter(({ trip_id, service_id }) => 
+        activeServiceIds.includes(service_id)
+    );
+    
+    if (validTrips.length === 0) {
+        scheduleContainer.innerHTML += `<p>Pas de bus de cette ligne circulant à cette date.</p>`;
+        return;
+    }
+    
+    displaySchedule(validTrips, stopId, destinationId, scheduleContainer);
 }
 
 function parseTime(timeStr) {
