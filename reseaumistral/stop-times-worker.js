@@ -1,45 +1,61 @@
 // stop-times-worker.js
 self.addEventListener('message', function(e) {
     const fileContent = e.data.fileContent;
-    const result = processStopTimes(fileContent);
-    self.postMessage(result);
-});
-
-function processStopTimes(fileContent) {
+    const batchSize = 5000; // Traitement par lots
+    
     try {
-        if (!fileContent) {
-            return {};
-        }
-        
-        const stopTimes = {};
         const lines = fileContent.split('\n');
-        
         const headers = lines[0].split(',');
         const stopTripIdIndex = headers.indexOf('trip_id');
         const stopIdIndex = headers.indexOf('stop_id');
         const arrivalTimeIndex = headers.indexOf('arrival_time');
         
-        if (stopTripIdIndex === -1 || stopIdIndex === -1 || arrivalTimeIndex === -1) {
-            throw new Error('Format de stop_times.txt invalide: colonnes requises manquantes');
-        }
+        const stopTimes = {};
+        let currentBatch = [];
         
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[stopTripIdIndex]) {
-                if (!stopTimes[values[stopTripIdIndex]]) {
-                    stopTimes[values[stopTripIdIndex]] = [];
-                }
-                stopTimes[values[stopTripIdIndex]].push({
-                    stop_id: values[stopIdIndex],
-                    arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            currentBatch.push(line);
+            
+            if (currentBatch.length >= batchSize || i === lines.length - 1) {
+                // Traitement du lot
+                processBatch(currentBatch, stopTimes, stopTripIdIndex, stopIdIndex, arrivalTimeIndex);
+                currentBatch = [];
+                
+                // Notification de progression
+                self.postMessage({
+                    type: 'progress',
+                    progress: Math.floor((i / lines.length) * 100)
                 });
             }
+        }
+        
+        self.postMessage({
+            type: 'complete',
+            data: stopTimes
         });
         
-        return stopTimes;
     } catch (error) {
-        self.postMessage({ error: error.message });
-        return {};
+        self.postMessage({
+            type: 'error',
+            error: error.message
+        });
     }
+});
+
+function processBatch(batch, stopTimes, stopTripIdIndex, stopIdIndex, arrivalTimeIndex) {
+    batch.forEach(line => {
+        const values = line.split(',');
+        if (values[stopTripIdIndex]) {
+            if (!stopTimes[values[stopTripIdIndex]]) {
+                stopTimes[values[stopTripIdIndex]] = [];
+            }
+            stopTimes[values[stopTripIdIndex]].push({
+                stop_id: values[stopIdIndex],
+                arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
+            });
+        }
+    });
 }
