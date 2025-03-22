@@ -2638,58 +2638,64 @@ async function fetchVehiclePositions() {
                         <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
                 `;
                 if (currentStopIndex !== -1) {
-                    let filteredStops = nextStops.slice(currentStopIndex);
-                    const now = Date.now() / 1000;
-                    
-                    let headerText = "Prochains arrêts";
-                    
-                    if (filteredStops.length === 0) {
-                        headerText = "Chargement en cours";
-                    } 
-                    else {
-                        const firstStopDelay = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : 0;
-                        
-                        const firstStopTimeLeft = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : null;
-                        
-                        if (filteredStops.length === 1 || firstStopDelay > 5) {
-                            if (firstStopTimeLeft !== null && firstStopTimeLeft <= 0) {
-                                headerText = "Départ imminent";
-                            } else {
-                                const timeValue = firstStopTimeLeft !== null ? `${firstStopTimeLeft} min` : '';
-                                headerText = `Départ dans ${timeValue}`;
-                            }
-                        }
-                    }
-                    
-                    nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">${headerText}</p>`;
-                    
-                    filteredStops.forEach(stop => {
-                        const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null;
-                        const timeLeftText = timeLeft !== null 
-                            ? timeLeft <= 0 
-                                ? 'imminente' 
-                                : `dans ${timeLeft} min`
-                            : '';
-                        
-                        nextStopsHTML += `
-                            <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                                <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
-                                <div>
-                                    <div style="z-index: 3; text-align: right;">
-                                        ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
-                                    </div>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
-                                        <path d="M4 11a9 9 0 0 1 9 9"></path>
-                                        <path d="M4 4a16 16 0 0 1 16 16"></path>
-                                        <circle cx="5" cy="19" r="1"></circle>
-                                    </svg>
-                                </div>
-                            </li>
-                        `;
-                    });
-                } else {
-                    nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">Chargement en cours</p>`;
-                }
+    let filteredStops = nextStops.slice(currentStopIndex);
+    const now = Date.now() / 1000;
+    
+    let headerText = "Prochains arrêts";
+    
+    if (filteredStops.length === 0) {
+        headerText = "Chargement en cours";
+    } 
+    else {
+        // Vérifier explicitement si delay existe avant d'essayer d'y accéder
+        const firstStop = filteredStops[0];
+        const firstStopDelay = firstStop && firstStop.delay !== undefined ? Math.round(firstStop.delay / 60) : 0;
+        
+        // Log pour le débogage
+        console.log("Premier arrêt:", firstStop);
+        console.log("Délai du premier arrêt:", firstStop?.delay, "converti en:", firstStopDelay);
+        
+        if (filteredStops.length === 1 || firstStopDelay > 5) {
+            if (firstStopDelay <= 0) {
+                headerText = "Départ imminent";
+            } else {
+                headerText = `Départ dans ${firstStopDelay} min`;
+            }
+        }
+    }
+    
+    nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">${headerText}</p>`;
+    
+    filteredStops.forEach(stop => {
+        // Vérifier explicitement si delay existe
+        const timeLeft = stop && stop.delay !== undefined ? Math.round(stop.delay / 60) : 0;
+        let timeLeftText;
+        
+        if (timeLeft <= 0) {
+            timeLeftText = 'imminente';
+        } else {
+            timeLeftText = `dans ${timeLeft} min`;
+        }
+        
+        nextStopsHTML += `
+            <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
+                <div>
+                    <div style="z-index: 3; text-align: right;">
+                        ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
+                        <path d="M4 11a9 9 0 0 1 9 9"></path>
+                        <path d="M4 4a16 16 0 0 1 16 16"></path>
+                        <circle cx="5" cy="19" r="1"></circle>
+                    </svg>
+                </div>
+            </li>
+        `;
+    });
+} else {
+    nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">Chargement en cours</p>`;
+}
 
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
