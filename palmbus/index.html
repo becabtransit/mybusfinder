@@ -2633,65 +2633,78 @@ async function fetchVehiclePositions() {
 
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
 
-                let nextStopsHTML = '';
-                    let headerText = 'Prochains arrêts';
+                let headerText = 'Prochains arrêts';
+let nextStopsHTML = '';
 
-                    if (nextStops.length === 0) {
-                        headerText = 'Chargement en cours';
-                        nextStopsHTML = `
-                            <div style="position: relative; max-height: 120px; ">
-                                <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
-                                    <li style="list-style: none; padding: 0px; text-align: center;">
-                                        <div>Aucun arrêt disponible</div>
-                                    </li>
-                                </ul>
-                            </div>
-                        `;
-                    } else if (currentStopIndex !== -1) {
-                        let filteredStops = nextStops.slice(currentStopIndex);
-                        
-                        const firstStop = filteredStops[0];
-                        const timeLeft = firstStop.delay ? Math.round(firstStop.delay / 60) : null;
-                        
-                        if (filteredStops.length === 1 || (timeLeft !== null && timeLeft > 5)) {
-                            headerText = `Départ dans: ${firstStop.departureTime}`;
-                        }
+// Vérifiez d'abord si la liste nextStops est vide ou undefined
+if (!nextStops || nextStops.length === 0) {
+    headerText = 'Chargement en cours';
+    nextStopsHTML = `
+        <div style="position: relative; max-height: 120px; ">
+            <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+                <li style="list-style: none; padding: 0px; text-align: center;">
+                    <div>Aucun arrêt disponible</div>
+                </li>
+            </ul>
+        </div>
+    `;
+} else {
+    // Il y a des arrêts, vérifions maintenant les conditions pour "Départ dans"
+    let filteredStops = [];
+    
+    if (currentStopIndex !== -1) {
+        filteredStops = nextStops.slice(currentStopIndex);
+    } else {
+        filteredStops = nextStops;
+    }
+    
+    // Vérifiez s'il y a un seul arrêt ou si le premier départ est supérieur à 5 minutes
+    if (filteredStops.length === 1 || (
+        filteredStops.length > 0 && 
+        filteredStops[0].delay && 
+        Math.round(filteredStops[0].delay / 60) > 5
+    )) {
+        const firstStop = filteredStops[0];
+        if (firstStop && firstStop.departureTime) {
+            headerText = `Départ dans: ${firstStop.departureTime}`;
+        }
+    }
+    
+    nextStopsHTML = `
+        <div style="position: relative; max-height: 120px; ">
+            <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+    `;
 
-                        nextStopsHTML = `
-                            <div style="position: relative; max-height: 120px; ">
-                                <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
-                        `;
+    filteredStops.forEach(stop => {
+        const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
+        const timeLeftText = timeLeft !== null 
+            ? timeLeft <= 0 
+                ? 'imminente' 
+                : `dans ${timeLeft} min`
+            : '';
+        
+        nextStopsHTML += `
+            <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
+                <div>
+                    <div style="z-index: 3; text-align: right;">
+                        ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
+                        <path d="M4 11a9 9 0 0 1 9 9"></path>
+                        <path d="M4 4a16 16 0 0 1 16 16"></path>
+                        <circle cx="5" cy="19" r="1"></circle>
+                    </svg>
+                </div>
+            </li>
+        `;
+    });
 
-                        filteredStops.forEach(stop => {
-                            const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
-                            const timeLeftText = timeLeft !== null 
-                                ? timeLeft <= 0 
-                                    ? 'imminente' 
-                                    : `dans ${timeLeft} min`
-                                : '';
-                            
-                            nextStopsHTML += `
-                                <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                                    <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
-                                    <div>
-                                        <div style="z-index: 3; text-align: right;">
-                                            ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
-                                        </div>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
-                                            <path d="M4 11a9 9 0 0 1 9 9"></path>
-                                            <path d="M4 4a16 16 0 0 1 16 16"></path>
-                                            <circle cx="5" cy="19" r="1"></circle>
-                                        </svg>
-                                    </div>
-                                </li>
-                            `;
-                        });
-
-                        nextStopsHTML += `
-                                </ul>
-                            </div>
-                        `;
-                    }
+    nextStopsHTML += `
+            </ul>
+        </div>
+    `;
+}
 
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
