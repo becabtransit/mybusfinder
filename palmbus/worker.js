@@ -49,12 +49,14 @@ function processStop(stop, now) {
     const arrivalTime = stop.arrival?.time ?? null;
     const departureTime = stop.departure?.time ?? null;
     
+    const timeForDelay = departureTime || arrivalTime;
+    
     return {
         stopId,
         arrivalTime: formatTime(arrivalTime, timestampCache),
         departureTime: formatTime(departureTime, timestampCache),
-        unifiedTime: formatTime(arrivalTime || departureTime, timestampCache),
-        delay: arrivalTime ? Math.floor(arrivalTime - now) : null
+        unifiedTime: formatTime(departureTime || arrivalTime, timestampCache), 
+        delay: timeForDelay ? Math.floor(timeForDelay - now) : null
     };
 }
 
