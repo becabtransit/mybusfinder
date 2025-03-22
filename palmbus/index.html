@@ -3788,71 +3788,72 @@ function getTextColor(backgroundColor) {
         lineSection.appendChild(lineTitle);
         lineSection.appendChild(favoriteButton);
 
-        Object.keys(busesByLineAndDestination[line])
-    .sort()
-    .forEach(destination => {
-        const destinationSection = document.createElement('div');
-        destinationSection.style.marginTop = '5px';
-        destinationSection.style.paddingLeft = '10px';
-
-        const destinationTitle = document.createElement('div');
-        destinationTitle.textContent = `➜ ${destination}`;
-        destinationTitle.style.fontSize = '16px';
-        destinationTitle.style.fontWeight = 'normal';
-        destinationTitle.style.color = textColor;
-        destinationSection.appendChild(destinationTitle);
-
         busesByLineAndDestination[line][destination].forEach(bus => {
-        const busItem = document.createElement('div');
-        const marker = bus.vehicle;
-        const popupContent = marker.getPopup().getContent();
+    const busItem = document.createElement('div');
+    const marker = bus.vehicle;
+    const popupContent = marker.getPopup().getContent();
+    
+    let nextStopInfo = '';
+    let terminusInfo = '';
+    
+    // Create a temporary DOM element to parse the HTML content
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = popupContent;
+    
+    // Find the nextStopsContent div directly
+    const nextStopsContentDiv = tempDiv.querySelector('#nextStopsContent');
+    
+    if (nextStopsContentDiv) {
+        // Get all li elements that contain stop information
+        const stopItems = nextStopsContentDiv.querySelectorAll('li');
         
-        let nextStopInfo = '';
-        let terminusInfo = '';
-        
-        const nextStopsMatch = popupContent.match(/<div id="nextStopsContent"[^>]*>([\s\S]*?)<\/div>/);
-        
-        if (nextStopsMatch && nextStopsMatch[1]) {
-            const allStops = nextStopsMatch[1].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
+        if (stopItems && stopItems.length > 0) {
+            // Extract first stop (next stop) information
+            const firstStop = stopItems[0];
+            const firstStopName = firstStop.querySelector('div:first-child')?.textContent.trim();
+            const firstStopTimeText = firstStop.querySelector('div > div')?.textContent.trim();
             
-            if (allStops && allStops.length > 0) {
-                const firstStopHTML = allStops[0];
-                const firstStopNameMatch = firstStopHTML.match(/<div>(.*?)<\/div>/);
-                const firstStopTimeMatch = firstStopHTML.match(/<div>\s*<div[^>]*>(.*?)<\/div>/);
+            if (firstStopName) {
+                nextStopInfo = `| ${firstStopName}`;
+            }
+            
+            // Extract terminus (last stop) information
+            if (stopItems.length > 1) {
+                const lastStop = stopItems[stopItems.length - 1];
+                const lastStopName = lastStop.querySelector('div:first-child')?.textContent.trim();
+                const lastStopTimeText = lastStop.querySelector('div > div')?.textContent.trim();
                 
-                const firstStopName = firstStopNameMatch ? firstStopNameMatch[1].trim() : '';
-                const firstStopTimeInfo = firstStopTimeMatch ? firstStopTimeMatch[1].trim() : '';
-                
-                if (firstStopName) {
-                    nextStopInfo = `| ${firstStopName}`;
-                }
-                
-                if (allStops.length > 1) {
-                    const lastStopHTML = allStops[allStops.length - 1];
-                    const lastStopNameMatch = lastStopHTML.match(/<div>(.*?)<\/div>/);
-                    const lastStopTimeMatch = lastStopHTML.match(/<div>\s*<div[^>]*>(.*?)<\/div>/);
-                    
-                    const lastStopName = lastStopNameMatch ? lastStopNameMatch[1].trim() : '';
-                    const lastStopTimeInfo = lastStopTimeMatch ? lastStopTimeMatch[1].trim() : '';
-                    
-                    const terminalTimeInfo = lastStopTimeInfo.split('|')[0].trim();
-                    
-                    if (lastStopName && terminalTimeInfo) {
-                        terminusInfo = `Arrivée à ${destination} ${terminalTimeInfo}.`;
+                if (lastStopTimeText) {
+                    // Extract the time info (before the pipe character if it exists)
+                    const timeInfo = lastStopTimeText.split('|')[0].trim();
+                    if (timeInfo) {
+                        terminusInfo = `Arrivée à ${destination} ${timeInfo}.`;
                     }
                 }
             }
         }
-        
-        if (!terminusInfo) {
-            const headerMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
-            if (headerMatch && headerMatch[1]) {
-                const headerText = headerMatch[1].trim();
-                if (headerText.includes('Départ dans') || headerText.includes('Départ imminent')) {
+    }
+    
+    // Fallback: If we couldn't extract data, try getting info from the header
+    if (!terminusInfo || !nextStopInfo) {
+        const headerP = tempDiv.querySelector('p[style*="font-size: 18px"]');
+        if (headerP) {
+            const headerText = headerP.textContent.trim();
+            if (headerText.includes('Départ dans') || headerText.includes('Départ imminent')) {
+                if (!terminusInfo) {
                     terminusInfo = `Arrivée à ${destination} ${headerText.replace('Départ', '').trim()}.`;
                 }
             }
         }
+        
+        if (!nextStopInfo) {
+            const destinationText = tempDiv.querySelector('strong')?.textContent.trim();
+            if (destinationText && destinationText.includes('➜')) {
+                const destName = destinationText.replace('➜', '').trim();
+                nextStopInfo = `| Direction ${destName}`;
+            }
+        }
+    }
         
         const mainText = document.createElement('div');
         mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
