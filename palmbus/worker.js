@@ -1,6 +1,6 @@
 const TIME_FORMAT_OPTIONS = { hour: '2-digit', minute: '2-digit' };
-const UNKNOWN_TIME = "Heure inconnue";
-const UNKNOWN_STOP = "Inconnu";
+const UNKNOWN_TIME = "inconnue";
+const UNKNOWN_STOP = "Arrêt inconnu";
 
 const timestampCache = new Map();
 const stopIdCache = new Map();
