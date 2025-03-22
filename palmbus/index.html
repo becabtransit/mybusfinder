@@ -2631,17 +2631,12 @@ async function fetchVehiclePositions() {
                 
                 const timeAnimationStyle = `
                 <style>
-                    .time-info {
-                        position: relative;
+                    .time-display {
+                        transition: opacity 0.3s ease-out;
                     }
-                    .time-info span {
-                        transition: opacity 0.3s ease-in-out;
-                        position: absolute;
-                        right: 0;
-                    }
-                    .time-remaining, .scheduled-time {
-                        width: 100%;
-                        text-align: right;
+                    
+                    .time-display.fade-out {
+                        opacity: 0;
                     }
                 </style>
                 `;
@@ -2682,13 +2677,14 @@ async function fetchVehiclePositions() {
                                         : `dans ${timeLeft} min`
                                     : '';
                                 
-                                    nextStopsHTML += `
+                                nextStopsHTML += `
                                     <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
                                         <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
-                                        <div class="time-display">
-                                            <div class="time-info" data-vehicle="${id}" data-stop="${stop.stopId}">
-                                                <span class="time-remaining" style="opacity: 1;">${timeLeftText}</span>
-                                                <span class="scheduled-time" style="opacity: 0; position: absolute; top: 0; right: 0;">${stop.departureTime || "Inconnu"}</span>
+                                        <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
+                                            <div class="time-display" 
+                                                data-time-left="${timeLeftText}" 
+                                                data-departure-time="${stop.departureTime || "Inconnu"}">
+                                                ${timeLeftText}
                                             </div>
                                             <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
                                                 <path d="M4 11a9 9 0 0 1 9 9"></path>
@@ -2709,28 +2705,30 @@ async function fetchVehiclePositions() {
 
                     let showRemaining = true;
 
+                    let showTimeLeft = true;
+
                     function toggleTimeDisplay() {
-                        if (showRemaining) {
-                            document.querySelectorAll('.time-remaining').forEach(el => {
-                                el.style.opacity = '0';
-                            });
-                        } else {
-                            document.querySelectorAll('.scheduled-time').forEach(el => {
-                                el.style.opacity = '0';
-                            });
-                        }
+                        const timeDisplays = document.querySelectorAll('.time-display');
+                        
+                        timeDisplays.forEach(display => {
+                            display.classList.add('fade-out');
+                        });
                         
                         setTimeout(() => {
-                            showRemaining = !showRemaining;
+                            showTimeLeft = !showTimeLeft;
                             
-                            document.querySelectorAll('.time-remaining').forEach(el => {
-                                el.style.opacity = showRemaining ? '1' : '0';
+                            timeDisplays.forEach(display => {
+                                const timeLeft = display.getAttribute('data-time-left');
+                                const departureTime = display.getAttribute('data-departure-time');
+                                display.textContent = showTimeLeft ? timeLeft : departureTime;
                             });
                             
-                            document.querySelectorAll('.scheduled-time').forEach(el => {
-                                el.style.opacity = showRemaining ? '0' : '1';
-                            });
-                        }, 350); 
+                            setTimeout(() => {
+                                timeDisplays.forEach(display => {
+                                    display.classList.remove('fade-out');
+                                });
+                            }, 50);
+                        }, 300); 
                     }
 
                     setInterval(toggleTimeDisplay, 4000);
