@@ -2639,28 +2639,18 @@ async function fetchVehiclePositions() {
                         opacity: 0;
                     }
                     
-                    @keyframes arcWave {
-                        0% { transform: translateY(0); opacity: 0.7; }
-                        50% { transform: translateY(-2px); opacity: 1; }
-                        100% { transform: translateY(0); opacity: 0.7; }
-                    }
-                    
-                    @keyframes dotPulse {
-                        0% { transform: scale(1); opacity: 0.7; }
+                    @keyframes radiateWaves {
+                        0% { transform: scale(0.7); opacity: 0.5; }
                         50% { transform: scale(1.2); opacity: 1; }
                         100% { transform: scale(1); opacity: 0.7; }
                     }
                     
-                    .time-indicator.animate .rss-arc-large {
-                        animation: arcWave 0.6s ease-in-out;
+                    .time-indicator .rss-waves {
+                        transform-origin: 5px 19px; 
                     }
                     
-                    .time-indicator.animate .rss-arc-small {
-                        animation: arcWave 0.6s ease-in-out 0.1s;
-                    }
-                    
-                    .time-indicator.animate .rss-dot {
-                        animation: dotPulse 0.6s ease-in-out 0.2s;
+                    .time-indicator.animate .rss-waves {
+                        animation: radiateWaves 0.6s ease-out;
                     }
                 </style>
                 `;
@@ -2711,8 +2701,10 @@ async function fetchVehiclePositions() {
                                                 ${timeLeftText}
                                             </div>
                                             <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss mr-[0.5px] text-green-700 dark:text-green-500">
-                                                <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
-                                                <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                                <g class="rss-waves">
+                                                    <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
+                                                    <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                                </g>
                                                 <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
                                             </svg>
                                         </div>
@@ -2730,41 +2722,47 @@ async function fetchVehiclePositions() {
                     let showRemaining = true;
                     let showTimeLeft = true;
 
-                    function toggleTimeDisplay() {
-                        const timeDisplays = document.querySelectorAll('.time-display');
-                        const indicators = document.querySelectorAll('.time-indicator');
+                let isAnimating = false;
+
+                function toggleTimeDisplay() {
+                    if (isAnimating) return;
+                    isAnimating = true;
+                    
+                    const timeDisplays = document.querySelectorAll('.time-display');
+                    const indicators = document.querySelectorAll('.time-indicator');
+                    
+                    timeDisplays.forEach(display => {
+                        display.classList.add('fade-out');
+                    });
+                    
+                    indicators.forEach(indicator => {
+                        indicator.classList.add('animate');
+                        
+                        setTimeout(() => {
+                            indicator.classList.remove('animate');
+                        }, 600);
+                    });
+                    
+                    setTimeout(() => {
+                        showTimeLeft = !showTimeLeft;
                         
                         timeDisplays.forEach(display => {
-                            display.classList.add('fade-out');
-                        });
-                        
-                        indicators.forEach(indicator => {
-                            indicator.classList.add('animate');
-                            
-                            setTimeout(() => {
-                                indicator.classList.remove('animate');
-                            }, 800); 
+                            const timeLeft = display.getAttribute('data-time-left');
+                            const departureTime = display.getAttribute('data-departure-time');
+                            display.textContent = showTimeLeft ? timeLeft : departureTime;
                         });
                         
                         setTimeout(() => {
-                            showTimeLeft = !showTimeLeft;
-                            
                             timeDisplays.forEach(display => {
-                                const timeLeft = display.getAttribute('data-time-left');
-                                const departureTime = display.getAttribute('data-departure-time');
-                                display.textContent = showTimeLeft ? timeLeft : departureTime;
+                                display.classList.remove('fade-out');
                             });
                             
-                            setTimeout(() => {
-                                timeDisplays.forEach(display => {
-                                    display.classList.remove('fade-out');
-                                });
-                            }, 50);
-                        }, 300); 
-                    }
+                            isAnimating = false;
+                        }, 50);
+                    }, 300);
+                }
 
-                    setInterval(toggleTimeDisplay, 4000);
-                    
+                setInterval(toggleTimeDisplay, 4000);
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
 
                 const arrivalDelay = delayInfo ? delayInfo.arrivalDelay : 0; 
