@@ -2629,72 +2629,95 @@ async function fetchVehiclePositions() {
                 const lastStopNameun = stopNameMap[lastStopId] || 'Destination inconnue';
                 let lastStopName = lastStopNameun.replace("0:", "");
                 
+                const timeAnimationStyle = `
+                <style>
+                    .time-info {
+                        position: relative;
+                    }
+                    .time-info span {
+                        transition: opacity 0.5s ease-in-out;
+                    }
+                    .scheduled-time {
+                        position: absolute;
+                        top: 0;
+                        right: 0;
+                    }
+                </style>
+                `;
+                document.head.insertAdjacentHTML('beforeend', timeAnimationStyle);
+
                 const nextStops = tripUpdates[tripId]?.nextStops || [];
 
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
 
                 let nextStopsHTML = `
-    <div style="position: relative; max-height: 120px; ">
-        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
-`;
+                        <div style="position: relative; max-height: 120px; ">
+                            <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+                    `;
 
-// Variable pour stocker le titre qui sera affiché
-let stopsHeaderText = "Chargement en cours";
+                    let stopsHeaderText = "Chargement en cours";
 
-if (currentStopIndex !== -1) {
-    let filteredStops = nextStops.slice(currentStopIndex);
-    
-    // Si on a des arrêts à afficher
-    if (filteredStops.length > 0) {
-        // Par défaut, le titre est "Prochains arrêts"
-        stopsHeaderText = "Prochains arrêts";
-        
-        // Si on n'a qu'un seul arrêt OU si le premier arrêt a un départ dans plus de 5 minutes
-        if (filteredStops.length === 1 || 
-            (filteredStops[0].delay && Math.round(filteredStops[0].delay / 60) > 5)) {
-            
-            const firstStopTimeLeft = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : null;
-            
-            // Si on a un temps défini et qu'il est positif
-            if (firstStopTimeLeft !== null && firstStopTimeLeft > 0) {
-                stopsHeaderText = `Départ dans ${firstStopTimeLeft} min`;
-            }
-        }
-        
-        // Générer le HTML pour chaque arrêt
-        filteredStops.forEach(stop => {
-            const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
-            const timeLeftText = timeLeft !== null 
-                ? timeLeft <= 0 
-                    ? 'imminente' 
-                    : `dans ${timeLeft} min`
-                : '';
-            
-            nextStopsHTML += `
-                <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                    <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
-                    <div>
-                        <div style="z-index: 3; text-align: right;">
-                            ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
+                    if (currentStopIndex !== -1) {
+                        let filteredStops = nextStops.slice(currentStopIndex);
+                        
+                        if (filteredStops.length > 0) {
+                            stopsHeaderText = "Prochains arrêts";
+                            
+                            if (filteredStops.length === 1 || 
+                                (filteredStops[0].delay && Math.round(filteredStops[0].delay / 60) > 5)) {
+                                
+                                const firstStopTimeLeft = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : null;
+                                
+                                if (firstStopTimeLeft !== null && firstStopTimeLeft > 0) {
+                                    stopsHeaderText = `Départ dans ${firstStopTimeLeft} min`;
+                                }
+                            }
+                            
+                            filteredStops.forEach(stop => {
+                                const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
+                                const timeLeftText = timeLeft !== null 
+                                    ? timeLeft <= 0 
+                                        ? 'imminente' 
+                                        : `dans ${timeLeft} min`
+                                    : '';
+                                
+                                    nextStopsHTML += `
+                                    <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                                        <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
+                                        <div class="time-display">
+                                            <div class="time-info" data-vehicle="${id}" data-stop="${stop.stopId}">
+                                                <span class="time-remaining" style="opacity: 1;">${timeLeftText}</span>
+                                                <span class="scheduled-time" style="opacity: 0; position: absolute; top: 0; right: 0;">${stop.departureTime || "Inconnu"}</span>
+                                            </div>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
+                                                <path d="M4 11a9 9 0 0 1 9 9"></path>
+                                                <path d="M4 4a16 16 0 0 1 16 16"></path>
+                                                <circle cx="5" cy="19" r="1"></circle>
+                                            </svg>
+                                        </div>
+                                    </li>
+                                `;
+                            });
+                        }
+                    }
+
+                    nextStopsHTML += `
+                            </ul>
                         </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
-                            <path d="M4 11a9 9 0 0 1 9 9"></path>
-                            <path d="M4 4a16 16 0 0 1 16 16"></path>
-                            <circle cx="5" cy="19" r="1"></circle>
-                        </svg>
-                    </div>
-                </li>
-            `;
-        });
-    }
-}
+                    `;
 
-// Fermer la liste
-nextStopsHTML += `
-        </ul>
-    </div>
-`;
-
+                let showRemaining = true;
+                setInterval(() => {
+                    showRemaining = !showRemaining;
+                    
+                    document.querySelectorAll('.time-remaining').forEach(el => {
+                        el.style.opacity = showRemaining ? '1' : '0';
+                    });
+                    
+                    document.querySelectorAll('.scheduled-time').forEach(el => {
+                        el.style.opacity = showRemaining ? '0' : '1';
+                    });
+                }, 4000);
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
 
