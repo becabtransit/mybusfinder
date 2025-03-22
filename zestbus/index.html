@@ -2542,7 +2542,7 @@ function getVehicleBrandHtml(parkNumber) {
                      alt="Thumbnail ${model.name}" 
                      class="vehicle-thumbnail"  />
 
-                <span style="margin-top: 10px; font-size: 12px; ">Un ${model.name}</span>
+                <span style="margin-top: 6px; margin-left: 20px; font-size: 12px; ">Un ${model.name}</span>
             </div>
         `;
     }
@@ -2552,7 +2552,7 @@ function getVehicleBrandHtml(parkNumber) {
             <img src="${defaultImagePath}" 
                  alt="Bus par défaut" 
                  class="vehicle-thumbnail"  />
-            <span style="margin-top: 10px; font-size: 12px;">Un bus</span>
+            <span style="margin-top: 6px; margin-left: 20px; font-size: 12px;">Un bus</span>
         </div>
     `;
 }
@@ -2624,69 +2624,205 @@ async function fetchVehiclePositions() {
                 const lastStopNameun = stopNameMap[lastStopId] || 'Destination inconnue';
                 let lastStopName = lastStopNameun.replace("0:", "");
                 
+                const timeAnimationStyle = `
+                <style>
+                    .time-display {
+                        transition: opacity 0.3s ease-out;
+                    }
+                    
+                    .time-display.fade-out {
+                        opacity: 0;
+                    }
+                    
+                    @keyframes radiateWaves {
+                        0% { transform: scale(0.7); opacity: 0.5; }
+                        50% { transform: scale(1.2); opacity: 1; }
+                        100% { transform: scale(1); opacity: 0.7; }
+                    }
+                    
+                    .time-indicator .rss-waves {
+                        transform-origin: 5px 19px; 
+                    }
+                    
+                    .time-indicator.animate .rss-waves {
+                        animation: radiateWaves 0.6s ease-out;
+                    }
+                    
+                    @keyframes scrollText {
+                        0% { transform: translateX(0); }
+                        10% { transform: translateX(0); }
+                        60% { transform: translateX(calc(-100% + 70px)); }
+                        90% { transform: translateX(calc(-100% + 70px)); }
+                        100% { transform: translateX(0); }
+                    }
+                    
+                    .stop-name-container:hover .stop-name-wrapper[style*="animation"] {
+                        animation-play-state: running !important;
+                    }
+                </style>
+                `;
+                document.head.insertAdjacentHTML('beforeend', timeAnimationStyle);
                 const nextStops = tripUpdates[tripId]?.nextStops || [];
 
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
+                const now = Math.floor(Date.now() / 1000);
 
-                let nextStopsHTML = `
-                    <div style="position: relative; max-height: 120px; ">  <!-- Conteneur avec fond au bas -->
-                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
-                `;
+                let filteredStops = [];
 
                 if (currentStopIndex !== -1) {
-                    let filteredStops = nextStops.slice(currentStopIndex);
-                    const now = Date.now() / 1000;
+                    filteredStops = nextStops.slice(currentStopIndex);
                     
-                    let headerText = "Prochains arrêts";
-                    
-                    if (filteredStops.length === 0) {
-                        headerText = "Chargement en cours";
-                    } 
-                    else {
-                        const firstStopDelay = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : 0;
+                    filteredStops = filteredStops.filter(stop => {
+                        if (stop.delay === null) return true;
                         
-                        const firstStopTimeLeft = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : null;
+                        return stop.delay >= -60;
+                    });
+                } else {
+                    filteredStops = nextStops.filter(stop => stop.delay === null || stop.delay > 0);
+                }
+
+                let nextStopsHTML = `
+                        <div style="position: relative; max-height: 120px; ">
+                            <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+                    `;
+
+                    let stopsHeaderText = "Chargement en cours";
+
+                    if (currentStopIndex !== -1) {
+                        let filteredStops = nextStops.slice(currentStopIndex);
                         
-                        if (filteredStops.length === 1 || firstStopDelay > 5) {
-                            if (firstStopTimeLeft !== null && firstStopTimeLeft <= 0) {
-                                headerText = "Départ imminent";
+                        if (filteredStops.length > 0) {
+                        stopsHeaderText = "Prochains arrêts";
+                        
+                        if (filteredStops.length === 1) {
+                            const delay = filteredStops[0].delay || 0;
+                            const minutes = Math.max(0, Math.ceil(delay / 60));
+                                                    
+                            if (minutes === 0) {
+                                stopsHeaderText = "Départ imminent";
                             } else {
-                                const timeValue = firstStopTimeLeft !== null ? `${firstStopTimeLeft} min` : '';
-                                headerText = `Départ dans ${timeValue}`;
-                            }
+                                stopsHeaderText = `Départ dans ${minutes} min`;
+                            }                     
                         }
-                    }
-                    
-                    nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">${headerText}</p>`;
-                    
-                    filteredStops.forEach(stop => {
-                        const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null;
+                        
+                        filteredStops.forEach(stop => {
+                        const timeLeft = stop.delay;
                         const timeLeftText = timeLeft !== null 
                             ? timeLeft <= 0 
                                 ? 'imminente' 
-                                : `dans ${timeLeft} min`
+                                : `${Math.ceil(timeLeft / 60)} min`
                             : '';
                         
+                        const stopName = stopNameMap[stop.stopId] || stop.stopId;
+                        
+                        const tempElement = document.createElement('div');
+                        tempElement.style.font = getComputedStyle(document.body).font; 
+                        tempElement.style.visibility = 'hidden';
+                        tempElement.style.position = 'absolute';
+                        tempElement.style.whiteSpace = 'nowrap';
+                        tempElement.textContent = stopName;
+                        document.body.appendChild(tempElement);
+                        
+                        const maxWidth = document.querySelector('.stop-name-container') ? 
+                            document.querySelector('.stop-name-container').offsetWidth : 150; 
+                        const isTextTooLong = tempElement.offsetWidth > (maxWidth * 0.9); 
+                        
+                        document.body.removeChild(tempElement);
+                        
+                        const animationStyle = isTextTooLong ? 
+                            "animation: scrollText 8s linear infinite; animation-play-state: paused;" : 
+                            "";
+                        
                         nextStopsHTML += `
-                            <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                                <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
-                                <div>
-                                    <div style="z-index: 3; text-align: right;">
-                                        ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
-                                    </div>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
-                                        <path d="M4 11a9 9 0 0 1 9 9"></path>
-                                        <path d="M4 4a16 16 0 0 1 16 16"></path>
-                                        <circle cx="5" cy="19" r="1"></circle>
-                                    </svg>
+                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                            <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
+                                <div class="stop-name-wrapper" style="
+                                    position: relative;
+                                    display: inline-block;
+                                    padding-right: 10px;
+                                    ${animationStyle}
+                                ">
+                                    <div class="stop-name" style="
+                                        position: relative;
+                                        display: inline-block;
+                                    ">${stopName}</div>
                                 </div>
-                            </li>
+                            </div>
+                            <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
+                                <div class="time-display" 
+                                    data-time-left="${timeLeftText}" 
+                                    data-departure-time="${stop.departureTime || stop.arrivalTime || "Inconnu"}">
+                                    ${timeLeftText}
+                                </div>
+                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss mr-[0.5px] text-green-700 dark:text-green-500">
+                                    <g class="rss-waves">
+                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
+                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                    </g>
+                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
+                                </svg>
+                            </div>
+                        </li>
                         `;
                     });
-                } else {
-                    nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">Chargement en cours</p>`;
-                }
 
+                    }
+                    }
+
+                    nextStopsHTML += `
+                            </ul>
+                        </div>
+                    `;
+
+                    let showRemaining = true;
+                    let showTimeLeft = true;
+                    let isAnimating = false;
+
+                    function toggleTimeDisplay() {
+                        if (isAnimating) return;
+                        
+                        isAnimating = true;
+                        
+                        const timeDisplays = document.querySelectorAll('.time-display');
+                        const indicators = document.querySelectorAll('.time-indicator');
+                        
+                        timeDisplays.forEach(display => {
+                            display.classList.add('fade-out');
+                        });
+                        
+                        indicators.forEach(indicator => {
+                            indicator.classList.add('animate');
+                            
+                            setTimeout(() => {
+                                indicator.classList.remove('animate');
+                            }, 600);
+                        });
+                        
+                        setTimeout(() => {
+                            showTimeLeft = !showTimeLeft;
+                            
+                            timeDisplays.forEach(display => {
+                                const timeLeft = display.getAttribute('data-time-left');
+                                const departureTime = display.getAttribute('data-departure-time');
+                                display.textContent = showTimeLeft ? timeLeft : departureTime;
+                            });
+                            
+                            timeDisplays.forEach(display => {
+                                display.classList.remove('fade-out');
+                            });
+                            
+                            setTimeout(() => {
+                                isAnimating = false;
+                            }, 350); 
+                            
+                        }, 350);
+                    }
+
+                    if (window.timeToggleInterval) {
+                        clearInterval(window.timeToggleInterval);
+                    }
+
+                    window.timeToggleInterval = setInterval(toggleTimeDisplay, 4000);
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
 
@@ -2816,6 +2952,7 @@ async function fetchVehiclePositions() {
 
 
                 <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+                <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
                     <ul>
                     <div id="nextStopsContent" class="next-stops-content">
                           ${nextStopsHTML}
@@ -2823,6 +2960,7 @@ async function fetchVehiclePositions() {
                 </div>
                 </div>
                 `;
+
                 if (markers[id]) {
         animateMarker(markers[id], [latitude, longitude]);
         
