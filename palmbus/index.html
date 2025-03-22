@@ -2652,10 +2652,21 @@ async function fetchVehiclePositions() {
                     .time-indicator.animate .rss-waves {
                         animation: radiateWaves 0.6s ease-out;
                     }
+                    
+                    @keyframes scrollText {
+                        0% { transform: translateX(0); }
+                        10% { transform: translateX(0); }
+                        60% { transform: translateX(calc(-100% + 70px)); }
+                        90% { transform: translateX(calc(-100% + 70px)); }
+                        100% { transform: translateX(0); }
+                    }
+                    
+                    .stop-name-container:hover .stop-name-wrapper {
+                        animation-play-state: running;
+                    }
                 </style>
                 `;
                 document.head.insertAdjacentHTML('beforeend', timeAnimationStyle);
-
                 const nextStops = tripUpdates[tripId]?.nextStops || [];
 
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
@@ -2676,9 +2687,9 @@ async function fetchVehiclePositions() {
                 }
 
                 let nextStopsHTML = `
-                    <div style="position: relative; max-height: 120px; ">
-                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
-                `;
+                        <div style="position: relative; max-height: 120px; ">
+                            <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+                    `;
 
                     let stopsHeaderText = "Chargement en cours";
 
@@ -2700,7 +2711,6 @@ async function fetchVehiclePositions() {
                         }
                         
                         filteredStops.forEach(stop => {
-
                             const timeLeft = stop.delay;
                             const timeLeftText = timeLeft !== null 
                                 ? timeLeft <= 0 
@@ -2710,7 +2720,38 @@ async function fetchVehiclePositions() {
                             
                             nextStopsHTML += `
                             <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                                <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
+                                <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
+                                    <div class="stop-name-wrapper" style="
+                                        position: relative;
+                                        display: inline-block;
+                                        padding-right: 10px;
+                                        animation: scrollText 8s linear infinite;
+                                        animation-play-state: running;
+                                    ">
+                                        <div class="stop-name" style="
+                                            position: relative;
+                                            display: inline-block;
+                                        ">${stopNameMap[stop.stopId] || stop.stopId}</div>
+                                    </div>
+                                    <div class="gradient-left" style="
+                                        position: absolute;
+                                        left: 0;
+                                        top: 0;
+                                        width: 20px;
+                                        height: 100%;
+                                        background: linear-gradient(to right, ${backgroundColor}77, transparent);
+                                        z-index: 2;
+                                    "></div>
+                                    <div class="gradient-right" style="
+                                        position: absolute;
+                                        right: 0;
+                                        top: 0;
+                                        width: 20px;
+                                        height: 100%;
+                                        background: linear-gradient(to left, ${backgroundColor}77, transparent);
+                                        z-index: 2;
+                                    "></div>
+                                </div>
                                 <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
                                     <div class="time-display" 
                                         data-time-left="${timeLeftText}" 
