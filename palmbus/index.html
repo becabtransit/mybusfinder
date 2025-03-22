@@ -2637,59 +2637,39 @@ async function fetchVehiclePositions() {
                     <div style="position: relative; max-height: 120px; ">  <!-- Conteneur avec fond au bas -->
                         <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
                 `;
+
                 if (currentStopIndex !== -1) {
-                    let filteredStops = nextStops.slice(currentStopIndex);
-                    const now = Date.now() / 1000;
+                    let filteredStops = nextStops.slice(currentStopIndex);  
+
+                    const now = Date.now() / 1000; 
+
+                filteredStops.forEach(stop => {
+                    const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
+                    const timeLeftText = timeLeft !== null 
+                        ? timeLeft <= 0 
+                            ? 'imminente' 
+                            : `dans ${timeLeft} min`
+                        : '';
                     
-                    let headerText = "Prochains arrêts";
-                    
-                    if (filteredStops.length === 0) {
-                        headerText = "Chargement en cours";
-                    } 
-                    else {
-                        const firstStopDelay = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : 0;
-                        
-                        const firstStopTimeLeft = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : null;
-                        
-                        if (filteredStops.length === 1 || firstStopDelay > 5) {
-                            if (firstStopTimeLeft !== null && firstStopTimeLeft <= 0) {
-                                headerText = "Départ imminent";
-                            } else {
-                                const timeValue = firstStopTimeLeft !== null ? `${firstStopTimeLeft} min` : '';
-                                headerText = `Départ dans ${timeValue}`;
-                            }
-                        }
-                    }
-                    
-                    nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">${headerText}</p>`;
-                    
-                    filteredStops.forEach(stop => {
-                        const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null;
-                        const timeLeftText = timeLeft !== null 
-                            ? timeLeft <= 0 
-                                ? 'imminente' 
-                                : `dans ${timeLeft} min`
-                            : '';
-                        
-                        nextStopsHTML += `
-                            <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                                <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
-                                <div>
-                                    <div style="z-index: 3; text-align: right;">
-                                        ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
-                                    </div>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
-                                        <path d="M4 11a9 9 0 0 1 9 9"></path>
-                                        <path d="M4 4a16 16 0 0 1 16 16"></path>
-                                        <circle cx="5" cy="19" r="1"></circle>
-                                    </svg>
+                    nextStopsHTML += `
+                    <p style="margin: 0; font-size: 18px; text-align: right;">Prochains arrêts</p>
+                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                            <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
+                            <div>
+                                <div style="z-index: 3; text-align: right;">
+                                    ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
                                 </div>
-                            </li>
-                        `;
-                    });
-                } else {
-                    nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">Chargement en cours</p>`;
-                }
+                                <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
+                                    <path d="M4 11a9 9 0 0 1 9 9"></path>
+                                    <path d="M4 4a16 16 0 0 1 16 16"></path>
+                                    <circle cx="5" cy="19" r="1"></circle>
+                                </svg>
+                            </div>
+                        </li>
+                    `;
+                });
+                } 
+
 
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
@@ -3788,122 +3768,107 @@ function getTextColor(backgroundColor) {
         lineSection.appendChild(lineTitle);
         lineSection.appendChild(favoriteButton);
 
-        busesByLineAndDestination[line][destination].forEach(bus => {
-    const busItem = document.createElement('div');
-    const marker = bus.vehicle;
-    const popupContent = marker.getPopup().getContent();
-    
-    let nextStopInfo = '';
-    let terminusInfo = '';
-    
-    // Create a temporary DOM element to parse the HTML content
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = popupContent;
-    
-    // Find the nextStopsContent div directly
-    const nextStopsContentDiv = tempDiv.querySelector('#nextStopsContent');
-    
-    if (nextStopsContentDiv) {
-        // Get all li elements that contain stop information
-        const stopItems = nextStopsContentDiv.querySelectorAll('li');
-        
-        if (stopItems && stopItems.length > 0) {
-            // Extract first stop (next stop) information
-            const firstStop = stopItems[0];
-            const firstStopName = firstStop.querySelector('div:first-child')?.textContent.trim();
-            const firstStopTimeText = firstStop.querySelector('div > div')?.textContent.trim();
-            
-            if (firstStopName) {
-                nextStopInfo = `| ${firstStopName}`;
-            }
-            
-            // Extract terminus (last stop) information
-            if (stopItems.length > 1) {
-                const lastStop = stopItems[stopItems.length - 1];
-                const lastStopName = lastStop.querySelector('div:first-child')?.textContent.trim();
-                const lastStopTimeText = lastStop.querySelector('div > div')?.textContent.trim();
-                
-                if (lastStopTimeText) {
-                    // Extract the time info (before the pipe character if it exists)
-                    const timeInfo = lastStopTimeText.split('|')[0].trim();
-                    if (timeInfo) {
-                        terminusInfo = `Arrivée à ${destination} ${timeInfo}.`;
-                    }
-                }
-            }
-        }
-    }
-    
-    // Fallback: If we couldn't extract data, try getting info from the header
-    if (!terminusInfo || !nextStopInfo) {
-        const headerP = tempDiv.querySelector('p[style*="font-size: 18px"]');
-        if (headerP) {
-            const headerText = headerP.textContent.trim();
-            if (headerText.includes('Départ dans') || headerText.includes('Départ imminent')) {
-                if (!terminusInfo) {
-                    terminusInfo = `Arrivée à ${destination} ${headerText.replace('Départ', '').trim()}.`;
-                }
-            }
-        }
-        
-        if (!nextStopInfo) {
-            const destinationText = tempDiv.querySelector('strong')?.textContent.trim();
-            if (destinationText && destinationText.includes('➜')) {
-                const destName = destinationText.replace('➜', '').trim();
-                nextStopInfo = `| Direction ${destName}`;
-            }
-        }
-    }
-        
-        const mainText = document.createElement('div');
-        mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
-        mainText.style.fontSize = '1.2em';  
-        mainText.style.fontWeight = '500';  
-        mainText.style.color = textColor;
-        
-        const arrivalText = document.createElement('div');
-        arrivalText.textContent = terminusInfo;
-        arrivalText.style.fontSize = '0.9em'; 
-        arrivalText.style.opacity = '0.8';  
-        arrivalText.style.textAlign = 'right';
-        arrivalText.style.color = textColor;
+        Object.keys(busesByLineAndDestination[line])
+    .sort()
+    .forEach(destination => {
+        const destinationSection = document.createElement('div');
+        destinationSection.style.marginTop = '5px';
+        destinationSection.style.paddingLeft = '10px';
 
-        busItem.textContent = '';
-        busItem.appendChild(mainText);
-        busItem.appendChild(arrivalText);
-        
-        busItem.style.cursor = 'pointer';
-        busItem.classList.add('menu-item');
-        busItem.style.fontFamily = 'League Spartan';
-        busItem.style.color = textColor;
-        busItem.style.padding = '5px 10px';
-        busItem.style.marginBottom = '5px';
-        busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
-        busItem.style.border = '1px solid rgba(0, 0, 0, 0.2)'; 
-        busItem.style.borderRadius = '8px';
-        busItem.style.overflow = 'hidden';
-        busItem.style.maxWidth = '300px';
-        
-        lineSection.onclick = () => {
-            const lineId = line;
-            selectedLine = lineId;
-            filterByLine(lineId);
-            menu.classList.add('hidden');
-            menu.addEventListener('transitionend', function onTransitionEnd(event) {
-                if (event.target === menu) { 
-                    menu.style.display = 'none';
-                }
-            });
-            isMenuVisible = false;
-            const filtre = document.getElementById('filtre');
-            menubottom1.style.display = 'flex';
-            setTimeout(() => {
-                menubottom1.classList.remove('slide-upb');
-                menubottom1.classList.add('slide-downb');
-                filtre.classList.remove('slide-upc');
-                filtre.classList.add('slide-downc');
-            }, 10);
-        };
+        const destinationTitle = document.createElement('div');
+        destinationTitle.textContent = `➜ ${destination}`;
+        destinationTitle.style.fontSize = '16px';
+        destinationTitle.style.fontWeight = 'normal';
+        destinationTitle.style.color = textColor;
+        destinationSection.appendChild(destinationTitle);
+
+        busesByLineAndDestination[line][destination].forEach(bus => {
+            const busItem = document.createElement('div');
+                    const marker = bus.vehicle;
+                    const popupContent = marker.getPopup().getContent();
+                    
+                    let nextStopInfo = '';
+                    let terminusInfo = '';
+                    
+                    const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
+                    
+                    if (nextStopsDiv && nextStopsDiv[0]) {
+                        const allStops = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
+                        
+                        if (allStops && allStops.length > 0) {
+                            const firstStop = allStops[0]
+                                .replace(/<[^>]*>/g, '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/\s*\|.*$/, '')
+                                .trim();
+                                
+                            const lastStop = allStops[allStops.length - 1]
+                                .replace(/<[^>]*>/g, '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/\s*\|.*$/, '')
+                                .trim();
+                            
+                            const [stopName, timeInfo] = firstStop.split(/(?=dans|imminent)/);
+                            const [terminusName, terminusTime] = lastStop.split(/(?=dans|imminent)/);
+                            
+                            if (stopName && timeInfo) {
+                                nextStopInfo = `| ${stopName.trim()}`;
+                            }
+                            
+                            if (terminusName && terminusTime) {
+                                terminusInfo = `Arrivée à ${destination} ${terminusTime.trim()}.`;
+                            }
+                        }
+                    }
+
+                    const mainText = document.createElement('div');
+                    mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
+                    mainText.style.fontSize = '1.2em';  
+                    mainText.style.fontWeight = '500';  
+                    mainText.style.color = textColor;
+                    
+                    const arrivalText = document.createElement('div');
+                    arrivalText.textContent = terminusInfo;
+                    arrivalText.style.fontSize = '0.9em'; 
+                    arrivalText.style.opacity = '0.8';  
+                    arrivalText.style.textAlign = 'right';
+                    arrivalText.style.color = textColor;
+
+                    busItem.textContent = '';
+                    busItem.appendChild(mainText);
+                    busItem.appendChild(arrivalText);
+                    
+                    busItem.style.cursor = 'pointer';
+                    busItem.classList.add('menu-item');
+                    busItem.style.fontFamily = 'League Spartan';
+                    busItem.style.color = textColor;
+                    busItem.style.padding = '5px 10px';
+                    busItem.style.marginBottom = '5px';
+                    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+                    busItem.style.border = '1px solid rgba(0, 0, 0, 0.2)'; 
+                    busItem.style.borderRadius = '8px';
+                    busItem.style.overflow = 'hidden';
+                    busItem.style.maxWidth = '300px';
+                    lineSection.onclick = () => {
+                        const lineId = line;
+                        selectedLine = lineId;
+                        filterByLine(lineId);
+                        menu.classList.add('hidden');
+                        menu.addEventListener('transitionend', function onTransitionEnd(event) {
+                            if (event.target === menu) { 
+                                menu.style.display = 'none';
+                            }
+                        });
+                        isMenuVisible = false;
+                        const filtre = document.getElementById('filtre');
+                        menubottom1.style.display = 'flex';
+                        setTimeout(() => {
+                            menubottom1.classList.remove('slide-upb');
+                            menubottom1.classList.add('slide-downb');
+                            filtre.classList.remove('slide-upc');
+                            filtre.classList.add('slide-downc');
+                        }, 10);
+                    };
 
                     busItem.onclick = (event) => {
                         map.setView(bus.vehicle.getLatLng(), 15);
