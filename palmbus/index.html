@@ -2643,33 +2643,36 @@ async function fetchVehiclePositions() {
 
                     const now = Date.now() / 1000; 
 
-                filteredStops.forEach(stop => {
-                    const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
-                    const timeLeftText = timeLeft !== null 
-                        ? timeLeft <= 0 
-                            ? 'imminente' 
-                            : `dans ${timeLeft} min`
-                        : '';
-                    
-                    nextStopsHTML += `
-                    <p style="margin: 0; font-size: 18px; text-align: right;">Prochains arrêts</p>
-                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                            <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
-                            <div>
-                                <div style="z-index: 3; text-align: right;">
-                                    ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
-                                </div>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
-                                    <path d="M4 11a9 9 0 0 1 9 9"></path>
-                                    <path d="M4 4a16 16 0 0 1 16 16"></path>
-                                    <circle cx="5" cy="19" r="1"></circle>
-                                </svg>
-                            </div>
-                        </li>
-                    `;
-                });
+filteredStops.forEach(stop => {
+    const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
+    const timeLeftText = timeLeft !== null 
+        ? timeLeft <= 0 
+            ? 'imminente' 
+            : `dans ${timeLeft} min`
+        : '';
+    
+    nextStopsHTML += `
+        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+            <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
+            <div>
+                <div style="z-index: 3; text-align: right;">
+                    ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
+                    <path d="M4 11a9 9 0 0 1 9 9"></path>
+                    <path d="M4 4a16 16 0 0 1 16 16"></path>
+                    <circle cx="5" cy="19" r="1"></circle>
+                </svg>
+            </div>
+        </li>
+    `;
+});
                 } 
 
+                nextStopsHTML += `
+                        </ul>
+                    </div>
+                `;
 
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
@@ -2800,6 +2803,7 @@ async function fetchVehiclePositions() {
 
 
                 <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+                    <p style="margin: 0; font-size: 18px; text-align: right;">Prochains arrêts</p>
                     <ul>
                     <div id="nextStopsContent" class="next-stops-content">
                           ${nextStopsHTML}
