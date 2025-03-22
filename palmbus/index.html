@@ -2637,7 +2637,6 @@ async function fetchVehiclePositions() {
                     <div style="position: relative; max-height: 120px; ">  <!-- Conteneur avec fond au bas -->
                         <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
                 `;
-
                 if (currentStopIndex !== -1) {
                     let filteredStops = nextStops.slice(currentStopIndex);
                     const now = Date.now() / 1000;
@@ -2650,8 +2649,15 @@ async function fetchVehiclePositions() {
                     else {
                         const firstStopDelay = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : 0;
                         
+                        const firstStopTimeLeft = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : null;
+                        
                         if (filteredStops.length === 1 || firstStopDelay > 5) {
-                            headerText = "Départ dans";
+                            if (firstStopTimeLeft !== null && firstStopTimeLeft <= 0) {
+                                headerText = "Départ imminent";
+                            } else {
+                                const timeValue = firstStopTimeLeft !== null ? `${firstStopTimeLeft} min` : '';
+                                headerText = `Départ dans ${timeValue}`;
+                            }
                         }
                     }
                     
