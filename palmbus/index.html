@@ -2721,48 +2721,54 @@ async function fetchVehiclePositions() {
 
                     let showRemaining = true;
                     let showTimeLeft = true;
+                    let isAnimating = false;
 
-                let isAnimating = false;
-
-                function toggleTimeDisplay() {
-                    if (isAnimating) return;
-                    isAnimating = true;
-                    
-                    const timeDisplays = document.querySelectorAll('.time-display');
-                    const indicators = document.querySelectorAll('.time-indicator');
-                    
-                    timeDisplays.forEach(display => {
-                        display.classList.add('fade-out');
-                    });
-                    
-                    indicators.forEach(indicator => {
-                        indicator.classList.add('animate');
+                    function toggleTimeDisplay() {
+                        if (isAnimating) return;
                         
-                        setTimeout(() => {
-                            indicator.classList.remove('animate');
-                        }, 600);
-                    });
-                    
-                    setTimeout(() => {
-                        showTimeLeft = !showTimeLeft;
+                        isAnimating = true;
+                        
+                        const timeDisplays = document.querySelectorAll('.time-display');
+                        const indicators = document.querySelectorAll('.time-indicator');
                         
                         timeDisplays.forEach(display => {
-                            const timeLeft = display.getAttribute('data-time-left');
-                            const departureTime = display.getAttribute('data-departure-time');
-                            display.textContent = showTimeLeft ? timeLeft : departureTime;
+                            display.classList.add('fade-out');
+                        });
+                        
+                        indicators.forEach(indicator => {
+                            indicator.classList.add('animate');
+                            
+                            setTimeout(() => {
+                                indicator.classList.remove('animate');
+                            }, 600);
                         });
                         
                         setTimeout(() => {
+                            showTimeLeft = !showTimeLeft;
+                            
+                            timeDisplays.forEach(display => {
+                                const timeLeft = display.getAttribute('data-time-left');
+                                const departureTime = display.getAttribute('data-departure-time');
+                                display.textContent = showTimeLeft ? timeLeft : departureTime;
+                            });
+                            
                             timeDisplays.forEach(display => {
                                 display.classList.remove('fade-out');
                             });
                             
-                            isAnimating = false;
-                        }, 50);
-                    }, 300);
-                }
+                            setTimeout(() => {
+                                isAnimating = false;
+                            }, 350); 
+                            
+                        }, 350);
+                    }
 
-                setInterval(toggleTimeDisplay, 4000);
+                    if (window.timeToggleInterval) {
+                        clearInterval(window.timeToggleInterval);
+                    }
+
+                    window.timeToggleInterval = setInterval(toggleTimeDisplay, 4000);
+
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
 
                 const arrivalDelay = delayInfo ? delayInfo.arrivalDelay : 0; 
