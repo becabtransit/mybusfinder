@@ -2685,10 +2685,10 @@ async function fetchVehiclePositions() {
                         }
                             
                             filteredStops.forEach(stop => {
-                                const timeLeft = stop.delay !== null ? Math.max(0, Math.floor(stop.delay / 60)) : null;
+                                const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
                                 const timeLeftText = timeLeft !== null 
-                                    ? timeLeft === 0 
-                                        ? 'imminent' 
+                                    ? timeLeft <= 0 
+                                        ? 'imminente' 
                                         : `dans ${timeLeft} min`
                                     : '';
                                 
@@ -2710,7 +2710,7 @@ async function fetchVehiclePositions() {
                                             </svg>
                                         </div>
                                     </li>
-                                    `;
+                                `;
                             });
                         }
                     }
@@ -2801,39 +2801,27 @@ async function fetchVehiclePositions() {
                 }
 
                 let remainingTimeMessage = 'terminus arrivée.';
-                if (nextStops.length > 0) {
-                    const lastStop = nextStops[nextStops.length - 1];
-                    
-                    if (lastStop && lastStop.delay) {
-                        const minutesRemaining = Math.max(0, Math.floor(lastStop.delay / 60));
-                        const secondsRemaining = Math.floor(lastStop.delay % 60);
-                        
-                        if (minutesRemaining > 0 || secondsRemaining > 0) {
-                            remainingTimeMessage = ` ${minutesRemaining} minutes et ${secondsRemaining} secondes.`;
-                        } else {
-                            remainingTimeMessage = ' arrivée imminente.';
-                        }
-                    } else if (lastStop.departureTime && lastStop.departureTime !== "Inconnu") {
-                        const [hours, minutes] = lastStop.departureTime.split(':').map(num => parseInt(num, 10));
-                        
-                        if (!isNaN(hours) && !isNaN(minutes)) {
-                            const now = new Date();
-                            const scheduledArrivalDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
-                            
-                            if (scheduledArrivalDate < now) {
-                                scheduledArrivalDate.setDate(scheduledArrivalDate.getDate() + 1);
-                            }
-                            
-                            const timeRemaining = Math.max(scheduledArrivalDate - now, 0);
-                            const minutesRemaining = Math.floor(timeRemaining / 60000);
-                            const secondsRemaining = Math.floor((timeRemaining % 60000) / 1000);
-                            
-                            remainingTimeMessage = ` ${minutesRemaining} minutes et ${secondsRemaining} secondes.`;
-                        } else {
-                            remainingTimeMessage = ' délai inconnu';
-                        }
+                if (nextStops.length > 1) {
+                    const penultimateStop = nextStops[nextStops.length - 2]; // avant der arrêt
+                    const scheduledArrivalPenultimate = penultimateStop.departureTime;
+
+                    if (scheduledArrivalPenultimate && scheduledArrivalPenultimate.includes(":")) {
+                        const [hours, minutes] = scheduledArrivalPenultimate.split(':').map(num => parseInt(num, 10));
+
+                        const now = new Date();
+                        const scheduledArrivalDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
+
+                        const currentTime = new Date();
+                        const timeRemaining = Math.max(scheduledArrivalDate - currentTime, 0);
+                        const minutesRemaining = Math.floor(timeRemaining / 60000);
+                        const secondsRemaining = Math.floor((timeRemaining % 60000) / 1000);
+
+                        remainingTimeMessage = ` ${minutesRemaining} minutes.`;
+                    } else {
+                        remainingTimeMessage = ' délai inconnu';
                     }
-                }                
+                }
+                
                 const popupContent = `
                     <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; line-height: 1.4; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}77; overflow: hidden; background-color: ${backgroundColor}77; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
                         
