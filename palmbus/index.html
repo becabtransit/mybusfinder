@@ -2635,12 +2635,13 @@ async function fetchVehiclePositions() {
                         position: relative;
                     }
                     .time-info span {
-                        transition: opacity 0.5s ease-in-out;
-                    }
-                    .scheduled-time {
+                        transition: opacity 0.3s ease-in-out;
                         position: absolute;
-                        top: 0;
                         right: 0;
+                    }
+                    .time-remaining, .scheduled-time {
+                        width: 100%;
+                        text-align: right;
                     }
                 </style>
                 `;
@@ -2706,18 +2707,33 @@ async function fetchVehiclePositions() {
                         </div>
                     `;
 
-                let showRemaining = true;
-                setInterval(() => {
-                    showRemaining = !showRemaining;
-                    
-                    document.querySelectorAll('.time-remaining').forEach(el => {
-                        el.style.opacity = showRemaining ? '1' : '0';
-                    });
-                    
-                    document.querySelectorAll('.scheduled-time').forEach(el => {
-                        el.style.opacity = showRemaining ? '0' : '1';
-                    });
-                }, 4000);
+                    let showRemaining = true;
+
+                    function toggleTimeDisplay() {
+                        if (showRemaining) {
+                            document.querySelectorAll('.time-remaining').forEach(el => {
+                                el.style.opacity = '0';
+                            });
+                        } else {
+                            document.querySelectorAll('.scheduled-time').forEach(el => {
+                                el.style.opacity = '0';
+                            });
+                        }
+                        
+                        setTimeout(() => {
+                            showRemaining = !showRemaining;
+                            
+                            document.querySelectorAll('.time-remaining').forEach(el => {
+                                el.style.opacity = showRemaining ? '1' : '0';
+                            });
+                            
+                            document.querySelectorAll('.scheduled-time').forEach(el => {
+                                el.style.opacity = showRemaining ? '0' : '1';
+                            });
+                        }, 350); 
+                    }
+
+                    setInterval(toggleTimeDisplay, 4000);
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
 
