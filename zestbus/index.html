@@ -2645,8 +2645,15 @@ async function fetchVehiclePositions() {
                     else {
                         const firstStopDelay = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : 0;
                         
+                        const firstStopTimeLeft = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : null;
+                        
                         if (filteredStops.length === 1 || firstStopDelay > 5) {
-                            headerText = "Départ dans";
+                            if (firstStopTimeLeft !== null && firstStopTimeLeft <= 0) {
+                                headerText = "Départ imminent";
+                            } else {
+                                const timeValue = firstStopTimeLeft !== null ? `${firstStopTimeLeft} min` : '';
+                                headerText = `Départ dans ${timeValue}`;
+                            }
                         }
                     }
                     
@@ -2679,7 +2686,6 @@ async function fetchVehiclePositions() {
                 } else {
                     nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">Chargement en cours</p>`;
                 }
-
 
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
