@@ -2672,16 +2672,19 @@ async function fetchVehiclePositions() {
                         
                         if (filteredStops.length > 0) {
                             stopsHeaderText = "Prochains arrêts";
+
+                            console.log("Nombre d'arrêts filtrés:", filteredStops.length);
+                            console.log("Premier arrêt:", filteredStops[0]);
+                            console.log("Délai du premier arrêt:", filteredStops[0].delay);
                             
                             if (filteredStops.length === 1) {
-                            const firstStopTimeLeft = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : null;
-                            
-                            if (firstStopTimeLeft !== null && firstStopTimeLeft >= 0) {
-                                if (firstStopTimeLeft <= 0) {
-                                    stopsHeaderText = "Départ imminent";
-                                } else {
-                                    stopsHeaderText = `Départ dans ${firstStopTimeLeft} min`;
-                                }
+                                const delay = filteredStops[0].delay || 0;
+                                const minutes = Math.max(0, Math.round(delay / 60));
+                                                            
+                            if (minutes === 0) {
+                                stopsHeaderText = "Départ imminent";
+                            } else {
+                                stopsHeaderText = `Départ dans ${minutes} min`;
                             }
                         } else if (filteredStops[0].delay && Math.round(filteredStops[0].delay / 60) > 5) {
                             const firstStopTimeLeft = Math.round(filteredStops[0].delay / 60);
