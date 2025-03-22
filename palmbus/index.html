@@ -2659,11 +2659,26 @@ async function fetchVehiclePositions() {
                 const nextStops = tripUpdates[tripId]?.nextStops || [];
 
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
+                const now = Math.floor(Date.now() / 1000);
+
+                let filteredStops = [];
+
+                if (currentStopIndex !== -1) {
+                    filteredStops = nextStops.slice(currentStopIndex);
+                    
+                    filteredStops = filteredStops.filter(stop => {
+                        if (stop.delay === null) return true;
+                        
+                        return stop.delay >= -60;
+                    });
+                } else {
+                    filteredStops = nextStops.filter(stop => stop.delay === null || stop.delay > 0);
+                }
 
                 let nextStopsHTML = `
-                        <div style="position: relative; max-height: 120px; ">
-                            <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
-                    `;
+                    <div style="position: relative; max-height: 120px; ">
+                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+                `;
 
                     let stopsHeaderText = "Chargement en cours";
 
@@ -2671,20 +2686,21 @@ async function fetchVehiclePositions() {
                         let filteredStops = nextStops.slice(currentStopIndex);
                         
                         if (filteredStops.length > 0) {
-                            stopsHeaderText = "Prochains arrêts";
-                            
-                            if (filteredStops.length === 1) {
-                                const delay = filteredStops[0].delay || 0;
-                                const minutes = Math.max(0, Math.ceil(delay / 60));
-                                                            
+                        stopsHeaderText = "Prochains arrêts";
+                        
+                        if (filteredStops.length === 1) {
+                            const delay = filteredStops[0].delay || 0;
+                            const minutes = Math.max(0, Math.ceil(delay / 60));
+                                                    
                             if (minutes === 0) {
                                 stopsHeaderText = "Départ imminent";
                             } else {
                                 stopsHeaderText = `Départ dans ${minutes} min`;
                             }                     
                         }
-                            
-                        nextStops.forEach(stop => {
+                        
+                        filteredStops.forEach(stop => {
+
                             const timeLeft = stop.delay;
                             const timeLeftText = timeLeft !== null 
                                 ? timeLeft <= 0 
