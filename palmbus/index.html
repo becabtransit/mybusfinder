@@ -2633,80 +2633,65 @@ async function fetchVehiclePositions() {
 
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
 
-                let nextStopsHTML = `
-                    <div style="position: relative; max-height: 120px; ">  <!-- Conteneur avec fond au bas -->
-                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
-                `;
+                let nextStopsHTML = '';
+                    let headerText = 'Prochains arrêts';
 
-                if (currentStopIndex !== -1) {
-                    let filteredStops = nextStops.slice(currentStopIndex);  
+                    if (nextStops.length === 0) {
+                        headerText = 'Chargement en cours';
+                        nextStopsHTML = `
+                            <div style="position: relative; max-height: 120px; ">
+                                <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+                                    <li style="list-style: none; padding: 0px; text-align: center;">
+                                        <div>Aucun arrêt disponible</div>
+                                    </li>
+                                </ul>
+                            </div>
+                        `;
+                    } else if (currentStopIndex !== -1) {
+                        let filteredStops = nextStops.slice(currentStopIndex);
+                        
+                        const firstStop = filteredStops[0];
+                        const timeLeft = firstStop.delay ? Math.round(firstStop.delay / 60) : null;
+                        
+                        if (filteredStops.length === 1 || (timeLeft !== null && timeLeft > 5)) {
+                            headerText = `Départ dans: ${firstStop.departureTime}`;
+                        }
 
-                    const now = Date.now() / 1000; 
+                        nextStopsHTML = `
+                            <div style="position: relative; max-height: 120px; ">
+                                <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+                        `;
 
-// Fonction pour déterminer le texte d'en-tête
-function getHeaderText(filteredStops) {
-    // Cas 1: Aucun arrêt
-    if (filteredStops.length === 0) {
-        return "Chargement en cours";
-    }
-    
-    // Cas 2: Un seul arrêt ou premier arrêt avec départ > 5 minutes
-    const firstStop = filteredStops[0];
-    
-    // Vérifier si le temps de départ est > 5 minutes
-    const timeLeftInMinutes = firstStop.delay ? Math.round(firstStop.delay / 60) : null;
-    if (filteredStops.length === 1 || (timeLeftInMinutes !== null && timeLeftInMinutes > 5)) {
-        return `Départ dans : ${firstStop.departureTime}`;
-    }
-    
-    // Cas par défaut
-    return "Prochains arrêts";
-}
+                        filteredStops.forEach(stop => {
+                            const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
+                            const timeLeftText = timeLeft !== null 
+                                ? timeLeft <= 0 
+                                    ? 'imminente' 
+                                    : `dans ${timeLeft} min`
+                                : '';
+                            
+                            nextStopsHTML += `
+                                <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                                    <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
+                                    <div>
+                                        <div style="z-index: 3; text-align: right;">
+                                            ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
+                                        </div>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
+                                            <path d="M4 11a9 9 0 0 1 9 9"></path>
+                                            <path d="M4 4a16 16 0 0 1 16 16"></path>
+                                            <circle cx="5" cy="19" r="1"></circle>
+                                        </svg>
+                                    </div>
+                                </li>
+                            `;
+                        });
 
-// Le reste du code avec les modifications
-let nextStopsHTML = '';
-
-// Si nous avons des arrêts, on les traite
-if (filteredStops.length > 0) {
-    // Ajouter l'en-tête une seule fois, avant de commencer la liste
-    const headerText = getHeaderText(filteredStops);
-    nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">${headerText}</p>`;
-    
-    // Traiter chaque arrêt
-    filteredStops.forEach(stop => {
-        const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
-        const timeLeftText = timeLeft !== null 
-            ? timeLeft <= 0 
-                ? 'imminente' 
-                : `dans ${timeLeft} min`
-            : '';
-        
-        nextStopsHTML += `
-            <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
-                <div>
-                    <div style="z-index: 3; text-align: right;">
-                        ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
-                    </div>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
-                        <path d="M4 11a9 9 0 0 1 9 9"></path>
-                        <path d="M4 4a16 16 0 0 1 16 16"></path>
-                        <circle cx="5" cy="19" r="1"></circle>
-                    </svg>
-                </div>
-            </li>
-        `;
-    });
-} else {
-    // Aucun arrêt, afficher seulement "Chargement en cours"
-    nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">Chargement en cours</p>`;
-}
-                } 
-
-                nextStopsHTML += `
-                        </ul>
-                    </div>
-                `;
+                        nextStopsHTML += `
+                                </ul>
+                            </div>
+                        `;
+                    }
 
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
@@ -2837,6 +2822,7 @@ if (filteredStops.length > 0) {
 
 
                 <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+                <p style="margin: 0; font-size: 18px; text-align: right;">${headerText}</p>
                     <ul>
                     <div id="nextStopsContent" class="next-stops-content">
                           ${nextStopsHTML}
