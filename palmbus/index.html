@@ -2293,6 +2293,46 @@ function filterByLine(lineId) {
   }
   
   updateLinesDisplay();
+  
+  if (selectedLines.length === 1) {
+    zoomToSelectedLine(selectedLines[0]);
+  } else if (selectedLines.length > 1) {
+    zoomToMultipleLines(selectedLines);
+  }
+}
+
+function zoomToSelectedLine(lineId) {
+  const bounds = L.latLngBounds();
+  
+  geoJsonLines.forEach(layer => {
+    if (layer.feature.properties.route_id === lineId) {
+      bounds.extend(layer.getBounds());
+    }
+  });
+  
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, {
+      padding: [50, 50], 
+      maxZoom: 15        
+    });
+  }
+}
+
+function zoomToMultipleLines(lineIds) {
+  const bounds = L.latLngBounds();
+  
+  geoJsonLines.forEach(layer => {
+    if (lineIds.includes(layer.feature.properties.route_id)) {
+      bounds.extend(layer.getBounds());
+    }
+  });
+  
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, {
+      padding: [50, 50], 
+      maxZoom: 15       
+    });
+  }
 }
 
 function updateLinesDisplay() {
