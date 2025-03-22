@@ -3803,92 +3803,106 @@ function getTextColor(backgroundColor) {
         destinationSection.appendChild(destinationTitle);
 
         busesByLineAndDestination[line][destination].forEach(bus => {
-            const busItem = document.createElement('div');
-                    const marker = bus.vehicle;
-                    const popupContent = marker.getPopup().getContent();
+        const busItem = document.createElement('div');
+        const marker = bus.vehicle;
+        const popupContent = marker.getPopup().getContent();
+        
+        let nextStopInfo = '';
+        let terminusInfo = '';
+        
+        const nextStopsMatch = popupContent.match(/<div id="nextStopsContent"[^>]*>([\s\S]*?)<\/div>/);
+        
+        if (nextStopsMatch && nextStopsMatch[1]) {
+            const allStops = nextStopsMatch[1].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
+            
+            if (allStops && allStops.length > 0) {
+                const firstStopHTML = allStops[0];
+                const firstStopNameMatch = firstStopHTML.match(/<div>(.*?)<\/div>/);
+                const firstStopTimeMatch = firstStopHTML.match(/<div>\s*<div[^>]*>(.*?)<\/div>/);
+                
+                const firstStopName = firstStopNameMatch ? firstStopNameMatch[1].trim() : '';
+                const firstStopTimeInfo = firstStopTimeMatch ? firstStopTimeMatch[1].trim() : '';
+                
+                if (firstStopName) {
+                    nextStopInfo = `| ${firstStopName}`;
+                }
+                
+                if (allStops.length > 1) {
+                    const lastStopHTML = allStops[allStops.length - 1];
+                    const lastStopNameMatch = lastStopHTML.match(/<div>(.*?)<\/div>/);
+                    const lastStopTimeMatch = lastStopHTML.match(/<div>\s*<div[^>]*>(.*?)<\/div>/);
                     
-                    let nextStopInfo = '';
-                    let terminusInfo = '';
+                    const lastStopName = lastStopNameMatch ? lastStopNameMatch[1].trim() : '';
+                    const lastStopTimeInfo = lastStopTimeMatch ? lastStopTimeMatch[1].trim() : '';
                     
-                    const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
+                    const terminalTimeInfo = lastStopTimeInfo.split('|')[0].trim();
                     
-                    if (nextStopsDiv && nextStopsDiv[0]) {
-                        const allStops = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
-                        
-                        if (allStops && allStops.length > 0) {
-                            const firstStop = allStops[0]
-                                .replace(/<[^>]*>/g, '')
-                                .replace(/\s+/g, ' ')
-                                .replace(/\s*\|.*$/, '')
-                                .trim();
-                                
-                            const lastStop = allStops[allStops.length - 1]
-                                .replace(/<[^>]*>/g, '')
-                                .replace(/\s+/g, ' ')
-                                .replace(/\s*\|.*$/, '')
-                                .trim();
-                            
-                            const [stopName, timeInfo] = firstStop.split(/(?=dans|imminent)/);
-                            const [terminusName, terminusTime] = lastStop.split(/(?=dans|imminent)/);
-                            
-                            if (stopName && timeInfo) {
-                                nextStopInfo = `| ${stopName.trim()}`;
-                            }
-                            
-                            if (terminusName && terminusTime) {
-                                terminusInfo = `Arrivée à ${destination} ${terminusTime.trim()}.`;
-                            }
-                        }
+                    if (lastStopName && terminalTimeInfo) {
+                        terminusInfo = `Arrivée à ${destination} ${terminalTimeInfo}.`;
                     }
+                }
+            }
+        }
+        
+        if (!terminusInfo) {
+            const headerMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
+            if (headerMatch && headerMatch[1]) {
+                const headerText = headerMatch[1].trim();
+                if (headerText.includes('Départ dans') || headerText.includes('Départ imminent')) {
+                    terminusInfo = `Arrivée à ${destination} ${headerText.replace('Départ', '').trim()}.`;
+                }
+            }
+        }
+        
+        const mainText = document.createElement('div');
+        mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
+        mainText.style.fontSize = '1.2em';  
+        mainText.style.fontWeight = '500';  
+        mainText.style.color = textColor;
+        
+        const arrivalText = document.createElement('div');
+        arrivalText.textContent = terminusInfo;
+        arrivalText.style.fontSize = '0.9em'; 
+        arrivalText.style.opacity = '0.8';  
+        arrivalText.style.textAlign = 'right';
+        arrivalText.style.color = textColor;
 
-                    const mainText = document.createElement('div');
-                    mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
-                    mainText.style.fontSize = '1.2em';  
-                    mainText.style.fontWeight = '500';  
-                    mainText.style.color = textColor;
-                    
-                    const arrivalText = document.createElement('div');
-                    arrivalText.textContent = terminusInfo;
-                    arrivalText.style.fontSize = '0.9em'; 
-                    arrivalText.style.opacity = '0.8';  
-                    arrivalText.style.textAlign = 'right';
-                    arrivalText.style.color = textColor;
-
-                    busItem.textContent = '';
-                    busItem.appendChild(mainText);
-                    busItem.appendChild(arrivalText);
-                    
-                    busItem.style.cursor = 'pointer';
-                    busItem.classList.add('menu-item');
-                    busItem.style.fontFamily = 'League Spartan';
-                    busItem.style.color = textColor;
-                    busItem.style.padding = '5px 10px';
-                    busItem.style.marginBottom = '5px';
-                    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
-                    busItem.style.border = '1px solid rgba(0, 0, 0, 0.2)'; 
-                    busItem.style.borderRadius = '8px';
-                    busItem.style.overflow = 'hidden';
-                    busItem.style.maxWidth = '300px';
-                    lineSection.onclick = () => {
-                        const lineId = line;
-                        selectedLine = lineId;
-                        filterByLine(lineId);
-                        menu.classList.add('hidden');
-                        menu.addEventListener('transitionend', function onTransitionEnd(event) {
-                            if (event.target === menu) { 
-                                menu.style.display = 'none';
-                            }
-                        });
-                        isMenuVisible = false;
-                        const filtre = document.getElementById('filtre');
-                        menubottom1.style.display = 'flex';
-                        setTimeout(() => {
-                            menubottom1.classList.remove('slide-upb');
-                            menubottom1.classList.add('slide-downb');
-                            filtre.classList.remove('slide-upc');
-                            filtre.classList.add('slide-downc');
-                        }, 10);
-                    };
+        busItem.textContent = '';
+        busItem.appendChild(mainText);
+        busItem.appendChild(arrivalText);
+        
+        busItem.style.cursor = 'pointer';
+        busItem.classList.add('menu-item');
+        busItem.style.fontFamily = 'League Spartan';
+        busItem.style.color = textColor;
+        busItem.style.padding = '5px 10px';
+        busItem.style.marginBottom = '5px';
+        busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+        busItem.style.border = '1px solid rgba(0, 0, 0, 0.2)'; 
+        busItem.style.borderRadius = '8px';
+        busItem.style.overflow = 'hidden';
+        busItem.style.maxWidth = '300px';
+        
+        lineSection.onclick = () => {
+            const lineId = line;
+            selectedLine = lineId;
+            filterByLine(lineId);
+            menu.classList.add('hidden');
+            menu.addEventListener('transitionend', function onTransitionEnd(event) {
+                if (event.target === menu) { 
+                    menu.style.display = 'none';
+                }
+            });
+            isMenuVisible = false;
+            const filtre = document.getElementById('filtre');
+            menubottom1.style.display = 'flex';
+            setTimeout(() => {
+                menubottom1.classList.remove('slide-upb');
+                menubottom1.classList.add('slide-downb');
+                filtre.classList.remove('slide-upc');
+                filtre.classList.add('slide-downc');
+            }, 10);
+        };
 
                     busItem.onclick = (event) => {
                         map.setView(bus.vehicle.getLatLng(), 15);
