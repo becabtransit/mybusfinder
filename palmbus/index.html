@@ -2673,15 +2673,20 @@ async function fetchVehiclePositions() {
                         if (filteredStops.length > 0) {
                             stopsHeaderText = "Prochains arrêts";
                             
-                            if (filteredStops.length === 1 || 
-                                (filteredStops[0].delay && Math.round(filteredStops[0].delay / 60) > 5)) {
-                                
-                                const firstStopTimeLeft = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : null;
-                                
-                                if (firstStopTimeLeft !== null && firstStopTimeLeft > 0) {
+                            if (filteredStops.length === 1) {
+                            const firstStopTimeLeft = filteredStops[0].delay ? Math.round(filteredStops[0].delay / 60) : null;
+                            
+                            if (firstStopTimeLeft !== null && firstStopTimeLeft >= 0) {
+                                if (firstStopTimeLeft <= 0) {
+                                    stopsHeaderText = "Départ imminent";
+                                } else {
                                     stopsHeaderText = `Départ dans ${firstStopTimeLeft} min`;
                                 }
                             }
+                        } else if (filteredStops[0].delay && Math.round(filteredStops[0].delay / 60) > 5) {
+                            const firstStopTimeLeft = Math.round(filteredStops[0].delay / 60);
+                            stopsHeaderText = `Départ dans ${firstStopTimeLeft} min`;
+                        }
                             
                             filteredStops.forEach(stop => {
                                 const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
