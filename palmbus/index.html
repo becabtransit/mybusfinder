@@ -2637,44 +2637,33 @@ async function fetchVehiclePositions() {
                     <div style="position: relative; max-height: 120px; ">  <!-- Conteneur avec fond au bas -->
                         <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
                 `;
+
 if (currentStopIndex !== -1) {
     let filteredStops = nextStops.slice(currentStopIndex);
     const now = Date.now() / 1000;
     
+    // Titre par défaut
     let headerText = "Prochains arrêts";
     
+    // Vérifier s'il n'y a aucun arrêt
     if (filteredStops.length === 0) {
         headerText = "Chargement en cours";
     } 
-    else {
-        // Vérifier explicitement si delay existe avant d'essayer d'y accéder
-        const firstStop = filteredStops[0];
-        const firstStopDelay = firstStop && firstStop.delay ? Math.round(firstStop.delay / 60) : 0;        
-        // Log pour le débogage
-        console.log("Premier arrêt:", firstStop);
-        console.log("Délai du premier arrêt:", firstStop?.delay, "converti en:", firstStopDelay);
-        
-        if (filteredStops.length === 1 || firstStopDelay > 5) {
-            if (firstStopDelay <= 0) {
-                headerText = "Départ imminent";
-            } else {
-                headerText = `Départ dans ${firstStopDelay} min`;
-            }
-        }
+    // Vérifier s'il y a un seul arrêt ou si le premier arrêt est dans plus de 5 minutes
+    else if (filteredStops.length === 1 || calculateTimeInMinutes(filteredStops[0].departureTime) > 5) {
+        headerText = "Départ dans :";
     }
     
+    // Ajouter l'en-tête une seule fois avant la liste
     nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">${headerText}</p>`;
     
     filteredStops.forEach(stop => {
-        // Vérifier explicitement si delay existe
-        const timeLeft = stop && stop.delay ? Math.round(stop.delay / 60) : 0;
-        let timeLeftText;
-        
-        if (timeLeft <= 0) {
-            timeLeftText = 'imminente';
-        } else {
-            timeLeftText = `dans ${timeLeft} min`;
-        }
+        const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null;
+        const timeLeftText = timeLeft !== null 
+            ? timeLeft <= 0 
+                ? 'imminente' 
+                : `dans ${timeLeft} min`
+            : '';
         
         nextStopsHTML += `
             <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
@@ -2693,8 +2682,31 @@ if (currentStopIndex !== -1) {
         `;
     });
 } else {
+    // Si currentStopIndex est -1, aucun arrêt n'est trouvé
     nextStopsHTML += `<p style="margin: 0; font-size: 18px; text-align: right;">Chargement en cours</p>`;
 }
+
+// Fonction auxiliaire pour calculer le temps en minutes à partir du format HH:MM
+function calculateTimeInMinutes(timeString) {
+    if (!timeString) return 0;
+    
+    const now = new Date();
+    const [hours, minutes] = timeString.split(':').map(Number);
+    
+    const departureTime = new Date();
+    departureTime.setHours(hours);
+    departureTime.setMinutes(minutes);
+    departureTime.setSeconds(0);
+    
+    // Si l'heure de départ est dans le passé, on suppose que c'est pour le lendemain
+    if (departureTime < now) {
+        departureTime.setDate(departureTime.getDate() + 1);
+    }
+    
+    // Différence en minutes
+    return Math.floor((departureTime - now) / (1000 * 60));
+}
+
 
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
