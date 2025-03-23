@@ -1228,6 +1228,23 @@ shape.bounce-down {
   }
 }
 
+.bus-stop-marker {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: white;
+    border: 1px solid black;
+}
+
+.line-popup, .stop-popup {
+    padding: 5px;
+}
+
+.line-popup h4, .stop-popup h4 {
+    margin: 0 0 5px 0;
+    font-weight: bold;
+}
+
 
     </style>
 
@@ -2265,18 +2282,68 @@ async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
 
-    L.geoJSON(geoJsonData, {
+    const busLines = L.geoJSON(geoJsonData, {
         filter: function(feature) {
             return feature.geometry.type === 'LineString';
         },
         style: function(feature) {
             return {
-                color: lineColors[feature.properties.route_id] || '#000000',
-                weight: 2
+                color: lineColors[feature.properties.route_id] || '#3388ff',
+                weight: 4,
+                opacity: 0.8,
+                lineJoin: 'round',
+                lineCap: 'round',
+                dashArray: feature.properties.route_type === '3' ? '5, 5' : null 
             };
         },
         onEachFeature: function(feature, layer) {
-            geoJsonLines.push(layer); 
+            if (feature.properties) {
+                let popupContent = `<div class="line-popup">
+                    <h4>Ligne ${feature.properties.route_short_name || feature.properties.route_id}</h4>
+                    <p>${feature.properties.route_long_name || ''}</p>
+                </div>`;
+                layer.bindPopup(popupContent);
+                
+                layer.on({
+                    mouseover: function(e) {
+                        this.setStyle({ weight: 6, opacity: 1.0 });
+                        this.bringToFront();
+                    },
+                    mouseout: function(e) {
+                        busLines.resetStyle(this);
+                    },
+                    click: function(e) {
+                        map.fitBounds(this.getBounds());
+                    }
+                });
+            }
+            
+            geoJsonLines.push(layer);
+        }
+    }).addTo(map);
+
+    L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry && feature.geometry.type === 'Point';
+        },
+        pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 5,
+                fillColor: '#ffffff',
+                color: '#000000',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.9
+            });
+        },
+        onEachFeature: function(feature, layer) {
+            if (feature.properties) {
+                let stopInfo = `<div class="stop-popup">
+                    <h4>${feature.properties.stop_name || 'Arrêt de bus'}</h4>
+                    <p>ID: ${feature.properties.stop_id || ''}</p>
+                </div>`;
+                layer.bindPopup(stopInfo);
+            }
         }
     }).addTo(map);
 }
