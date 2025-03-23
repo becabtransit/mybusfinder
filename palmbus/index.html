@@ -3994,20 +3994,30 @@ function getTextColor(backgroundColor) {
                         const allStops = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
                         
                         if (allStops && allStops.length > 0) {
-                            const firstStopText = allStops[0].replace(/<[^>]*>/g, '').trim();
-                            const nextStopName = firstStopText.split(/dans|imminente/)[0].trim();
+                            const firstStopText = allStops[0].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+                            
+                            let nextStopName = firstStopText;
+                            if (firstStopText.includes("dans")) {
+                                nextStopName = firstStopText.split("dans")[0].trim();
+                            } else if (firstStopText.includes("imminente")) {
+                                nextStopName = firstStopText.split("imminente")[0].trim();
+                            }
+                            
                             nextStopInfo = `| ${nextStopName}`;
                             
                             if (allStops.length > 1) {
-                                const lastStopText = allStops[allStops.length - 1].replace(/<[^>]*>/g, '').trim();
+                                const lastStopText = allStops[allStops.length - 1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
                                 
-                                let timeInfo = '';
-                                if (lastStopText.includes('dans')) {
-                                    timeInfo = 'dans ' + lastStopText.split('dans')[1].trim();
+                                if (lastStopText.includes("dans")) {
+                                    const timeInfo = "dans " + lastStopText.split("dans")[1].trim();
                                     terminusInfo = `Arrivée à ${destination} ${timeInfo}`;
-                                } else if (lastStopText.includes('imminente')) {
+                                } else if (lastStopText.includes("imminente")) {
                                     terminusInfo = `Arrivée à ${destination} imminente`;
-                                } 
+                                } else {
+                                    terminusInfo = `Arrivée à ${destination} (horaire inconnu)`;
+                                }
+                            } else {
+                                terminusInfo = `Arrivée à ${destination} (horaire inconnu)`;
                             }
                         }
                     }
