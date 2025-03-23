@@ -134,12 +134,6 @@ visibility: hidden;
     opacity: 0;
 }
 
-#menubtm {
-    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out, background-color 0.5s ease;
-}
-
-
-
 
 @keyframes fadeInPopupSvc {
     from {
@@ -1360,88 +1354,64 @@ getSetvar();
 
 function toggleMenuView() {
     const menuElement = document.querySelector('.menubottom-ul');
-    if (!menuElement) return false;
     
-    const currentState = localStorage.getItem('menuExtended') === 'true' || 
-                         (menuElement.style.borderRadius === '0px' || 
-                          menuElement.getBoundingClientRect().width >= window.innerWidth * 0.95);
-    
-    const newState = !currentState;
-    
-    localStorage.setItem('menuExtended', newState.toString());
-    
-    menuElement.style.transition = 'all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
-    
-    if (newState) {
-        menuElement.style.borderRadius = '0px';
-        menuElement.style.bottom = '0px';
-        menuElement.style.width = '100%';
-        menuElement.style.justifyContent = 'center';
-        
-        const menuItems = menuElement.querySelectorAll('li');
-        menuItems.forEach(item => {
-            item.style.transition = 'margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
-            item.style.margin = '0 5px';
-        });
-    } else {
-        menuElement.style.borderRadius = '18px';
-        menuElement.style.bottom = '10px';
-        menuElement.style.width = 'auto';
-        menuElement.style.justifyContent = 'flex-start';
-        
-        const menuItems = menuElement.querySelectorAll('li');
-        menuItems.forEach(item => {
-            item.style.transition = 'margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
-            item.style.margin = '0px 5px 5px 0px';
-        });
+    if (!menuElement) {
+        console.error("Élément menu non trouvé");
+        return;
     }
     
-    return newState;
+    const currentState = localStorage.getItem('menuViewState') || 'default';
+    const newState = currentState === 'default' ? 'secondary' : 'default';
+    
+    menuElement.style.transition = "width 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
+                                  "border-radius 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
+                                  "bottom 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
+                                  "transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
+                                  "opacity 0.3s ease-out, " +
+                                  "filter 0.3s ease-out, " +
+                                  "background-color 0.5s ease";
+    
+    if (newState === 'secondary') {
+        menuElement.style.width = '100%';
+        menuElement.style.borderRadius = '0px';
+        menuElement.style.bottom = '0px';
+        
+        const menuItems = menuElement.querySelectorAll('li');
+        menuItems.forEach(item => {
+            item.style.transition = "margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)";
+            item.style.margin = '0 5px';
+        });
+        
+        menuElement.style.justifyContent = 'center';
+    } else {
+        menuElement.style.width = 'auto';
+        menuElement.style.borderRadius = '18px';
+        menuElement.style.bottom = '10px';
+        
+        const menuItems = menuElement.querySelectorAll('li');
+        menuItems.forEach(item => {
+            item.style.transition = "margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)";
+            item.style.margin = '0px 5px 5px 0px';
+        });
+        
+        menuElement.style.justifyContent = 'flex-start';
+    }
+    
+    localStorage.setItem('menuViewState', newState);
+    
+    return newState; 
 }
 
 
-function initMenuView() {
-    const isExtended = localStorage.getItem('menuExtended') === 'true';
+function applyMenuViewState() {
+    const savedState = localStorage.getItem('menuViewState');
     
-    const menuElement = document.querySelector('.menubottom-ul');
-    if (!menuElement) return;
-    
-    menuElement.style.transition = 'none';
-    
-    if (isExtended) {
-        menuElement.style.borderRadius = '0px';
-        menuElement.style.bottom = '0px';
-        menuElement.style.width = '100%';
-        menuElement.style.justifyContent = 'center';
-        
-        const menuItems = menuElement.querySelectorAll('li');
-        menuItems.forEach(item => {
-            item.style.transition = 'none';
-            item.style.margin = '0 5px';
-        });
-    } else {
-        menuElement.style.borderRadius = '18px';
-        menuElement.style.bottom = '10px';
-        menuElement.style.width = 'auto';
-        menuElement.style.justifyContent = 'flex-start';
-        
-        const menuItems = menuElement.querySelectorAll('li');
-        menuItems.forEach(item => {
-            item.style.transition = 'none';
-            item.style.margin = '0px 5px 5px 0px';
-        });
+    if (savedState && savedState === 'secondary') {
+        toggleMenuView();
     }
-    
-    setTimeout(() => {
-        menuElement.style.transition = 'all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
-        const menuItems = menuElement.querySelectorAll('li');
-        menuItems.forEach(item => {
-            item.style.transition = 'margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
-        });
-    }, 100);
 }
 
-document.addEventListener('DOMContentLoaded', initMenuView);
+document.addEventListener('DOMContentLoaded', applyMenuViewState);
 
 function setupLongPress(selector, duration, callback) {
     const element = document.querySelector(selector);
