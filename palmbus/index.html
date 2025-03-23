@@ -2364,127 +2364,99 @@ function addAnimationStyles() {
 let selectedLines = [];
 
 function filterByLine(lineId) {
-    const lineIndex = selectedLines.indexOf(lineId);
-    
-    if (lineIndex !== -1) {
-        selectedLines.splice(lineIndex, 1);
-    } else {
-        selectedLines.push(lineId);
-    }
-    
-    updateLinesDisplay();
-    
-    if (selectedLines.length === 1) {
-        zoomToSelectedLine(selectedLines[0]);
-    } else if (selectedLines.length > 1) {
-        zoomToMultipleLines(selectedLines);
-    }
-}
+  const lineIndex = selectedLines.indexOf(lineId);
 
-function updateLinesDisplay() {
-    geoJsonLines.forEach(layer => {
-        const routeId = layer.feature.properties.route_id;
-        
-        if (selectedLines.length === 0 || selectedLines.includes(routeId)) {
-            if (!map.hasLayer(layer)) {
-                map.addLayer(layer);
-            }
-        } else {
-            if (map.hasLayer(layer)) {
-                map.removeLayer(layer);
-            }
-        }
-    });
-    
-    busStopLayers.forEach(layer => {
-        if (layer.busLine) {
-            if (selectedLines.length === 0 || selectedLines.includes(layer.busLine)) {
-                if (!map.hasLayer(layer)) {
-                    map.addLayer(layer);
-                }
-            } else {
-                if (map.hasLayer(layer)) {
-                    map.removeLayer(layer);
-                }
-            }
-        } else {
-            if (selectedLines.length === 0) {
-                if (!map.hasLayer(layer)) {
-                    map.addLayer(layer);
-                }
-            } else {
-                if (map.hasLayer(layer)) {
-                    map.removeLayer(layer);
-                }
-            }
-        }
-    });
-    
-    Object.entries(markers).forEach(([id, marker]) => {
-        if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
-            if (!map.hasLayer(marker)) {
-                map.addLayer(marker);
-            }
-        } else {
-            if (map.hasLayer(marker)) {
-                if (marker.isPopupOpen()) {
-                    marker.closePopup();
-                }
-                map.removeLayer(marker);
-            }
-        }
-    });
+  if (lineIndex !== -1) {
+    selectedLines.splice(lineIndex, 1);
+  } else {
+    selectedLines.push(lineId);
+  }
+
+  updateLinesDisplay();
+
+  if (selectedLines.length === 1) {
+    zoomToSelectedLine(selectedLines[0]);
+  } else if (selectedLines.length > 1) {
+    zoomToMultipleLines(selectedLines);
+  }
 }
 
 function zoomToSelectedLine(lineId) {
-    const bounds = L.latLngBounds();
-    
-    geoJsonLines.forEach(layer => {
-        if (layer.feature.properties.route_id === lineId) {
-            bounds.extend(layer.getBounds());
-        }
-    });
-    
-    if (bounds.isValid()) {
-        map.fitBounds(bounds, {
-            padding: [10, 10], 
-            maxZoom: 17        
-        });
+  const bounds = L.latLngBounds();
+
+  geoJsonLines.forEach(layer => {
+    if (layer.feature.properties.route_id === lineId) {
+      bounds.extend(layer.getBounds());
     }
+  });
+
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, {
+      padding: [10, 10], 
+      maxZoom: 17        
+    });
+  }
 }
 
 function zoomToMultipleLines(lineIds) {
-    const bounds = L.latLngBounds();
-    
-    geoJsonLines.forEach(layer => {
-        if (lineIds.includes(layer.feature.properties.route_id)) {
-            bounds.extend(layer.getBounds());
-        }
-    });
-    
-    if (bounds.isValid()) {
-        map.fitBounds(bounds, {
-            padding: [50, 50], 
-            maxZoom: 15       
-        });
+  const bounds = L.latLngBounds();
+
+  geoJsonLines.forEach(layer => {
+    if (lineIds.includes(layer.feature.properties.route_id)) {
+      bounds.extend(layer.getBounds());
     }
+  });
+
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, {
+      padding: [50, 50], 
+      maxZoom: 15       
+    });
+  }
+}
+
+function updateLinesDisplay() {
+  geoJsonLines.forEach(layer => {
+    const routeId = layer.feature.properties.route_id;
+
+    if (selectedLines.length === 0 || selectedLines.includes(routeId)) {
+      if (!map.hasLayer(layer)) {
+        map.addLayer(layer);
+      }
+    } else {
+      if (map.hasLayer(layer)) {
+        map.removeLayer(layer);
+      }
+    }
+  });
+
+  Object.entries(markers).forEach(([id, marker]) => {
+    if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
+      if (!map.hasLayer(marker)) {
+        map.addLayer(marker);
+      }
+    } else {
+      if (map.hasLayer(marker)) {
+        if (marker.isPopupOpen()) {
+          marker.closePopup();
+        }
+        map.removeLayer(marker);
+      }
+    }
+  });
 }
 
 function resetMapView() {
     selectedLines = [];
-    
+
+    selectedLine = null;
+
     geoJsonLines.forEach(layer => {
         if (!map.hasLayer(layer)) {
             map.addLayer(layer);
         }
     });
-    
-    busStopLayers.forEach(layer => {
-        if (!map.hasLayer(layer)) {
-            map.addLayer(layer);
-        }
-    });
-    
+
     Object.values(markers).forEach(marker => {
         if (!map.hasLayer(marker)) {
             map.addLayer(marker);
