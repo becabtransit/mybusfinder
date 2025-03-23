@@ -1353,16 +1353,20 @@ getSetvar();
 
 
 function toggleMenuView() {
+    // Sélection du menu
     const menuElement = document.querySelector('.menubottom-ul');
     
+    // Vérification si le menu existe
     if (!menuElement) {
         console.error("Élément menu non trouvé");
         return;
     }
     
+    // Vérification de l'état actuel (récupération du localStorage)
     const currentState = localStorage.getItem('menuViewState') || 'default';
     const newState = currentState === 'default' ? 'secondary' : 'default';
     
+    // Application des transitions pour toutes les propriétés qui changent
     menuElement.style.transition = "width 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
                                   "border-radius 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
                                   "bottom 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
@@ -1371,46 +1375,62 @@ function toggleMenuView() {
                                   "filter 0.3s ease-out, " +
                                   "background-color 0.5s ease";
     
+    // Application des styles en fonction de l'état
     if (newState === 'secondary') {
+        // Passage à la vue secondaire
         menuElement.style.width = '100%';
         menuElement.style.borderRadius = '0px';
         menuElement.style.bottom = '0px';
+        // Important: préserver la transformation horizontale mais réinitialiser si nécessaire
+        menuElement.style.transform = 'translateX(-50%)';
         
+        // Mise à jour de la marge des éléments de la liste
         const menuItems = menuElement.querySelectorAll('li');
         menuItems.forEach(item => {
             item.style.transition = "margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)";
             item.style.margin = '0 5px';
         });
         
+        // Activation du style justify-content
         menuElement.style.justifyContent = 'center';
     } else {
+        // Retour à la vue par défaut
         menuElement.style.width = 'auto';
         menuElement.style.borderRadius = '18px';
         menuElement.style.bottom = '10px';
+        // Important: préserver la transformation horizontale
+        menuElement.style.transform = 'translateX(-50%)';
         
+        // Mise à jour de la marge des éléments de la liste
         const menuItems = menuElement.querySelectorAll('li');
         menuItems.forEach(item => {
             item.style.transition = "margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)";
             item.style.margin = '0px 5px 5px 0px';
         });
         
+        // Désactivation du style justify-content
         menuElement.style.justifyContent = 'flex-start';
     }
     
+    // Enregistrement de l'état dans le localStorage pour les futures navigations
     localStorage.setItem('menuViewState', newState);
     
-    return newState; 
+    return newState; // Retourne l'état actuel après le changement
 }
 
-
+/**
+ * Fonction pour appliquer la dernière vue sauvegardée au chargement de la page
+ */
 function applyMenuViewState() {
     const savedState = localStorage.getItem('menuViewState');
     
+    // Si un état est sauvegardé et qu'il est différent de l'état par défaut, applique-le
     if (savedState && savedState === 'secondary') {
         toggleMenuView();
     }
 }
 
+// Exécuter cette fonction au chargement de la page
 document.addEventListener('DOMContentLoaded', applyMenuViewState);
 
 function setupLongPress(selector, duration, callback) {
