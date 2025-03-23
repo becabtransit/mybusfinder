@@ -2444,12 +2444,25 @@ function updateLinesDisplay() {
       }
     }
   });
+
+  busStopLayers.forEach(layer => {
+    if (selectedLines.length === 0 || selectedLines.includes(layer.busLine)) {
+      if (!map.hasLayer(layer)) {
+        map.addLayer(layer);
+      }
+    } else {
+      if (map.hasLayer(layer)) {
+        if (layer.isPopupOpen && layer.isPopupOpen()) {
+          layer.closePopup();
+        }
+        map.removeLayer(layer);
+      }
+    }
+  });
 }
 
 function resetMapView() {
     selectedLines = [];
-
-    selectedLine = null;
 
     geoJsonLines.forEach(layer => {
         if (!map.hasLayer(layer)) {
@@ -2460,6 +2473,12 @@ function resetMapView() {
     Object.values(markers).forEach(marker => {
         if (!map.hasLayer(marker)) {
             map.addLayer(marker);
+        }
+    });
+    
+    busStopLayers.forEach(layer => {
+        if (!map.hasLayer(layer)) {
+            map.addLayer(layer);
         }
     });
 }
