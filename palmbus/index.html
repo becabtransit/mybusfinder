@@ -3980,50 +3980,86 @@ function getTextColor(backgroundColor) {
         destinationTitle.style.color = textColor;
         destinationSection.appendChild(destinationTitle);
 
-        busesByLineAndDestination[line][destination].forEach(bus => {
-            const busItem = document.createElement('div');
-            const marker = bus.vehicle;
-            const popupContent = marker.getPopup().getContent();
-            
-            let nextStopInfo = '';
-            let terminusInfo = '';
+        function extractStopInfo(popupContent) {
+            let result = {
+                nextStop: {
+                    name: "Inconnu",
+                    time: ""
+                },
+                terminus: {
+                    name: "Inconnu",
+                    time: ""
+                }
+            };
             
             try {
-                const nextStopsContentMatch = popupContent.match(/<div id="nextStopsContent" class="next-stops-content">([\s\S]*?)<\/div>/);
+                const destinationMatch = popupContent.match(/<strong[^>]*>➜\s*(.*?)<\/strong>/);
+                if (destinationMatch && destinationMatch[1]) {
+                    result.terminus.name = destinationMatch[1].trim();
+                }
                 
-                if (nextStopsContentMatch && nextStopsContentMatch[1]) {
-                    const nextStopsContent = nextStopsContentMatch[1];
-                    
-                    const stopItems = nextStopsContent.match(/<li[^>]*>([\s\S]*?)<\/li>/g);
+                const nextStopsContent = popupContent.match(/<div id="nextStopsContent"[^>]*>([\s\S]*?)<\/div>/);
+                
+                if (nextStopsContent && nextStopsContent[1]) {
+                    const stopItems = nextStopsContent[1].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
                     
                     if (stopItems && stopItems.length > 0) {
-                        const firstStopItem = stopItems[0];
+                        const firstStopElement = stopItems[0];
                         
-                        const stopNameMatch = firstStopItem.match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
-                        const stopName = stopNameMatch ? stopNameMatch[1].trim() : '';
+                        const stopNameMatch = firstStopElement.match(/<div class="stop-name"[^>]*>(.*?)<\/div>/);
+                        if (stopNameMatch && stopNameMatch[1]) {
+                            result.nextStop.name = stopNameMatch[1].trim();
+                        }
                         
-                        const timeMatch = firstStopItem.match(/<div class="time-display"[^>]*>([\s\S]*?)<\/div>/);
-                        const timeInfo = timeMatch ? timeMatch[1].trim() : '';
-                        
-                        if (stopName) {
-                            nextStopInfo = `| ${stopName}${timeInfo ? ` ${timeInfo}` : ''}`;
+                        const timeDisplayMatch = firstStopElement.match(/<div class="time-display"[^>]*>(.*?)<\/div>/);
+                        if (timeDisplayMatch && timeDisplayMatch[1]) {
+                            result.nextStop.time = timeDisplayMatch[1].trim();
                         }
                         
                         if (stopItems.length > 1) {
-                            const lastStopItem = stopItems[stopItems.length - 1];
+                            const lastStopElement = stopItems[stopItems.length - 1];
                             
-                            const terminusTimeMatch = lastStopItem.match(/<div class="time-display"[^>]*data-time-left="([^"]+)"/);
-                            const terminusTime = terminusTimeMatch ? terminusTimeMatch[1].trim() : '';
+                            const terminusNameMatch = lastStopElement.match(/<div class="stop-name"[^>]*>(.*?)<\/div>/);
+                            if (terminusNameMatch && terminusNameMatch[1]) {
+                                result.terminus.name = terminusNameMatch[1].trim();
+                            }
                             
-                            if (terminusTime && terminusTime !== 'Inconnu' && terminusTime !== '') {
-                                terminusInfo = `Arrivée à ${destination} dans ${terminusTime}.`;
+                            const terminusTimeMatch = lastStopElement.match(/<div class="time-display"[^>]*>(.*?)<\/div>/);
+                            if (terminusTimeMatch && terminusTimeMatch[1]) {
+                                result.terminus.time = terminusTimeMatch[1].trim();
                             }
                         }
                     }
                 }
-            } catch (error) {
-                console.error('Erreur lors de l\'extraction des informations d\'arrêt:', error);
+            } catch (e) {
+                console.error("Erreur lors de l'extraction des informations d'arrêt:", e);
             }
+            
+            return result;
+        }
+
+        Object.keys(busesByLineAndDestination[line][destination]).forEach(bus => {
+            const busItem = document.createElement('div');
+            const marker = bus.vehicle;
+            const popupContent = marker.getPopup().getContent();
+            
+            const stopInfo = extractStopInfo(popupContent);
+            
+            let nextStopInfo = '';
+            let terminusInfo = '';
+            
+            if (stopInfo.nextStop.name !== "Inconnu") {
+                nextStopInfo = `| ${stopInfo.nextStop.name}`;
+                
+                if (stopInfo.nextStop.time) {
+                    nextStopInfo += ` ${stopInfo.nextStop.time}`;
+                }
+            }
+            
+            if (stopInfo.terminus.name !== "Inconnu" && stopInfo.terminus.time) {
+                terminusInfo = `Arrivée à ${stopInfo.terminus.name} ${stopInfo.terminus.time}`;
+            }
+            
                     const mainText = document.createElement('div');
                     mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
                     mainText.style.fontSize = '1.2em';  
