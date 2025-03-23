@@ -1350,6 +1350,22 @@ select:focus {
         let currentStopId = null;
         let currentDestinationId = null;
 
+        async function getSetvar() {
+    try {
+
+        const response1 = await fetch('setvar/settings/networkname.txt');
+        const setvar1 = await response1.text();
+        const nomdureseau = setvar1.trim();  
+
+        return {nomdureseau};
+
+    } catch (error) {
+        console.error('Erreur chargement setvar ! ', error);
+    }
+}
+
+getSetvar();
+
         
     document.addEventListener('DOMContentLoaded', function() {
     loadData();
@@ -1624,11 +1640,29 @@ function getRealtimeArrival(tripId, stopId) {
     return new Date(stopUpdate.arrival);
 }
 
-const DB_NAME = 'MyBusFinderRM';
+let DB_NAME;
+let STORE_NAME;
 const DB_VERSION = 3;
-const STORE_NAME = `gtfsStoreRM`;
 
-function initDB() {
+async function initConstants() {
+    try {
+        const { nomdureseau } = await getSetvar();
+        DB_NAME = `MyBusFinder${nomdureseau}`;
+        STORE_NAME = `gtfsStore${nomdureseau}`;
+        return { DB_NAME, STORE_NAME };
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation des constantes', error);
+        DB_NAME = 'MyBusFinderDefault';
+        STORE_NAME = 'gtfsStoreDefault';
+        return { DB_NAME, STORE_NAME };
+    }
+}
+
+async function initDB() {
+    if (!DB_NAME || !STORE_NAME) {
+        await initConstants();
+    }
+    
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -1672,7 +1706,8 @@ async function isFirstVisitOfDay() {
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
-        return true; 
+        toastBottomRight.error('Erreur lors de la vérification des données');
+        return true;
     }
 }
 
@@ -1690,7 +1725,7 @@ async function saveToCache(data) {
             transaction.onerror = () => reject(transaction.error);
         });
     } catch (error) {
-        toastBottomRight.error('Erreur ! ', error);
+        console.error('Erreur lors de la sauvegarde dans le cache', error);
         throw error;
     }
 }
@@ -1707,7 +1742,7 @@ async function getFromCache() {
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
-        toastBottomRight.error('Erreur ! ', error);
+        console.error('Erreur lors de la récupération cache', error);
         return null;
     }
 }
@@ -1744,74 +1779,87 @@ async function extractGTFSFiles() {
 
 async function loadGtfsData() {
     try {
-        const isFirstVisit = await isFirstVisitOfDay();
         let extractedFiles;
         
+        const isFirstVisit = await isFirstVisitOfDay();
+        
         if (isFirstVisit) {
-            toastBottomRight.info('Téléchargement des données...');
-            extractedFiles = await loadAndCompressGtfsFiles();
+            toastBottomRight.info('Téléchargement des données quotidiennes..');
+            extractedFiles = await extractGTFSFiles();
+            await saveToCache(extractedFiles);
         } else {
-            extractedFiles = await getCompressedCache();
+            extractedFiles = await getFromCache();
             if (!extractedFiles) {
-                extractedFiles = await loadAndCompressGtfsFiles();
+                toastBottomRight.info('Téléchargement des données quotidiennes..');
+                extractedFiles = await extractGTFSFiles();
+                await saveToCache(extractedFiles);
             }
         }
         
-        const dataPromises = [
-            initializeRoutes(extractedFiles['routes.txt']),
-            initializeTrips(extractedFiles['trips.txt']),
-            initializeStopTimes(extractedFiles['stop_times.txt']),
-            initializeStops(extractedFiles['stops.txt']),
-            initializeCalendar(extractedFiles['calendar.txt']),
-            initializeCalendarDates(extractedFiles['calendar_dates.txt'])
-        ];
+        routes = {};
+        trips = {};
+        stopTimes = {};
+        stops = {};
+        calendar = {};
+        calendarDates = {};
         
-        const [routesData, tripsData, stopTimesData, stopsData, calendarData, calendarDatesData] = 
-            await Promise.all(dataPromises);
+        let calendarMissing = false;
+        let calendarDatesMissing = false;
         
-        Object.assign(globalThis, {
-            routes: routesData,
-            trips: tripsData,
-            stopTimes: stopTimesData,
-            stops: stopsData,
-            calendar: calendarData,
-            calendarDates: calendarDatesData
-        });
+        const loadPromises = [];
         
+        const requiredFiles = ['routes.txt', 'trips.txt', 'stop_times.txt', 'stops.txt'];
+        for (const file of requiredFiles) {
+            if (!extractedFiles[file]) {
+                console.error(`Fichier requis manquant: ${file}`);
+                toastBottomRight.error(`Erreur: fichier ${file} manquant`);
+            }
+        }
+        
+        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
+        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
+        if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
+        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
+        
+        if (extractedFiles['calendar.txt']) {
+            loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
+        } else {
+            console.log('calendar.txt non trouvé, fonctionnement en mode limité');
+            calendarMissing = true;
+        }
+        
+        if (extractedFiles['calendar_dates.txt']) {
+            loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
+        } else {
+            console.log('calendar_dates.txt non trouvé, exceptions non disponibles');
+            calendarDatesMissing = true;
+        }
+        
+        await Promise.all(loadPromises);
+        
+        if (calendar && Object.keys(calendar).length === 0) {
+            calendarMissing = true;
+        }
+        
+        if (calendarDates && Object.keys(calendarDates).length === 0) {
+            calendarDatesMissing = true;
+        }
+        
+        if (calendarMissing) {
+            console.warn('Données de calendrier manquantes ou corrompues. Les horaires peuvent être inexacts.');
+        }
+        
+        if (calendarDatesMissing) {
+            console.warn('Données d\'exceptions de calendrier manquantes ou corrompues. Les horaires spéciaux peuvent ne pas être pris en compte.');
+        }
+        
+        console.log('Données GTFS chargées avec succès');
         return true;
     } catch (error) {
-        console.error('Erreur chargement GTFS:', error);
+        console.error('Erreur lors du chargement des données GTFS', error);
+        toastBottomRight.error('Erreur lors du chargement des données');
         throw error;
     }
-}
-
-async function loadAndCompressGtfsFiles() {
-    const response = await fetch('proxy-cors/proxy_gtfs.php');
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    
-    const zipData = await response.arrayBuffer();
-    const zip = await JSZip.loadAsync(zipData);
-    
-    const extractedFiles = {};
-    await Promise.all(
-        Object.keys(zip.files).map(async filename => {
-            if (!zip.files[filename].dir) {
-                const content = await zip.files[filename].async("string");
-                extractedFiles[filename] = await compressData(content);
-            }
-        })
-    );
-    
-    return extractedFiles;
-}
-
-async function compressData(data) {
-    const blob = new Blob([data]);
-    return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(e.target.result);
-        reader.readAsDataURL(blob);
-    });
 }
 
 async function clearGTFSCache() {
