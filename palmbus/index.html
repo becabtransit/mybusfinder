@@ -134,6 +134,12 @@ visibility: hidden;
     opacity: 0;
 }
 
+#menubtm {
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out, background-color 0.5s ease;
+}
+
+
+
 
 @keyframes fadeInPopupSvc {
     from {
@@ -621,8 +627,30 @@ shape.bounce-down {
     color: #ffffff;
 }
 
+.menubottom-ul {
+    display: flex;
+    position: absolute;
+    bottom: 10px;
+    left: 50%; 
+    transform: translateX(-50%);
+    padding: 12px;
+    border: none;
+    list-style: none;
+    margin: 0;
+    z-index: 10000;
+    padding: 0;
+    background-color: #0F056B77;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); 
+    border-radius: 18px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    
+}
 
-
+.menubottom ul li {
+    margin: 0 8px; 
+}
 
         .menubottom ul li a {
             color: #fff;
@@ -1220,31 +1248,6 @@ shape.bounce-down {
     font-weight: bold;
 }
 
-.menubottom-ul {
-            display: flex;
-            position: absolute;
-            bottom: 10px;
-            left: 50%; 
-            transform: translateX(-50%);
-            padding: 12px;
-            border: none;
-            list-style: none;
-            margin: 0;
-            z-index: 10000;
-            padding: 0;
-            background-color: #0F056B77;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); 
-            border-radius: 18px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-
-        }
-
-        .menubottom ul li {
-            margin: 0px 5px 5px 
-        }
-
 
     </style>
 
@@ -1352,157 +1355,6 @@ async function getSetvar() {
 getSetvar();
 
 
-/**
- * Fonction pour alterner entre deux vues du menu bottom
- * Sauvegarde la préférence dans le localStorage pour les futures navigations
- */
- function toggleMenuView() {
-    // Sélectionner l'élément de menu
-    const menuElement = document.querySelector('.menubottom-ul');
-    
-    // Vérifier si l'élément existe
-    if (!menuElement) {
-        console.error("Élément .menubottom-ul non trouvé");
-        return;
-    }
-    
-    // Récupérer l'état actuel du localStorage ou définir une valeur par défaut
-    const currentViewState = localStorage.getItem('menuViewState') || 'default';
-    
-    // Définir les styles pour la transition
-    menuElement.style.transition = "transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
-                                 "opacity 0.3s ease-out, " +
-                                 "filter 0.3s ease-out, " +
-                                 "background-color 0.5s ease, " +
-                                 "border-radius 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
-                                 "bottom 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
-                                 "width 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)";
-    
-    // Alterner entre les deux vues
-    if (currentViewState === 'default') {
-        // Passer à la vue secondaire
-        menuElement.style.bottom = '0px';
-        menuElement.style.borderRadius = '0px';
-        menuElement.style.width = '100%';
-        
-        // Modifier les marges des éléments li
-        const menuItems = menuElement.querySelectorAll('li');
-        menuItems.forEach(item => {
-            item.style.transition = "margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)";
-            item.style.margin = '0 5px';
-        });
-        
-        // Mettre à jour le localStorage
-        localStorage.setItem('menuViewState', 'secondary');
-    } else {
-        // Revenir à la vue par défaut
-        menuElement.style.bottom = '10px';
-        menuElement.style.borderRadius = '18px';
-        menuElement.style.width = '';  // Revenir à la valeur CSS par défaut
-        
-        // Modifier les marges des éléments li
-        const menuItems = menuElement.querySelectorAll('li');
-        menuItems.forEach(item => {
-            item.style.transition = "margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)";
-            item.style.margin = '0px 5px 5px 0px';
-        });
-        
-        // Mettre à jour le localStorage
-        localStorage.setItem('menuViewState', 'default');
-    }
-}
-
-/**
- * Fonction pour appliquer la vue sauvegardée au chargement de la page
- * À appeler lors du chargement du document
- */
-function applyMenuViewState() {
-    const savedViewState = localStorage.getItem('menuViewState');
-    
-    // Si une préférence a été sauvegardée et n'est pas la vue par défaut, appliquer l'autre vue
-    if (savedViewState === 'secondary') {
-        // Assurer que le DOM est chargé
-        setTimeout(() => {
-            toggleMenuView();
-        }, 100);
-    }
-}
-
-// Appliquer la vue sauvegardée au chargement de la page
-document.addEventListener('DOMContentLoaded', applyMenuViewState);
-
-function setupLongPress(selector, duration, callback) {
-    const element = document.querySelector(selector);
-    if (!element) return;
-    
-    let timer;
-    let longPressDone = false;
-    
-    const startPress = () => {
-        longPressDone = false;
-        timer = setTimeout(() => {
-            longPressDone = true;
-            callback();
-        }, duration);
-    };
-    
-    const cancelPress = () => {
-        clearTimeout(timer);
-    };
-    
-    const checkEndPress = (e) => {
-        cancelPress();
-        if (longPressDone) {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
-        }
-        return true;
-    };
-    
-    element.addEventListener('touchstart', (e) => {
-        startPress();
-    });
-    
-    element.addEventListener('touchend', (e) => {
-        if (!checkEndPress(e)) return false;
-    });
-    
-    element.addEventListener('touchmove', (e) => {
-        cancelPress();
-    });
-    
-    element.addEventListener('mousedown', (e) => {
-        startPress();
-    });
-    
-    element.addEventListener('mouseup', (e) => {
-        if (!checkEndPress(e)) return false;
-    });
-    
-    element.addEventListener('mouseleave', (e) => {
-        cancelPress();
-    });
-    
-    element.addEventListener('contextmenu', (e) => {
-        if (longPressDone) {
-            e.preventDefault();
-            return false;
-        }
-    });
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    initMenuView();
-    
-    setupLongPress('.menubottom-ul', 700, () => {
-        toggleMenuView();
-        
-        const menu = document.querySelector('.menubottom-ul');
-        const originalBackground = menu.style.backgroundColor;
-    
-    });
-});
 
 const vehicleModels = {};
 
