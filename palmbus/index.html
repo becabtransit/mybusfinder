@@ -3980,45 +3980,43 @@ function getTextColor(backgroundColor) {
         destinationTitle.style.color = textColor;
         destinationSection.appendChild(destinationTitle);
 
-        busesByLineAndDestination[line][destination].forEach(bus => {
-            const busItem = document.createElement('div');
+            busesByLineAndDestination[line][destination].forEach(bus => {
+                    const busItem = document.createElement('div');
                     const marker = bus.vehicle;
                     const popupContent = marker.getPopup().getContent();
                     
                     let nextStopInfo = '';
                     let terminusInfo = '';
                     
-                    const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
+                    const nextStopsDiv = popupContent.match(/<div id="nextStopsContent"[^>]*>([\s\S]*?)<\/div>/);
                     
-                    if (nextStopsDiv && nextStopsDiv[0]) {
-                        const allStops = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
+                    if (nextStopsDiv && nextStopsDiv[1]) {
+                        const liElements = nextStopsDiv[1].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
                         
-                        if (allStops && allStops.length > 0) {
-                            const firstStop = allStops[0]
-                                .replace(/<[^>]*>/g, '')
-                                .replace(/\s+/g, ' ')
-                                .replace(/\s*\|.*$/, '')
-                                .trim();
-                                
-                            const lastStop = allStops[allStops.length - 1]
-                                .replace(/<[^>]*>/g, '')
-                                .replace(/\s+/g, ' ')
-                                .replace(/\s*\|.*$/, '')
-                                .trim();
+                        if (liElements && liElements.length > 0) {
+                            const firstStopElement = liElements[0];
+                            const stopNameMatch = firstStopElement.match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
+                            const timeDisplayMatch = firstStopElement.match(/<div class="time-display"[^>]*>([\s\S]*?)<\/div>/);
                             
-                            const [stopName, timeInfo] = firstStop.split(/(?=dans|imminent)/);
-                            const [terminusName, terminusTime] = lastStop.split(/(?=dans|imminent)/);
-                            
-                            if (stopName && timeInfo) {
-                                nextStopInfo = `| ${stopName.trim()}`;
+                            if (stopNameMatch && stopNameMatch[1] && timeDisplayMatch && timeDisplayMatch[1]) {
+                                const stopName = stopNameMatch[1].trim();
+                                const timeInfo = timeDisplayMatch[1].trim();
+                                nextStopInfo = `| ${stopName} ${timeInfo !== '' ? 'dans ' + timeInfo : 'imminent'}`;
                             }
                             
-                            if (terminusName && terminusTime) {
-                                terminusInfo = `Arrivée à ${destination} ${terminusTime.trim()}.`;
+                            if (liElements.length > 1) {
+                                const lastStopElement = liElements[liElements.length - 1];
+                                const lastTimeDisplayMatch = lastStopElement.match(/data-departure-time="([^"]*)"/);
+                                
+                                if (lastTimeDisplayMatch && lastTimeDisplayMatch[1]) {
+                                    const departureTime = lastTimeDisplayMatch[1];
+                                    if (departureTime !== "Inconnu") {
+                                        terminusInfo = `Arrivée à ${destination} à ${departureTime}`;
+                                    }
+                                }
                             }
                         }
                     }
-
                     const mainText = document.createElement('div');
                     mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
                     mainText.style.fontSize = '1.2em';  
