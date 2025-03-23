@@ -289,6 +289,9 @@ visibility: hidden;
 
         .linesection {
             cursor: pointer;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
         }
 
         @keyframes jspcommentlappelercettekeyframe {
@@ -1226,6 +1229,23 @@ shape.bounce-down {
   .options::-webkit-scrollbar {
     display: none;
   }
+}
+
+.bus-stop-marker {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: white;
+    border: 1px solid black;
+}
+
+.line-popup, .stop-popup {
+    padding: 5px;
+}
+
+.line-popup h4, .stop-popup h4 {
+    margin: 0 0 5px 0;
+    font-weight: bold;
 }
 
 
@@ -2261,77 +2281,205 @@ function animateMarker(marker, newPosition) {
     marker.animationFrame = requestAnimationFrame(animate);
 }
 
+let selectedLines = [];
+let busStopLayers = [];
+
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
 
-    L.geoJSON(geoJsonData, {
+    const busLines = L.geoJSON(geoJsonData, {
         filter: function(feature) {
             return feature.geometry.type === 'LineString';
         },
         style: function(feature) {
             return {
-                color: lineColors[feature.properties.route_id] || '#000000',
-                weight: 2
+                color: lineColors[feature.properties.route_id] || '#3388ff',
+                weight: 6,
+                opacity: 0.7,  
+                lineJoin: 'round',
+                lineCap: 'round',
+                className: 'bus-line', 
+                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
             };
         },
         onEachFeature: function(feature, layer) {
-            geoJsonLines.push(layer); 
+            
+            if (feature.properties && feature.properties.route_id) {
+                geoJsonLines.push(layer);
+            }
         }
     }).addTo(map);
+
+    const busStops = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry && feature.geometry.type === 'Point';
+        },
+        pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 3,
+                fillColor: '#ffffff',
+                color: '#000000',
+                weight: 0.5,
+                opacity: 0.7,
+                fillOpacity: 0.6
+            });
+        }
+    }).addTo(map);
+    
+    busStops.eachLayer(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+            layer.busLine = layer.feature.properties.route_id || null;
+            busStopLayers.push(layer);
+        }
+    });
+    
+    addAnimationStyles();
 }
 
-let selectedLines = [];
+function addAnimationStyles() {
+    if (!document.getElementById('bus-line-styles')) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'bus-line-styles';
+        styleEl.textContent = `
+            .bus-line {
+                transition: opacity 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), stroke-width 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+            }
+            
+            .line-hover {
+                opacity: 1 !important;
+                stroke-width: 6px;
+                filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+                animation: linePulse 1.5s infinite;
+            }
+            
+            @keyframes linePulse {
+                0% { stroke-opacity: 0.7; }
+                50% { stroke-opacity: 1; }
+                100% { stroke-opacity: 0.7; }
+            }
+        `;
+        document.head.appendChild(styleEl);
+    }
+}
 
 function filterByLine(lineId) {
-  const lineIndex = selectedLines.indexOf(lineId);
-  
-  if (lineIndex !== -1) {
-    selectedLines.splice(lineIndex, 1);
-  } else {
-    selectedLines.push(lineId);
-  }
-  
-  updateLinesDisplay();
+    const lineIndex = selectedLines.indexOf(lineId);
+    
+    if (lineIndex !== -1) {
+        selectedLines.splice(lineIndex, 1);
+    } else {
+        selectedLines.push(lineId);
+    }
+    
+    updateLinesDisplay();
+    
+    if (selectedLines.length === 1) {
+        zoomToSelectedLine(selectedLines[0]);
+    } else if (selectedLines.length > 1) {
+        zoomToMultipleLines(selectedLines);
+    }
 }
 
 function updateLinesDisplay() {
-  geoJsonLines.forEach(layer => {
-    const routeId = layer.feature.properties.route_id;
-    
-    if (selectedLines.length === 0 || selectedLines.includes(routeId)) {
-      if (!map.hasLayer(layer)) {
-        map.addLayer(layer);
-      }
-    } else {
-      if (map.hasLayer(layer)) {
-        map.removeLayer(layer);
-      }
-    }
-  });
-  
-  Object.entries(markers).forEach(([id, marker]) => {
-    if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
-      if (!map.hasLayer(marker)) {
-        map.addLayer(marker);
-      }
-    } else {
-      if (map.hasLayer(marker)) {
-        if (marker.isPopupOpen()) {
-          marker.closePopup();
+    geoJsonLines.forEach(layer => {
+        const routeId = layer.feature.properties.route_id;
+        
+        if (selectedLines.length === 0 || selectedLines.includes(routeId)) {
+            if (!map.hasLayer(layer)) {
+                map.addLayer(layer);
+            }
+        } else {
+            if (map.hasLayer(layer)) {
+                map.removeLayer(layer);
+            }
         }
-        map.removeLayer(marker);
-      }
+    });
+    
+    busStopLayers.forEach(layer => {
+        if (layer.busLine) {
+            if (selectedLines.length === 0 || selectedLines.includes(layer.busLine)) {
+                if (!map.hasLayer(layer)) {
+                    map.addLayer(layer);
+                }
+            } else {
+                if (map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                }
+            }
+        } else {
+            if (selectedLines.length === 0) {
+                if (!map.hasLayer(layer)) {
+                    map.addLayer(layer);
+                }
+            } else {
+                if (map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                }
+            }
+        }
+    });
+    
+    Object.entries(markers).forEach(([id, marker]) => {
+        if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
+            if (!map.hasLayer(marker)) {
+                map.addLayer(marker);
+            }
+        } else {
+            if (map.hasLayer(marker)) {
+                if (marker.isPopupOpen()) {
+                    marker.closePopup();
+                }
+                map.removeLayer(marker);
+            }
+        }
+    });
+}
+
+function zoomToSelectedLine(lineId) {
+    const bounds = L.latLngBounds();
+    
+    geoJsonLines.forEach(layer => {
+        if (layer.feature.properties.route_id === lineId) {
+            bounds.extend(layer.getBounds());
+        }
+    });
+    
+    if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+            padding: [10, 10], 
+            maxZoom: 17        
+        });
     }
-  });
+}
+
+function zoomToMultipleLines(lineIds) {
+    const bounds = L.latLngBounds();
+    
+    geoJsonLines.forEach(layer => {
+        if (lineIds.includes(layer.feature.properties.route_id)) {
+            bounds.extend(layer.getBounds());
+        }
+    });
+    
+    if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+            padding: [50, 50], 
+            maxZoom: 15       
+        });
+    }
 }
 
 function resetMapView() {
     selectedLines = [];
     
-    selectedLine = null;
-    
     geoJsonLines.forEach(layer => {
+        if (!map.hasLayer(layer)) {
+            map.addLayer(layer);
+        }
+    });
+    
+    busStopLayers.forEach(layer => {
         if (!map.hasLayer(layer)) {
             map.addLayer(layer);
         }
@@ -2547,7 +2695,7 @@ function getVehicleBrandHtml(parkNumber) {
                      alt="Thumbnail ${model.name}" 
                      class="vehicle-thumbnail"  />
 
-                <span style="margin-top: 10px; font-size: 12px; ">Un ${model.name}</span>
+                <span style="margin-top: 6px; margin-left: 20px; font-size: 12px; ">Un ${model.name}</span>
             </div>
         `;
     }
@@ -2557,7 +2705,7 @@ function getVehicleBrandHtml(parkNumber) {
             <img src="${defaultImagePath}" 
                  alt="Bus par défaut" 
                  class="vehicle-thumbnail"  />
-            <span style="margin-top: 10px; font-size: 12px;">Un bus</span>
+            <span style="margin-top: 6px; margin-left: 20px; font-size: 12px;">Un bus</span>
         </div>
     `;
 }
@@ -2629,51 +2777,207 @@ async function fetchVehiclePositions() {
                 const lastStopNameun = stopNameMap[lastStopId] || 'Destination inconnue';
                 let lastStopName = lastStopNameun.replace("0:", "");
                 
+                const timeAnimationStyle = `
+                <style>
+                    .time-display {
+                        transition: opacity 0.3s ease-out;
+                    }
+                    
+                    .time-display.fade-out {
+                        opacity: 0;
+                    }
+                    
+                    @keyframes radiateWaves {
+                        0% { transform: scale(0.7); opacity: 0.5; }
+                        50% { transform: scale(1.2); opacity: 1; }
+                        100% { transform: scale(1); opacity: 0.7; }
+                    }
+                    
+                    .time-indicator .rss-waves {
+                        transform-origin: 5px 19px; 
+                    }
+                    
+                    .time-indicator.animate .rss-waves {
+                        animation: radiateWaves 0.6s ease-out;
+                    }
+                    
+                    @keyframes scrollText {
+                        0% { transform: translateX(0); }
+                        10% { transform: translateX(0); }
+                        60% { transform: translateX(calc(-100% + 70px)); }
+                        90% { transform: translateX(calc(-100% + 70px)); }
+                        100% { transform: translateX(0); }
+                    }
+                    
+                    .stop-name-container:hover .stop-name-wrapper[style*="animation"] {
+                        animation-play-state: running !important;
+                    }
+                </style>
+                `;
+                document.head.insertAdjacentHTML('beforeend', timeAnimationStyle);
                 const nextStops = tripUpdates[tripId]?.nextStops || [];
 
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
+                const now = Math.floor(Date.now() / 1000);
 
-                let nextStopsHTML = `
-                    <div style="position: relative; max-height: 120px; ">  <!-- Conteneur avec fond au bas -->
-                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
-                `;
+                let filteredStops = [];
 
                 if (currentStopIndex !== -1) {
-                    let filteredStops = nextStops.slice(currentStopIndex);  
+                    filteredStops = nextStops.slice(currentStopIndex);
+                    
+                    filteredStops = filteredStops.filter(stop => {
+                        if (stop.delay === null) return true;
+                        
+                        return stop.delay >= -60;
+                    });
+                } else {
+                    filteredStops = nextStops.filter(stop => stop.delay === null || stop.delay > 0);
+                }
 
-                    const now = Date.now() / 1000; 
+                let nextStopsHTML = `
+                        <div style="position: relative; max-height: 120px; ">
+                            <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+                    `;
 
-filteredStops.forEach(stop => {
-    const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
-    const timeLeftText = timeLeft !== null 
-        ? timeLeft <= 0 
-            ? 'imminente' 
-            : `dans ${timeLeft} min`
-        : '';
-    
-    nextStopsHTML += `
-        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-            <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
-            <div>
-                <div style="z-index: 3; text-align: right;">
-                    ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
-                </div>
-                <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
-                    <path d="M4 11a9 9 0 0 1 9 9"></path>
-                    <path d="M4 4a16 16 0 0 1 16 16"></path>
-                    <circle cx="5" cy="19" r="1"></circle>
-                </svg>
-            </div>
-        </li>
-    `;
-});
-                } 
+                    let stopsHeaderText = "Chargement en cours";
 
-                nextStopsHTML += `
-                        </ul>
-                    </div>
-                `;
+                    if (currentStopIndex !== -1) {
+                        let filteredStops = nextStops.slice(currentStopIndex);
+                        
+                        if (filteredStops.length > 0) {
+                            const firstStopDelay = filteredStops[0].delay || 0;
+                            const minutes = Math.max(0, Math.ceil(firstStopDelay / 60));
+                            
+                            stopsHeaderText = "Prochains arrêts";
+                            
+                            if (filteredStops.length === 1) {
+                                if (minutes === 0) {
+                                    stopsHeaderText = "Départ imminent";
+                                } else {
+                                    stopsHeaderText = `Départ dans ${minutes} min`;
+                                }
+                            } 
+                            else if (minutes > 3) {
+                                stopsHeaderText = `Départ dans ${minutes} minutes`;
+                            }                        
+                        filteredStops.forEach(stop => {
+                        const timeLeft = stop.delay;
+                        const timeLeftText = timeLeft !== null 
+                            ? timeLeft <= 0 
+                                ? 'imminent' 
+                                : `${Math.ceil(timeLeft / 60)} min`
+                            : '';
+                        
+                        const stopName = stopNameMap[stop.stopId] || stop.stopId;
+                        
+                        const tempElement = document.createElement('div');
+                        tempElement.style.font = getComputedStyle(document.body).font; 
+                        tempElement.style.visibility = 'hidden';
+                        tempElement.style.position = 'absolute';
+                        tempElement.style.whiteSpace = 'nowrap';
+                        tempElement.textContent = stopName;
+                        document.body.appendChild(tempElement);
+                        
+                        const maxWidth = document.querySelector('.stop-name-container') ? 
+                            document.querySelector('.stop-name-container').offsetWidth : 150; 
+                        const isTextTooLong = tempElement.offsetWidth > (maxWidth * 0.9); 
+                        
+                        document.body.removeChild(tempElement);
+                        
+                        const animationStyle = isTextTooLong ? 
+                            "animation: scrollText 8s linear infinite; animation-play-state: paused;" : 
+                            "";
+                        
+                        nextStopsHTML += `
+                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                            <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
+                                <div class="stop-name-wrapper" style="
+                                    position: relative;
+                                    display: inline-block;
+                                    padding-right: 10px;
+                                    ${animationStyle}
+                                ">
+                                    <div class="stop-name" style="
+                                        position: relative;
+                                        display: inline-block;
+                                    ">${stopName}</div>
+                                </div>
+                            </div>
+                            <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
+                                <div class="time-display" 
+                                    data-time-left="${timeLeftText}" 
+                                    data-departure-time="${stop.departureTime || stop.arrivalTime || "Inconnu"}">
+                                    ${timeLeftText}
+                                </div>
+                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss mr-[0.5px] text-green-700 dark:text-green-500">
+                                    <g class="rss-waves">
+                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
+                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                    </g>
+                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
+                                </svg>
+                            </div>
+                        </li>
+                        `;
+                    });
 
+                    }
+                    }
+
+                    nextStopsHTML += `
+                            </ul>
+                        </div>
+                    `;
+
+                    let showRemaining = true;
+                    let showTimeLeft = true;
+                    let isAnimating = false;
+
+                    function toggleTimeDisplay() {
+                        if (isAnimating) return;
+                        
+                        isAnimating = true;
+                        
+                        const timeDisplays = document.querySelectorAll('.time-display');
+                        const indicators = document.querySelectorAll('.time-indicator');
+                        
+                        timeDisplays.forEach(display => {
+                            display.classList.add('fade-out');
+                        });
+                        
+                        indicators.forEach(indicator => {
+                            indicator.classList.add('animate');
+                            
+                            setTimeout(() => {
+                                indicator.classList.remove('animate');
+                            }, 600);
+                        });
+                        
+                        setTimeout(() => {
+                            showTimeLeft = !showTimeLeft;
+                            
+                            timeDisplays.forEach(display => {
+                                const timeLeft = display.getAttribute('data-time-left');
+                                const departureTime = display.getAttribute('data-departure-time');
+                                display.textContent = showTimeLeft ? timeLeft : departureTime;
+                            });
+                            
+                            timeDisplays.forEach(display => {
+                                display.classList.remove('fade-out');
+                            });
+                            
+                            setTimeout(() => {
+                                isAnimating = false;
+                            }, 350); 
+                            
+                        }, 350);
+                    }
+
+                    if (window.timeToggleInterval) {
+                        clearInterval(window.timeToggleInterval);
+                    }
+
+                    window.timeToggleInterval = setInterval(toggleTimeDisplay, 4000);
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
 
@@ -2803,7 +3107,7 @@ filteredStops.forEach(stop => {
 
 
                 <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
-                    <p style="margin: 0; font-size: 18px; text-align: right;">Prochains arrêts</p>
+                <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
                     <ul>
                     <div id="nextStopsContent" class="next-stops-content">
                           ${nextStopsHTML}
@@ -3347,10 +3651,19 @@ function updateMenu() {
     }
 
     const transportStateContainer = document.createElement('div');
-    transportStateContainer.style.display = 'flex';
-    transportStateContainer.style.alignItems = 'center';
-    transportStateContainer.style.justifyContent = 'center';
-    transportStateContainer.style.marginBottom = '10px';
+    transportStateContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 8px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+        cursor: pointer;
+    `;
 
     const transportImage = document.createElement('img');
     transportImage.alt = 'Affluence transports';
@@ -3360,26 +3673,32 @@ function updateMenu() {
 
     if (transportState === "normal") {
         transportImage.src = 'src/1of3body.png';
-        transportStateContainer.addEventListener('click', () => {
-            toastBottomRight.info('Ouf ! Aucune affluence notable est à signaler. Profitez bien de votre voyage !');
-        });
-        transportStateContainer.style.cursor = 'pointer';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.success('Ouf ! Aucune affluence notable. Bon voyage !');
+        };
     } else if (transportState === "presque saturé") {
         transportImage.src = 'src/2of3body.png';
-        transportStateContainer.addEventListener('click', () => {
-            toastBottomRight.info('Les gens rentrent chez eux, ça se corse... Mais on peut toujours voyager sereinement.');
-        });
-        transportStateContainer.style.cursor = 'pointer';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.warning('Affluence modérée. Les transports se remplissent.');
+        };
     } else if (transportState === "saturé") {
         transportImage.src = 'src/3of3body.png';
-        transportStateContainer.addEventListener('click', () => {
-            toastBottomRight.info('En heure de pointe, il est compliqué de se déplacer. Privilégiez les lignes secondaires.');
-        });
-        transportStateContainer.style.cursor = 'pointer';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.error('Forte affluence. Privilégiez les lignes secondaires.');
+        };
     }
 
     const transportStateTextContainer = document.createElement('div');
     transportStateTextContainer.style.textAlign = 'left';
+
+    transportStateContainer.onmouseover = () => {
+        transportStateContainer.style.transform = 'scale(0.95,0.95)';
+        transportStateContainer.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
+    };
+    transportStateContainer.onmouseout = () => {
+        transportStateContainer.style.transform = 'scale(1,1)';
+        transportStateContainer.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+    };
 
     const transportStateLabel = document.createElement('div');
     transportStateLabel.textContent = "Affluence transports";
@@ -3743,6 +4062,17 @@ function getTextColor(backgroundColor) {
         lineSection.style.borderRadius = '8px';
         lineSection.style.position = 'relative';
 
+        lineSection.onmouseover = () => {
+        lineSection.style.transform = 'scale(0.95,0.95)';
+        lineSection.style.opacity = '0.9';
+        lineSection.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
+        };  
+        lineSection.onmouseout = () => {
+            lineSection.style.transform = 'scale(1,1)';
+            lineSection.style.opacity = '0.8';
+            lineSection.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+        };
+
         const favoriteButton = document.createElement('button');
         favoriteButton.style.position = 'absolute';
         favoriteButton.style.right = '5px';
@@ -3788,43 +4118,60 @@ function getTextColor(backgroundColor) {
 
         busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
-                    const marker = bus.vehicle;
-                    const popupContent = marker.getPopup().getContent();
+            const marker = bus.vehicle;
+            const popupContent = marker.getPopup().getContent();
+            
+            let nextStopInfo = '';
+            let terminusInfo = '';
+            
+            const stopNameContainers = popupContent.match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/g);
+            const timeDisplays = popupContent.match(/<div class="time-display"[^>]*data-time-left="([^"]*)"[^>]*data-departure-time="([^"]*)"[^>]*>([\s\S]*?)<\/div>/g);
+            
+            if (stopNameContainers && stopNameContainers.length > 0 && timeDisplays && timeDisplays.length > 0) {
+                const firstStopNameMatch = stopNameContainers[0].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
+                const firstTimeMatch = timeDisplays[0].match(/data-time-left="([^"]*)"/);
+                
+                if (firstStopNameMatch && firstStopNameMatch[1] && firstTimeMatch && firstTimeMatch[1]) {
+                    const stopName = firstStopNameMatch[1].trim();
+                    const timeInfo = firstTimeMatch[1].trim();
+                    if (stopName && timeInfo) {
+                        nextStopInfo = `| ${stopName}`;
+                    }
+                }
+                
+                if (stopNameContainers.length > 1 && timeDisplays.length > 1) {
+                    const lastIndex = stopNameContainers.length - 1;
+                    const lastStopNameMatch = stopNameContainers[lastIndex].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
+                    const lastTimeMatch = timeDisplays[lastIndex].match(/data-time-left="([^"]*)"/);
                     
-                    let nextStopInfo = '';
-                    let terminusInfo = '';
-                    
-                    const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
-                    
-                    if (nextStopsDiv && nextStopsDiv[0]) {
-                        const allStops = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
-                        
-                        if (allStops && allStops.length > 0) {
-                            const firstStop = allStops[0]
-                                .replace(/<[^>]*>/g, '')
-                                .replace(/\s+/g, ' ')
-                                .replace(/\s*\|.*$/, '')
-                                .trim();
-                                
-                            const lastStop = allStops[allStops.length - 1]
-                                .replace(/<[^>]*>/g, '')
-                                .replace(/\s+/g, ' ')
-                                .replace(/\s*\|.*$/, '')
-                                .trim();
-                            
-                            const [stopName, timeInfo] = firstStop.split(/(?=dans|imminent)/);
-                            const [terminusName, terminusTime] = lastStop.split(/(?=dans|imminent)/);
-                            
-                            if (stopName && timeInfo) {
-                                nextStopInfo = `| ${stopName.trim()}`;
-                            }
-                            
-                            if (terminusName && terminusTime) {
-                                terminusInfo = `Arrivée à ${destination} ${terminusTime.trim()}.`;
-                            }
+                    if (lastStopNameMatch && lastStopNameMatch[1] && lastTimeMatch && lastTimeMatch[1]) {
+                        const terminusName = lastStopNameMatch[1].trim();
+                        const terminusTime = lastTimeMatch[1].trim();
+                        if (terminusName && terminusTime) {
+                            terminusInfo = `Arrivée à ${destination} ${terminusTime !== 'imminent' ? 'dans ' + terminusTime : 'imminent'}.`;
                         }
                     }
-
+                }
+            }
+            
+            if (!nextStopInfo || !terminusInfo) {
+                const stopsHeaderMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
+                if (stopsHeaderMatch && stopsHeaderMatch[1]) {
+                    const headerText = stopsHeaderMatch[1].trim();
+                    if (headerText.includes('imminent')) {
+                        nextStopInfo = '| Départ imminent';
+                    } else if (headerText.includes('min')) {
+                        const minMatch = headerText.match(/dans (\d+) min/);
+                        if (minMatch && minMatch[1]) {
+                            nextStopInfo = `| Départ dans ${minMatch[1]} min.`;
+                        }
+                    }
+                }
+                
+                if (!terminusInfo) {
+                    terminusInfo = `à destination de ${destination}.`;
+                }
+            }
                     const mainText = document.createElement('div');
                     mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
                     mainText.style.fontSize = '1.2em';  
@@ -4068,7 +4415,7 @@ async function main() {
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
-        showErrorMessage("Erreur de chargement des données. Veuillez rafraîchir la page.");
+        toastBottomRight.error("Une erreur critique est survenue. Nous investigons actuellement sur la cause de la panne.");
     }
 }
 

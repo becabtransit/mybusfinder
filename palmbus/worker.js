@@ -1,6 +1,6 @@
 const TIME_FORMAT_OPTIONS = { hour: '2-digit', minute: '2-digit' };
-const UNKNOWN_TIME = "Heure inconnue";
-const UNKNOWN_STOP = "Inconnu";
+const UNKNOWN_TIME = "inconnue";
+const UNKNOWN_STOP = "Arrêt inconnu";
 
 const timestampCache = new Map();
 const stopIdCache = new Map();
@@ -49,12 +49,14 @@ function processStop(stop, now) {
     const arrivalTime = stop.arrival?.time ?? null;
     const departureTime = stop.departure?.time ?? null;
     
+    const timeForDelay = departureTime || arrivalTime;
+    
     return {
         stopId,
         arrivalTime: formatTime(arrivalTime, timestampCache),
         departureTime: formatTime(departureTime, timestampCache),
-        unifiedTime: formatTime(arrivalTime || departureTime, timestampCache),
-        delay: arrivalTime ? Math.floor(arrivalTime - now) : null
+        unifiedTime: formatTime(departureTime || arrivalTime, timestampCache), 
+        delay: timeForDelay ? Math.floor(timeForDelay - now) : null
     };
 }
 
