@@ -1352,85 +1352,83 @@ async function getSetvar() {
 getSetvar();
 
 
-function toggleMenuView() {
-    // Sélection du menu
+/**
+ * Fonction pour alterner entre deux vues du menu bottom
+ * Sauvegarde la préférence dans le localStorage pour les futures navigations
+ */
+ function toggleMenuView() {
+    // Sélectionner l'élément de menu
     const menuElement = document.querySelector('.menubottom-ul');
     
-    // Vérification si le menu existe
+    // Vérifier si l'élément existe
     if (!menuElement) {
-        console.error("Élément menu non trouvé");
+        console.error("Élément .menubottom-ul non trouvé");
         return;
     }
     
-    // Vérification de l'état actuel (récupération du localStorage)
-    const currentState = localStorage.getItem('menuViewState') || 'default';
-    const newState = currentState === 'default' ? 'secondary' : 'default';
+    // Récupérer l'état actuel du localStorage ou définir une valeur par défaut
+    const currentViewState = localStorage.getItem('menuViewState') || 'default';
     
-    // Application des transitions pour toutes les propriétés qui changent
-    menuElement.style.transition = "width 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
-                                  "border-radius 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
-                                  "bottom 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
-                                  "transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
-                                  "opacity 0.3s ease-out, " +
-                                  "filter 0.3s ease-out, " +
-                                  "background-color 0.5s ease";
+    // Définir les styles pour la transition
+    menuElement.style.transition = "transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
+                                 "opacity 0.3s ease-out, " +
+                                 "filter 0.3s ease-out, " +
+                                 "background-color 0.5s ease, " +
+                                 "border-radius 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
+                                 "bottom 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), " +
+                                 "width 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)";
     
-    // Application des styles en fonction de l'état
-    if (newState === 'secondary') {
-        // Passage à la vue secondaire
-        menuElement.style.width = '100%';
-        menuElement.style.borderRadius = '0px';
+    // Alterner entre les deux vues
+    if (currentViewState === 'default') {
+        // Passer à la vue secondaire
         menuElement.style.bottom = '0px';
-        // Important: préserver la transformation horizontale mais réinitialiser si nécessaire
-        menuElement.style.transform = 'translateX(-50%)';
+        menuElement.style.borderRadius = '0px';
+        menuElement.style.width = '100%';
         
-        // Mise à jour de la marge des éléments de la liste
+        // Modifier les marges des éléments li
         const menuItems = menuElement.querySelectorAll('li');
         menuItems.forEach(item => {
             item.style.transition = "margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)";
             item.style.margin = '0 5px';
         });
         
-        // Activation du style justify-content
-        menuElement.style.justifyContent = 'center';
+        // Mettre à jour le localStorage
+        localStorage.setItem('menuViewState', 'secondary');
     } else {
-        // Retour à la vue par défaut
-        menuElement.style.width = 'auto';
-        menuElement.style.borderRadius = '18px';
+        // Revenir à la vue par défaut
         menuElement.style.bottom = '10px';
-        // Important: préserver la transformation horizontale
-        menuElement.style.transform = 'translateX(-50%)';
+        menuElement.style.borderRadius = '18px';
+        menuElement.style.width = '';  // Revenir à la valeur CSS par défaut
         
-        // Mise à jour de la marge des éléments de la liste
+        // Modifier les marges des éléments li
         const menuItems = menuElement.querySelectorAll('li');
         menuItems.forEach(item => {
             item.style.transition = "margin 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)";
             item.style.margin = '0px 5px 5px 0px';
         });
         
-        // Désactivation du style justify-content
-        menuElement.style.justifyContent = 'flex-start';
+        // Mettre à jour le localStorage
+        localStorage.setItem('menuViewState', 'default');
     }
-    
-    // Enregistrement de l'état dans le localStorage pour les futures navigations
-    localStorage.setItem('menuViewState', newState);
-    
-    return newState; // Retourne l'état actuel après le changement
 }
 
 /**
- * Fonction pour appliquer la dernière vue sauvegardée au chargement de la page
+ * Fonction pour appliquer la vue sauvegardée au chargement de la page
+ * À appeler lors du chargement du document
  */
 function applyMenuViewState() {
-    const savedState = localStorage.getItem('menuViewState');
+    const savedViewState = localStorage.getItem('menuViewState');
     
-    // Si un état est sauvegardé et qu'il est différent de l'état par défaut, applique-le
-    if (savedState && savedState === 'secondary') {
-        toggleMenuView();
+    // Si une préférence a été sauvegardée et n'est pas la vue par défaut, appliquer l'autre vue
+    if (savedViewState === 'secondary') {
+        // Assurer que le DOM est chargé
+        setTimeout(() => {
+            toggleMenuView();
+        }, 100);
     }
 }
 
-// Exécuter cette fonction au chargement de la page
+// Appliquer la vue sauvegardée au chargement de la page
 document.addEventListener('DOMContentLoaded', applyMenuViewState);
 
 function setupLongPress(selector, duration, callback) {
