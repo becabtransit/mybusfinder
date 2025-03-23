@@ -2430,6 +2430,20 @@ function updateLinesDisplay() {
     }
   });
 
+  busStopLayers.forEach(layer => {
+    const busLine = layer.busLine;
+    
+    if (selectedLines.length === 0 || selectedLines.includes(busLine)) {
+      if (!map.hasLayer(layer)) {
+        map.addLayer(layer);
+      }
+    } else {
+      if (map.hasLayer(layer)) {
+        map.removeLayer(layer);
+      }
+    }
+  });
+
   Object.entries(markers).forEach(([id, marker]) => {
     if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
       if (!map.hasLayer(marker)) {
@@ -2444,27 +2458,20 @@ function updateLinesDisplay() {
       }
     }
   });
-
-  busStopLayers.forEach(layer => {
-    if (selectedLines.length === 0 || selectedLines.includes(layer.busLine)) {
-      if (!map.hasLayer(layer)) {
-        map.addLayer(layer);
-      }
-    } else {
-      if (map.hasLayer(layer)) {
-        if (layer.isPopupOpen && layer.isPopupOpen()) {
-          layer.closePopup();
-        }
-        map.removeLayer(layer);
-      }
-    }
-  });
 }
 
 function resetMapView() {
     selectedLines = [];
 
+    selectedLine = null;
+
     geoJsonLines.forEach(layer => {
+        if (!map.hasLayer(layer)) {
+            map.addLayer(layer);
+        }
+    });
+
+    busStopLayers.forEach(layer => {
         if (!map.hasLayer(layer)) {
             map.addLayer(layer);
         }
@@ -2473,12 +2480,6 @@ function resetMapView() {
     Object.values(markers).forEach(marker => {
         if (!map.hasLayer(marker)) {
             map.addLayer(marker);
-        }
-    });
-    
-    busStopLayers.forEach(layer => {
-        if (!map.hasLayer(layer)) {
-            map.addLayer(layer);
         }
     });
 }
@@ -4054,7 +4055,7 @@ function getTextColor(backgroundColor) {
         lineSection.style.position = 'relative';
 
         lineSection.onmouseover = () => {
-        lineSection.style.transform = 'scale(0.95,0.95)';
+        lineSection.style.transform = 'scale(0.98,0.98)';
         lineSection.style.opacity = '0.9';
         lineSection.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
         };  
