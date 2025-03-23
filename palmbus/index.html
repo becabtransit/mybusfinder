@@ -2236,59 +2236,71 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         }
     });
 
-    marker.on('popupclose', async function(e) {
-    const menubtm = document.getElementById('menubtm');
-    const filtre = document.getElementById('filtre');
-    
-    if (menubtm && filtre) {
-        try {
-            setTimeout(async () => {
-                if (lastActiveMarkerId === marker.id) {
-                    const data = await getSetvar();
-                    
-                    if (data) {
-                        menubtm.style.backgroundColor = `${data.colorbkg}77`;
-                        filtre.style.backgroundColor = `${data.colorbkg}77`;
+        marker.on('popupclose', async function(e) {
+        const menubtm = document.getElementById('menubtm');
+        const filtre = document.getElementById('filtre');
+        
+        if (menubtm && filtre) {
+            try {
+                setTimeout(async () => {
+                    if (lastActiveMarkerId === marker.id) {
+                        const data = await getSetvar();
                         
-                        document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
-                        const styleSheet = document.createElement('style');
-                        styleSheet.id = styleId;
-                        styleSheet.classList.add('menu-color-style');
-                        
-                        styleSheet.textContent = `
-                            #menubtm * {
-                                color: ${data.textColor || '#000000'};
-                                transition: color 0.5s ease;
+                        if (data) {
+                            menubtm.style.transition = "background-color 0.5s ease";
+                            filtre.style.transition = "background-color 0.5s ease";
+                            
+                            menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                            filtre.style.backgroundColor = `${data.colorbkg}77`;
+                            
+                            document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
+                            const styleSheet = document.createElement('style');
+                            styleSheet.id = styleId;
+                            styleSheet.classList.add('menu-color-style');
+                            
+                            const rgb = data.colorbkg.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+                            let textColor = '#000000';
+                            if (rgb) {
+                                const r = parseInt(rgb[1], 16);
+                                const g = parseInt(rgb[2], 16);
+                                const b = parseInt(rgb[3], 16);
+                                const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+                                textColor = brightness > 150 ? '#000000' : '#FFFFFF';
                             }
+                            
+                            styleSheet.textContent = `
+                                #menubtm * {
+                                    color: ${textColor};
+                                    transition: color 0.5s ease;
+                                }
 
-                            #filtre * {
-                                color: ${data.textColor || '#000000'};
-                                transition: color 0.5s ease;
-                            }
-                        `;
-                        
-                        document.head.appendChild(styleSheet);
-                        
-                        lastActiveMarkerId = null;
-                        lastActiveColor = null;
-                        
-                        if (marker.styleId) {
-                            const oldStyle = document.getElementById(marker.styleId);
-                            if (oldStyle) {
-                                setTimeout(() => {
-                                    oldStyle.remove();
-                                }, 500);
+                                #filtre * {
+                                    color: ${textColor};
+                                    transition: color 0.5s ease;
+                                }
+                            `;
+                            
+                            document.head.appendChild(styleSheet);
+                            
+                            lastActiveMarkerId = null;
+                            lastActiveColor = null;
+                            
+                            if (marker.styleId) {
+                                const oldStyle = document.getElementById(marker.styleId);
+                                if (oldStyle) {
+                                    setTimeout(() => {
+                                        oldStyle.remove();
+                                    }, 500);
+                                }
                             }
                         }
                     }
-                }
-            }, 50); 
-        } catch (error) {
-            return false;
+                }, 50); 
+            } catch (error) {
+                return false;
+            }
         }
-    }
-});
-
+    });
     return marker;
 }
 
