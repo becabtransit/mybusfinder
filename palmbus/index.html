@@ -2278,18 +2278,13 @@ function animateMarker(marker, newPosition) {
     marker.animationFrame = requestAnimationFrame(animate);
 }
 
-let selectedLines = [];
-let busStopLayers = []; 
+let busStopLayers = [];
 
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
 
-    const segmentInfo = identifySharedSegments(geoJsonData);
-    
-    const modifiedGeoJsonData = createOffsetRoutes(geoJsonData, segmentInfo);
-
-    const busLines = L.geoJSON(modifiedGeoJsonData, {
+    const busLines = L.geoJSON(geoJsonData, {
         filter: function(feature) {
             return feature.geometry.type === 'LineString';
         },
@@ -2297,20 +2292,37 @@ async function loadGeoJsonLines() {
             return {
                 color: lineColors[feature.properties.route_id] || '#3388ff',
                 weight: 4,
-                opacity: 0.8,
+                opacity: 0.7,  
                 lineJoin: 'round',
                 lineCap: 'round',
+                className: 'bus-line', 
                 dashArray: feature.properties.route_type === '3' ? '5, 5' : null
             };
         },
         onEachFeature: function(feature, layer) {
+            if (feature.properties && feature.properties.route_id) {
+                layer._path.setAttribute('data-route-id', feature.properties.route_id);
+            }
+            
             layer.on({
                 mouseover: function(e) {
-                    this.setStyle({ weight: 6, opacity: 1.0 });
+                    this.setStyle({ 
+                        weight: 6, 
+                        opacity: 1.0 
+                    });
+                    
+                    if (this._path) {
+                        this._path.classList.add('line-hover');
+                    }
+                    
                     this.bringToFront();
                 },
                 mouseout: function(e) {
                     busLines.resetStyle(this);
+                    
+                    if (this._path) {
+                        this._path.classList.remove('line-hover');
+                    }
                 },
                 click: function(e) {
                     if (feature.properties && feature.properties.route_id) {
@@ -2319,8 +2331,9 @@ async function loadGeoJsonLines() {
                 }
             });
             
-            if (!feature.properties.route_id) return;
-            geoJsonLines.push(layer);
+            if (feature.properties && feature.properties.route_id) {
+                geoJsonLines.push(layer);
+            }
         }
     }).addTo(map);
 
@@ -2332,7 +2345,7 @@ async function loadGeoJsonLines() {
             return L.circleMarker(latlng, {
                 radius: 3,
                 fillColor: '#ffffff',
-                color: '#000000', 
+                color: '#000000',
                 weight: 0.5,
                 opacity: 0.7,
                 fillOpacity: 0.6
@@ -2346,128 +2359,34 @@ async function loadGeoJsonLines() {
             busStopLayers.push(layer);
         }
     });
+    
+    addAnimationStyles();
 }
 
-function identifySharedSegments(geoJsonData) {
-    const segments = {};
-    const routes = {};
-    
-    geoJsonData.features.forEach(feature => {
-        if (feature.geometry.type !== 'LineString' || !feature.properties.route_id) return;
-        
-        const routeId = feature.properties.route_id;
-        const coords = feature.geometry.coordinates;
-        
-        routes[routeId] = {
-            coordinates: coords,
-            sharedSegments: new Set()
-        };
-        
-        for (let i = 0; i < coords.length - 1; i++) {
-            const start = coords[i].join(',');
-            const end = coords[i+1].join(',');
-            const key = start < end ? `${start}-${end}` : `${end}-${start}`;
-            
-            if (!segments[key]) {
-                segments[key] = new Set();
+function addAnimationStyles() {
+    if (!document.getElementById('bus-line-styles')) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'bus-line-styles';
+        styleEl.textContent = `
+            .bus-line {
+                transition: opacity 0.3s ease, stroke-width 0.3s ease;
             }
             
-            segments[key].add(routeId);
-        }
-    });
-    
-    for (const [segmentKey, routeIds] of Object.entries(segments)) {
-        if (routeIds.size <= 1) continue; 
-        
-        routeIds.forEach(routeId => {
-            routes[routeId].sharedSegments.add(segmentKey);
-        });
+            .line-hover {
+                opacity: 1 !important;
+                stroke-width: 6px;
+                filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+                animation: linePulse 1.5s infinite;
+            }
+            
+            @keyframes linePulse {
+                0% { stroke-opacity: 0.7; }
+                50% { stroke-opacity: 1; }
+                100% { stroke-opacity: 0.7; }
+            }
+        `;
+        document.head.appendChild(styleEl);
     }
-    
-    return { segments, routes };
-}
-
-function createOffsetRoutes(geoJsonData, segmentInfo) {
-    const { segments, routes } = segmentInfo;
-    const offsetDistance = 0.00001; 
-    const modifiedFeatures = [];
-    
-    geoJsonData.features.forEach(feature => {
-        if (feature.geometry.type !== 'LineString' || !feature.properties.route_id) {
-            modifiedFeatures.push(feature);
-            return;
-        }
-        
-        const routeId = feature.properties.route_id;
-        const originalCoords = feature.geometry.coordinates;
-        const modifiedCoords = [];
-        
-        const routeRanking = {};
-        
-        for (const [segmentKey, routeIds] of Object.entries(segments)) {
-            if (routeIds.size <= 1) continue;
-            
-            const routeArray = Array.from(routeIds);
-            routeArray.sort(); 
-            const rankInSegment = routeArray.indexOf(routeId);
-            
-            if (rankInSegment !== -1) {
-                routeRanking[segmentKey] = {
-                    rank: rankInSegment,
-                    total: routeArray.length
-                };
-            }
-        }
-        
-        for (let i = 0; i < originalCoords.length; i++) {
-            const currentPoint = originalCoords[i];
-            
-            if (i < originalCoords.length - 1) {
-                const nextPoint = originalCoords[i+1];
-                const start = currentPoint.join(',');
-                const end = nextPoint.join(',');
-                const segmentKey = start < end ? `${start}-${end}` : `${end}-${start}`;
-                
-                if (routeRanking[segmentKey]) {
-                    const dx = nextPoint[0] - currentPoint[0];
-                    const dy = nextPoint[1] - currentPoint[1];
-                    const angle = Math.atan2(dy, dx) + Math.PI/2;
-                    
-                    const { rank, total } = routeRanking[segmentKey];
-                    const centerOffset = (total - 1) / 2;
-                    const relativeOffset = rank - centerOffset;
-                    const offsetFactor = relativeOffset * offsetDistance;
-                    
-                    const offsetX = Math.cos(angle) * offsetFactor;
-                    const offsetY = Math.sin(angle) * offsetFactor;
-                    
-                    modifiedCoords.push([
-                        currentPoint[0] + offsetX,
-                        currentPoint[1] + offsetY
-                    ]);
-                } else {
-                    modifiedCoords.push([...currentPoint]);
-                }
-            } else {
-                modifiedCoords.push([...currentPoint]);
-            }
-        }
-        
-        const modifiedFeature = {
-            ...feature,
-            geometry: {
-                ...feature.geometry,
-                coordinates: modifiedCoords
-            }
-        };
-        
-        modifiedFeatures.push(modifiedFeature);
-    });
-    
-    return {
-        type: "FeatureCollection",
-        features: modifiedFeatures
-    };
 }
 
 function filterByLine(lineId) {
@@ -2514,8 +2433,7 @@ function updateLinesDisplay() {
                     map.removeLayer(layer);
                 }
             }
-        } 
-        else {
+        } else {
             if (selectedLines.length === 0) {
                 if (!map.hasLayer(layer)) {
                     map.addLayer(layer);
