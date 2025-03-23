@@ -1449,22 +1449,28 @@ async function initMap() {
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
     
     if (!isStandardView) {
-        const tileLayerUrl = isNightMode 
-            ? 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png'  
-            : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';             
-
-        L.tileLayer(tileLayerUrl, {
-            minZoom: 12,
-            maxZoom: 19,
-        }).addTo(mapInstance);
+    const tileLayerUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    
+    const tileLayer = L.tileLayer(tileLayerUrl, {
+        minZoom: 12,
+        maxZoom: 19,
+    }).addTo(mapInstance);
+    
+    if (isNightMode) {
+        const mapPane = mapInstance.getPanes().tilePane;
+        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
     } else {
-        L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
-            minZoom: 12,
-            maxZoom: 19,
-            format: 'image/jpeg',
-            style: 'normal'
-        }).addTo(mapInstance);
+        const mapPane = mapInstance.getPanes().tilePane;
+        mapPane.style.filter = 'none';
     }
+} else {
+    L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
+        minZoom: 12,
+        maxZoom: 19,
+        format: 'image/jpeg',
+        style: 'normal'
+    }).addTo(mapInstance);
+}
 
 
 
@@ -3912,25 +3918,26 @@ function applyMapView() {
     });
 
     if (!isStandardView) {
-        if (isNightMode) {
-            L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
-                minZoom: 12,
-                maxZoom: 19,
-            }).addTo(map);
-        } else {
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                minZoom: 12,
-                maxZoom: 19,
-            }).addTo(map);
-        }
+    const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        minZoom: 12,
+        maxZoom: 19,
+    }).addTo(map);
+    
+    if (isNightMode) {
+        const mapPane = map.getPanes().tilePane;
+        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
     } else {
-        L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
-            minZoom: 12,
-            maxZoom: 19,
-            format: 'image/jpeg',
-            style: 'normal'
-        }).addTo(map);
+        const mapPane = map.getPanes().tilePane;
+        mapPane.style.filter = 'none';
     }
+} else {
+    L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
+        minZoom: 12,
+        maxZoom: 19,
+        format: 'image/jpeg',
+        style: 'normal'
+    }).addTo(map);
+}
 }
 
 
