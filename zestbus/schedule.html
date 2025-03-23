@@ -1350,6 +1350,22 @@ select:focus {
         let currentStopId = null;
         let currentDestinationId = null;
 
+        async function getSetvar() {
+    try {
+
+        const response1 = await fetch('setvar/settings/networkname.txt');
+        const setvar1 = await response1.text();
+        const nomdureseau = setvar1.trim();  
+
+        return {nomdureseau};
+
+    } catch (error) {
+        console.error('Erreur chargement setvar ! ', error);
+    }
+}
+
+getSetvar();
+
         
     document.addEventListener('DOMContentLoaded', function() {
     loadData();
@@ -1624,11 +1640,29 @@ function getRealtimeArrival(tripId, stopId) {
     return new Date(stopUpdate.arrival);
 }
 
-const DB_NAME = 'MyBusFinderZB';
+let DB_NAME;
+let STORE_NAME;
 const DB_VERSION = 3;
-const STORE_NAME = `gtfsStoreZB`;
 
-function initDB() {
+async function initConstants() {
+    try {
+        const { nomdureseau } = await getSetvar();
+        DB_NAME = `MyBusFinder${nomdureseau}`;
+        STORE_NAME = `gtfsStore${nomdureseau}`;
+        return { DB_NAME, STORE_NAME };
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation des constantes', error);
+        DB_NAME = 'MyBusFinderDefault';
+        STORE_NAME = 'gtfsStoreDefault';
+        return { DB_NAME, STORE_NAME };
+    }
+}
+
+async function initDB() {
+    if (!DB_NAME || !STORE_NAME) {
+        await initConstants();
+    }
+    
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -1672,7 +1706,8 @@ async function isFirstVisitOfDay() {
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
-        return true; 
+        toastBottomRight.error('Erreur lors de la vérification des données');
+        return true;
     }
 }
 
@@ -1690,7 +1725,7 @@ async function saveToCache(data) {
             transaction.onerror = () => reject(transaction.error);
         });
     } catch (error) {
-        toastBottomRight.error('Erreur ! ', error);
+        console.error('Erreur lors de la sauvegarde dans le cache', error);
         throw error;
     }
 }
@@ -1707,7 +1742,7 @@ async function getFromCache() {
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
-        toastBottomRight.error('Erreur ! ', error);
+        console.error('Erreur lors de la récupération cache', error);
         return null;
     }
 }
