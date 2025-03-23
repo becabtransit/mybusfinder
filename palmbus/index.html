@@ -2285,7 +2285,11 @@ async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
 
-    const busLines = L.geoJSON(geoJsonData, {
+    const segmentInfo = identifySharedSegments(geoJsonData);
+    
+    const modifiedGeoJsonData = createOffsetRoutes(geoJsonData, segmentInfo);
+
+    const busLines = L.geoJSON(modifiedGeoJsonData, {
         filter: function(feature) {
             return feature.geometry.type === 'LineString';
         },
@@ -2316,12 +2320,9 @@ async function loadGeoJsonLines() {
             });
             
             if (!feature.properties.route_id) return;
-            feature._leaflet_id = layer._leaflet_id; 
             geoJsonLines.push(layer);
         }
     }).addTo(map);
-
-    applyLineOffsets(geoJsonData);
 
     const busStops = L.geoJSON(geoJsonData, {
         filter: function(feature) {
@@ -2331,7 +2332,7 @@ async function loadGeoJsonLines() {
             return L.circleMarker(latlng, {
                 radius: 3,
                 fillColor: '#ffffff',
-                color: '#000000',
+                color: '#000000', 
                 weight: 0.5,
                 opacity: 0.7,
                 fillOpacity: 0.6
@@ -2347,45 +2348,126 @@ async function loadGeoJsonLines() {
     });
 }
 
-function applyLineOffsets(geoJsonData) {
+function identifySharedSegments(geoJsonData) {
     const segments = {};
-    const offsetAmount = 4; 
+    const routes = {};
     
     geoJsonData.features.forEach(feature => {
-        if (feature.geometry.type !== 'LineString') return;
+        if (feature.geometry.type !== 'LineString' || !feature.properties.route_id) return;
         
-        for (let i = 0; i < feature.geometry.coordinates.length - 1; i++) {
-            const start = feature.geometry.coordinates[i].join(',');
-            const end = feature.geometry.coordinates[i+1].join(',');
+        const routeId = feature.properties.route_id;
+        const coords = feature.geometry.coordinates;
+        
+        routes[routeId] = {
+            coordinates: coords,
+            sharedSegments: new Set()
+        };
+        
+        for (let i = 0; i < coords.length - 1; i++) {
+            const start = coords[i].join(',');
+            const end = coords[i+1].join(',');
             const key = start < end ? `${start}-${end}` : `${end}-${start}`;
             
             if (!segments[key]) {
-                segments[key] = [];
+                segments[key] = new Set();
             }
             
-            segments[key].push({
-                featureId: feature._leaflet_id,
-                routeId: feature.properties.route_id,
-                index: i
-            });
+            segments[key].add(routeId);
         }
     });
     
-    Object.keys(segments).forEach(key => {
-        if (segments[key].length <= 1) return;
+    for (const [segmentKey, routeIds] of Object.entries(segments)) {
+        if (routeIds.size <= 1) continue; 
         
-        segments[key].forEach((lineInfo, idx) => {
-            if (idx === 0) return;
-            
-            const layer = geoJsonLines.find(l => l._leaflet_id === lineInfo.featureId);
-            if (!layer) return;
-            
-            const offset = (idx % 2 === 0 ? 1 : -1) * offsetAmount * Math.ceil(idx/2);
-            layer.setStyle({
-                offset: offset
-            });
+        routeIds.forEach(routeId => {
+            routes[routeId].sharedSegments.add(segmentKey);
         });
+    }
+    
+    return { segments, routes };
+}
+
+function createOffsetRoutes(geoJsonData, segmentInfo) {
+    const { segments, routes } = segmentInfo;
+    const offsetDistance = 0.0001; 
+    const modifiedFeatures = [];
+    
+    geoJsonData.features.forEach(feature => {
+        if (feature.geometry.type !== 'LineString' || !feature.properties.route_id) {
+            modifiedFeatures.push(feature);
+            return;
+        }
+        
+        const routeId = feature.properties.route_id;
+        const originalCoords = feature.geometry.coordinates;
+        const modifiedCoords = [];
+        
+        const routeRanking = {};
+        
+        for (const [segmentKey, routeIds] of Object.entries(segments)) {
+            if (routeIds.size <= 1) continue;
+            
+            const routeArray = Array.from(routeIds);
+            routeArray.sort(); 
+            const rankInSegment = routeArray.indexOf(routeId);
+            
+            if (rankInSegment !== -1) {
+                routeRanking[segmentKey] = {
+                    rank: rankInSegment,
+                    total: routeArray.length
+                };
+            }
+        }
+        
+        for (let i = 0; i < originalCoords.length; i++) {
+            const currentPoint = originalCoords[i];
+            
+            if (i < originalCoords.length - 1) {
+                const nextPoint = originalCoords[i+1];
+                const start = currentPoint.join(',');
+                const end = nextPoint.join(',');
+                const segmentKey = start < end ? `${start}-${end}` : `${end}-${start}`;
+                
+                if (routeRanking[segmentKey]) {
+                    const dx = nextPoint[0] - currentPoint[0];
+                    const dy = nextPoint[1] - currentPoint[1];
+                    const angle = Math.atan2(dy, dx) + Math.PI/2;
+                    
+                    const { rank, total } = routeRanking[segmentKey];
+                    const centerOffset = (total - 1) / 2;
+                    const relativeOffset = rank - centerOffset;
+                    const offsetFactor = relativeOffset * offsetDistance;
+                    
+                    const offsetX = Math.cos(angle) * offsetFactor;
+                    const offsetY = Math.sin(angle) * offsetFactor;
+                    
+                    modifiedCoords.push([
+                        currentPoint[0] + offsetX,
+                        currentPoint[1] + offsetY
+                    ]);
+                } else {
+                    modifiedCoords.push([...currentPoint]);
+                }
+            } else {
+                modifiedCoords.push([...currentPoint]);
+            }
+        }
+        
+        const modifiedFeature = {
+            ...feature,
+            geometry: {
+                ...feature.geometry,
+                coordinates: modifiedCoords
+            }
+        };
+        
+        modifiedFeatures.push(modifiedFeature);
     });
+    
+    return {
+        type: "FeatureCollection",
+        features: modifiedFeatures
+    };
 }
 
 function filterByLine(lineId) {
@@ -2403,40 +2485,6 @@ function filterByLine(lineId) {
         zoomToSelectedLine(selectedLines[0]);
     } else if (selectedLines.length > 1) {
         zoomToMultipleLines(selectedLines);
-    }
-}
-
-function zoomToSelectedLine(lineId) {
-    const bounds = L.latLngBounds();
-    
-    geoJsonLines.forEach(layer => {
-        if (layer.feature.properties.route_id === lineId) {
-            bounds.extend(layer.getBounds());
-        }
-    });
-    
-    if (bounds.isValid()) {
-        map.fitBounds(bounds, {
-            padding: [10, 10], 
-            maxZoom: 17        
-        });
-    }
-}
-
-function zoomToMultipleLines(lineIds) {
-    const bounds = L.latLngBounds();
-    
-    geoJsonLines.forEach(layer => {
-        if (lineIds.includes(layer.feature.properties.route_id)) {
-            bounds.extend(layer.getBounds());
-        }
-    });
-    
-    if (bounds.isValid()) {
-        map.fitBounds(bounds, {
-            padding: [50, 50], 
-            maxZoom: 15       
-        });
     }
 }
 
@@ -2496,6 +2544,40 @@ function updateLinesDisplay() {
     });
 }
 
+function zoomToSelectedLine(lineId) {
+    const bounds = L.latLngBounds();
+    
+    geoJsonLines.forEach(layer => {
+        if (layer.feature.properties.route_id === lineId) {
+            bounds.extend(layer.getBounds());
+        }
+    });
+    
+    if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+            padding: [10, 10], 
+            maxZoom: 17        
+        });
+    }
+}
+
+function zoomToMultipleLines(lineIds) {
+    const bounds = L.latLngBounds();
+    
+    geoJsonLines.forEach(layer => {
+        if (lineIds.includes(layer.feature.properties.route_id)) {
+            bounds.extend(layer.getBounds());
+        }
+    });
+    
+    if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+            padding: [50, 50], 
+            maxZoom: 15       
+        });
+    }
+}
+
 function resetMapView() {
     selectedLines = [];
     
@@ -2517,7 +2599,6 @@ function resetMapView() {
         }
     });
 }
-
 
 function showPopup() {
     const popup2 = document.getElementById('popup2');
