@@ -3989,36 +3989,27 @@ function getTextColor(backgroundColor) {
                     let terminusInfo = '';
                                         
                     const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
-
+                    
                     if (nextStopsDiv && nextStopsDiv[0]) {
                         const allStops = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
                         
                         if (allStops && allStops.length > 0) {
-                            const firstStopText = allStops[0]
-                                .replace(/<[^>]*>/g, '')
-                                .replace(/\s+/g, ' ')
-                                .trim();
+                            const firstStopText = allStops[0].replace(/<[^>]*>/g, '').trim();
+                            const nextStopName = firstStopText.split(/dans|imminente/)[0].trim();
+                            nextStopInfo = `| ${nextStopName}`;
                             
-                            const lastStopText = allStops[allStops.length - 1]
-                                .replace(/<[^>]*>/g, '')
-                                .replace(/\s+/g, ' ')
-                                .trim();
-                            
-                            const firstStopMatch = firstStopText.match(/^(.+?)(?:\s+(dans\s+\d+\s+min|imminente))?$/);
-                            const lastStopMatch = lastStopText.match(/^(.+?)(?:\s+(dans\s+\d+\s+min|imminente))?$/);
-                            
-                            if (firstStopMatch && firstStopMatch[1]) {
-                                nextStopInfo = `| ${firstStopMatch[1].trim()}`;
+                            if (allStops.length > 1) {
+                                const lastStopText = allStops[allStops.length - 1].replace(/<[^>]*>/g, '').trim();
                                 
-                                if (firstStopMatch[2]) {
-                                    nextStopInfo += ` - ${firstStopMatch[2]}`;
+                                let timeInfo = '';
+                                if (lastStopText.includes('dans')) {
+                                    timeInfo = 'dans ' + lastStopText.split('dans')[1].trim();
+                                    terminusInfo = `Arrivée à ${destination} ${timeInfo}`;
+                                } else if (lastStopText.includes('imminente')) {
+                                    terminusInfo = `Arrivée à ${destination} imminente`;
+                                } else {
+                                    terminusInfo = `Terminus: ${destination}`;
                                 }
-                            }
-                            
-                            if (lastStopMatch && lastStopMatch[2]) {
-                                terminusInfo = `Arrivée à ${destination} ${lastStopMatch[2]}.`;
-                            } else if (lastStopMatch) {
-                                terminusInfo = `Terminus: ${destination}`;
                             }
                         }
                     }
