@@ -2737,19 +2737,21 @@ async function fetchVehiclePositions() {
                         let filteredStops = nextStops.slice(currentStopIndex);
                         
                         if (filteredStops.length > 0) {
-                        stopsHeaderText = "Prochains arrêts";
-                        
-                        if (filteredStops.length === 1) {
-                            const delay = filteredStops[0].delay || 0;
-                            const minutes = Math.max(0, Math.ceil(delay / 60));
-                                                    
-                            if (minutes <= 3) {
-                                stopsHeaderText = minutes === 0 ? "Départ imminent" : `Départ dans ${minutes} min`;
-                            } else {
+                            const firstStopDelay = filteredStops[0].delay || 0;
+                            const minutes = Math.max(0, Math.ceil(firstStopDelay / 60));
+                            
+                            stopsHeaderText = "Prochains arrêts";
+                            
+                            if (filteredStops.length === 1) {
+                                if (minutes === 0) {
+                                    stopsHeaderText = "Départ imminent";
+                                } else {
+                                    stopsHeaderText = `Départ dans ${minutes} min`;
+                                }
+                            } 
+                            else if (minutes > 3) {
                                 stopsHeaderText = `Départ dans ${minutes} minutes`;
-                            }       
-                        }
-                        
+                            }                        
                         filteredStops.forEach(stop => {
                         const timeLeft = stop.delay;
                         const timeLeftText = timeLeft !== null 
