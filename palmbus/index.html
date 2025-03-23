@@ -1341,7 +1341,11 @@ async function getSetvar() {
         const setvar = await response.text();
         const view = setvar.trim();  
 
-        return { colorbkg, view };
+        const response1 = await fetch('setvar/settings/networkname.txt');
+        const setvar1 = await response1.text();
+        const nomdureseau = setvar1.trim();  
+
+        return { colorbkg, view, nomdureseau };
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
@@ -1714,12 +1718,29 @@ showLoadingScreen();
 
 let data;
 
-
-const DB_NAME = 'MyBusFinderPB';
+let DB_NAME;
+let STORE_NAME;
 const DB_VERSION = 3;
-const STORE_NAME = `gtfsStorePB`;
 
-function initDB() {
+async function initConstants() {
+    try {
+        const { nomdureseau } = await getSetvar();
+        DB_NAME = `MyBusFinder${nomdureseau}`;
+        STORE_NAME = `gtfsStore${nomdureseau}`;
+        return { DB_NAME, STORE_NAME };
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation des constantes', error);
+        DB_NAME = 'MyBusFinderDefault';
+        STORE_NAME = 'gtfsStoreDefault';
+        return { DB_NAME, STORE_NAME };
+    }
+}
+
+async function initDB() {
+    if (!DB_NAME || !STORE_NAME) {
+        await initConstants();
+    }
+    
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
 
