@@ -3980,43 +3980,38 @@ function getTextColor(backgroundColor) {
         destinationTitle.style.color = textColor;
         destinationSection.appendChild(destinationTitle);
 
-            busesByLineAndDestination[line][destination].forEach(bus => {
-                    const busItem = document.createElement('div');
-                    const marker = bus.vehicle;
-                    const popupContent = marker.getPopup().getContent();
+        busesByLineAndDestination[line][destination].forEach(bus => {
+            const busItem = document.createElement('div');
+            const marker = bus.vehicle;
+            const popupContent = marker.getPopup().getContent();
+
+            let nextStopInfo = '';
+            let terminusInfo = '';
+
+            const nextStopsContainer = popupContent.match(/<div class="next-stops-content"[\s\S]*?>([\s\S]*?)<\/div>/);
+
+            if (nextStopsContainer && nextStopsContainer[1]) {
+                const allStops = nextStopsContainer[1].match(/<li[\s\S]*?<\/li>/g);
+                
+                if (allStops && allStops.length > 0) {
+                    const firstStopMatch = allStops[0].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<div class="time-display"[^>]*>([\s\S]*?)<\/div>/);
                     
-                    let nextStopInfo = '';
-                    let terminusInfo = '';
+                    const lastStopMatch = allStops[allStops.length - 1].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<div class="time-display"[^>]*>([\s\S]*?)<\/div>/);
                     
-                    const nextStopsDiv = popupContent.match(/<div id="nextStopsContent"[^>]*>([\s\S]*?)<\/div>/);
-                    
-                    if (nextStopsDiv && nextStopsDiv[1]) {
-                        const liElements = nextStopsDiv[1].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
-                        
-                        if (liElements && liElements.length > 0) {
-                            const firstStopElement = liElements[0];
-                            const stopNameMatch = firstStopElement.match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
-                            const timeDisplayMatch = firstStopElement.match(/<div class="time-display"[^>]*>([\s\S]*?)<\/div>/);
-                            
-                            if (stopNameMatch && stopNameMatch[1] && timeDisplayMatch && timeDisplayMatch[1]) {
-                                const stopName = stopNameMatch[1].trim();
-                                const timeInfo = timeDisplayMatch[1].trim();
-                                nextStopInfo = `| ${stopName} ${timeInfo !== '' ? 'dans ' + timeInfo : 'imminent'}`;
-                            }
-                            
-                            if (liElements.length > 1) {
-                                const lastStopElement = liElements[liElements.length - 1];
-                                const lastTimeDisplayMatch = lastStopElement.match(/data-departure-time="([^"]*)"/);
-                                
-                                if (lastTimeDisplayMatch && lastTimeDisplayMatch[1]) {
-                                    const departureTime = lastTimeDisplayMatch[1];
-                                    if (departureTime !== "Inconnu") {
-                                        terminusInfo = `Arrivée à ${destination} à ${departureTime}`;
-                                    }
-                                }
-                            }
-                        }
+                    if (firstStopMatch && firstStopMatch[1] && firstStopMatch[2]) {
+                        const stopName = firstStopMatch[1].trim();
+                        const timeInfo = firstStopMatch[2].trim();
+                        nextStopInfo = `| ${stopName} ${timeInfo}`;
                     }
+                    
+                    if (lastStopMatch && lastStopMatch[1] && lastStopMatch[2]) {
+                        const terminusName = lastStopMatch[1].trim();
+                        const terminusTime = lastStopMatch[2].trim();
+                        terminusInfo = `Arrivée à ${destination} ${terminusTime === 'imminente' ? 'imminente' : 'dans ' + terminusTime}`;
+                    }
+                }
+            }                    
+
                     const mainText = document.createElement('div');
                     mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
                     mainText.style.fontSize = '1.2em';  
