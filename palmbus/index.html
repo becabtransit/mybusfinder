@@ -3980,86 +3980,62 @@ function getTextColor(backgroundColor) {
         destinationTitle.style.color = textColor;
         destinationSection.appendChild(destinationTitle);
 
-        function extractStopInfo(popupContent) {
-            let result = {
-                nextStop: {
-                    name: "Inconnu",
-                    time: ""
-                },
-                terminus: {
-                    name: "Inconnu",
-                    time: ""
-                }
-            };
-            
-            try {
-                const destinationMatch = popupContent.match(/<strong[^>]*>➜\s*(.*?)<\/strong>/);
-                if (destinationMatch && destinationMatch[1]) {
-                    result.terminus.name = destinationMatch[1].trim();
-                }
-                
-                const nextStopsContent = popupContent.match(/<div id="nextStopsContent"[^>]*>([\s\S]*?)<\/div>/);
-                
-                if (nextStopsContent && nextStopsContent[1]) {
-                    const stopItems = nextStopsContent[1].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
-                    
-                    if (stopItems && stopItems.length > 0) {
-                        const firstStopElement = stopItems[0];
-                        
-                        const stopNameMatch = firstStopElement.match(/<div class="stop-name"[^>]*>(.*?)<\/div>/);
-                        if (stopNameMatch && stopNameMatch[1]) {
-                            result.nextStop.name = stopNameMatch[1].trim();
-                        }
-                        
-                        const timeDisplayMatch = firstStopElement.match(/<div class="time-display"[^>]*>(.*?)<\/div>/);
-                        if (timeDisplayMatch && timeDisplayMatch[1]) {
-                            result.nextStop.time = timeDisplayMatch[1].trim();
-                        }
-                        
-                        if (stopItems.length > 1) {
-                            const lastStopElement = stopItems[stopItems.length - 1];
-                            
-                            const terminusNameMatch = lastStopElement.match(/<div class="stop-name"[^>]*>(.*?)<\/div>/);
-                            if (terminusNameMatch && terminusNameMatch[1]) {
-                                result.terminus.name = terminusNameMatch[1].trim();
-                            }
-                            
-                            const terminusTimeMatch = lastStopElement.match(/<div class="time-display"[^>]*>(.*?)<\/div>/);
-                            if (terminusTimeMatch && terminusTimeMatch[1]) {
-                                result.terminus.time = terminusTimeMatch[1].trim();
-                            }
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error("Erreur lors de l'extraction des informations d'arrêt:", e);
-            }
-            
-            return result;
-        }
-
-        Object.keys(busesByLineAndDestination[line][destination]).forEach(bus => {
+        busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
             const marker = bus.vehicle;
             const popupContent = marker.getPopup().getContent();
             
-            const stopInfo = extractStopInfo(popupContent);
-            
             let nextStopInfo = '';
             let terminusInfo = '';
             
-            if (stopInfo.nextStop.name !== "Inconnu") {
-                nextStopInfo = `| ${stopInfo.nextStop.name}`;
+            const stopNameContainers = popupContent.match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/g);
+            const timeDisplays = popupContent.match(/<div class="time-display"[^>]*data-time-left="([^"]*)"[^>]*data-departure-time="([^"]*)"[^>]*>([\s\S]*?)<\/div>/g);
+            
+            if (stopNameContainers && stopNameContainers.length > 0 && timeDisplays && timeDisplays.length > 0) {
+                const firstStopNameMatch = stopNameContainers[0].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
+                const firstTimeMatch = timeDisplays[0].match(/data-time-left="([^"]*)"/);
                 
-                if (stopInfo.nextStop.time) {
-                    nextStopInfo += ` ${stopInfo.nextStop.time}`;
+                if (firstStopNameMatch && firstStopNameMatch[1] && firstTimeMatch && firstTimeMatch[1]) {
+                    const stopName = firstStopNameMatch[1].trim();
+                    const timeInfo = firstTimeMatch[1].trim();
+                    if (stopName && timeInfo) {
+                        nextStopInfo = `| ${stopName} ${timeInfo !== 'imminente' ? 'dans ' + timeInfo : 'imminent'}`;
+                    }
+                }
+                
+                if (stopNameContainers.length > 1 && timeDisplays.length > 1) {
+                    const lastIndex = stopNameContainers.length - 1;
+                    const lastStopNameMatch = stopNameContainers[lastIndex].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
+                    const lastTimeMatch = timeDisplays[lastIndex].match(/data-time-left="([^"]*)"/);
+                    
+                    if (lastStopNameMatch && lastStopNameMatch[1] && lastTimeMatch && lastTimeMatch[1]) {
+                        const terminusName = lastStopNameMatch[1].trim();
+                        const terminusTime = lastTimeMatch[1].trim();
+                        if (terminusName && terminusTime) {
+                            terminusInfo = `Arrivée à ${destination} ${terminusTime !== 'imminente' ? 'dans ' + terminusTime : 'imminente'}.`;
+                        }
+                    }
                 }
             }
             
-            if (stopInfo.terminus.name !== "Inconnu" && stopInfo.terminus.time) {
-                terminusInfo = `Arrivée à ${stopInfo.terminus.name} ${stopInfo.terminus.time}`;
+            if (!nextStopInfo || !terminusInfo) {
+                const stopsHeaderMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
+                if (stopsHeaderMatch && stopsHeaderMatch[1]) {
+                    const headerText = stopsHeaderMatch[1].trim();
+                    if (headerText.includes('imminent')) {
+                        nextStopInfo = '| Départ imminent';
+                    } else if (headerText.includes('min')) {
+                        const minMatch = headerText.match(/dans (\d+) min/);
+                        if (minMatch && minMatch[1]) {
+                            nextStopInfo = `| Prochain arrêt dans ${minMatch[1]} min`;
+                        }
+                    }
+                }
+                
+                if (!terminusInfo) {
+                    terminusInfo = `Arrivée à ${destination}`;
+                }
             }
-            
                     const mainText = document.createElement('div');
                     mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
                     mainText.style.fontSize = '1.2em';  
