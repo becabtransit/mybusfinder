@@ -2809,278 +2809,21 @@ async function initializeApp() {
     }
 }
 
-function estimateVehiclePositions(tripUpdates, geoJsonLines) {
-    const now = Math.floor(Date.now() / 1000);
-    const estimatedPositions = [];
-    
-    Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
-        const nextStops = tripData.nextStops;
-        
-        if (nextStops.length < 2) return;
-        
-        let previousStopIndex = -1;
-        let nextStopIndex = -1;
-        
-        for (let i = 0; i < nextStops.length; i++) {
-            const stop = nextStops[i];
-            const arrivalTime = stop.arrivalTime && !isNaN(Date.parse(stop.arrivalTime)/1000) 
-                ? Date.parse(stop.arrivalTime)/1000 
-                : null;
-            
-            if (arrivalTime && arrivalTime < now) {
-                previousStopIndex = i;
-            } else if (arrivalTime && arrivalTime >= now && nextStopIndex === -1) {
-                nextStopIndex = i;
-                break;
-            }
-        }
-        
-        if (previousStopIndex === -1 && nextStopIndex > 0) {
-            previousStopIndex = 0;
-        }
-        
-        if (nextStopIndex === -1 && previousStopIndex < nextStops.length - 1) {
-            nextStopIndex = nextStops.length - 1;
-        }
-        
-        if (previousStopIndex === -1 || nextStopIndex === -1) return;
-        
-        const prevStop = nextStops[previousStopIndex];
-        const nextStop = nextStops[nextStopIndex];
-        
-        const prevStopCoords = getStopCoordinates(prevStop.stopId);
-        const nextStopCoords = getStopCoordinates(nextStop.stopId);
-        
-        if (!prevStopCoords || !nextStopCoords) return;
-        
-        const prevTime = prevStop.departureTime && !isNaN(Date.parse(prevStop.departureTime)/1000) 
-            ? Date.parse(prevStop.departureTime)/1000 
-            : Date.parse(prevStop.arrivalTime)/1000;
-        
-        const nextTime = nextStop.arrivalTime && !isNaN(Date.parse(nextStop.arrivalTime)/1000) 
-            ? Date.parse(nextStop.arrivalTime)/1000 
-            : Date.parse(nextStop.departureTime)/1000;
-        
-        let fraction = 0;
-        if (now >= prevTime && now <= nextTime) {
-            fraction = (now - prevTime) / (nextTime - prevTime);
-        } else if (now < prevTime) {
-            fraction = 0;
-        } else {
-            fraction = 1;
-        }
-        
-        const routeId = getRouteIdFromTripId(tripId);
-        const routeLine = findGeoJsonLineByRouteId(geoJsonLines, routeId);
-        
-        if (!routeLine) return;
-        
-        const segmentCoords = extractRouteSegment(routeLine, prevStopCoords, nextStopCoords);
-        
-        if (!segmentCoords || segmentCoords.length < 2) return;
-        
-        const position = interpolateAlongRoute(segmentCoords, fraction);
-        
-        const bearing = calculateBearing(segmentCoords, fraction);
-        
-        estimatedPositions.push({
-            tripId,
-            routeId,
-            position: {
-                latitude: position[0],
-                longitude: position[1],
-                bearing
-            },
-            stopId: fraction < 0.5 ? prevStop.stopId : nextStop.stopId,
-            currentStatus: fraction < 0.05 || fraction > 0.95 ? 1 : 2 
-        });
-    });
-    
-    return estimatedPositions;
-}
-
-function getStopCoordinates(stopId) {
-    const stop = busStopLayers.find(layer => 
-        layer.feature && 
-        layer.feature.properties && 
-        layer.feature.properties.stop_id === stopId
-    );
-    
-    if (stop) {
-        return [stop.getLatLng().lat, stop.getLatLng().lng];
-    }
-    
-    return null;
-}
-
-function getRouteIdFromTripId(tripId) {
-    const parts = tripId.split('_');
-    return parts[0];
-}
-
-function findGeoJsonLineByRouteId(geoJsonLines, routeId) {
-    return geoJsonLines.find(line => 
-        line.feature && 
-        line.feature.properties && 
-        line.feature.properties.route_id === routeId
-    );
-}
-
-function extractRouteSegment(routeLine, fromCoords, toCoords) {
-    if (!routeLine || !routeLine.feature || !routeLine.feature.geometry || !routeLine.feature.geometry.coordinates) {
-        return null;
-    }
-    
-    const coords = routeLine.feature.geometry.coordinates;
-    
-    const fromIndex = findClosestPointIndex(coords, fromCoords);
-    const toIndex = findClosestPointIndex(coords, toCoords);
-    
-    const startIdx = Math.min(fromIndex, toIndex);
-    const endIdx = Math.max(fromIndex, toIndex);
-    
-    return coords.slice(startIdx, endIdx + 1);
-}
-
-function findClosestPointIndex(lineCoords, targetPoint) {
-    let closestIdx = 0;
-    let minDist = Infinity;
-    
-    for (let i = 0; i < lineCoords.length; i++) {
-        const dist = distance(lineCoords[i][1], lineCoords[i][0], targetPoint[0], targetPoint[1]);
-        if (dist < minDist) {
-            minDist = dist;
-            closestIdx = i;
-        }
-    }
-    
-    return closestIdx;
-}
-
-function distance(lat1, lon1, lat2, lon2) {
-    return Math.sqrt(Math.pow(lat2 - lat1, 2) + Math.pow(lon2 - lon1, 2));
-}
-
-function interpolateAlongRoute(routeCoords, fraction) {
-    if (routeCoords.length < 2) return routeCoords[0];
-    if (fraction <= 0) return [routeCoords[0][1], routeCoords[0][0]];
-    if (fraction >= 1) return [routeCoords[routeCoords.length-1][1], routeCoords[routeCoords.length-1][0]];
-    
-    let totalLength = 0;
-    const segmentLengths = [];
-    
-    for (let i = 1; i < routeCoords.length; i++) {
-        const segLength = distance(
-            routeCoords[i-1][1], routeCoords[i-1][0],
-            routeCoords[i][1], routeCoords[i][0]
-        );
-        segmentLengths.push(segLength);
-        totalLength += segLength;
-    }
-    
-    const targetDistance = totalLength * fraction;
-    
-    let distanceSoFar = 0;
-    for (let i = 0; i < segmentLengths.length; i++) {
-        if (distanceSoFar + segmentLengths[i] >= targetDistance) {
-            const segmentFraction = (targetDistance - distanceSoFar) / segmentLengths[i];
-            
-            const lat = routeCoords[i][1] + segmentFraction * (routeCoords[i+1][1] - routeCoords[i][1]);
-            const lng = routeCoords[i][0] + segmentFraction * (routeCoords[i+1][0] - routeCoords[i][0]);
-            
-            return [lat, lng];
-        }
-        distanceSoFar += segmentLengths[i];
-    }
-    
-    return [routeCoords[routeCoords.length-1][1], routeCoords[routeCoords.length-1][0]];
-}
-
-function calculateBearing(routeCoords, fraction) {
-    if (routeCoords.length < 2) return 0;
-    
-    const totalLength = routeCoords.length - 1;
-    const segmentIndex = Math.min(Math.floor(fraction * totalLength), totalLength - 1);
-    
-    const from = routeCoords[segmentIndex];
-    const to = routeCoords[segmentIndex + 1];
-    
-    const y = Math.sin(to[0] - from[0]) * Math.cos(to[1]);
-    const x = Math.cos(from[1]) * Math.sin(to[1]) -
-              Math.sin(from[1]) * Math.cos(to[1]) * Math.cos(to[0] - from[0]);
-    const bearing = Math.atan2(y, x) * 180 / Math.PI;
-    
-    return (bearing + 360) % 360;
-}
-
-function getFallbackPositions(tripUpdates, geoJsonLines) {
-    try {
-        if (!tripUpdates || Object.keys(tripUpdates).length === 0) {
-            throw new Error("Aucune donnée de trip updates disponible pour l'estimation");
-        }
-        
-        const estimatedPositions = estimateVehiclePositions(tripUpdates, geoJsonLines);
-        
-        if (estimatedPositions.length === 0) {
-            throw new Error("Aucune position estimée n'a pu être calculée");
-        }
-
-        return {
-            entity: estimatedPositions.map(vehicle => ({
-                vehicle: {
-                    trip: {
-                        tripId: vehicle.tripId,
-                        routeId: vehicle.routeId,
-                        directionId: undefined
-                    },
-                    position: {
-                        latitude: vehicle.position.latitude,
-                        longitude: vehicle.position.longitude,
-                        bearing: vehicle.position.bearing || 0,
-                        speed: 0
-                    },
-                    currentStatus: vehicle.currentStatus || 2,
-                    stopId: vehicle.stopId,
-                    vehicle: {
-                        id: vehicle.tripId,
-                        label: vehicle.tripId
-                    }
-                }
-            }))
-        };
-    } catch (error) {
-        console.error('Erreur dans le fallback :', error);
-        return null;
-    }
-}
-
 let gtfsInitialized = false;
 
 async function fetchVehiclePositions() {
+
     if (!gtfsInitialized) {
         console.log("fetchVehiclePositions: GTFS pas encore initialisé, attente...");
         return; 
     }
-    let data;
     try {
-        const response = await fetch('proxy-cors/proxy_vehpos.php', { 
-            signal: AbortSignal.timeout(3000) 
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Erreur HTTP: ${response.status}`);
-        }
-        
+        const response = await fetch('proxy-cors/proxy_vehpos.php');
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
-        
-        if (!data || !data.entity || data.entity.length === 0) {
-            throw new Error("Aucune donnée de position de véhicule disponible");
-        }
-        if (data && data.entity) {
 
         const activeVehicleIds = new Set();
-        
+
         data.entity.forEach(entity => {
             const vehicle = entity.vehicle;
             if (vehicle) {
@@ -3614,7 +3357,7 @@ async function fetchVehiclePositions() {
                 delete markers[id]; 
             }
         });
-    }
+
 				
         let isMenuVisible = true;
 
@@ -4654,21 +4397,9 @@ const menubottom1 = document.getElementById('menubtm');
         updateMenu();
 
     } catch (error) {
-        try {
-            const fallbackData = getFallbackPositions(tripUpdates, geoJsonLines);
-            
-            if (fallbackData && fallbackData.entity && fallbackData.entity.length > 0) {
-                console.log(`Utilisation des positions estimées pour ${fallbackData.entity.length} véhicules`);
-                data = fallbackData; 
-                toastBottomRight.warning('⚠️ Positions des véhicules estimées - Les données peuvent être imprécises');
-            } else {
-                throw new Error("Aucune position estimée n'a pu être calculée");
-            }
-        } catch (fallbackError) {
-            console.error('Erreur lors de l\'estimation des positions des véhicules:', fallbackError);
-            toastBottomRight.error('Une erreur est survenue lors de la récupération des positions des véhicules.');
-            return; 
-        }
+        console.error('Err récup des données ! ', error);
+        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : no vehicle found on realtime data');
+
     }
 }
 
