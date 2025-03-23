@@ -3037,9 +3037,9 @@ function getFallbackPositions(tripUpdates, geoJsonLines) {
                         latitude: vehicle.position.latitude,
                         longitude: vehicle.position.longitude,
                         bearing: vehicle.position.bearing || 0,
-                        speed: null
+                        speed: 0
                     },
-                    currentStatus: vehicle.currentStatus,
+                    currentStatus: vehicle.currentStatus || 2,
                     stopId: vehicle.stopId,
                     vehicle: {
                         id: vehicle.tripId,
@@ -4654,19 +4654,19 @@ const menubottom1 = document.getElementById('menubtm');
 
     } catch (error) {
         try {
-            console.warn('Tentative de fallback suite à une erreur:', error);
             const fallbackData = getFallbackPositions(tripUpdates, geoJsonLines);
             
-            if (fallbackData && fallbackData.entity.length > 0) {
+            if (fallbackData && fallbackData.entity && fallbackData.entity.length > 0) {
                 console.log(`Utilisation des positions estimées pour ${fallbackData.entity.length} véhicules`);
-                const activeVehicleIds = processVehicleData(fallbackData, true);
+                // On réutilise le code existant en passant directement fallbackData
+                data = fallbackData;
                 toastBottomRight.warning('⚠️ Positions des véhicules estimées - Les données peuvent être imprécises');
             } else {
                 throw new Error("Aucune position estimée n'a pu être calculée");
             }
         } catch (fallbackError) {
             console.error('Erreur lors de l\'estimation des positions des véhicules:', fallbackError);
-            toastBottomRight.error('Une erreur est survenue lors de la récupération des positions des véhicules. Les positions affichées peuvent ne pas être à jour.');
+            toastBottomRight.error('Une erreur est survenue lors de la récupération des positions des véhicules.');
         }
     }
 }
