@@ -2278,8 +2278,8 @@ function animateMarker(marker, newPosition) {
     marker.animationFrame = requestAnimationFrame(animate);
 }
 
-let busStopLayers = []; 
 let selectedLines = [];
+let busStopLayers = []; 
 
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
@@ -2300,28 +2300,28 @@ async function loadGeoJsonLines() {
             };
         },
         onEachFeature: function(feature, layer) {
-            animateLine(layer);
-            
             layer.on({
                 mouseover: function(e) {
-                    this.setStyle({ 
-                        weight: 6, 
-                        opacity: 1.0,
-                        dashOffset: '0' 
-                    });
+                    this.setStyle({ weight: 6, opacity: 1.0 });
                     this.bringToFront();
                 },
                 mouseout: function(e) {
                     busLines.resetStyle(this);
-                    animateLine(this);
                 },
-
+                click: function(e) {
+                    if (feature.properties && feature.properties.route_id) {
+                        filterByLine(feature.properties.route_id);
+                    }
+                }
             });
             
-            layer.lineId = feature.properties.route_id;
+            if (!feature.properties.route_id) return;
+            feature._leaflet_id = layer._leaflet_id; 
             geoJsonLines.push(layer);
         }
     }).addTo(map);
+
+    applyLineOffsets(geoJsonData);
 
     const busStops = L.geoJSON(geoJsonData, {
         filter: function(feature) {
@@ -2336,54 +2336,56 @@ async function loadGeoJsonLines() {
                 opacity: 0.7,
                 fillOpacity: 0.6
             });
-        },
-        onEachFeature: function(feature, layer) {
-            if (feature.properties && feature.properties.route_id) {
-                layer.lineId = feature.properties.route_id;
-            } else {
-                layer.lineId = undefined;
-            }
-            
-            layer.setStyle({opacity: 0, fillOpacity: 0});
-            setTimeout(() => {
-                layer.setStyle({
-                    opacity: 0.7,
-                    fillOpacity: 0.6
-                });
-            }, Math.random() * 1000); 
-            
-            busStopLayers.push(layer);
         }
     }).addTo(map);
+    
+    busStops.eachLayer(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+            layer.busLine = layer.feature.properties.route_id || null;
+            busStopLayers.push(layer);
+        }
+    });
 }
 
-function animateLine(layer) {
-    const isDashed = layer.options && layer.options.dashArray;
+function applyLineOffsets(geoJsonData) {
+    const segments = {};
+    const offsetAmount = 4; 
     
-    if (isDashed) {
-        let dashOffset = 0;
-        const animationInterval = setInterval(() => {
-            dashOffset -= 1;
-            layer.setStyle({ dashOffset: String(dashOffset) });
-        }, 100);
+    geoJsonData.features.forEach(feature => {
+        if (feature.geometry.type !== 'LineString') return;
         
-        layer.animationInterval = animationInterval;
-    } else {
-        const pulseAnimation = () => {
-            layer.setStyle({ weight: 4, opacity: 0.8 });
+        for (let i = 0; i < feature.geometry.coordinates.length - 1; i++) {
+            const start = feature.geometry.coordinates[i].join(',');
+            const end = feature.geometry.coordinates[i+1].join(',');
+            const key = start < end ? `${start}-${end}` : `${end}-${start}`;
             
-            setTimeout(() => {
-                layer.setStyle({ weight: 5, opacity: 1 });
-                
-                setTimeout(() => {
-                    layer.setStyle({ weight: 4, opacity: 0.8 });
-                }, 500);
-            }, 500);
-        };
+            if (!segments[key]) {
+                segments[key] = [];
+            }
+            
+            segments[key].push({
+                featureId: feature._leaflet_id,
+                routeId: feature.properties.route_id,
+                index: i
+            });
+        }
+    });
+    
+    Object.keys(segments).forEach(key => {
+        if (segments[key].length <= 1) return;
         
-        const animationInterval = setInterval(pulseAnimation, 3000 + Math.random() * 2000);
-        layer.animationInterval = animationInterval;
-    }
+        segments[key].forEach((lineInfo, idx) => {
+            if (idx === 0) return;
+            
+            const layer = geoJsonLines.find(l => l._leaflet_id === lineInfo.featureId);
+            if (!layer) return;
+            
+            const offset = (idx % 2 === 0 ? 1 : -1) * offsetAmount * Math.ceil(idx/2);
+            layer.setStyle({
+                offset: offset
+            });
+        });
+    });
 }
 
 function filterByLine(lineId) {
@@ -2404,118 +2406,118 @@ function filterByLine(lineId) {
     }
 }
 
+function zoomToSelectedLine(lineId) {
+    const bounds = L.latLngBounds();
+    
+    geoJsonLines.forEach(layer => {
+        if (layer.feature.properties.route_id === lineId) {
+            bounds.extend(layer.getBounds());
+        }
+    });
+    
+    if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+            padding: [10, 10], 
+            maxZoom: 17        
+        });
+    }
+}
+
+function zoomToMultipleLines(lineIds) {
+    const bounds = L.latLngBounds();
+    
+    geoJsonLines.forEach(layer => {
+        if (lineIds.includes(layer.feature.properties.route_id)) {
+            bounds.extend(layer.getBounds());
+        }
+    });
+    
+    if (bounds.isValid()) {
+        map.fitBounds(bounds, {
+            padding: [50, 50], 
+            maxZoom: 15       
+        });
+    }
+}
+
 function updateLinesDisplay() {
     geoJsonLines.forEach(layer => {
-        const routeId = layer.lineId;
+        const routeId = layer.feature.properties.route_id;
         
         if (selectedLines.length === 0 || selectedLines.includes(routeId)) {
             if (!map.hasLayer(layer)) {
                 map.addLayer(layer);
-                animateLine(layer);
             }
         } else {
             if (map.hasLayer(layer)) {
-                if (layer.animationInterval) {
-                    clearInterval(layer.animationInterval);
-                }
                 map.removeLayer(layer);
             }
         }
     });
     
     busStopLayers.forEach(layer => {
-        if (selectedLines.length === 0 || (layer.lineId && selectedLines.includes(layer.lineId))) {
-            if (!map.hasLayer(layer)) {
-                map.addLayer(layer);
-                layer.setStyle({opacity: 0, fillOpacity: 0});
-                setTimeout(() => {
-                    layer.setStyle({
-                        opacity: 0.7,
-                        fillOpacity: 0.6
-                    });
-                }, 200);
+        if (layer.busLine) {
+            if (selectedLines.length === 0 || selectedLines.includes(layer.busLine)) {
+                if (!map.hasLayer(layer)) {
+                    map.addLayer(layer);
+                }
+            } else {
+                if (map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                }
             }
-        } else {
-            if (map.hasLayer(layer)) {
-                map.removeLayer(layer);
+        } 
+        else {
+            if (selectedLines.length === 0) {
+                if (!map.hasLayer(layer)) {
+                    map.addLayer(layer);
+                }
+            } else {
+                if (map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                }
             }
         }
     });
     
-    if (typeof markers !== 'undefined') {
-        Object.entries(markers).forEach(([id, marker]) => {
-            if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
-                if (!map.hasLayer(marker)) {
-                    map.addLayer(marker);
-                }
-            } else {
-                if (map.hasLayer(marker)) {
-                    if (marker.isPopupOpen()) {
-                        marker.closePopup();
-                    }
-                    map.removeLayer(marker);
-                }
+    Object.entries(markers).forEach(([id, marker]) => {
+        if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
+            if (!map.hasLayer(marker)) {
+                map.addLayer(marker);
             }
-        });
-    }
+        } else {
+            if (map.hasLayer(marker)) {
+                if (marker.isPopupOpen()) {
+                    marker.closePopup();
+                }
+                map.removeLayer(marker);
+            }
+        }
+    });
 }
 
 function resetMapView() {
-    geoJsonLines.forEach(layer => {
-        if (layer.animationInterval) {
-            clearInterval(layer.animationInterval);
-        }
-    });
-    
     selectedLines = [];
     
     geoJsonLines.forEach(layer => {
         if (!map.hasLayer(layer)) {
             map.addLayer(layer);
-            animateLine(layer);
         }
     });
     
     busStopLayers.forEach(layer => {
         if (!map.hasLayer(layer)) {
             map.addLayer(layer);
-            layer.setStyle({opacity: 0, fillOpacity: 0});
-            setTimeout(() => {
-                layer.setStyle({
-                    opacity: 0.7,
-                    fillOpacity: 0.6
-                });
-            }, 200);
         }
     });
     
-    if (typeof markers !== 'undefined') {
-        Object.values(markers).forEach(marker => {
-            if (!map.hasLayer(marker)) {
-                map.addLayer(marker);
-            }
-        });
-    }
-
+    Object.values(markers).forEach(marker => {
+        if (!map.hasLayer(marker)) {
+            map.addLayer(marker);
+        }
+    });
 }
 
-function addBusStopMarker(lat, lng, lineId) {
-    const busStopMarker = L.circleMarker([lat, lng], {
-        radius: 3,
-        fillColor: '#ffffff',
-        color: '#000000',
-        weight: 0.5,
-        opacity: 0.7,
-        fillOpacity: 0.6
-    }).addTo(map);
-    
-    if (lineId) {
-        busStopMarker.lineId = lineId;
-    }
-    
-    busStopLayers.push(busStopMarker);
-    return busStopMarker;
-}
 
 function showPopup() {
     const popup2 = document.getElementById('popup2');
