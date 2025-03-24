@@ -1248,7 +1248,43 @@ shape.bounce-down {
     font-weight: bold;
 }
 
+.settings-popup {
+  animation: fadeIn 0.3s ease;
+}
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+:root {
+  --bg-color: #fff;
+  --text-color: #333;
+}
+
+.more-button {
+  opacity: 0.9;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.more-button:hover {
+  opacity: 1;
+}
+
+.more-item {
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { 
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
     </style>
 
 </head>
@@ -4377,59 +4413,69 @@ function getTextColor(backgroundColor) {
 
         menu.appendChild(lineSection);
     });
-    const showMoreButton = document.createElement('div');
-showMoreButton.className = 'show-more-button';
-showMoreButton.textContent = 'En voir plus...';
-showMoreButton.style.textAlign = 'center';
-showMoreButton.style.padding = '8px';
-showMoreButton.style.margin = '10px 0';
-showMoreButton.style.borderRadius = '8px';
-showMoreButton.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-showMoreButton.style.color = '#fff';
-showMoreButton.style.cursor = 'pointer';
-showMoreButton.style.fontSize = '14px';
-showMoreButton.style.transition = 'all 0.3s ease';
+    transportStateContainer.style.display = 'none';
+transportStateContainer.classList.add('more-item');
+locationButton.style.display = 'none';
+locationButton.classList.add('more-item');
+satelliteButton.style.display = 'none';
+satelliteButton.classList.add('more-item');
+alertsButton.style.display = 'none';
+alertsButton.classList.add('more-item');
 
-showMoreButton.onmouseover = () => {
-    showMoreButton.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+// Créer le bouton "En voir plus"
+const moreButton = document.createElement('div');
+moreButton.className = 'more-button';
+moreButton.innerHTML = 'En voir plus...';
+moreButton.style.cssText = `
+    position: sticky;
+    bottom: 10px;
+    width: calc(100% - 20px);
+    margin: 10px auto 0;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    text-align: center;
+    border-radius: 12px;
+    font-size: 14px;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    z-index: 999;
+    transition: transform 0.2s, background 0.2s;
+`;
+
+moreButton.onmouseover = () => {
+    moreButton.style.background = 'rgba(0, 0, 0, 0.7)';
+    moreButton.style.transform = 'translateY(-2px)';
 };
-showMoreButton.onmouseout = () => {
-    showMoreButton.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+moreButton.onmouseout = () => {
+    moreButton.style.background = 'rgba(0, 0, 0, 0.5)';
+    moreButton.style.transform = 'translateY(0)';
 };
 
-// Conteneur pour les éléments cachés
-const hiddenElements = document.createElement('div');
-hiddenElements.id = 'hidden-elements';
-hiddenElements.style.display = 'none';
-hiddenElements.style.transition = 'all 0.3s ease';
-
-// Ajout du conteneur d'affluence
-hiddenElements.appendChild(transportStateContainer);
-
-// Ajout du bouton de localisation
-hiddenElements.appendChild(locationButton);
-
-// Ajout du bouton satellite
-hiddenElements.appendChild(satelliteButton);
-
-// Ajout du bouton Histovec
-hiddenElements.appendChild(alertsButton);
-
-// Fonction pour afficher/masquer les éléments
-showMoreButton.onclick = () => {
-    if (hiddenElements.style.display === 'none') {
-        hiddenElements.style.display = 'block';
-        showMoreButton.textContent = 'Masquer';
-    } else {
-        hiddenElements.style.display = 'none';
-        showMoreButton.textContent = 'En voir plus...';
+let moreExpanded = false;
+moreButton.onclick = () => {
+    moreExpanded = !moreExpanded;
+    document.querySelectorAll('.more-item').forEach(item => {
+        item.style.display = moreExpanded ? 'flex' : 'none';
+    });
+    moreButton.innerHTML = moreExpanded ? 'Afficher moins' : 'En voir plus...';
+    
+    // Faire défiler vers le bas si étendu
+    if (moreExpanded) {
+        menu.scrollTo({
+            top: menu.scrollHeight,
+            behavior: 'smooth'
+        });
     }
 };
+
+menu.appendChild(moreButton);
 
 // Créer le bouton Paramètres
 const settingsButton = document.createElement('div');
 settingsButton.className = 'alerts-button';
-settingsButton.style.marginTop = '10px';
+settingsButton.onclick = () => showSettingsMenu();
 
 const settingsIcon = document.createElement('div');
 settingsIcon.className = 'alerts-icon';
@@ -4449,76 +4495,91 @@ settingsTitle.textContent = 'Paramètres';
 
 const settingsDescription = document.createElement('div');
 settingsDescription.className = 'alerts-description';
-settingsDescription.textContent = 'Langue, apparence et préférences';
+settingsDescription.textContent = 'Langue, thème et préférences';
 
 settingsContent.appendChild(settingsTitle);
 settingsContent.appendChild(settingsDescription);
 
 settingsButton.appendChild(settingsIcon);
 settingsButton.appendChild(settingsContent);
-
-// Fonction pour afficher le menu paramètres
-settingsButton.onclick = () => {
-    showSettingsPopup();
-};
-
-// Ajout des éléments au menu
-menu.appendChild(showMoreButton);
-menu.appendChild(hiddenElements);
 menu.appendChild(settingsButton);
 
-// Créer la fonction pour afficher le popup des paramètres
-function showSettingsPopup() {
-    // Récupérer les paramètres existants ou utiliser les valeurs par défaut
-    const settings = JSON.parse(localStorage.getItem('settings') || '{"language":"fr","darkMode":false}');
+// Ajoutez ce code à votre fichier JavaScript principal, en dehors de la fonction updateMenu
+
+// Fonction pour afficher le menu des paramètres
+function showSettingsMenu() {
+    const settingsContainer = document.createElement('div');
+    settingsContainer.className = 'settings-popup';
+    settingsContainer.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        backdrop-filter: blur(5px);
+    `;
+
+    const settingsPanel = document.createElement('div');
+    settingsPanel.style.cssText = `
+        background: #fff;
+        border-radius: 12px;
+        width: 80%;
+        max-width: 400px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        padding: 20px;
+        color: #333;
+    `;
+
+    // Vérifier si les paramètres existent déjà dans localStorage
+    let settings = localStorage.getItem('appSettings');
+    if (!settings) {
+        // Paramètres par défaut
+        settings = JSON.stringify({
+            language: 'fr',
+            darkMode: false
+        });
+        localStorage.setItem('appSettings', settings);
+    }
     
-    const popupContainer = document.createElement('div');
-    popupContainer.style.position = 'fixed';
-    popupContainer.style.top = '0';
-    popupContainer.style.left = '0';
-    popupContainer.style.width = '100%';
-    popupContainer.style.height = '100%';
-    popupContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
-    popupContainer.style.zIndex = '10000';
-    popupContainer.style.display = 'flex';
-    popupContainer.style.justifyContent = 'center';
-    popupContainer.style.alignItems = 'center';
-    
-    const popupContent = document.createElement('div');
-    popupContent.style.backgroundColor = '#fff';
-    popupContent.style.borderRadius = '12px';
-    popupContent.style.padding = '20px';
-    popupContent.style.width = '80%';
-    popupContent.style.maxWidth = '400px';
-    popupContent.style.maxHeight = '80vh';
-    popupContent.style.overflowY = 'auto';
-    popupContent.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
-    
-    // Titre du popup
-    const title = document.createElement('h2');
-    title.textContent = 'Paramètres';
-    title.style.margin = '0 0 20px 0';
-    title.style.fontFamily = 'League Spartan';
-    title.style.fontSize = '24px';
-    title.style.textAlign = 'center';
-    
+    settings = JSON.parse(settings);
+
+    const settingsTitle = document.createElement('h2');
+    settingsTitle.textContent = 'Paramètres';
+    settingsTitle.style.cssText = `
+        margin-top: 0;
+        text-align: center;
+        font-size: 24px;
+        margin-bottom: 20px;
+    `;
+
     // Section langue
-    const languageSection = document.createElement('div');
-    languageSection.style.marginBottom = '20px';
+    const langSection = document.createElement('div');
+    langSection.style.marginBottom = '20px';
     
-    const languageTitle = document.createElement('h3');
-    languageTitle.textContent = 'Langue';
-    languageTitle.style.margin = '0 0 10px 0';
-    languageTitle.style.fontFamily = 'League Spartan';
-    languageTitle.style.fontSize = '18px';
+    const langLabel = document.createElement('label');
+    langLabel.textContent = 'Langue :';
+    langLabel.style.cssText = `
+        display: block;
+        margin-bottom: 10px;
+        font-weight: bold;
+    `;
     
-    const languageSelect = document.createElement('select');
-    languageSelect.style.width = '100%';
-    languageSelect.style.padding = '10px';
-    languageSelect.style.borderRadius = '8px';
-    languageSelect.style.border = '1px solid #ddd';
-    languageSelect.style.fontSize = '16px';
-    languageSelect.style.fontFamily = 'League Spartan';
+    const langSelect = document.createElement('select');
+    langSelect.style.cssText = `
+        width: 100%;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        background: #f5f5f5;
+        font-size: 16px;
+    `;
     
     const languages = [
         { code: 'fr', name: 'Français' },
@@ -4531,141 +4592,159 @@ function showSettingsPopup() {
         const option = document.createElement('option');
         option.value = lang.code;
         option.textContent = lang.name;
-        option.selected = settings.language === lang.code;
-        languageSelect.appendChild(option);
+        if (settings.language === lang.code) {
+            option.selected = true;
+        }
+        langSelect.appendChild(option);
     });
     
-    languageSection.appendChild(languageTitle);
-    languageSection.appendChild(languageSelect);
+    langSelect.onchange = () => {
+        settings.language = langSelect.value;
+        localStorage.setItem('appSettings', JSON.stringify(settings));
+        toastBottomRight.success('Langue modifiée');
+    };
     
-    // Section apparence
-    const appearanceSection = document.createElement('div');
-    appearanceSection.style.marginBottom = '20px';
-    
-    const appearanceTitle = document.createElement('h3');
-    appearanceTitle.textContent = 'Apparence';
-    appearanceTitle.style.margin = '0 0 10px 0';
-    appearanceTitle.style.fontFamily = 'League Spartan';
-    appearanceTitle.style.fontSize = '18px';
-    
-    const themeContainer = document.createElement('div');
-    themeContainer.style.display = 'flex';
-    themeContainer.style.alignItems = 'center';
-    themeContainer.style.justifyContent = 'space-between';
-    themeContainer.style.padding = '10px';
-    themeContainer.style.borderRadius = '8px';
-    themeContainer.style.border = '1px solid #ddd';
+    langSection.appendChild(langLabel);
+    langSection.appendChild(langSelect);
+
+    // Section thème
+    const themeSection = document.createElement('div');
+    themeSection.style.marginBottom = '20px';
     
     const themeLabel = document.createElement('label');
-    themeLabel.textContent = 'Mode sombre';
-    themeLabel.style.fontFamily = 'League Spartan';
-    themeLabel.style.fontSize = '16px';
+    themeLabel.textContent = 'Thème :';
+    themeLabel.style.cssText = `
+        display: block;
+        margin-bottom: 10px;
+        font-weight: bold;
+    `;
     
     const themeToggle = document.createElement('div');
-    themeToggle.style.position = 'relative';
-    themeToggle.style.width = '50px';
-    themeToggle.style.height = '26px';
-    themeToggle.style.backgroundColor = settings.darkMode ? '#4CAF50' : '#ccc';
-    themeToggle.style.borderRadius = '13px';
-    themeToggle.style.transition = 'background-color 0.3s';
-    themeToggle.style.cursor = 'pointer';
+    themeToggle.style.cssText = `
+        display: flex;
+        background: #f0f0f0;
+        border-radius: 30px;
+        height: 40px;
+        align-items: center;
+        position: relative;
+        width: 200px;
+        margin: 0 auto;
+        cursor: pointer;
+    `;
     
-    const toggleCircle = document.createElement('div');
-    toggleCircle.style.position = 'absolute';
-    toggleCircle.style.top = '3px';
-    toggleCircle.style.left = settings.darkMode ? '27px' : '3px';
-    toggleCircle.style.width = '20px';
-    toggleCircle.style.height = '20px';
-    toggleCircle.style.backgroundColor = '#fff';
-    toggleCircle.style.borderRadius = '50%';
-    toggleCircle.style.transition = 'left 0.3s';
+    const lightOption = document.createElement('div');
+    lightOption.textContent = 'Clair';
+    lightOption.style.cssText = `
+        flex: 1;
+        text-align: center;
+        z-index: 1;
+        transition: color 0.3s;
+        color: ${settings.darkMode ? '#888' : '#000'};
+    `;
     
-    themeToggle.appendChild(toggleCircle);
+    const darkOption = document.createElement('div');
+    darkOption.textContent = 'Sombre';
+    darkOption.style.cssText = `
+        flex: 1;
+        text-align: center;
+        z-index: 1;
+        transition: color 0.3s;
+        color: ${settings.darkMode ? '#000' : '#888'};
+    `;
+    
+    const toggleIndicator = document.createElement('div');
+    toggleIndicator.style.cssText = `
+        position: absolute;
+        width: 100px;
+        height: 34px;
+        background: #fff;
+        border-radius: 30px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transition: transform 0.3s;
+        transform: translateX(${settings.darkMode ? '96px' : '4px'});
+    `;
+    
+    themeToggle.appendChild(toggleIndicator);
+    themeToggle.appendChild(lightOption);
+    themeToggle.appendChild(darkOption);
+    
     themeToggle.onclick = () => {
         settings.darkMode = !settings.darkMode;
-        themeToggle.style.backgroundColor = settings.darkMode ? '#4CAF50' : '#ccc';
-        toggleCircle.style.left = settings.darkMode ? '27px' : '3px';
+        localStorage.setItem('appSettings', JSON.stringify(settings));
+        toggleIndicator.style.transform = `translateX(${settings.darkMode ? '96px' : '4px'})`;
+        lightOption.style.color = settings.darkMode ? '#888' : '#000';
+        darkOption.style.color = settings.darkMode ? '#000' : '#888';
+        
+        // Appliquer le thème immédiatement
+        applyTheme(settings.darkMode);
+        
+        toastBottomRight.success(`Thème ${settings.darkMode ? 'sombre' : 'clair'} activé`);
     };
     
-    themeContainer.appendChild(themeLabel);
-    themeContainer.appendChild(themeToggle);
+    themeSection.appendChild(themeLabel);
+    themeSection.appendChild(themeToggle);
+
+    // Bouton de fermeture
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'Fermer';
+    closeButton.style.cssText = `
+        display: block;
+        width: 100%;
+        padding: 12px;
+        margin-top: 20px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background 0.3s;
+    `;
+    closeButton.onmouseover = () => closeButton.style.background = '#0069d9';
+    closeButton.onmouseout = () => closeButton.style.background = '#007bff';
     
-    appearanceSection.appendChild(appearanceTitle);
-    appearanceSection.appendChild(themeContainer);
-    
-    // Boutons d'action
-    const buttonsContainer = document.createElement('div');
-    buttonsContainer.style.display = 'flex';
-    buttonsContainer.style.justifyContent = 'space-between';
-    buttonsContainer.style.marginTop = '20px';
-    
-    const cancelButton = document.createElement('button');
-    cancelButton.textContent = 'Annuler';
-    cancelButton.style.padding = '10px 20px';
-    cancelButton.style.borderRadius = '8px';
-    cancelButton.style.border = '1px solid #ddd';
-    cancelButton.style.backgroundColor = '#f5f5f5';
-    cancelButton.style.fontSize = '16px';
-    cancelButton.style.fontFamily = 'League Spartan';
-    cancelButton.style.cursor = 'pointer';
-    cancelButton.onclick = () => {
-        document.body.removeChild(popupContainer);
+    closeButton.onclick = () => {
+        document.body.removeChild(settingsContainer);
     };
+
+    settingsPanel.appendChild(settingsTitle);
+    settingsPanel.appendChild(langSection);
+    settingsPanel.appendChild(themeSection);
+    settingsPanel.appendChild(closeButton);
     
-    const saveButton = document.createElement('button');
-    saveButton.textContent = 'Enregistrer';
-    saveButton.style.padding = '10px 20px';
-    saveButton.style.borderRadius = '8px';
-    saveButton.style.border = 'none';
-    saveButton.style.backgroundColor = '#4CAF50';
-    saveButton.style.color = '#fff';
-    saveButton.style.fontSize = '16px';
-    saveButton.style.fontFamily = 'League Spartan';
-    saveButton.style.cursor = 'pointer';
-    saveButton.onclick = () => {
-        settings.language = languageSelect.value;
-        localStorage.setItem('settings', JSON.stringify(settings));
-        applySettings(settings);
-        document.body.removeChild(popupContainer);
-        toastBottomRight.success('Paramètres enregistrés avec succès');
+    settingsContainer.appendChild(settingsPanel);
+    document.body.appendChild(settingsContainer);
+    
+    // Fermer en cliquant en dehors
+    settingsContainer.onclick = (e) => {
+        if (e.target === settingsContainer) {
+            document.body.removeChild(settingsContainer);
+        }
     };
-    
-    buttonsContainer.appendChild(cancelButton);
-    buttonsContainer.appendChild(saveButton);
-    
-    // Assembler le popup
-    popupContent.appendChild(title);
-    popupContent.appendChild(languageSection);
-    popupContent.appendChild(appearanceSection);
-    popupContent.appendChild(buttonsContainer);
-    
-    popupContainer.appendChild(popupContent);
-    document.body.appendChild(popupContainer);
 }
 
-// Fonction pour appliquer les paramètres
-function applySettings(settings) {
-    // Appliquer le mode sombre
-    if (settings.darkMode) {
-        document.body.classList.add('dark-mode');
-        // Ajouter votre logique de mode sombre ici
+// Fonction pour appliquer le thème
+function applyTheme(isDarkMode) {
+    // Exemple d'application du thème sombre/clair
+    // Vous devrez adapter cela selon votre CSS existant
+    const root = document.documentElement;
+    
+    if (isDarkMode) {
+        root.style.setProperty('--bg-color', '#222');
+        root.style.setProperty('--text-color', '#fff');
+        // Ajoutez d'autres variables CSS au besoin
     } else {
-        document.body.classList.remove('dark-mode');
-        // Ajouter votre logique de mode clair ici
+        root.style.setProperty('--bg-color', '#fff');
+        root.style.setProperty('--text-color', '#333');
+        // Ajoutez d'autres variables CSS au besoin
     }
-    
-    // Appliquer la langue (à implémenter)
-    // Vous devrez avoir un système de traduction pour cette partie
 }
 
-// Charger et appliquer les paramètres au démarrage
-function loadSettings() {
-    const settings = JSON.parse(localStorage.getItem('settings') || '{"language":"fr","darkMode":false}');
-    applySettings(settings);
-}
-
-// Appeler loadSettings au démarrage de l'application
-document.addEventListener('DOMContentLoaded', loadSettings);
+// Appliquer le thème au chargement de la page
+document.addEventListener('DOMContentLoaded', () => {
+    const settings = JSON.parse(localStorage.getItem('appSettings') || '{"darkMode":false}');
+    applyTheme(settings.darkMode);
+});
 }
 
 const menubottom1 = document.getElementById('menubtm');
