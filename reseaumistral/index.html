@@ -4444,143 +4444,97 @@ const menubottom1 = document.getElementById('menubtm');
 let lastTripUpdateTimestamp = 0;
 let worker;
 let fetchInProgress = false;
-const FETCH_INTERVAL = 8000;
-let abortController = null;
+const FETCH_INTERVAL = 8000; 
 
 function initWorker() {
-    if (worker) {
-        worker.terminate();
-    }
-    
     worker = new Worker('worker.js');
+    
+    worker.onmessage = (e) => {
+        const data = e.data;
+        
+        if (data.type === 'tripUpdatesResult') {
+            tripUpdates = data.tripUpdates;
+            fetchInProgress = false;
+            
+            if (data.metrics) {
+                console.debug(`Traitement des trip updates complet en ${data.metrics.totalTime?.toFixed(2) || 'N/A'}ms`);
+            }
+        } else if (data.type === 'error') {
+            console.error('Erreur worker:', data.error);
+            fetchInProgress = false;
+        }
+    };
     
     worker.onerror = (error) => {
         console.error('Erreur worker', error);
-        setTimeout(initWorker, 1000);
-    };
-}
-
-async function decodeProtobufAsync(buffer) {
-    return new Promise((resolve) => {
+        fetchInProgress = false;
         setTimeout(() => {
-            const decoded = decodeProtobuf(buffer);
-            resolve(decoded);
-        }, 0);
-    });
+            worker.terminate();
+            initWorker();
+        }, 1000);
+    };
 }
 
 async function fetchTripUpdates() {
     if (fetchInProgress) return Promise.resolve(null);
     
     fetchInProgress = true;
-    const fetchStartTime = performance.now();
+    const startTime = performance.now();
     
-    try {
-        if (abortController) {
-            abortController.abort();
-        }
+    return new Promise((resolve, reject) => {
+        const workerTimeoutId = setTimeout(() => {
+            fetchInProgress = false;
+            reject(new Error('Worker timeout'));
+        }, 10000); 
         
-        abortController = new AbortController();
-        const timeoutId = setTimeout(() => abortController.abort(), 5000);
-        
-        const response = await fetch('proxy-cors/proxy_tripupdate.php', {
-            signal: abortController.signal,
-            cache: 'no-store',
-            priority: 'high' 
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-            throw new Error(`Erreur HTTP: ${response.status}`);
-        }
-        
-        const buffer = await response.arrayBuffer();
-        const data = await decodeProtobufAsync(buffer);
-        
-        const fetchTime = performance.now() - fetchStartTime;
-        console.debug(`Téléchargement gtfs en ${fetchTime.toFixed(2)}ms`);
-        
-        return new Promise((resolve, reject) => {
-            const workerTimeoutId = setTimeout(() => {
-                reject(new Error('Worker timeout'));
-                initWorker();
-            }, 3000);
+        const originalHandler = worker.onmessage;
+        worker.onmessage = (e) => {
+            const data = e.data;
             
-            worker.onmessage = (e) => {
+            if (data.type === 'tripUpdatesResult') {
                 clearTimeout(workerTimeoutId);
-                const processTime = performance.now() - fetchStartTime;
-                console.debug(`Traitement total en ${processTime.toFixed(2)}ms`);
+                fetchInProgress = false;
                 
-                tripUpdates = e.data.tripUpdates;
-                resolve(e.data.tripUpdates);
+                worker.onmessage = originalHandler;
                 
-                setTimeout(() => {
-                    fetchInProgress = false;
-                }, 0);
-            };
-            
-            worker.postMessage(data, [buffer]); 
-        });
-    } catch (error) {
-        console.error('Erreur récupération trip updates:', error);
-        fetchInProgress = false;
-        throw error;
-    }
+                tripUpdates = data.tripUpdates;
+                
+                const totalTime = performance.now() - startTime;
+                console.debug(`Total fetch + processing ${totalTime.toFixed(2)}ms`);
+                
+                resolve(data.tripUpdates);
+                
+                originalHandler(e);
+            } else if (data.type === 'error') {
+                clearTimeout(workerTimeoutId);
+                fetchInProgress = false;
+                worker.onmessage = originalHandler;
+                
+                console.error('Erreur worker:', data.error);
+                reject(new Error(data.error));
+            }
+        };
+        
+        worker.postMessage({ action: 'fetchTripUpdates' });
+    });
 }
 
-let animationFrameId = null;
 let lastUpdateTime = 0;
-
 function scheduleFetchUpdates(timestamp) {
     if (!lastUpdateTime || timestamp - lastUpdateTime >= FETCH_INTERVAL) {
         lastUpdateTime = timestamp;
         
-        const scheduleUpdate = window.requestIdleCallback || 
-            ((callback) => setTimeout(callback, 1));
-        
-        scheduleUpdate(() => {
-            Promise.all([
-                fetchTripUpdates().catch(() => null),
-                fetchVehiclePositions().catch(() => null)
-            ]).catch(error => {
-                console.warn('Erreur lors des mises à jour', error);
-            });
+        Promise.all([
+            fetchTripUpdates().catch(() => null),
+            fetchVehiclePositions().catch(() => null)
+        ]).catch(error => {
+            console.warn('Erreur lors des mises à jour', error);
         });
     }
     
-    animationFrameId = requestAnimationFrame(scheduleFetchUpdates);
+    requestAnimationFrame(scheduleFetchUpdates);
 }
 
-function startUpdates() {
-    if (!worker) {
-        initWorker();
-    }
-    if (!animationFrameId) {
-        animationFrameId = requestAnimationFrame(scheduleFetchUpdates);
-    }
-}
-
-function stopUpdates() {
-    if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-    }
-    if (abortController) {
-        abortController.abort();
-        abortController = null;
-    }
-}
-
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        stopUpdates();
-    } else {
-        startUpdates();
-    }
-});
-
-startUpdates();
 
 async function main() {
     try {
