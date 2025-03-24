@@ -1706,7 +1706,7 @@ async function getFileHash() {
         });
         
         if (!response.ok) {
-            throw new Error(`Échec de la vérification: ${response.status}`);
+            throw new Error(`Échec de la vérif ${response.status}`);
         }
         
         const buffer = await response.arrayBuffer();
@@ -1716,7 +1716,7 @@ async function getFileHash() {
         
         return { fileHash, needsFullDownload: true };
     } catch (error) {
-        console.error('Erreur lors de la vérification du hash:', error);
+        console.error('Erreur lors de la vérif du hash:', error);
         return { needsFullDownload: true };
     }
 }
@@ -1745,7 +1745,7 @@ async function checkGTFSUpdate() {
         
         return { needsUpdate: false, metadata: storedMetadata };
     } catch (error) {
-        console.error('Erreur lors de la vérification de mise à jour GTFS:', error);
+        console.error('Erreur vérif de maj GTFS', error);
         return { needsUpdate: true };
     }
 }
@@ -1769,7 +1769,7 @@ async function saveToCache(data, metadata) {
             transaction.onerror = () => reject(transaction.error);
         });
     } catch (error) {
-        console.error('Erreur lors de la sauvegarde dans le cache', error);
+        console.error('Erreur sauvegarde cache', error);
         throw error;
     }
 }
@@ -1786,14 +1786,14 @@ async function getFromCache() {
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
-        console.error('Erreur lors de la récupération cache', error);
+        console.error('Erreur lors de récup cache', error);
         return null;
     }
 }
 
 async function extractGTFSFiles() {
     try {
-        toastBottomRight.info('Téléchargement des données GTFS...');
+        toastBottomRight.info('Merci de partienter lors de la mise à jour de la base de données dynamiques.');
         
         const response = await fetch('proxy-cors/proxy_gtfs.php');
         if (!response.ok) {
@@ -1827,7 +1827,7 @@ async function extractGTFSFiles() {
         
         return { extractedFiles, metadata };
     } catch (error) {
-        console.error('Erreur lors de l\'extraction des fichiers GTFS:', error);
+        console.error('Erreur extract', error);
         throw error;
     }
 }
@@ -1844,17 +1844,14 @@ async function loadGtfsData() {
             
             await saveToCache(extractedFiles, result.metadata);
             
-            toastBottomRight.success('Données GTFS mises à jour avec succès');
         } else {
             extractedFiles = await getFromCache();
             if (!extractedFiles) {
                 const result = await extractGTFSFiles();
                 extractedFiles = result.extractedFiles;
                 await saveToCache(extractedFiles, result.metadata);
-                toastBottomRight.success('Données GTFS téléchargées avec succès');
-            } else {
-                toastBottomRight.info('Utilisation des données GTFS en cache');
-            }
+                toastBottomRight.success('Données téléchargées avec succès !');
+            } 
         }
         
         routes = {};
