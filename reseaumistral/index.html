@@ -1248,6 +1248,52 @@ shape.bounce-down {
     font-weight: bold;
 }
 
+.bottom-sheet {
+    position: fixed;
+    bottom: -100%;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 20px 20px 0 0;
+    padding: 20px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    touch-action: none;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.bottom-sheet.active {
+    transform: translateY(-100%);
+}
+
+.bottom-sheet-handle {
+    width: 40px;
+    height: 4px;
+    background: #D1D1D6;
+    border-radius: 2px;
+    margin: 0 auto 20px;
+}
+
+.see-more-button {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(5px);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    color: #007AFF;
+    margin: 10px auto;
+    display: block;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.see-more-button:active {
+    transform: scale(0.95);
+}
 
     </style>
 
@@ -3737,6 +3783,22 @@ function updateMenu() {
     const menu = document.getElementById('menu');
     menu.innerHTML = '';
 
+    const seeMoreButton = document.createElement('button');
+    seeMoreButton.className = 'see-more-button';
+    seeMoreButton.textContent = 'En voir plus';
+    menu.appendChild(seeMoreButton);
+
+    const bottomSheet = document.createElement('div');
+    bottomSheet.className = 'bottom-sheet';
+    document.body.appendChild(bottomSheet);
+
+    const handle = document.createElement('div');
+    handle.className = 'bottom-sheet-handle';
+    bottomSheet.appendChild(handle);
+
+    const controlsContainer = document.createElement('div');
+    controlsContainer.style.marginBottom = '20px';
+
     const logoContainer = document.createElement('div');
     logoContainer.style.textAlign = 'center';
     logoContainer.style.marginBottom = '7px';
@@ -3835,7 +3897,7 @@ function updateMenu() {
 
     transportStateContainer.appendChild(transportImage);
     transportStateContainer.appendChild(transportStateTextContainer);
-    menu.appendChild(transportStateContainer);
+    bottomSheet.appendChild(transportStateContainer);
 
     const locationButton = document.createElement('div');
     locationButton.className = 'alerts-button';
@@ -3887,7 +3949,7 @@ function updateMenu() {
 
     locationButton.appendChild(locationIcon);
     locationButton.appendChild(locationContent);
-    menu.appendChild(locationButton);
+    bottomSheet.appendChild(locationButton);
 
 
 
@@ -4046,7 +4108,7 @@ satelliteContent.appendChild(satelliteDescription);
 
 satelliteButton.appendChild(satelliteIcon);
 satelliteButton.appendChild(satelliteContent);
-menu.appendChild(satelliteButton);
+bottomSheet.appendChild(satelliteButton);
 
 
 
@@ -4083,7 +4145,43 @@ alertsContent.appendChild(alertsDescription);
 
 alertsButton.appendChild(alertsIcon);
 alertsButton.appendChild(alertsContent);
-menu.appendChild(alertsButton);
+bottomSheet.appendChild(alertsButton);
+
+seeMoreButton.onclick = () => {
+        bottomSheet.classList.add('active');
+    };
+
+    let startY;
+    let currentY;
+    
+    bottomSheet.addEventListener('touchstart', (e) => {
+        startY = e.touches[0].clientY;
+    });
+
+    bottomSheet.addEventListener('touchmove', (e) => {
+        currentY = e.touches[0].clientY;
+        const deltaY = currentY - startY;
+        
+        if (deltaY > 0) { 
+            bottomSheet.style.transform = `translateY(${deltaY}px)`;
+            e.preventDefault();
+        }
+    });
+
+    bottomSheet.addEventListener('touchend', () => {
+        if (currentY - startY > 100) { 
+            bottomSheet.classList.remove('active');
+        } else {
+            bottomSheet.style.transform = '';
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!bottomSheet.contains(e.target) && !seeMoreButton.contains(e.target)) {
+            bottomSheet.classList.remove('active');
+        }
+    });
+
 
     const busesByLineAndDestination = {};
 
