@@ -2431,52 +2431,89 @@ let busStopLayers = [];
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
+    
+    const lineFeatures = [];
+    const stopFeatures = [];
+    
+    geoJsonData.features.forEach(feature => {
+        if (feature.geometry.type === 'LineString') {
+            lineFeatures.push(feature);
+        } else if (feature.geometry && feature.geometry.type === 'Point') {
+            stopFeatures.push(feature);
+        }
+    });
 
-    const busLines = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry.type === 'LineString';
-        },
+    const busLines = L.geoJSON({
+        type: "FeatureCollection",
+        features: lineFeatures
+    }, {
         style: function(feature) {
             return {
                 color: lineColors[feature.properties.route_id] || '#3388ff',
                 weight: 6,
-                opacity: 0.7,  
+                opacity: 0.7,
                 lineJoin: 'round',
                 lineCap: 'round',
-                className: 'bus-line', 
+                className: 'bus-line',
                 dashArray: feature.properties.route_type === '3' ? '5, 5' : null
             };
         },
         onEachFeature: function(feature, layer) {
-            
             if (feature.properties && feature.properties.route_id) {
                 geoJsonLines.push(layer);
             }
         }
     }).addTo(map);
 
-    const busStops = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry && feature.geometry.type === 'Point';
-        },
-        pointToLayer: function(feature, latlng) {
-            return L.circleMarker(latlng, {
-                radius: 3,
-                fillColor: '#ffffff',
-                color: '#000000',
-                weight: 0.5,
-                opacity: 0.7,
-                fillOpacity: 0.6
-            });
-        }
-    }).addTo(map);
-    
-    busStops.eachLayer(function(layer) {
-        if (layer.feature && layer.feature.properties) {
-            layer.busLine = layer.feature.properties.route_id || null;
-            busStopLayers.push(layer);
+    const busStopCluster = L.markerClusterGroup({
+        disableClusteringAtZoom: 15, 
+        maxClusterRadius: 40,
+        spiderfyOnMaxZoom: false,
+        polygonOptions: {
+            fillColor: '#fff',
+            color: '#000',
+            weight: 0.5,
+            opacity: 0.5,
+            fillOpacity: 0.2
         }
     });
+    
+    const chunkSize = 100; 
+    
+    for (let i = 0; i < stopFeatures.length; i += chunkSize) {
+        setTimeout(() => {
+            const chunk = stopFeatures.slice(i, i + chunkSize);
+            
+            const stopsChunk = L.geoJSON({
+                type: "FeatureCollection",
+                features: chunk
+            }, {
+                pointToLayer: function(feature, latlng) {
+                    return L.circleMarker(latlng, {
+                        radius: 3,
+                        fillColor: '#ffffff',
+                        color: '#000000',
+                        weight: 0.5,
+                        opacity: 0.7,
+                        fillOpacity: 0.6
+                    });
+                }
+            });
+            
+            stopsChunk.eachLayer(function(layer) {
+                if (layer.feature && layer.feature.properties) {
+                    layer.busLine = layer.feature.properties.route_id || null;
+                    busStopLayers.push(layer);
+                }
+            });
+            
+            busStopCluster.addLayer(stopsChunk);
+            
+            if (i + chunkSize >= stopFeatures.length) {
+                map.addLayer(busStopCluster);
+            }
+        }, 0);
+    }
     
     addAnimationStyles();
 }
