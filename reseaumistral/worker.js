@@ -2,8 +2,8 @@ const TIME_FORMAT_OPTIONS = { hour: '2-digit', minute: '2-digit' };
 const UNKNOWN_TIME = "Heure inconnue";
 const UNKNOWN_STOP = "Inconnu";
 
-const timestampCache = new Map();
-const stopIdCache = new Map();
+const timestampCache = {};
+const stopIdCache = {};
 
 let sharedBufferEnabled = false;
 try {
@@ -28,33 +28,36 @@ self.onmessage = ({ data }) => {
     });
 };
 
-function formatTime(timestamp, cache) {
+function formatTime(timestamp) {
     if (!timestamp) return UNKNOWN_TIME;
     
     const cacheKey = Math.floor(timestamp);
-    let cached = cache.get(cacheKey);
-    if (cached) return cached;
+    if (timestampCache[cacheKey]) return timestampCache[cacheKey];
     
     const date = new Date(timestamp * 1000);
-    cached = date.toLocaleTimeString([], TIME_FORMAT_OPTIONS);
-    cache.set(cacheKey, cached);
-    return cached;
+    const formattedTime = date.toLocaleTimeString([], TIME_FORMAT_OPTIONS);
+    timestampCache[cacheKey] = formattedTime;
+    return formattedTime;
 }
 
 function processStop(stop, now) {
-    const stopId = stopIdCache.get(stop.stopId) || 
-                   (stopIdCache.set(stop.stopId, stop.stopId.replace("0:", "")), 
-                   stopIdCache.get(stop.stopId));
+    let stopId = stopIdCache[stop.stopId];
+    if (!stopId) {
+        stopId = stop.stopId.replace("0:", "");
+        stopIdCache[stop.stopId] = stopId;
+    }
     
     const arrivalTime = stop.arrival?.time ?? null;
     const departureTime = stop.departure?.time ?? null;
+    const unifiedTime = formatTime(arrivalTime || departureTime);
+    const delay = arrivalTime ? Math.floor(arrivalTime - now) : null;
     
     return {
         stopId,
-        arrivalTime: formatTime(arrivalTime, timestampCache),
-        departureTime: formatTime(departureTime, timestampCache),
-        unifiedTime: formatTime(arrivalTime || departureTime, timestampCache),
-        delay: arrivalTime ? Math.floor(arrivalTime - now) : null
+        arrivalTime: formatTime(arrivalTime),
+        departureTime: formatTime(departureTime),
+        unifiedTime,
+        delay
     };
 }
 
@@ -63,32 +66,25 @@ function processTripUpdates(data) {
     const now = Date.now() / 1000;
     
     const entities = data.entity || [];
-    const entitiesLength = entities.length;
-    
-    for (let j = 0; j < entitiesLength; j++) {
-        const entity = entities[j];
+    for (const entity of entities) {
         const tripUpdate = entity.tripUpdate;
         
         if (!tripUpdate || !tripUpdate.stopTimeUpdate || !tripUpdate.stopTimeUpdate.length) continue;
 
         const trip = tripUpdate.trip;
         const stops = tripUpdate.stopTimeUpdate;
-        const stopsLength = stops.length;
         
-        const processedStops = new Array(stopsLength);
+        const processedStops = stops.map(stop => processStop(stop, now));
         const arrivalDelays = {};
         
-        for (let i = 0; i < stopsLength; i++) {
-            const processedStop = processStop(stops[i], now);
-            processedStops[i] = processedStop;
-            
+        for (const processedStop of processedStops) {
             if (processedStop.delay !== null) {
                 arrivalDelays[processedStop.stopId] = processedStop.delay;
             }
         }
 
-        const lastStopId = stopsLength > 0 ? 
-            (processedStops[stopsLength - 1]?.stopId || UNKNOWN_STOP) : 
+        const lastStopId = processedStops.length > 0 ? 
+            (processedStops[processedStops.length - 1]?.stopId || UNKNOWN_STOP) : 
             UNKNOWN_STOP;
 
         tripUpdates[trip.tripId] = {
