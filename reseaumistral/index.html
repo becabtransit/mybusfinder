@@ -2821,26 +2821,24 @@ async function fetchVehiclePositions() {
                         let filteredStops = nextStops.slice(currentStopIndex);
                         
                         if (filteredStops.length > 0) {
-                            const firstStopDelay = filteredStops[0].delay || 0;
-                            const minutes = Math.max(0, Math.ceil(firstStopDelay / 60));
-                            
-                            stopsHeaderText = "Prochains arrêts";
-                            
-                            if (filteredStops.length === 1) {
-                                if (minutes === 0) {
-                                    stopsHeaderText = "Départ imminent";
-                                } else {
-                                    stopsHeaderText = `Départ dans ${minutes} min`;
-                                }
-                            } 
-                            else if (minutes > 3) {
-                                stopsHeaderText = `Départ dans ${minutes} minutes`;
-                            }                        
+                        stopsHeaderText = "Prochains arrêts";
+                        
+                        if (filteredStops.length === 1) {
+                            const delay = filteredStops[0].delay || 0;
+                            const minutes = Math.max(0, Math.ceil(delay / 60));
+                                                    
+                            if (minutes === 0) {
+                                stopsHeaderText = "Départ imminent";
+                            } else {
+                                stopsHeaderText = `Départ dans ${minutes} min`;
+                            }                     
+                        }
+                        
                         filteredStops.forEach(stop => {
                         const timeLeft = stop.delay;
                         const timeLeftText = timeLeft !== null 
                             ? timeLeft <= 0 
-                                ? 'imminent' 
+                                ? 'imminente' 
                                 : `${Math.ceil(timeLeft / 60)} min`
                             : '';
                         
@@ -3627,19 +3625,10 @@ function updateMenu() {
     }
 
     const transportStateContainer = document.createElement('div');
-    transportStateContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 8px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        backdrop-filter: blur(5px);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-        cursor: pointer;
-    `;
+    transportStateContainer.style.display = 'flex';
+    transportStateContainer.style.alignItems = 'center';
+    transportStateContainer.style.justifyContent = 'center';
+    transportStateContainer.style.marginBottom = '10px';
 
     const transportImage = document.createElement('img');
     transportImage.alt = 'Affluence transports';
@@ -3649,32 +3638,26 @@ function updateMenu() {
 
     if (transportState === "normal") {
         transportImage.src = 'src/1of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.success('Ouf ! Aucune affluence notable. Bon voyage !');
-        };
+        transportStateContainer.addEventListener('click', () => {
+            toastBottomRight.info('Ouf ! Aucune affluence notable est à signaler. Profitez bien de votre voyage !');
+        });
+        transportStateContainer.style.cursor = 'pointer';
     } else if (transportState === "presque saturé") {
         transportImage.src = 'src/2of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.warning('Affluence modérée. Les transports se remplissent.');
-        };
+        transportStateContainer.addEventListener('click', () => {
+            toastBottomRight.info('Les gens rentrent chez eux, ça se corse... Mais on peut toujours voyager sereinement.');
+        });
+        transportStateContainer.style.cursor = 'pointer';
     } else if (transportState === "saturé") {
         transportImage.src = 'src/3of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.error('Forte affluence. Privilégiez les lignes secondaires.');
-        };
+        transportStateContainer.addEventListener('click', () => {
+            toastBottomRight.info('En heure de pointe, il est compliqué de se déplacer. Privilégiez les lignes secondaires.');
+        });
+        transportStateContainer.style.cursor = 'pointer';
     }
 
     const transportStateTextContainer = document.createElement('div');
     transportStateTextContainer.style.textAlign = 'left';
-
-    transportStateContainer.onmouseover = () => {
-        transportStateContainer.style.transform = 'scale(0.95,0.95)';
-        transportStateContainer.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
-    };
-    transportStateContainer.onmouseout = () => {
-        transportStateContainer.style.transform = 'scale(1,1)';
-        transportStateContainer.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-    };
 
     const transportStateLabel = document.createElement('div');
     transportStateLabel.textContent = "Affluence transports";
@@ -3981,8 +3964,7 @@ menu.appendChild(alertsButton);
             return isNaN(a) ? (isNaN(b) ? a.localeCompare(b) : 1) : (isNaN(b) ? -1 : parseInt(a) - parseInt(b));
         });
 
-
-function hexToRgb(hex) {
+        function hexToRgb(hex) {
     hex = hex.replace(/^#/, '');
     
     if (hex.length === 3) {
@@ -4038,17 +4020,6 @@ function getTextColor(backgroundColor) {
         lineSection.style.borderRadius = '8px';
         lineSection.style.position = 'relative';
 
-        lineSection.onmouseover = () => {
-        lineSection.style.transform = 'scale(0.95,0.95)';
-        lineSection.style.opacity = '0.9';
-        lineSection.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
-        };  
-        lineSection.onmouseout = () => {
-            lineSection.style.transform = 'scale(1,1)';
-            lineSection.style.opacity = '0.8';
-            lineSection.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-        };
-
         const favoriteButton = document.createElement('button');
         favoriteButton.style.position = 'absolute';
         favoriteButton.style.right = '5px';
@@ -4094,60 +4065,43 @@ function getTextColor(backgroundColor) {
 
         busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
-            const marker = bus.vehicle;
-            const popupContent = marker.getPopup().getContent();
-            
-            let nextStopInfo = '';
-            let terminusInfo = '';
-            
-            const stopNameContainers = popupContent.match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/g);
-            const timeDisplays = popupContent.match(/<div class="time-display"[^>]*data-time-left="([^"]*)"[^>]*data-departure-time="([^"]*)"[^>]*>([\s\S]*?)<\/div>/g);
-            
-            if (stopNameContainers && stopNameContainers.length > 0 && timeDisplays && timeDisplays.length > 0) {
-                const firstStopNameMatch = stopNameContainers[0].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
-                const firstTimeMatch = timeDisplays[0].match(/data-time-left="([^"]*)"/);
-                
-                if (firstStopNameMatch && firstStopNameMatch[1] && firstTimeMatch && firstTimeMatch[1]) {
-                    const stopName = firstStopNameMatch[1].trim();
-                    const timeInfo = firstTimeMatch[1].trim();
-                    if (stopName && timeInfo) {
-                        nextStopInfo = `| ${stopName}`;
-                    }
-                }
-                
-                if (stopNameContainers.length > 1 && timeDisplays.length > 1) {
-                    const lastIndex = stopNameContainers.length - 1;
-                    const lastStopNameMatch = stopNameContainers[lastIndex].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
-                    const lastTimeMatch = timeDisplays[lastIndex].match(/data-time-left="([^"]*)"/);
+                    const marker = bus.vehicle;
+                    const popupContent = marker.getPopup().getContent();
                     
-                    if (lastStopNameMatch && lastStopNameMatch[1] && lastTimeMatch && lastTimeMatch[1]) {
-                        const terminusName = lastStopNameMatch[1].trim();
-                        const terminusTime = lastTimeMatch[1].trim();
-                        if (terminusName && terminusTime) {
-                            terminusInfo = `Arrivée à ${destination} ${terminusTime !== 'imminent' ? 'dans ' + terminusTime : 'imminent'}.`;
+                    let nextStopInfo = '';
+                    let terminusInfo = '';
+                    
+                    const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
+                    
+                    if (nextStopsDiv && nextStopsDiv[0]) {
+                        const allStops = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
+                        
+                        if (allStops && allStops.length > 0) {
+                            const firstStop = allStops[0]
+                                .replace(/<[^>]*>/g, '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/\s*\|.*$/, '')
+                                .trim();
+                                
+                            const lastStop = allStops[allStops.length - 1]
+                                .replace(/<[^>]*>/g, '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/\s*\|.*$/, '')
+                                .trim();
+                            
+                            const [stopName, timeInfo] = firstStop.split(/(?=dans|imminent)/);
+                            const [terminusName, terminusTime] = lastStop.split(/(?=dans|imminent)/);
+                            
+                            if (stopName && timeInfo) {
+                                nextStopInfo = `| ${stopName.trim()}`;
+                            }
+                            
+                            if (terminusName && terminusTime) {
+                                terminusInfo = `Arrivée à ${destination} ${terminusTime.trim()}.`;
+                            }
                         }
                     }
-                }
-            }
-            
-            if (!nextStopInfo || !terminusInfo) {
-                const stopsHeaderMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
-                if (stopsHeaderMatch && stopsHeaderMatch[1]) {
-                    const headerText = stopsHeaderMatch[1].trim();
-                    if (headerText.includes('imminent')) {
-                        nextStopInfo = '| Départ imminent';
-                    } else if (headerText.includes('min')) {
-                        const minMatch = headerText.match(/dans (\d+) min/);
-                        if (minMatch && minMatch[1]) {
-                            nextStopInfo = `| Départ dans ${minMatch[1]} min.`;
-                        }
-                    }
-                }
-                
-                if (!terminusInfo) {
-                    terminusInfo = `à destination de ${destination}.`;
-                }
-            }
+
                     const mainText = document.createElement('div');
                     mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
                     mainText.style.fontSize = '1.2em';  
