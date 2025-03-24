@@ -1,4 +1,4 @@
-importScripts('protobuf.min.js'); 
+importScripts('https://cdnjs.cloudflare.com/ajax/libs/protobufjs/6.11.2/protobuf.min.js');
 
 const TIME_FORMAT_OPTIONS = { hour: '2-digit', minute: '2-digit' };
 const UNKNOWN_TIME = "Heure inconnue";
