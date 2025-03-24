@@ -3737,6 +3737,58 @@ function updateMenu() {
     const menu = document.getElementById('menu');
     menu.innerHTML = '';
 
+    function applyMapView() {
+    const currentDate = new Date();
+    const latitude = map.getCenter().lat;  
+    const longitude = map.getCenter().lng;  
+
+    const sunTimes = SunCalc.getTimes(currentDate, latitude, longitude);
+    const sunrise = sunTimes.sunrise;
+    const sunset = sunTimes.sunset;
+
+    const settings = JSON.parse(localStorage.getItem('appSettings') || '{"mapTheme":"auto"}');
+
+    map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer) {
+            map.removeLayer(layer);
+        }
+    });
+
+    let isNightMode = currentDate >= sunset || currentDate <= sunrise;
+
+    // Override night mode based on settings
+    if (settings.mapTheme === 'light') {
+        isNightMode = false;
+    } else if (settings.mapTheme === 'dark') {
+        isNightMode = true;
+    }
+
+    if (!isStandardView) {
+        const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            minZoom: 12,
+            maxZoom: 19,
+        }).addTo(map);
+        
+        const mapPane = map.getPanes().tilePane;
+        if (isNightMode) {
+            mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        } else {
+            mapPane.style.filter = 'none';
+        }
+    } else {
+        const mapPane = map.getPanes().tilePane;
+        mapPane.style.filter = 'none';
+        
+        L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
+            minZoom: 12,
+            maxZoom: 19,
+            format: 'image/jpeg',
+            style: 'normal'
+        }).addTo(map);
+    }
+}
+
+
     const logoContainer = document.createElement('div');
     logoContainer.style.textAlign = 'center';
     logoContainer.style.marginBottom = '7px';
@@ -3954,56 +4006,6 @@ function toggleMapView() {
     updateButtonText();
 }
 
-function applyMapView() {
-    const currentDate = new Date();
-    const latitude = map.getCenter().lat;  
-    const longitude = map.getCenter().lng;  
-
-    const sunTimes = SunCalc.getTimes(currentDate, latitude, longitude);
-    const sunrise = sunTimes.sunrise;
-    const sunset = sunTimes.sunset;
-
-    const settings = JSON.parse(localStorage.getItem('appSettings') || '{"mapTheme":"auto"}');
-
-    map.eachLayer(function(layer) {
-        if (layer instanceof L.TileLayer) {
-            map.removeLayer(layer);
-        }
-    });
-
-    let isNightMode = currentDate >= sunset || currentDate <= sunrise;
-
-    // Override night mode based on settings
-    if (settings.mapTheme === 'light') {
-        isNightMode = false;
-    } else if (settings.mapTheme === 'dark') {
-        isNightMode = true;
-    }
-
-    if (!isStandardView) {
-        const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            minZoom: 12,
-            maxZoom: 19,
-        }).addTo(map);
-        
-        const mapPane = map.getPanes().tilePane;
-        if (isNightMode) {
-            mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
-        } else {
-            mapPane.style.filter = 'none';
-        }
-    } else {
-        const mapPane = map.getPanes().tilePane;
-        mapPane.style.filter = 'none';
-        
-        L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
-            minZoom: 12,
-            maxZoom: 19,
-            format: 'image/jpeg',
-            style: 'normal'
-        }).addTo(map);
-    }
-}
 
 function showSettingsMenu() {
         const settingsContainer = document.createElement('div');
