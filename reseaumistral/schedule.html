@@ -1637,7 +1637,7 @@ function getRealtimeArrival(tripId, stopId) {
 
 let DB_NAME;
 let STORE_NAME;
-const DB_VERSION = 4; 
+const DB_VERSION = 4;
 
 async function initConstants() {
     try {
@@ -1696,17 +1696,33 @@ async function calculateSHA256(data) {
     return hashHex;
 }
 
-async function checkGTFSUpdate() {
+async function getFileHash() {
     try {
-        const headResponse = await fetch('proxy-cors/proxy_gtfs.php', { method: 'HEAD' });
+        const response = await fetch('proxy-cors/proxy_gtfs.php', {
+            method: 'GET',
+            headers: {
+                'X-Content-Only-Header': 'true'  
+            }
+        });
         
-        if (!headResponse.ok) {
-            throw new Error(`Échec de la vérification d'en-tête: ${headResponse.status}`);
+        if (!response.ok) {
+            throw new Error(`Échec de la vérification: ${response.status}`);
         }
         
-        const etag = headResponse.headers.get('ETag');
-        const lastModified = headResponse.headers.get('Last-Modified');
+        const buffer = await response.arrayBuffer();
+        const partialData = buffer.slice(0, Math.min(buffer.byteLength, 1024 * 50)); // 50KB max
         
+        const fileHash = await calculateSHA256(partialData);
+        
+        return { fileHash, needsFullDownload: true };
+    } catch (error) {
+        console.error('Erreur lors de la vérification du hash:', error);
+        return { needsFullDownload: true };
+    }
+}
+
+async function checkGTFSUpdate() {
+    try {
         const db = await initDB();
         const transaction = db.transaction(STORE_NAME, 'readonly');
         const store = transaction.objectStore(STORE_NAME);
@@ -1717,14 +1733,17 @@ async function checkGTFSUpdate() {
             request.onerror = () => reject(request.error);
         });
         
-        if (storedMetadata) {
-            if ((etag && storedMetadata.etag === etag) || 
-                (lastModified && storedMetadata.lastModified === lastModified)) {
-                return { needsUpdate: false, metadata: storedMetadata };
-            }
+        if (!storedMetadata || !storedMetadata.fileHash) {
+            return { needsUpdate: true };
         }
         
-        return { needsUpdate: true, etag, lastModified };
+        const { fileHash, needsFullDownload } = await getFileHash();
+        
+        if (fileHash !== storedMetadata.fileHash) {
+            return { needsUpdate: true, fileHash };
+        }
+        
+        return { needsUpdate: false, metadata: storedMetadata };
     } catch (error) {
         console.error('Erreur lors de la vérification de mise à jour GTFS:', error);
         return { needsUpdate: true };
@@ -1783,7 +1802,7 @@ async function extractGTFSFiles() {
         
         const zipData = await response.arrayBuffer();
         
-        const zipHash = await calculateSHA256(zipData);
+        const fileHash = await calculateSHA256(zipData.slice(0, Math.min(zipData.byteLength, 1024 * 50))); // Utiliser les 50 premiers KB
         
         const zip = await JSZip.loadAsync(zipData);
         
@@ -1801,14 +1820,8 @@ async function extractGTFSFiles() {
         
         await Promise.all(filePromises);
         
-        const headResponse = await fetch('proxy-cors/proxy_gtfs.php', { method: 'HEAD' });
-        const etag = headResponse.headers.get('ETag');
-        const lastModified = headResponse.headers.get('Last-Modified');
-        
         const metadata = {
-            zipHash,
-            etag,
-            lastModified,
+            fileHash,
             lastUpdate: new Date().toISOString()
         };
         
@@ -1823,7 +1836,7 @@ async function loadGtfsData() {
     try {
         let extractedFiles;
         
-        const { needsUpdate, etag, lastModified, metadata } = await checkGTFSUpdate();
+        const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
         
         if (needsUpdate) {
             const result = await extractGTFSFiles();
@@ -1831,15 +1844,17 @@ async function loadGtfsData() {
             
             await saveToCache(extractedFiles, result.metadata);
             
-            toastBottomRight.success('Données mises à jour avec succès');
+            toastBottomRight.success('Données GTFS mises à jour avec succès');
         } else {
             extractedFiles = await getFromCache();
             if (!extractedFiles) {
                 const result = await extractGTFSFiles();
                 extractedFiles = result.extractedFiles;
                 await saveToCache(extractedFiles, result.metadata);
-                toastBottomRight.success('Données téléchargées avec succès');
-            } 
+                toastBottomRight.success('Données GTFS téléchargées avec succès');
+            } else {
+                toastBottomRight.info('Utilisation des données GTFS en cache');
+            }
         }
         
         routes = {};
