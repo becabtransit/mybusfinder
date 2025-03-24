@@ -1248,6 +1248,51 @@ shape.bounce-down {
     font-weight: bold;
 }
 
+.more-buttons-container {
+  animation: slideUp 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.more-button {
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  opacity: 0.95;
+}
+
+.more-button:hover {
+  opacity: 1;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.more-buttons-container .alerts-button {
+  margin: 5px 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.more-buttons-container .alerts-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.settings-popup {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.blur-overlay {
+  filter: blur(5px);
+  transition: filter 0.3s ease;
+}
+
 
     </style>
 
@@ -4377,7 +4422,442 @@ function getTextColor(backgroundColor) {
 
         menu.appendChild(lineSection);
     });
+    const moreButtonsContainer = document.createElement('div');
+moreButtonsContainer.className = 'more-buttons-container';
+moreButtonsContainer.style.cssText = `
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 15px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+    box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s ease;
+    transform: translateY(100%);
+`;
+
+// Créer le bouton Paramètres
+const settingsButton = document.createElement('div');
+settingsButton.className = 'alerts-button';
+settingsButton.onclick = () => showSettingsMenu();
+
+const settingsIcon = document.createElement('div');
+settingsIcon.className = 'alerts-icon';
+settingsIcon.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+    </svg>
+`;
+
+const settingsContent = document.createElement('div');
+settingsContent.className = 'alerts-content';
+
+const settingsTitle = document.createElement('div');
+settingsTitle.className = 'alerts-title';
+settingsTitle.textContent = 'Paramètres';
+
+const settingsDescription = document.createElement('div');
+settingsDescription.className = 'alerts-description';
+settingsDescription.textContent = 'Langue et thème';
+
+settingsContent.appendChild(settingsTitle);
+settingsContent.appendChild(settingsDescription);
+
+settingsButton.appendChild(settingsIcon);
+settingsButton.appendChild(settingsContent);
+
+// Ajouter tous les boutons au conteneur
+moreButtonsContainer.appendChild(transportStateContainer);
+moreButtonsContainer.appendChild(locationButton);
+moreButtonsContainer.appendChild(satelliteButton);
+moreButtonsContainer.appendChild(alertsButton);
+moreButtonsContainer.appendChild(settingsButton);
+
+// Ajouter le conteneur au body pour qu'il soit par-dessus tout le contenu
+document.body.appendChild(moreButtonsContainer);
+
+// Créer le bouton "En voir plus"
+const moreButton = document.createElement('div');
+moreButton.className = 'more-button';
+moreButton.innerHTML = 'En voir plus...';
+moreButton.style.cssText = `
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    text-align: center;
+    border-radius: 30px;
+    font-size: 14px;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    z-index: 999;
+    transition: all 0.2s;
+`;
+
+moreButton.onmouseover = () => {
+    moreButton.style.background = 'rgba(0, 0, 0, 0.9)';
+    moreButton.style.transform = 'translateX(-50%) scale(1.05)';
+};
+moreButton.onmouseout = () => {
+    moreButton.style.background = 'rgba(0, 0, 0, 0.7)';
+    moreButton.style.transform = 'translateX(-50%) scale(1)';
+};
+
+let moreExpanded = false;
+moreButton.onclick = () => {
+    moreExpanded = !moreExpanded;
     
+    if (moreExpanded) {
+        moreButtonsContainer.style.display = 'flex';
+        moreButton.innerHTML = 'Fermer';
+        
+        // Attendre un peu avant d'animer pour que le display:flex soit pris en compte
+        setTimeout(() => {
+            moreButtonsContainer.style.transform = 'translateY(0)';
+            // Ajouter un flou sur le contenu principal
+            const mainContent = document.getElementById('menu');
+            if (mainContent) {
+                mainContent.style.filter = 'blur(5px)';
+                mainContent.style.transition = 'filter 0.3s';
+            }
+            const map = document.querySelector('.leaflet-container');
+            if (map) {
+                map.style.filter = 'blur(3px)';
+                map.style.transition = 'filter 0.3s';
+            }
+        }, 10);
+    } else {
+        moreButtonsContainer.style.transform = 'translateY(100%)';
+        moreButton.innerHTML = 'En voir plus...';
+        
+        // Enlever le flou
+        const mainContent = document.getElementById('menu');
+        if (mainContent) {
+            mainContent.style.filter = 'none';
+        }
+        const map = document.querySelector('.leaflet-container');
+        if (map) {
+            map.style.filter = 'none';
+        }
+        
+        // Attendre la fin de l'animation avant de cacher
+        setTimeout(() => {
+            moreButtonsContainer.style.display = 'none';
+        }, 300);
+    }
+};
+
+document.body.appendChild(moreButton);
+
+// Fonction pour afficher le menu des paramètres
+function showSettingsMenu() {
+    const settingsContainer = document.createElement('div');
+    settingsContainer.className = 'settings-popup';
+    settingsContainer.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10001;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    `;
+
+    const settingsPanel = document.createElement('div');
+    settingsPanel.style.cssText = `
+        background: #fff;
+        border-radius: 15px;
+        width: 85%;
+        max-width: 400px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 5px 25px rgba(0, 0, 0, 0.4);
+        padding: 25px;
+        color: #333;
+    `;
+
+    // Vérifier si les paramètres existent déjà dans localStorage
+    let settings = localStorage.getItem('appSettings');
+    if (!settings) {
+        // Paramètres par défaut
+        settings = JSON.stringify({
+            language: 'fr',
+            darkMode: false
+        });
+        localStorage.setItem('appSettings', settings);
+    }
+    
+    settings = JSON.parse(settings);
+
+    const settingsTitle = document.createElement('h2');
+    settingsTitle.textContent = 'Paramètres';
+    settingsTitle.style.cssText = `
+        margin-top: 0;
+        text-align: center;
+        font-size: 24px;
+        margin-bottom: 25px;
+        font-weight: 600;
+    `;
+
+    // Section langue
+    const langSection = document.createElement('div');
+    langSection.style.marginBottom = '25px';
+    
+    const langLabel = document.createElement('label');
+    langLabel.textContent = 'Langue :';
+    langLabel.style.cssText = `
+        display: block;
+        margin-bottom: 12px;
+        font-weight: bold;
+        font-size: 16px;
+    `;
+    
+    const langSelect = document.createElement('select');
+    langSelect.style.cssText = `
+        width: 100%;
+        padding: 12px;
+        border-radius: 10px;
+        border: 1px solid #ddd;
+        background: #f7f7f7;
+        font-size: 16px;
+        appearance: none;
+        background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23007CB2%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px top 50%;
+        background-size: 12px auto;
+    `;
+    
+    const languages = [
+        { code: 'fr', name: 'Français' },
+        { code: 'en', name: 'English' },
+        { code: 'es', name: 'Español' },
+        { code: 'de', name: 'Deutsch' }
+    ];
+    
+    languages.forEach(lang => {
+        const option = document.createElement('option');
+        option.value = lang.code;
+        option.textContent = lang.name;
+        if (settings.language === lang.code) {
+            option.selected = true;
+        }
+        langSelect.appendChild(option);
+    });
+    
+    langSelect.onchange = () => {
+        settings.language = langSelect.value;
+        localStorage.setItem('appSettings', JSON.stringify(settings));
+        toastBottomRight.success('Langue modifiée');
+    };
+    
+    langSection.appendChild(langLabel);
+    langSection.appendChild(langSelect);
+
+    // Section thème
+    const themeSection = document.createElement('div');
+    themeSection.style.marginBottom = '25px';
+    
+    const themeLabel = document.createElement('label');
+    themeLabel.textContent = 'Thème de carte :';
+    themeLabel.style.cssText = `
+        display: block;
+        margin-bottom: 12px;
+        font-weight: bold;
+        font-size: 16px;
+    `;
+    
+    const themeToggle = document.createElement('div');
+    themeToggle.style.cssText = `
+        display: flex;
+        background: #f0f0f0;
+        border-radius: 30px;
+        height: 44px;
+        align-items: center;
+        position: relative;
+        width: 220px;
+        margin: 0 auto;
+        cursor: pointer;
+        box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+    `;
+    
+    const lightOption = document.createElement('div');
+    lightOption.textContent = 'Clair';
+    lightOption.style.cssText = `
+        flex: 1;
+        text-align: center;
+        z-index: 1;
+        transition: color 0.3s;
+        color: ${settings.darkMode ? '#888' : '#000'};
+        font-weight: ${settings.darkMode ? 'normal' : 'bold'};
+    `;
+    
+    const darkOption = document.createElement('div');
+    darkOption.textContent = 'Sombre';
+    darkOption.style.cssText = `
+        flex: 1;
+        text-align: center;
+        z-index: 1;
+        transition: color 0.3s;
+        color: ${settings.darkMode ? '#000' : '#888'};
+        font-weight: ${settings.darkMode ? 'bold' : 'normal'};
+    `;
+    
+    const toggleIndicator = document.createElement('div');
+    toggleIndicator.style.cssText = `
+        position: absolute;
+        width: 108px;
+        height: 38px;
+        background: #fff;
+        border-radius: 30px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        transform: translateX(${settings.darkMode ? '108px' : '4px'});
+    `;
+    
+    themeToggle.appendChild(toggleIndicator);
+    themeToggle.appendChild(lightOption);
+    themeToggle.appendChild(darkOption);
+    
+    themeToggle.onclick = () => {
+        settings.darkMode = !settings.darkMode;
+        localStorage.setItem('appSettings', JSON.stringify(settings));
+        toggleIndicator.style.transform = `translateX(${settings.darkMode ? '108px' : '4px'})`;
+        lightOption.style.color = settings.darkMode ? '#888' : '#000';
+        lightOption.style.fontWeight = settings.darkMode ? 'normal' : 'bold';
+        darkOption.style.color = settings.darkMode ? '#000' : '#888';
+        darkOption.style.fontWeight = settings.darkMode ? 'bold' : 'normal';
+        
+        // Appliquer le thème à la carte Leaflet
+        applyMapTheme(settings.darkMode);
+        
+        toastBottomRight.success(`Thème ${settings.darkMode ? 'sombre' : 'clair'} activé`);
+    };
+    
+    themeSection.appendChild(themeLabel);
+    themeSection.appendChild(themeToggle);
+
+    // Bouton de fermeture
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'Fermer';
+    closeButton.style.cssText = `
+        display: block;
+        width: 100%;
+        padding: 14px;
+        margin-top: 25px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.3s, transform 0.2s;
+    `;
+    closeButton.onmouseover = () => {
+        closeButton.style.background = '#0069d9';
+        closeButton.style.transform = 'scale(0.98)';
+    };
+    closeButton.onmouseout = () => {
+        closeButton.style.background = '#007bff';
+        closeButton.style.transform = 'scale(1)';
+    };
+    
+    closeButton.onclick = () => {
+        document.body.removeChild(settingsContainer);
+    };
+
+    settingsPanel.appendChild(settingsTitle);
+    settingsPanel.appendChild(langSection);
+    settingsPanel.appendChild(themeSection);
+    settingsPanel.appendChild(closeButton);
+    
+    settingsContainer.appendChild(settingsPanel);
+    document.body.appendChild(settingsContainer);
+    
+    // Fermer en cliquant en dehors
+    settingsContainer.onclick = (e) => {
+        if (e.target === settingsContainer) {
+            document.body.removeChild(settingsContainer);
+        }
+    };
+}
+
+// Fonction pour appliquer le thème à la carte Leaflet
+function applyMapTheme(isDarkMode) {
+    // Utiliser la fonction applyMapView() existante ou créer une nouvelle implémentation
+    // Cette fonction doit appliquer le thème sombre/clair à la carte Leaflet
+    // En se basant sur votre code existant dans la fonction toggleMapView()
+    
+    const currentDate = new Date();
+    const latitude = map.getCenter().lat;  
+    const longitude = map.getCenter().lng;  
+
+    const sunTimes = SunCalc.getTimes(currentDate, latitude, longitude);
+    const sunrise = sunTimes.sunrise;
+    const sunset = sunTimes.sunset;
+
+    const isNightMode = currentDate >= sunset || currentDate <= sunrise;
+
+    map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer) {
+            map.removeLayer(layer);
+        }
+    });
+
+    if (isDarkMode) {
+        const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            minZoom: 12,
+            maxZoom: 19,
+        }).addTo(map);
+        
+        const mapPane = map.getPanes().tilePane;
+        mapPane.style.filter = 'brightness(90%) contrast(110%)';
+    } else {
+        const mapPane = map.getPanes().tilePane;
+        mapPane.style.filter = 'none';
+        
+        L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
+            minZoom: 12,
+            maxZoom: 19,
+            format: 'image/jpeg',
+            style: 'normal'
+        }).addTo(map);
+    }
+    
+    // Mettre à jour isStandardView pour rester en phase avec le code existant
+    isStandardView = !isDarkMode;
+    localStorage.setItem('isStandardView', isStandardView);
+    
+    // Si la fonction updateButtonText existe, l'appeler pour mettre à jour le texte du bouton satellite
+    if (typeof updateButtonText === 'function') {
+        updateButtonText();
+    }
+}
+
+// Appliquer le thème au chargement de la page
+document.addEventListener('DOMContentLoaded', () => {
+    const settings = JSON.parse(localStorage.getItem('appSettings') || '{"darkMode":false}');
+    applyMapTheme(settings.darkMode);
+});
 }
 
 const menubottom1 = document.getElementById('menubtm');
