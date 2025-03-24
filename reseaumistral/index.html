@@ -1248,8 +1248,44 @@ shape.bounce-down {
     font-weight: bold;
 }
 
+.bottom-buttons-container {
+  box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.more-button {
+  opacity: 0.8;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.more-button:hover {
+  opacity: 1;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+}
+
+.linesection.blurred {
+  filter: blur(3px);
+  transition: filter 0.3s ease;
+  pointer-events: none;
+}
+
+.alerts-button {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.alerts-button:active {
+  transform: scale(0.97);
+}
+
 .settings-popup {
   animation: fadeIn 0.3s ease;
+  z-index: 10000;
 }
 
 @keyframes fadeIn {
@@ -1257,34 +1293,7 @@ shape.bounce-down {
   to { opacity: 1; }
 }
 
-:root {
-  --bg-color: #fff;
-  --text-color: #333;
-}
 
-.more-button {
-  opacity: 0.9;
-  transition: opacity 0.3s, transform 0.3s;
-}
-
-.more-button:hover {
-  opacity: 1;
-}
-
-.more-item {
-  animation: slideDown 0.3s ease;
-}
-
-@keyframes slideDown {
-  from { 
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to { 
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
     </style>
 
 </head>
@@ -4413,64 +4422,28 @@ function getTextColor(backgroundColor) {
 
         menu.appendChild(lineSection);
     });
-    transportStateContainer.style.display = 'none';
-transportStateContainer.classList.add('more-item');
-locationButton.style.display = 'none';
-locationButton.classList.add('more-item');
-satelliteButton.style.display = 'none';
-satelliteButton.classList.add('more-item');
-alertsButton.style.display = 'none';
-alertsButton.classList.add('more-item');
-
-// Créer le bouton "En voir plus"
-const moreButton = document.createElement('div');
-moreButton.className = 'more-button';
-moreButton.innerHTML = 'En voir plus...';
-moreButton.style.cssText = `
-    position: sticky;
-    bottom: 10px;
-    width: calc(100% - 20px);
-    margin: 10px auto 0;
-    padding: 8px;
-    background: rgba(0, 0, 0, 0.5);
-    color: white;
-    text-align: center;
-    border-radius: 12px;
-    font-size: 14px;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
-    cursor: pointer;
-    z-index: 999;
-    transition: transform 0.2s, background 0.2s;
+    const bottomButtonsContainer = document.createElement('div');
+bottomButtonsContainer.className = 'bottom-buttons-container';
+bottomButtonsContainer.style.cssText = `
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    display: none;
+    flex-direction: column;
+    padding: 10px;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    transition: transform 0.3s ease;
+    transform: translateY(100%);
 `;
 
-moreButton.onmouseover = () => {
-    moreButton.style.background = 'rgba(0, 0, 0, 0.7)';
-    moreButton.style.transform = 'translateY(-2px)';
-};
-moreButton.onmouseout = () => {
-    moreButton.style.background = 'rgba(0, 0, 0, 0.5)';
-    moreButton.style.transform = 'translateY(0)';
-};
-
-let moreExpanded = false;
-moreButton.onclick = () => {
-    moreExpanded = !moreExpanded;
-    document.querySelectorAll('.more-item').forEach(item => {
-        item.style.display = moreExpanded ? 'flex' : 'none';
-    });
-    moreButton.innerHTML = moreExpanded ? 'Afficher moins' : 'En voir plus...';
-    
-    // Faire défiler vers le bas si étendu
-    if (moreExpanded) {
-        menu.scrollTo({
-            top: menu.scrollHeight,
-            behavior: 'smooth'
-        });
-    }
-};
-
-menu.appendChild(moreButton);
+// Ajouter les boutons au conteneur
+bottomButtonsContainer.appendChild(transportStateContainer);
+bottomButtonsContainer.appendChild(locationButton);
+bottomButtonsContainer.appendChild(satelliteButton);
+bottomButtonsContainer.appendChild(alertsButton);
 
 // Créer le bouton Paramètres
 const settingsButton = document.createElement('div');
@@ -4495,14 +4468,93 @@ settingsTitle.textContent = 'Paramètres';
 
 const settingsDescription = document.createElement('div');
 settingsDescription.className = 'alerts-description';
-settingsDescription.textContent = 'Langue, thème et préférences';
+settingsDescription.textContent = 'Langue et thème';
 
 settingsContent.appendChild(settingsTitle);
 settingsContent.appendChild(settingsDescription);
 
 settingsButton.appendChild(settingsIcon);
 settingsButton.appendChild(settingsContent);
-menu.appendChild(settingsButton);
+
+// Ajouter le bouton paramètres au conteneur
+bottomButtonsContainer.appendChild(settingsButton);
+
+// Ajouter le conteneur au document
+document.body.appendChild(bottomButtonsContainer);
+
+// Créer le bouton "En voir plus"
+const moreButton = document.createElement('div');
+moreButton.className = 'more-button';
+moreButton.style.cssText = `
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    text-align: center;
+    border-radius: 20px;
+    font-size: 14px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    z-index: 999;
+    transition: all 0.2s;
+`;
+
+moreButton.textContent = 'En voir plus...';
+
+moreButton.onmouseover = () => {
+    moreButton.style.background = 'rgba(0, 0, 0, 0.9)';
+    moreButton.style.transform = 'translateX(-50%) scale(1.05)';
+};
+moreButton.onmouseout = () => {
+    moreButton.style.background = 'rgba(0, 0, 0, 0.7)';
+    moreButton.style.transform = 'translateX(-50%) scale(1)';
+};
+
+let isBottomMenuVisible = false;
+moreButton.onclick = () => {
+    isBottomMenuVisible = !isBottomMenuVisible;
+    
+    if (isBottomMenuVisible) {
+        // Afficher le conteneur de boutons
+        bottomButtonsContainer.style.display = 'flex';
+        setTimeout(() => {
+            bottomButtonsContainer.style.transform = 'translateY(0)';
+        }, 10);
+        moreButton.textContent = 'Masquer';
+        
+        // Ajouter un effet de flou au contenu principal
+        document.querySelectorAll('.linesection').forEach(section => {
+            section.style.filter = 'blur(3px)';
+            section.style.transition = 'filter 0.3s';
+        });
+    } else {
+        // Masquer le conteneur de boutons
+        bottomButtonsContainer.style.transform = 'translateY(100%)';
+        setTimeout(() => {
+            bottomButtonsContainer.style.display = 'none';
+        }, 300);
+        moreButton.textContent = 'En voir plus...';
+        
+        // Supprimer l'effet de flou
+        document.querySelectorAll('.linesection').forEach(section => {
+            section.style.filter = 'none';
+        });
+    }
+};
+
+document.body.appendChild(moreButton);
+
+// Garder tous les styles originaux des boutons
+transportStateContainer.style.display = 'flex';
+locationButton.style.marginBottom = '10px';
+satelliteButton.style.marginBottom = '10px';
+alertsButton.style.marginBottom = '10px';
+settingsButton.style.marginBottom = '10px';
+
+menu.appendChild(moreButton.cloneNode(true));
 
 // Ajoutez ce code à votre fichier JavaScript principal, en dehors de la fonction updateMenu
 
@@ -4672,11 +4724,11 @@ function showSettingsMenu() {
         settings.darkMode = !settings.darkMode;
         localStorage.setItem('appSettings', JSON.stringify(settings));
         toggleIndicator.style.transform = `translateX(${settings.darkMode ? '96px' : '4px'})`;
-        lightOption.style.color = settings.darkMode ? '#888' : '#000';
-        darkOption.style.color = settings.darkMode ? '#000' : '#888';
+        lightOption.style.color = settings.darkMode ? '#000' : '#888';
+        darkOption.style.color = settings.darkMode ? '#888' : '#000';
         
-        // Appliquer le thème immédiatement
-        applyTheme(settings.darkMode);
+        // Appliquer le thème immédiatement à la carte Leaflet
+        applyMapTheme(settings.darkMode);
         
         toastBottomRight.success(`Thème ${settings.darkMode ? 'sombre' : 'clair'} activé`);
     };
@@ -4723,27 +4775,47 @@ function showSettingsMenu() {
     };
 }
 
-// Fonction pour appliquer le thème
-function applyTheme(isDarkMode) {
-    // Exemple d'application du thème sombre/clair
-    // Vous devrez adapter cela selon votre CSS existant
-    const root = document.documentElement;
-    
+// Fonction pour appliquer le thème à la carte Leaflet
+function applyMapTheme(isDarkMode) {
+    const currentDate = new Date();
+    const latitude = map.getCenter().lat;  
+    const longitude = map.getCenter().lng;  
+
+    map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer) {
+            map.removeLayer(layer);
+        }
+    });
+
     if (isDarkMode) {
-        root.style.setProperty('--bg-color', '#222');
-        root.style.setProperty('--text-color', '#fff');
-        // Ajoutez d'autres variables CSS au besoin
+        // Appliquer le thème sombre
+        const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            minZoom: 12,
+            maxZoom: 19,
+        }).addTo(map);
+        
+        // Appliquer un filtre d'inversion pour le mode sombre
+        const mapPane = map.getPanes().tilePane;
+        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
     } else {
-        root.style.setProperty('--bg-color', '#fff');
-        root.style.setProperty('--text-color', '#333');
-        // Ajoutez d'autres variables CSS au besoin
+        // Réinitialiser le filtre
+        const mapPane = map.getPanes().tilePane;
+        mapPane.style.filter = 'none';
+        
+        // Appliquer le thème clair (vue satellite par défaut)
+        L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
+            minZoom: 12,
+            maxZoom: 19,
+            format: 'image/jpeg',
+            style: 'normal'
+        }).addTo(map);
     }
 }
 
 // Appliquer le thème au chargement de la page
 document.addEventListener('DOMContentLoaded', () => {
     const settings = JSON.parse(localStorage.getItem('appSettings') || '{"darkMode":false}');
-    applyTheme(settings.darkMode);
+    applyMapTheme(settings.darkMode);
 });
 }
 
