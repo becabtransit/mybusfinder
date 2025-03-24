@@ -2813,8 +2813,8 @@ async function initializeApp() {
     }
 }
 
-async function generateNextStopsHTML(tripId, stopId, nextStops, stopNameMap) {
-    try {
+function generateNextStopsHTML(tripId, stopId, nextStops, stopNameMap) {
+    return new Promise((resolve) => {
         let nextStopsHTML = `
             <div style="position: relative; max-height: 120px; ">
                 <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
@@ -2846,19 +2846,17 @@ async function generateNextStopsHTML(tripId, stopId, nextStops, stopNameMap) {
                     stopsHeaderText = `Départ dans ${minutes} minutes`;
                 }
                 
-                // Traitement asynchrone des arrêts
-                const stopsPromises = filteredStops.map(async stop => {
-                    const timeLeft = stop.delay;
-                    const timeLeftText = timeLeft !== null 
-                        ? timeLeft <= 0 
-                            ? 'imminent' 
-                            : `${Math.ceil(timeLeft / 60)} min`
-                        : '';
-                    
-                    const stopName = stopNameMap[stop.stopId] || stop.stopId;
-                    
-                    // Création et mesure de l'élément temporaire de manière asynchrone
-                    const maxWidthMeasurement = await new Promise(resolve => {
+                Promise.all(filteredStops.map(stop => {
+                    return new Promise(stopResolve => {
+                        const timeLeft = stop.delay;
+                        const timeLeftText = timeLeft !== null 
+                            ? timeLeft <= 0 
+                                ? 'imminent' 
+                                : `${Math.ceil(timeLeft / 60)} min`
+                            : '';
+                        
+                        const stopName = stopNameMap[stop.stopId] || stop.stopId;
+                        
                         requestAnimationFrame(() => {
                             const tempElement = document.createElement('div');
                             tempElement.style.font = getComputedStyle(document.body).font; 
@@ -2873,80 +2871,95 @@ async function generateNextStopsHTML(tripId, stopId, nextStops, stopNameMap) {
                             const isTextTooLong = tempElement.offsetWidth > (maxWidth * 0.9); 
                             
                             document.body.removeChild(tempElement);
-                            resolve(isTextTooLong);
+                            
+                            const animationStyle = isTextTooLong ? 
+                                "animation: scrollText 8s linear infinite; animation-play-state: paused;" : 
+                                "";
+                            
+                            const stopHTML = `
+                            <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                                <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
+                                    <div class="stop-name-wrapper" style="
+                                        position: relative;
+                                        display: inline-block;
+                                        padding-right: 10px;
+                                        ${animationStyle}
+                                    ">
+                                        <div class="stop-name" style="
+                                            position: relative;
+                                            display: inline-block;
+                                        ">${stopName}</div>
+                                    </div>
+                                </div>
+                                <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
+                                    <div class="time-display" 
+                                        data-time-left="${timeLeftText}" 
+                                        data-departure-time="${stop.departureTime || stop.arrivalTime || "Inconnu"}">
+                                        ${timeLeftText}
+                                    </div>
+                                    <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss mr-[0.5px] text-green-700 dark:text-green-500">
+                                        <g class="rss-waves">
+                                            <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
+                                            <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                        </g>
+                                        <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
+                                    </svg>
+                                </div>
+                            </li>
+                            `;
+                            stopResolve(stopHTML);
                         });
                     });
-                    
-                    const animationStyle = maxWidthMeasurement ? 
-                        "animation: scrollText 8s linear infinite; animation-play-state: paused;" : 
-                        "";
-                    
-                    return `
-                    <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                        <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
-                            <div class="stop-name-wrapper" style="
-                                position: relative;
-                                display: inline-block;
-                                padding-right: 10px;
-                                ${animationStyle}
-                            ">
-                                <div class="stop-name" style="
-                                    position: relative;
-                                    display: inline-block;
-                                ">${stopName}</div>
-                            </div>
+                })).then(stopsHTML => {
+                    nextStopsHTML += stopsHTML.join('');
+                    nextStopsHTML += `
+                            </ul>
                         </div>
-                        <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
-                            <div class="time-display" 
-                                data-time-left="${timeLeftText}" 
-                                data-departure-time="${stop.departureTime || stop.arrivalTime || "Inconnu"}">
-                                ${timeLeftText}
-                            </div>
-                            <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss mr-[0.5px] text-green-700 dark:text-green-500">
-                                <g class="rss-waves">
-                                    <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
-                                    <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
-                                </g>
-                                <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
-                            </svg>
-                        </div>
-                    </li>
                     `;
+                    
+                    resolve({
+                        nextStopsHTML,
+                        stopsHeaderText
+                    });
                 });
-
-                // Attendre que tous les arrêts soient traités
-                const stopsHTML = await Promise.all(stopsPromises);
-                nextStopsHTML += stopsHTML.join('');
+            } else {
+                nextStopsHTML += `
+                        </ul>
+                    </div>
+                `;
+                resolve({
+                    nextStopsHTML,
+                    stopsHeaderText
+                });
             }
+        } else {
+            nextStopsHTML += `
+                    </ul>
+                </div>
+            `;
+            resolve({
+                nextStopsHTML,
+                stopsHeaderText
+            });
         }
-
-        nextStopsHTML += `
-                </ul>
-            </div>
-        `;
-
-        return {
-            nextStopsHTML,
-            stopsHeaderText
-        };
-    } catch (error) {
+    }).catch(error => {
         console.error('Erreur dans generateNextStopsHTML:', error);
         return {
             nextStopsHTML: '<div>Erreur lors du chargement des arrêts</div>',
             stopsHeaderText: 'Erreur'
         };
-    }
+    });
 }
 
 let gtfsInitialized = false;
 
 async function fetchVehiclePositions() {
-    const { nextStopsHTML, stopsHeaderText } = await generateNextStopsHTML(tripId, stopId, nextStops, stopNameMap);
     if (!gtfsInitialized) {
         console.log("fetchVehiclePositions: GTFS pas encore initialisé, attente...");
         return; 
     }
-    try {
+    try {    
+
         const response = await fetch('proxy-cors/proxy_vehpos.php');
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
@@ -2962,6 +2975,7 @@ async function fetchVehiclePositions() {
                 const line = vehicle.trip && vehicle.trip.routeId ? vehicle.trip.routeId : 'Inconnu';
                 const directionId = vehicle.trip ? vehicle.trip.directionId : undefined;
                 activeVehicleIds.add(id);
+
 
                 const statusMap = {
                     0: '❌ Hors service commercial',
@@ -3146,7 +3160,8 @@ async function fetchVehiclePositions() {
                         remainingTimeMessage = ' délai inconnu';
                     }
                 }
-                
+                            generateNextStopsHTML(tripId, stopId, nextStops, stopNameMap)
+                .then(({ nextStopsHTML, stopsHeaderText }) => {
                 const popupContent = `
                     <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
                         
@@ -3384,7 +3399,11 @@ async function fetchVehiclePositions() {
             }
         });
     }}
+                    )}
+                    
+    
 });
+
 
                 Object.keys(markers).forEach(id => {
             if (!activeVehicleIds.has(id)) {
