@@ -1348,6 +1348,19 @@ select:focus {
         let currentStopId = null;
         let currentDestinationId = null;
 
+        async function getSetvar() {
+            try {
+                const response1 = await fetch('setvar/settings/networkname.txt');
+                const setvar1 = await response1.text();
+                const nomdureseau = setvar1.trim();  
+
+                return {nomdureseau};
+
+            } catch (error) {
+                console.error('Erreur chargement setvar ! ', error);
+            }
+        }
+
         
     document.addEventListener('DOMContentLoaded', function() {
     loadData();
@@ -1622,11 +1635,29 @@ function getRealtimeArrival(tripId, stopId) {
     return new Date(stopUpdate.arrival);
 }
 
-const DB_NAME = 'MyBusFinderRM';
-const DB_VERSION = 3;
-const STORE_NAME = 'gtfsStoreRM';
+let DB_NAME;
+let STORE_NAME;
+const DB_VERSION = 4; 
 
-function initDB() {
+async function initConstants() {
+    try {
+        const { nomdureseau } = await getSetvar();
+        DB_NAME = `MyBusFinder${nomdureseau}`;
+        STORE_NAME = `gtfsStore${nomdureseau}`;
+        return { DB_NAME, STORE_NAME };
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation des constantes', error);
+        DB_NAME = 'MyBusFinderDefault';
+        STORE_NAME = 'gtfsStoreDefault';
+        return { DB_NAME, STORE_NAME };
+    }
+}
+
+async function initDB() {
+    if (!DB_NAME || !STORE_NAME) {
+        await initConstants();
+    }
+    
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -1642,39 +1673,65 @@ function initDB() {
     });
 }
 
-async function isFirstVisitOfDay() {
+async function calculateSHA256(data) {
+    let buffer;
+    if (data instanceof ArrayBuffer) {
+        buffer = data;
+    } else if (typeof data === 'string') {
+        const encoder = new TextEncoder();
+        buffer = encoder.encode(data).buffer;
+    } else if (data instanceof Blob) {
+        buffer = await data.arrayBuffer();
+    } else {
+        const jsonString = JSON.stringify(data);
+        const encoder = new TextEncoder();
+        buffer = encoder.encode(jsonString).buffer;
+    }
+
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    return hashHex;
+}
+
+async function checkGTFSUpdate() {
     try {
+        const headResponse = await fetch('proxy-cors/proxy_gtfs.php', { method: 'HEAD' });
+        
+        if (!headResponse.ok) {
+            throw new Error(`Échec de la vérification d'en-tête: ${headResponse.status}`);
+        }
+        
+        const etag = headResponse.headers.get('ETag');
+        const lastModified = headResponse.headers.get('Last-Modified');
+        
         const db = await initDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.get('lastUpdate');
-
-            request.onsuccess = () => {
-                const lastVisit = request.result;
-                if (!lastVisit) {
-                    resolve(true);
-                    return;
-                }
-
-                const lastVisitDate = new Date(lastVisit);
-                const currentDate = new Date();
-                
-                resolve(
-                    lastVisitDate.getDate() !== currentDate.getDate() ||
-                    lastVisitDate.getMonth() !== currentDate.getMonth() ||
-                    lastVisitDate.getFullYear() !== currentDate.getFullYear()
-                );
-            };
-
+        const transaction = db.transaction(STORE_NAME, 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        
+        const storedMetadata = await new Promise((resolve, reject) => {
+            const request = store.get('gtfsMetadata');
+            request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
         });
+        
+        if (storedMetadata) {
+            if ((etag && storedMetadata.etag === etag) || 
+                (lastModified && storedMetadata.lastModified === lastModified)) {
+                return { needsUpdate: false, metadata: storedMetadata };
+            }
+        }
+        
+        return { needsUpdate: true, etag, lastModified };
     } catch (error) {
-        return true; 
+        console.error('Erreur lors de la vérification de mise à jour GTFS:', error);
+        return { needsUpdate: true };
     }
 }
 
-async function saveToCache(data) {
+async function saveToCache(data, metadata) {
     try {
         const db = await initDB();
         return new Promise((resolve, reject) => {
@@ -1682,13 +1739,18 @@ async function saveToCache(data) {
             const store = transaction.objectStore(STORE_NAME);
 
             store.put(data, 'gtfsData');
-            store.put(new Date().toISOString(), 'lastUpdate');
+            
+            if (!metadata) {
+                metadata = {};
+            }
+            metadata.lastUpdate = new Date().toISOString();
+            store.put(metadata, 'gtfsMetadata');
 
             transaction.oncomplete = () => resolve();
             transaction.onerror = () => reject(transaction.error);
         });
     } catch (error) {
-        toastBottomRight.error('Erreur ! ', error);
+        console.error('Erreur lors de la sauvegarde dans le cache', error);
         throw error;
     }
 }
@@ -1705,19 +1767,24 @@ async function getFromCache() {
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
-        toastBottomRight.error('Erreur ! ', error);
+        console.error('Erreur lors de la récupération cache', error);
         return null;
     }
 }
 
 async function extractGTFSFiles() {
     try {
+        toastBottomRight.info('Téléchargement des données GTFS...');
+        
         const response = await fetch('proxy-cors/proxy_gtfs.php');
         if (!response.ok) {
             throw new Error(`Échec du téléchargement: ${response.status} ${response.statusText}`);
         }
         
         const zipData = await response.arrayBuffer();
+        
+        const zipHash = await calculateSHA256(zipData);
+        
         const zip = await JSZip.loadAsync(zipData);
         
         const extractedFiles = {};
@@ -1732,8 +1799,20 @@ async function extractGTFSFiles() {
             }
         });
         
-        await Promise.all(filePromises);        
-        return extractedFiles;
+        await Promise.all(filePromises);
+        
+        const headResponse = await fetch('proxy-cors/proxy_gtfs.php', { method: 'HEAD' });
+        const etag = headResponse.headers.get('ETag');
+        const lastModified = headResponse.headers.get('Last-Modified');
+        
+        const metadata = {
+            zipHash,
+            etag,
+            lastModified,
+            lastUpdate: new Date().toISOString()
+        };
+        
+        return { extractedFiles, metadata };
     } catch (error) {
         console.error('Erreur lors de l\'extraction des fichiers GTFS:', error);
         throw error;
@@ -1744,19 +1823,23 @@ async function loadGtfsData() {
     try {
         let extractedFiles;
         
-        const isFirstVisit = await isFirstVisitOfDay();
+        const { needsUpdate, etag, lastModified, metadata } = await checkGTFSUpdate();
         
-        if (isFirstVisit) {
-            toastBottomRight.info('Téléchargement des données quotidiennes..');
-            extractedFiles = await extractGTFSFiles();
-            await saveToCache(extractedFiles);
+        if (needsUpdate) {
+            const result = await extractGTFSFiles();
+            extractedFiles = result.extractedFiles;
+            
+            await saveToCache(extractedFiles, result.metadata);
+            
+            toastBottomRight.success('Données mises à jour avec succès');
         } else {
             extractedFiles = await getFromCache();
             if (!extractedFiles) {
-                toastBottomRight.info('Téléchargement des données quotidiennes..');
-                extractedFiles = await extractGTFSFiles();
-                await saveToCache(extractedFiles);
-            }
+                const result = await extractGTFSFiles();
+                extractedFiles = result.extractedFiles;
+                await saveToCache(extractedFiles, result.metadata);
+                toastBottomRight.success('Données téléchargées avec succès');
+            } 
         }
         
         routes = {};
@@ -1780,7 +1863,8 @@ async function loadGtfsData() {
         
         return true;
     } catch (error) {
-        console.error('Erreur lors du chargement des données gtfs', error);
+        console.error('Erreur lors du chargement des données GTFS', error);
+        toastBottomRight.error('Erreur lors du chargement des données GTFS');
         throw error;
     }
 }
