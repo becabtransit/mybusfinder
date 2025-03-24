@@ -89,7 +89,7 @@ async function fetchAndProcessTripUpdates() {
 }
 
 async function decodeProtobuf(buffer) {
-    const root = await protobuf.load('../gtfs-realtime.proto');
+    const root = await protobuf.load('./gtfs-realtime.proto');
     const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
     const message = FeedMessage.decode(new Uint8Array(buffer));
     return FeedMessage.toObject(message, { longs: String });
