@@ -61,7 +61,7 @@ async function fetchAndProcessTripUpdates() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
         
-        const response = await fetch('proxy-cors/proxy_tripupdate.php', {
+        const response = await fetch('/proxy-cors/proxy_tripupdate.php', {
             cache: 'no-store' 
         });
         
