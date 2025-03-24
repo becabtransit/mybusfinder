@@ -227,7 +227,7 @@ visibility: hidden;
     position: absolute;
     top: 0px;
     right: 0px;
-    background-color: #0F056B9c;
+    background-color: #0F056B77;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     padding: 10px;
@@ -289,9 +289,6 @@ visibility: hidden;
 
         .linesection {
             cursor: pointer;
-            backdrop-filter: blur(5px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
         }
 
         @keyframes jspcommentlappelercettekeyframe {
@@ -614,7 +611,7 @@ shape.bounce-down {
     list-style: none;
     margin: 0;
     z-index: 10000;
-    background-color: #0F056B9c;
+    background-color: #0F056B77;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5);
@@ -639,7 +636,7 @@ shape.bounce-down {
     margin: 0;
     z-index: 10000;
     padding: 0;
-    background-color: #0F056B9c;
+    background-color: #0F056B77;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); 
@@ -1231,23 +1228,6 @@ shape.bounce-down {
   }
 }
 
-.bus-stop-marker {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background-color: white;
-    border: 1px solid black;
-}
-
-.line-popup, .stop-popup {
-    padding: 5px;
-}
-
-.line-popup h4, .stop-popup h4 {
-    margin: 0 0 5px 0;
-    font-weight: bold;
-}
-
 
     </style>
 
@@ -1270,8 +1250,8 @@ shape.bounce-down {
  <div class="menubottom">
         <ul id="menubtm" class="menubottom-ul">
             <li>
-                <a href="https://mybusfinder.fr/"><span class="icon"><img src="src/menu.png" style="width: 40px; height: 40px;"></img></span> <span
-                    class="title">Menu</span></a>
+                <a href="https://dev.mybusfinder.fr/"><span class="icon"><img src="src/menu.png" style="width: 40px; height: 40px;"></img></span> <span
+                        class="title">Menu</span></a>
             </li>
             <li>
                 <a onclick="showUpdatePopup('schedule.html');" id="clock"><span class="icon"><img src="src/horloge.png" style="width: 40px; height: 40px;"></img></span> <span
@@ -1341,11 +1321,7 @@ async function getSetvar() {
         const setvar = await response.text();
         const view = setvar.trim();  
 
-        const response1 = await fetch('setvar/settings/networkname.txt');
-        const setvar1 = await response1.text();
-        const nomdureseau = setvar1.trim();  
-
-        return { colorbkg, view, nomdureseau };
+        return { colorbkg, view };
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
@@ -1353,8 +1329,6 @@ async function getSetvar() {
 }
 
 getSetvar();
-
-
 
 const vehicleModels = {};
 
@@ -1371,9 +1345,9 @@ let map;
 async function setColors() {
     const data = await getSetvar();
     if (data) {
-        document.getElementById("menubtm").style.backgroundColor = `${data.colorbkg}9c`;
-        document.getElementById("menu").style.backgroundColor = `${data.colorbkg}9c`;
-        document.getElementById("filtre").style.backgroundColor = `${data.colorbkg}9c`;
+        document.getElementById("menubtm").style.backgroundColor = `${data.colorbkg}77`;
+        document.getElementById("menu").style.backgroundColor = `${data.colorbkg}77`;
+        document.getElementById("filtre").style.backgroundColor = `${data.colorbkg}77`;
 
     }
 }
@@ -1449,31 +1423,15 @@ async function initMap() {
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
     
     if (!isStandardView) {
-    const tileLayerUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-    
-    const tileLayer = L.tileLayer(tileLayerUrl, {
-        minZoom: 12,
-        maxZoom: 19,
-    }).addTo(mapInstance);
-    
-    if (isNightMode) {
-        const mapPane = mapInstance.getPanes().tilePane;
-        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        const tileLayerUrl = isNightMode 
+            ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'  
+            : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';             
+
+        L.tileLayer(tileLayerUrl, {}).addTo(mapInstance);
     } else {
-        const mapPane = mapInstance.getPanes().tilePane;
-        mapPane.style.filter = 'none';
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        }).addTo(mapInstance);
     }
-} else {
-    const mapPane = mapInstance.getPanes().tilePane;
-    mapPane.style.filter = 'none';
-    
-    L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
-        minZoom: 12,
-        maxZoom: 19,
-        format: 'image/jpeg',
-        style: 'normal'
-    }).addTo(mapInstance);
-}
 
 
 
@@ -1590,11 +1548,11 @@ function showUpdatePopup(link) {
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
             if (selectedLine) {
-                const filtre = document.getElementById('filtre');
-                filtre.classList.add('slide-upc');
-                filtre.classList.remove('slide-downc');
-                resetMapView();
-            }
+        const filtre = document.getElementById('filtre');
+        filtre.classList.add('slide-upc');
+        filtre.classList.remove('slide-downc');
+        resetMapView();
+        }
 
             menubottom1.addEventListener('transitionend', () => {
             if (menubottom1.classList.contains('slide-up')) {
@@ -1612,8 +1570,6 @@ window.addEventListener('message', function(event) {
         }
     }
 }, false);
-
-
 
 function focusOnVehicle(vehicleId) {
     try {        
@@ -1717,9 +1673,9 @@ function hideLoadingScreen() {
 
             setTimeout(() => {
                 loadingScreen.style.display = 'none';
-                if(!localStorage.getItem('premierLancement')) {
-                    showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
-                    localStorage.setItem('premierLancement', 'true');
+                if(!localStorage.getItem('premiereLancement')) {
+                    showUpdatePopup('updatecm.html');
+                    localStorage.setItem('premiereLancement', 'true');
                 } 
             }, 300);
         }, 900);
@@ -1734,29 +1690,12 @@ showLoadingScreen();
 
 let data;
 
-let DB_NAME;
-let STORE_NAME;
-const DB_VERSION = 4;
 
-async function initConstants() {
-    try {
-        const { nomdureseau } = await getSetvar();
-        DB_NAME = `MyBusFinder${nomdureseau}`;
-        STORE_NAME = `gtfsStore${nomdureseau}`;
-        return { DB_NAME, STORE_NAME };
-    } catch (error) {
-        console.error('Erreur lors de l\'initialisation des constantes', error);
-        DB_NAME = 'MyBusFinderDefault';
-        STORE_NAME = 'gtfsStoreDefault';
-        return { DB_NAME, STORE_NAME };
-    }
-}
+const DB_NAME = 'MyBusFinderRM';
+const DB_VERSION = 3;
+const STORE_NAME = 'gtfsStoreRM';
 
-async function initDB() {
-    if (!DB_NAME || !STORE_NAME) {
-        await initConstants();
-    }
-    
+function initDB() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -1772,84 +1711,40 @@ async function initDB() {
     });
 }
 
-async function calculateSHA256(data) {
-    let buffer;
-    if (data instanceof ArrayBuffer) {
-        buffer = data;
-    } else if (typeof data === 'string') {
-        const encoder = new TextEncoder();
-        buffer = encoder.encode(data).buffer;
-    } else if (data instanceof Blob) {
-        buffer = await data.arrayBuffer();
-    } else {
-        const jsonString = JSON.stringify(data);
-        const encoder = new TextEncoder();
-        buffer = encoder.encode(jsonString).buffer;
-    }
-
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-    
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    return hashHex;
-}
-
-async function getFileHash() {
-    try {
-        const response = await fetch('proxy-cors/proxy_gtfs.php', {
-            method: 'GET',
-            headers: {
-                'X-Content-Only-Header': 'true'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Échec de la vérif ${response.status}`);
-        }
-        
-        const buffer = await response.arrayBuffer();
-        const partialData = buffer.slice(0, Math.min(buffer.byteLength, 1024 * 50));
-        
-        const fileHash = await calculateSHA256(partialData);
-        
-        return { fileHash, needsFullDownload: true };
-    } catch (error) {
-        console.error('Erreur lors de la vérif du hash', error);
-        return { needsFullDownload: true };
-    }
-}
-
-async function checkGTFSUpdate() {
+async function isFirstVisitOfDay() {
     try {
         const db = await initDB();
-        const transaction = db.transaction(STORE_NAME, 'readonly');
-        const store = transaction.objectStore(STORE_NAME);
-        
-        const storedMetadata = await new Promise((resolve, reject) => {
-            const request = store.get('gtfsMetadata');
-            request.onsuccess = () => resolve(request.result);
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(STORE_NAME, 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.get('lastUpdate');
+
+            request.onsuccess = () => {
+                const lastVisit = request.result;
+                if (!lastVisit) {
+                    resolve(true);
+                    return;
+                }
+
+                const lastVisitDate = new Date(lastVisit);
+                const currentDate = new Date();
+                
+                resolve(
+                    lastVisitDate.getDate() !== currentDate.getDate() ||
+                    lastVisitDate.getMonth() !== currentDate.getMonth() ||
+                    lastVisitDate.getFullYear() !== currentDate.getFullYear()
+                );
+            };
+
             request.onerror = () => reject(request.error);
         });
-        
-        if (!storedMetadata || !storedMetadata.fileHash) {
-            return { needsUpdate: true };
-        }
-        
-        const { fileHash, needsFullDownload } = await getFileHash();
-        
-        if (fileHash !== storedMetadata.fileHash) {
-            return { needsUpdate: true, fileHash };
-        }
-        
-        return { needsUpdate: false, metadata: storedMetadata };
     } catch (error) {
-        console.error('Erreur vérif maj GTFS', error);
-        return { needsUpdate: true };
+        toastBottomRight.error('Erreur lors de la vérification des données');
+        return true;
     }
 }
 
-async function saveToCache(data, metadata) {
+async function saveToCache(data) {
     try {
         const db = await initDB();
         return new Promise((resolve, reject) => {
@@ -1857,18 +1752,13 @@ async function saveToCache(data, metadata) {
             const store = transaction.objectStore(STORE_NAME);
 
             store.put(data, 'gtfsData');
-            
-            if (!metadata) {
-                metadata = {};
-            }
-            metadata.lastUpdate = new Date().toISOString();
-            store.put(metadata, 'gtfsMetadata');
+            store.put(new Date().toISOString(), 'lastUpdate');
 
             transaction.oncomplete = () => resolve();
             transaction.onerror = () => reject(transaction.error);
         });
     } catch (error) {
-        console.error('Erreur sauvegarde dans le cache', error);
+        console.error('Erreur lors de la sauvegarde dans le cache', error);
         throw error;
     }
 }
@@ -1885,23 +1775,19 @@ async function getFromCache() {
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
-        console.error('Erreur lors de la récup cache', error);
+        console.error('Erreur lors de la récupération cache', error);
         return null;
     }
 }
 
 async function extractGTFSFiles() {
     try {
-
         const response = await fetch('proxy-cors/proxy_gtfs.php');
         if (!response.ok) {
-            throw new Error(`Échec téléchargement ${response.status} ${response.statusText}`);
+            throw new Error(`Échec du téléchargement: ${response.status} ${response.statusText}`);
         }
         
         const zipData = await response.arrayBuffer();
-        
-        const fileHash = await calculateSHA256(zipData.slice(0, Math.min(zipData.byteLength, 1024 * 50)));
-        
         const zip = await JSZip.loadAsync(zipData);
         
         const extractedFiles = {};
@@ -1918,12 +1804,7 @@ async function extractGTFSFiles() {
         
         await Promise.all(filePromises);
         
-        const metadata = {
-            fileHash,
-            lastUpdate: new Date().toISOString()
-        };
-        
-        return { extractedFiles, metadata };
+        return extractedFiles;
     } catch (error) {
         throw error;
     }
@@ -2050,22 +1931,19 @@ async function initializeGTFS() {
         
         let extractedFiles;
         
-        const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
+        const isFirstVisit = await isFirstVisitOfDay();
         
-        if (needsUpdate) {
-            const result = await extractGTFSFiles();
-            extractedFiles = result.extractedFiles;
-            
-            await saveToCache(extractedFiles, result.metadata);
-            
+        if (isFirstVisit) {
+            toastBottomRight.info('Téléchargement des données quotidiennes..');
+            extractedFiles = await extractGTFSFiles();
+            await saveToCache(extractedFiles);
         } else {
             extractedFiles = await getFromCache();
             if (!extractedFiles) {
-                const result = await extractGTFSFiles();
-                extractedFiles = result.extractedFiles;
-                await saveToCache(extractedFiles, result.metadata);
-                toastBottomRight.success('Données téléchargées avec succès !');
-            } 
+                toastBottomRight.info('Téléchargement des données quotidiennes..');
+                extractedFiles = await extractGTFSFiles();
+                await saveToCache(extractedFiles);
+            }
         }
         
         if (extractedFiles['routes.txt']) {
@@ -2235,8 +2113,8 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             
 
             if (lastActiveMarkerId !== null && lastActiveMarkerId !== markerId && lastActiveColor !== null) {
-                menubtm.style.backgroundColor = `${color}9c`;
-                filtre.style.backgroundColor = `${color}9c`;
+                menubtm.style.backgroundColor = `${color}77`;
+                filtre.style.backgroundColor = `${color}77`;
 
                 const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
                 let textColor = '#FFFFFF';
@@ -2283,10 +2161,9 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                 
                 document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
                 
-                menubtm.style.backgroundColor = `${color}9c`;
-                filtre.style.backgroundColor = `${color}9c`;
+                menubtm.style.backgroundColor = `${color}77`;
+                filtre.style.backgroundColor = `${color}77`;
 
-                document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
                 
                 const styleSheet = document.createElement('style');
                 styleSheet.id = styleId;
@@ -2314,82 +2191,36 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     });
 
     marker.on('popupclose', async function(e) {
-    const menubtm = document.getElementById('menubtm');
-    const filtre = document.getElementById('filtre');
-    
-    if (menubtm && filtre) {
-        try {
-            setTimeout(async () => {
-                if (lastActiveMarkerId === marker.id) {
-                    const data = await getSetvar();
-                    
-                    if (data) {
-                        const menubtmCurrentTransition = window.getComputedStyle(menubtm).transition;
-                        const filtreCurrentTransition = window.getComputedStyle(filtre).transition;
+        const menubtm = document.getElementById('menubtm');
+        if (menubtm) {
+            try {
+                setTimeout(async () => {
+                    if (lastActiveMarkerId === marker.id) {
+                        const data = await getSetvar();
                         
-                        if (!menubtmCurrentTransition.includes('background-color')) {
-                            menubtm.style.transition = menubtmCurrentTransition 
-                                ? `${menubtmCurrentTransition}, background-color 0.5s ease` 
-                                : 'background-color 0.5s ease';
-                        }
-                        
-                        if (!filtreCurrentTransition.includes('background-color')) {
-                            filtre.style.transition = filtreCurrentTransition 
-                                ? `${filtreCurrentTransition}, background-color 0.5s ease` 
-                                : 'background-color 0.5s ease';
-                        }
-                        
-                        menubtm.style.backgroundColor = `${data.colorbkg}9c`;
-                        filtre.style.backgroundColor = `${data.colorbkg}9c`;
-                        
-                        document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
-                        const styleSheet = document.createElement('style');
-                        styleSheet.id = styleId;
-                        styleSheet.classList.add('menu-color-style');
-                        
-                        const rgb = data.colorbkg.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-                        let textColor = '#000000';
-                        if (rgb) {
-                            const r = parseInt(rgb[1], 16);
-                            const g = parseInt(rgb[2], 16);
-                            const b = parseInt(rgb[3], 16);
-                            const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
-                            textColor = brightness > 150 ? '#000000' : '#FFFFFF';
-                        }
-                        
-                        styleSheet.textContent = `
-                            #menubtm * {
-                                color: ${textColor};
-                                transition: color 0.5s ease;
-                            }
-
-                            #filtre * {
-                                color: ${textColor};
-                                transition: color 0.5s ease;
-                            }
-                        `;
-                        
-                        document.head.appendChild(styleSheet);
-                        
-                        lastActiveMarkerId = null;
-                        lastActiveColor = null;
-                        
-                        if (marker.styleId) {
-                            const oldStyle = document.getElementById(marker.styleId);
-                            if (oldStyle) {
-                                setTimeout(() => {
-                                    oldStyle.remove();
-                                }, 500);
+                        if (data) {
+                            menubtm.style.backgroundColor = `${data.colorbkg}77`;
+                            
+                            lastActiveMarkerId = null;
+                            lastActiveColor = null;
+                            
+                            if (marker.styleId) {
+                                const oldStyle = document.getElementById(marker.styleId);
+                                if (oldStyle) {
+                                    setTimeout(() => {
+                                        oldStyle.remove();
+                                    }, 500);
+                                }
                             }
                         }
                     }
-                }
-            }, 50); 
-        } catch (error) {
-            return false;
+                }, 50); 
+            } catch (error) {
+                console.error('Erreur lors de la réinitialisation des couleurs', error);
+            }
         }
-    }
-});
+    });
+
     return marker;
 }
 
@@ -2426,123 +2257,44 @@ function animateMarker(marker, newPosition) {
     marker.animationFrame = requestAnimationFrame(animate);
 }
 
-let busStopLayers = [];
-
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
 
-    const busLines = L.geoJSON(geoJsonData, {
+    L.geoJSON(geoJsonData, {
         filter: function(feature) {
             return feature.geometry.type === 'LineString';
         },
         style: function(feature) {
             return {
-                color: lineColors[feature.properties.route_id] || '#3388ff',
-                weight: 6,
-                opacity: 0.7,  
-                lineJoin: 'round',
-                lineCap: 'round',
-                className: 'bus-line', 
-                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
+                color: lineColors[feature.properties.route_id] || '#000000',
+                weight: 2
             };
         },
         onEachFeature: function(feature, layer) {
-            
-            if (feature.properties && feature.properties.route_id) {
-                geoJsonLines.push(layer);
-            }
+            geoJsonLines.push(layer); 
         }
     }).addTo(map);
-
-    const busStops = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry && feature.geometry.type === 'Point';
-        },
-        pointToLayer: function(feature, latlng) {
-            return L.circleMarker(latlng, {
-                radius: 3,
-                fillColor: '#ffffff',
-                color: '#000000',
-                weight: 0.5,
-                opacity: 0.7,
-                fillOpacity: 0.6
-            });
-        }
-    }).addTo(map);
-    
-    busStops.eachLayer(function(layer) {
-        if (layer.feature && layer.feature.properties) {
-            layer.busLine = layer.feature.properties.route_id || null;
-            busStopLayers.push(layer);
-        }
-    });
-    
 }
 
 let selectedLines = [];
 
 function filterByLine(lineId) {
   const lineIndex = selectedLines.indexOf(lineId);
-
+  
   if (lineIndex !== -1) {
     selectedLines.splice(lineIndex, 1);
   } else {
     selectedLines.push(lineId);
   }
-
+  
   updateLinesDisplay();
-
-  if (selectedLines.length === 0) {
-    const filtre = document.getElementById('filtre');
-    filtre.classList.add('slide-upc');
-    filtre.classList.remove('slide-downc');
-    resetMapView();
-  } else if (selectedLines.length === 1) {
-    zoomToSelectedLine(selectedLines[0]);
-  } else if (selectedLines.length > 1) {
-    zoomToMultipleLines(selectedLines);
-  }
-}
-
-function zoomToSelectedLine(lineId) {
-  const bounds = L.latLngBounds();
-
-  geoJsonLines.forEach(layer => {
-    if (layer.feature.properties.route_id === lineId) {
-      bounds.extend(layer.getBounds());
-    }
-  });
-
-  if (bounds.isValid()) {
-    map.fitBounds(bounds, {
-      padding: [10, 10], 
-      maxZoom: 17        
-    });
-  }
-}
-
-function zoomToMultipleLines(lineIds) {
-  const bounds = L.latLngBounds();
-
-  geoJsonLines.forEach(layer => {
-    if (lineIds.includes(layer.feature.properties.route_id)) {
-      bounds.extend(layer.getBounds());
-    }
-  });
-
-  if (bounds.isValid()) {
-    map.fitBounds(bounds, {
-      padding: [50, 50], 
-      maxZoom: 15       
-    });
-  }
 }
 
 function updateLinesDisplay() {
   geoJsonLines.forEach(layer => {
     const routeId = layer.feature.properties.route_id;
-
+    
     if (selectedLines.length === 0 || selectedLines.includes(routeId)) {
       if (!map.hasLayer(layer)) {
         map.addLayer(layer);
@@ -2553,21 +2305,7 @@ function updateLinesDisplay() {
       }
     }
   });
-
-  busStopLayers.forEach(layer => {
-    const busLine = layer.busLine;
-    
-    if (selectedLines.length === 0 || selectedLines.includes(busLine)) {
-      if (!map.hasLayer(layer)) {
-        map.addLayer(layer);
-      }
-    } else {
-      if (map.hasLayer(layer)) {
-        map.removeLayer(layer);
-      }
-    }
-  });
-
+  
   Object.entries(markers).forEach(([id, marker]) => {
     if (selectedLines.length === 0 || selectedLines.includes(marker.line)) {
       if (!map.hasLayer(marker)) {
@@ -2586,21 +2324,15 @@ function updateLinesDisplay() {
 
 function resetMapView() {
     selectedLines = [];
-
+    
     selectedLine = null;
-
+    
     geoJsonLines.forEach(layer => {
         if (!map.hasLayer(layer)) {
             map.addLayer(layer);
         }
     });
-
-    busStopLayers.forEach(layer => {
-        if (!map.hasLayer(layer)) {
-            map.addLayer(layer);
-        }
-    });
-
+    
     Object.values(markers).forEach(marker => {
         if (!map.hasLayer(marker)) {
             map.addLayer(marker);
@@ -2811,7 +2543,7 @@ function getVehicleBrandHtml(parkNumber) {
                      alt="Thumbnail ${model.name}" 
                      class="vehicle-thumbnail"  />
 
-                <span style="margin-top: 6px; margin-left: 20px; font-size: 12px; ">Un ${model.name}</span>
+                <span style="margin-top: 10px; font-size: 12px; ">Un ${model.name}</span>
             </div>
         `;
     }
@@ -2821,7 +2553,7 @@ function getVehicleBrandHtml(parkNumber) {
             <img src="${defaultImagePath}" 
                  alt="Bus par défaut" 
                  class="vehicle-thumbnail"  />
-            <span style="margin-top: 6px; margin-left: 20px; font-size: 12px;">Un bus</span>
+            <span style="margin-top: 10px; font-size: 12px;">Un bus</span>
         </div>
     `;
 }
@@ -2893,207 +2625,51 @@ async function fetchVehiclePositions() {
                 const lastStopNameun = stopNameMap[lastStopId] || 'Destination inconnue';
                 let lastStopName = lastStopNameun.replace("0:", "");
                 
-                const timeAnimationStyle = `
-                <style>
-                    .time-display {
-                        transition: opacity 0.3s ease-out;
-                    }
-                    
-                    .time-display.fade-out {
-                        opacity: 0;
-                    }
-                    
-                    @keyframes radiateWaves {
-                        0% { transform: scale(0.7); opacity: 0.5; }
-                        50% { transform: scale(1.2); opacity: 1; }
-                        100% { transform: scale(1); opacity: 0.7; }
-                    }
-                    
-                    .time-indicator .rss-waves {
-                        transform-origin: 5px 19px; 
-                    }
-                    
-                    .time-indicator.animate .rss-waves {
-                        animation: radiateWaves 0.6s ease-out;
-                    }
-                    
-                    @keyframes scrollText {
-                        0% { transform: translateX(0); }
-                        10% { transform: translateX(0); }
-                        60% { transform: translateX(calc(-100% + 70px)); }
-                        90% { transform: translateX(calc(-100% + 70px)); }
-                        100% { transform: translateX(0); }
-                    }
-                    
-                    .stop-name-container:hover .stop-name-wrapper[style*="animation"] {
-                        animation-play-state: running !important;
-                    }
-                </style>
-                `;
-                document.head.insertAdjacentHTML('beforeend', timeAnimationStyle);
                 const nextStops = tripUpdates[tripId]?.nextStops || [];
 
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
-                const now = Math.floor(Date.now() / 1000);
-
-                let filteredStops = [];
-
-                if (currentStopIndex !== -1) {
-                    filteredStops = nextStops.slice(currentStopIndex);
-                    
-                    filteredStops = filteredStops.filter(stop => {
-                        if (stop.delay === null) return true;
-                        
-                        return stop.delay >= -60;
-                    });
-                } else {
-                    filteredStops = nextStops.filter(stop => stop.delay === null || stop.delay > 0);
-                }
 
                 let nextStopsHTML = `
-                        <div style="position: relative; max-height: 120px; ">
-                            <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
-                    `;
+                    <div style="position: relative; max-height: 120px; ">  <!-- Conteneur avec fond au bas -->
+                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+                `;
 
-                    let stopsHeaderText = "Chargement en cours";
+                if (currentStopIndex !== -1) {
+                    let filteredStops = nextStops.slice(currentStopIndex);  
 
-                    if (currentStopIndex !== -1) {
-                        let filteredStops = nextStops.slice(currentStopIndex);
-                        
-                        if (filteredStops.length > 0) {
-                            const firstStopDelay = filteredStops[0].delay || 0;
-                            const minutes = Math.max(0, Math.ceil(firstStopDelay / 60));
-                            
-                            stopsHeaderText = "Prochains arrêts";
-                            
-                            if (filteredStops.length === 1) {
-                                if (minutes === 0) {
-                                    stopsHeaderText = "Départ imminent";
-                                } else {
-                                    stopsHeaderText = `Départ dans ${minutes} min`;
-                                }
-                            } 
-                            else if (minutes > 3) {
-                                stopsHeaderText = `Départ dans ${minutes} minutes`;
-                            }                        
-                        filteredStops.forEach(stop => {
-                        const timeLeft = stop.delay;
-                        const timeLeftText = timeLeft !== null 
-                            ? timeLeft <= 0 
-                                ? 'imminent' 
-                                : `${Math.ceil(timeLeft / 60)} min`
-                            : '';
-                        
-                        const stopName = stopNameMap[stop.stopId] || stop.stopId;
-                        
-                        const tempElement = document.createElement('div');
-                        tempElement.style.font = getComputedStyle(document.body).font; 
-                        tempElement.style.visibility = 'hidden';
-                        tempElement.style.position = 'absolute';
-                        tempElement.style.whiteSpace = 'nowrap';
-                        tempElement.textContent = stopName;
-                        document.body.appendChild(tempElement);
-                        
-                        const maxWidth = document.querySelector('.stop-name-container') ? 
-                            document.querySelector('.stop-name-container').offsetWidth : 150; 
-                        const isTextTooLong = tempElement.offsetWidth > (maxWidth * 0.9); 
-                        
-                        document.body.removeChild(tempElement);
-                        
-                        const animationStyle = isTextTooLong ? 
-                            "animation: scrollText 8s linear infinite; animation-play-state: paused;" : 
-                            "";
-                        
-                        nextStopsHTML += `
-                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                            <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
-                                <div class="stop-name-wrapper" style="
-                                    position: relative;
-                                    display: inline-block;
-                                    padding-right: 10px;
-                                    ${animationStyle}
-                                ">
-                                    <div class="stop-name" style="
-                                        position: relative;
-                                        display: inline-block;
-                                    ">${stopName}</div>
-                                </div>
-                            </div>
-                            <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
-                                <div class="time-display" 
-                                    data-time-left="${timeLeftText}" 
-                                    data-departure-time="${stop.departureTime || stop.arrivalTime || "Inconnu"}">
-                                    ${timeLeftText}
-                                </div>
-                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss mr-[0.5px] text-green-700 dark:text-green-500">
-                                    <g class="rss-waves">
-                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
-                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
-                                    </g>
-                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
-                                </svg>
-                            </div>
-                        </li>
-                        `;
-                    });
+                    const now = Date.now() / 1000; 
 
-                    }
-                    }
+filteredStops.forEach(stop => {
+    const timeLeft = stop.delay ? Math.round(stop.delay / 60) : null; 
+    const timeLeftText = timeLeft !== null 
+        ? timeLeft <= 0 
+            ? 'imminente' 
+            : `dans ${timeLeft} min`
+        : '';
+    
+    nextStopsHTML += `
+        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+            <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
+            <div>
+                <div style="z-index: 3; text-align: right;">
+                    ${stop.departureTime ? `${timeLeftText} | ${stop.departureTime}` : "Inconnu"}
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss -rotate-90 mr-[0.5px] text-green-700 dark:text-green-500">
+                    <path d="M4 11a9 9 0 0 1 9 9"></path>
+                    <path d="M4 4a16 16 0 0 1 16 16"></path>
+                    <circle cx="5" cy="19" r="1"></circle>
+                </svg>
+            </div>
+        </li>
+    `;
+});
+                } 
 
-                    nextStopsHTML += `
-                            </ul>
-                        </div>
-                    `;
+                nextStopsHTML += `
+                        </ul>
+                    </div>
+                `;
 
-                    let showRemaining = true;
-                    let showTimeLeft = true;
-                    let isAnimating = false;
-
-                    function toggleTimeDisplay() {
-                        if (isAnimating) return;
-                        
-                        isAnimating = true;
-                        
-                        const timeDisplays = document.querySelectorAll('.time-display');
-                        const indicators = document.querySelectorAll('.time-indicator');
-                        
-                        timeDisplays.forEach(display => {
-                            display.classList.add('fade-out');
-                        });
-                        
-                        indicators.forEach(indicator => {
-                            indicator.classList.add('animate');
-                            
-                            setTimeout(() => {
-                                indicator.classList.remove('animate');
-                            }, 600);
-                        });
-                        
-                        setTimeout(() => {
-                            showTimeLeft = !showTimeLeft;
-                            
-                            timeDisplays.forEach(display => {
-                                const timeLeft = display.getAttribute('data-time-left');
-                                const departureTime = display.getAttribute('data-departure-time');
-                                display.textContent = showTimeLeft ? timeLeft : departureTime;
-                            });
-                            
-                            timeDisplays.forEach(display => {
-                                display.classList.remove('fade-out');
-                            });
-                            
-                            setTimeout(() => {
-                                isAnimating = false;
-                            }, 350); 
-                            
-                        }, 350);
-                    }
-
-                    if (window.timeToggleInterval) {
-                        clearInterval(window.timeToggleInterval);
-                    }
-
-                    window.timeToggleInterval = setInterval(toggleTimeDisplay, 4000);
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
 
@@ -3148,7 +2724,7 @@ async function fetchVehiclePositions() {
                 }
                 
                 const popupContent = `
-                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; line-height: 1.4; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}77; overflow: hidden; background-color: ${backgroundColor}77; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
                         
                 <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
                     <!-- Texte principal -->
@@ -3223,7 +2799,7 @@ async function fetchVehiclePositions() {
 
 
                 <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
-                <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
+                    <p style="margin: 0; font-size: 18px; text-align: right;">Prochains arrêts</p>
                     <ul>
                     <div id="nextStopsContent" class="next-stops-content">
                           ${nextStopsHTML}
@@ -3264,8 +2840,8 @@ async function fetchVehiclePositions() {
                 if (menubtm) {
                     lastActiveColor = color;
                     
-                    menubtm.style.backgroundColor = `${color}9c`;
-                    filtre.style.backgroundColor = `${color}9c`;
+                    menubtm.style.backgroundColor = `${color}77`;
+                    filtre.style.backgroundColor = `${color}77`;
 
                     
                     const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
@@ -3694,7 +3270,7 @@ async function cleanup(menu, button) {
 const animationStyle = document.createElement('style');
 animationStyle.textContent = `
     .linesection {
-        transition: transform 0.2s  cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
+        transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
     }
     
     .linesection.removing {
@@ -3747,7 +3323,7 @@ function updateMenu() {
     logo.style.margin = '0 auto';
     logo.style.cursor = 'pointer';
     logo.onclick = () => {
-        showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
+        showUpdatePopup('updatecm.html');
         musique();
     };
 
@@ -3767,19 +3343,10 @@ function updateMenu() {
     }
 
     const transportStateContainer = document.createElement('div');
-    transportStateContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 8px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        backdrop-filter: blur(5px);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-        cursor: pointer;
-    `;
+    transportStateContainer.style.display = 'flex';
+    transportStateContainer.style.alignItems = 'center';
+    transportStateContainer.style.justifyContent = 'center';
+    transportStateContainer.style.marginBottom = '10px';
 
     const transportImage = document.createElement('img');
     transportImage.alt = 'Affluence transports';
@@ -3789,32 +3356,26 @@ function updateMenu() {
 
     if (transportState === "normal") {
         transportImage.src = 'src/1of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.success('Ouf ! Aucune affluence notable. Bon voyage !');
-        };
+        transportStateContainer.addEventListener('click', () => {
+            toastBottomRight.info('Ouf ! Aucune affluence notable est à signaler. Profitez bien de votre voyage !');
+        });
+        transportStateContainer.style.cursor = 'pointer';
     } else if (transportState === "presque saturé") {
         transportImage.src = 'src/2of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.warning('Affluence modérée. Les transports se remplissent.');
-        };
+        transportStateContainer.addEventListener('click', () => {
+            toastBottomRight.info('Les gens rentrent chez eux, ça se corse... Mais on peut toujours voyager sereinement.');
+        });
+        transportStateContainer.style.cursor = 'pointer';
     } else if (transportState === "saturé") {
         transportImage.src = 'src/3of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.error('Forte affluence. Privilégiez les lignes secondaires.');
-        };
+        transportStateContainer.addEventListener('click', () => {
+            toastBottomRight.info('En heure de pointe, il est compliqué de se déplacer. Privilégiez les lignes secondaires.');
+        });
+        transportStateContainer.style.cursor = 'pointer';
     }
 
     const transportStateTextContainer = document.createElement('div');
     transportStateTextContainer.style.textAlign = 'left';
-
-    transportStateContainer.onmouseover = () => {
-        transportStateContainer.style.transform = 'scale(0.98,0.98)';
-        transportStateContainer.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
-    };
-    transportStateContainer.onmouseout = () => {
-        transportStateContainer.style.transform = 'scale(1,1)';
-        transportStateContainer.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-    };
 
     const transportStateLabel = document.createElement('div');
     transportStateLabel.textContent = "Affluence transports";
@@ -3956,29 +3517,17 @@ function applyMapView() {
     });
 
     if (!isStandardView) {
-    const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        minZoom: 12,
-        maxZoom: 19,
-    }).addTo(map);
-    
-    if (isNightMode) {
-        const mapPane = map.getPanes().tilePane;
-        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        if (isNightMode) {
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            }).addTo(map);
+        } else {
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            }).addTo(map);
+        }
     } else {
-        const mapPane = map.getPanes().tilePane;
-        mapPane.style.filter = 'none';
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        }).addTo(map);
     }
-} else {
-    const mapPane = map.getPanes().tilePane;
-    mapPane.style.filter = 'none';
-    
-    L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
-        minZoom: 12,
-        maxZoom: 19,
-        format: 'image/jpeg',
-        style: 'normal'
-    }).addTo(map);
-}
 }
 
 
@@ -4133,8 +3682,7 @@ menu.appendChild(alertsButton);
             return isNaN(a) ? (isNaN(b) ? a.localeCompare(b) : 1) : (isNaN(b) ? -1 : parseInt(a) - parseInt(b));
         });
 
-
-function hexToRgb(hex) {
+        function hexToRgb(hex) {
     hex = hex.replace(/^#/, '');
     
     if (hex.length === 3) {
@@ -4190,17 +3738,6 @@ function getTextColor(backgroundColor) {
         lineSection.style.borderRadius = '8px';
         lineSection.style.position = 'relative';
 
-        lineSection.onmouseover = () => {
-        lineSection.style.transform = 'scale(0.98,0.98)';
-        lineSection.style.opacity = '0.9';
-        lineSection.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
-        };  
-        lineSection.onmouseout = () => {
-            lineSection.style.transform = 'scale(1,1)';
-            lineSection.style.opacity = '0.9';
-            lineSection.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-        };
-
         const favoriteButton = document.createElement('button');
         favoriteButton.style.position = 'absolute';
         favoriteButton.style.right = '5px';
@@ -4246,60 +3783,43 @@ function getTextColor(backgroundColor) {
 
         busesByLineAndDestination[line][destination].forEach(bus => {
             const busItem = document.createElement('div');
-            const marker = bus.vehicle;
-            const popupContent = marker.getPopup().getContent();
-            
-            let nextStopInfo = '';
-            let terminusInfo = '';
-            
-            const stopNameContainers = popupContent.match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/g);
-            const timeDisplays = popupContent.match(/<div class="time-display"[^>]*data-time-left="([^"]*)"[^>]*data-departure-time="([^"]*)"[^>]*>([\s\S]*?)<\/div>/g);
-            
-            if (stopNameContainers && stopNameContainers.length > 0 && timeDisplays && timeDisplays.length > 0) {
-                const firstStopNameMatch = stopNameContainers[0].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
-                const firstTimeMatch = timeDisplays[0].match(/data-time-left="([^"]*)"/);
-                
-                if (firstStopNameMatch && firstStopNameMatch[1] && firstTimeMatch && firstTimeMatch[1]) {
-                    const stopName = firstStopNameMatch[1].trim();
-                    const timeInfo = firstTimeMatch[1].trim();
-                    if (stopName && timeInfo) {
-                        nextStopInfo = `| ${stopName}`;
-                    }
-                }
-                
-                if (stopNameContainers.length > 1 && timeDisplays.length > 1) {
-                    const lastIndex = stopNameContainers.length - 1;
-                    const lastStopNameMatch = stopNameContainers[lastIndex].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
-                    const lastTimeMatch = timeDisplays[lastIndex].match(/data-time-left="([^"]*)"/);
+                    const marker = bus.vehicle;
+                    const popupContent = marker.getPopup().getContent();
                     
-                    if (lastStopNameMatch && lastStopNameMatch[1] && lastTimeMatch && lastTimeMatch[1]) {
-                        const terminusName = lastStopNameMatch[1].trim();
-                        const terminusTime = lastTimeMatch[1].trim();
-                        if (terminusName && terminusTime) {
-                            terminusInfo = `Arrivée à ${destination} ${terminusTime !== 'imminent' ? 'dans ' + terminusTime : 'imminent'}.`;
+                    let nextStopInfo = '';
+                    let terminusInfo = '';
+                    
+                    const nextStopsDiv = popupContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/g);
+                    
+                    if (nextStopsDiv && nextStopsDiv[0]) {
+                        const allStops = nextStopsDiv[0].match(/<li[^>]*>([\s\S]*?)<\/li>/g);
+                        
+                        if (allStops && allStops.length > 0) {
+                            const firstStop = allStops[0]
+                                .replace(/<[^>]*>/g, '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/\s*\|.*$/, '')
+                                .trim();
+                                
+                            const lastStop = allStops[allStops.length - 1]
+                                .replace(/<[^>]*>/g, '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/\s*\|.*$/, '')
+                                .trim();
+                            
+                            const [stopName, timeInfo] = firstStop.split(/(?=dans|imminent)/);
+                            const [terminusName, terminusTime] = lastStop.split(/(?=dans|imminent)/);
+                            
+                            if (stopName && timeInfo) {
+                                nextStopInfo = `| ${stopName.trim()}`;
+                            }
+                            
+                            if (terminusName && terminusTime) {
+                                terminusInfo = `Arrivée à ${destination} ${terminusTime.trim()}.`;
+                            }
                         }
                     }
-                }
-            }
-            
-            if (!nextStopInfo || !terminusInfo) {
-                const stopsHeaderMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
-                if (stopsHeaderMatch && stopsHeaderMatch[1]) {
-                    const headerText = stopsHeaderMatch[1].trim();
-                    if (headerText.includes('imminent')) {
-                        nextStopInfo = '| Départ imminent';
-                    } else if (headerText.includes('min')) {
-                        const minMatch = headerText.match(/dans (\d+) min/);
-                        if (minMatch && minMatch[1]) {
-                            nextStopInfo = `| Départ dans ${minMatch[1]} min.`;
-                        }
-                    }
-                }
-                
-                if (!terminusInfo) {
-                    terminusInfo = `à destination de ${destination}.`;
-                }
-            }
+
                     const mainText = document.createElement('div');
                     mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
                     mainText.style.fontSize = '1.2em';  
@@ -4323,8 +3843,7 @@ function getTextColor(backgroundColor) {
                     busItem.style.color = textColor;
                     busItem.style.padding = '5px 10px';
                     busItem.style.marginBottom = '5px';
-                    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
-                    busItem.style.border = '1px solid rgba(0, 0, 0, 0.2)'; 
+                    busItem.style.border = '2px solid rgba(0, 0, 0, 0.4)'; 
                     busItem.style.borderRadius = '8px';
                     busItem.style.overflow = 'hidden';
                     busItem.style.maxWidth = '300px';
@@ -4344,10 +3863,8 @@ function getTextColor(backgroundColor) {
                         setTimeout(() => {
                             menubottom1.classList.remove('slide-upb');
                             menubottom1.classList.add('slide-downb');
-                            if (selectedLine) {
-                                filtre.classList.remove('slide-upc');
-                                filtre.classList.add('slide-downc');
-                            }
+                            filtre.classList.remove('slide-upc');
+                            filtre.classList.add('slide-downc');
                         }, 10);
                     };
 
@@ -4545,7 +4062,7 @@ async function main() {
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
-        toastBottomRight.error("Une erreur critique est survenue. Nous investigons actuellement sur la cause de la panne.");
+        showErrorMessage("Erreur de chargement des données. Veuillez rafraîchir la page.");
     }
 }
 
