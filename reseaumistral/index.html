@@ -2432,20 +2432,79 @@ async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
 
-    L.geoJSON(geoJsonData, {
+    const busLines = L.geoJSON(geoJsonData, {
         filter: function(feature) {
             return feature.geometry.type === 'LineString';
         },
         style: function(feature) {
             return {
-                color: lineColors[feature.properties.route_id] || '#000000',
-                weight: 6
+                color: lineColors[feature.properties.route_id] || '#3388ff',
+                weight: 6,
+                opacity: 0.7,  
+                lineJoin: 'round',
+                lineCap: 'round',
+                className: 'bus-line', 
+                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
             };
         },
         onEachFeature: function(feature, layer) {
-            geoJsonLines.push(layer); 
+            
+            if (feature.properties && feature.properties.route_id) {
+                geoJsonLines.push(layer);
+            }
         }
     }).addTo(map);
+
+    const busStops = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry && feature.geometry.type === 'Point';
+        },
+        pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 3,
+                fillColor: '#ffffff',
+                color: '#000000',
+                weight: 0.5,
+                opacity: 0.7,
+                fillOpacity: 0.6
+            });
+        }
+    }).addTo(map);
+    
+    busStops.eachLayer(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+            layer.busLine = layer.feature.properties.route_id || null;
+            busStopLayers.push(layer);
+        }
+    });
+    
+    addAnimationStyles();
+}
+
+function addAnimationStyles() {
+    if (!document.getElementById('bus-line-styles')) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'bus-line-styles';
+        styleEl.textContent = `
+            .bus-line {
+                transition: opacity 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), stroke-width 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+            }
+            
+            .line-hover {
+                opacity: 1 !important;
+                stroke-width: 6px;
+                filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+                animation: linePulse 1.5s infinite;
+            }
+            
+            @keyframes linePulse {
+                0% { stroke-opacity: 0.7; }
+                50% { stroke-opacity: 1; }
+                100% { stroke-opacity: 0.7; }
+            }
+        `;
+        document.head.appendChild(styleEl);
+    }
 }
 
 
