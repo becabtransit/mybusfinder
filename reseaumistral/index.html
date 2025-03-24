@@ -4203,6 +4203,29 @@ function getTextColor(backgroundColor) {
             lineSection.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
         };
 
+        lineSection.style.transition = 'transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease';
+        lineSection.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+        lineSection.style.transformOrigin = 'center';
+        lineSection.style.perspective = '1000px';
+        lineSection.style.transformStyle = 'preserve-3d';
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.transform = 'rotateX(0deg) scale(1)';
+                    entry.target.style.opacity = '1';
+                    entry.target.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.15)';
+                } else {
+                    const direction = entry.boundingClientRect.y < 0 ? -10 : 10;
+                    entry.target.style.transform = `rotateX(${direction}deg) scale(0.98)`;
+                    entry.target.style.opacity = '0.8';
+                    entry.target.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+                }
+            });
+        }, { threshold: 0.7 });
+
+        observer.observe(lineSection);
+
         const favoriteButton = document.createElement('button');
         favoriteButton.style.position = 'absolute';
         favoriteButton.style.right = '5px';
