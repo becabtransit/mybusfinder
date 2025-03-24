@@ -2050,19 +2050,22 @@ async function initializeGTFS() {
         
         let extractedFiles;
         
-        const isFirstVisit = await isFirstVisitOfDay();
+        const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
         
-        if (isFirstVisit) {
-        toastBottomRight.info('Merci de partienter lors de la mise à jour de la base de données dynamiques.');
-            extractedFiles = await extractGTFSFiles();
-            await saveToCache(extractedFiles);
+        if (needsUpdate) {
+            const result = await extractGTFSFiles();
+            extractedFiles = result.extractedFiles;
+            
+            await saveToCache(extractedFiles, result.metadata);
+            
         } else {
             extractedFiles = await getFromCache();
             if (!extractedFiles) {
-                toastBottomRight.info('Téléchargement des données quotidiennes..');
-                extractedFiles = await extractGTFSFiles();
-                await saveToCache(extractedFiles);
-            }
+                const result = await extractGTFSFiles();
+                extractedFiles = result.extractedFiles;
+                await saveToCache(extractedFiles, result.metadata);
+                toastBottomRight.success('Données téléchargées avec succès !');
+            } 
         }
         
         if (extractedFiles['routes.txt']) {
