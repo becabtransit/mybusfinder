@@ -4444,18 +4444,29 @@ const menubottom1 = document.getElementById('menubtm');
 let lastTripUpdateTimestamp = 0;
 let worker;
 let fetchInProgress = false;
-const FETCH_INTERVAL = 8000; 
+const FETCH_INTERVAL = 8000;
+let abortController = null;
 
 function initWorker() {
+    if (worker) {
+        worker.terminate();
+    }
+    
     worker = new Worker('worker.js');
     
     worker.onerror = (error) => {
         console.error('Erreur worker', error);
-        setTimeout(() => {
-            worker.terminate();
-            initWorker();
-        }, 1000);
+        setTimeout(initWorker, 1000);
     };
+}
+
+async function decodeProtobufAsync(buffer) {
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            const decoded = decodeProtobuf(buffer);
+            resolve(decoded);
+        }, 0);
+    });
 }
 
 async function fetchTripUpdates() {
@@ -4465,12 +4476,17 @@ async function fetchTripUpdates() {
     const fetchStartTime = performance.now();
     
     try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // timeout après 5s
+        if (abortController) {
+            abortController.abort();
+        }
+        
+        abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 5000);
         
         const response = await fetch('proxy-cors/proxy_tripupdate.php', {
-            signal: controller.signal,
-            cache: 'no-store' 
+            signal: abortController.signal,
+            cache: 'no-store',
+            priority: 'high' 
         });
         
         clearTimeout(timeoutId);
@@ -4480,7 +4496,7 @@ async function fetchTripUpdates() {
         }
         
         const buffer = await response.arrayBuffer();
-        const data = await decodeProtobuf(buffer);
+        const data = await decodeProtobufAsync(buffer);
         
         const fetchTime = performance.now() - fetchStartTime;
         console.debug(`Téléchargement gtfs en ${fetchTime.toFixed(2)}ms`);
@@ -4488,20 +4504,23 @@ async function fetchTripUpdates() {
         return new Promise((resolve, reject) => {
             const workerTimeoutId = setTimeout(() => {
                 reject(new Error('Worker timeout'));
+                initWorker();
             }, 3000);
             
             worker.onmessage = (e) => {
                 clearTimeout(workerTimeoutId);
                 const processTime = performance.now() - fetchStartTime;
+                console.debug(`Traitement total en ${processTime.toFixed(2)}ms`);
                 
                 tripUpdates = e.data.tripUpdates;
-                
-                
                 resolve(e.data.tripUpdates);
-                fetchInProgress = false;
+                
+                setTimeout(() => {
+                    fetchInProgress = false;
+                }, 0);
             };
             
-            worker.postMessage(data);
+            worker.postMessage(data, [buffer]); 
         });
     } catch (error) {
         console.error('Erreur récupération trip updates:', error);
@@ -4510,21 +4529,58 @@ async function fetchTripUpdates() {
     }
 }
 
+let animationFrameId = null;
 let lastUpdateTime = 0;
+
 function scheduleFetchUpdates(timestamp) {
     if (!lastUpdateTime || timestamp - lastUpdateTime >= FETCH_INTERVAL) {
         lastUpdateTime = timestamp;
         
-        Promise.all([
-            fetchTripUpdates().catch(() => null),
-            fetchVehiclePositions().catch(() => null)
-        ]).catch(error => {
-            console.warn('Erreur lors des mises à jour', error);
+        const scheduleUpdate = window.requestIdleCallback || 
+            ((callback) => setTimeout(callback, 1));
+        
+        scheduleUpdate(() => {
+            Promise.all([
+                fetchTripUpdates().catch(() => null),
+                fetchVehiclePositions().catch(() => null)
+            ]).catch(error => {
+                console.warn('Erreur lors des mises à jour', error);
+            });
         });
     }
     
-    requestAnimationFrame(scheduleFetchUpdates);
+    animationFrameId = requestAnimationFrame(scheduleFetchUpdates);
 }
+
+function startUpdates() {
+    if (!worker) {
+        initWorker();
+    }
+    if (!animationFrameId) {
+        animationFrameId = requestAnimationFrame(scheduleFetchUpdates);
+    }
+}
+
+function stopUpdates() {
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+    if (abortController) {
+        abortController.abort();
+        abortController = null;
+    }
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        stopUpdates();
+    } else {
+        startUpdates();
+    }
+});
+
+startUpdates();
 
 async function main() {
     try {
