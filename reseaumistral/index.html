@@ -4203,30 +4203,6 @@ function getTextColor(backgroundColor) {
             lineSection.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
         };
 
-        lineSection.style.transition = 'all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)';
-        lineSection.style.transform = 'translateY(30px) scale(0.95)';
-        lineSection.style.opacity = '0';
-        lineSection.style.transformOrigin = 'bottom center';
-        lineSection.style.perspective = '1000px';
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    setTimeout(() => {
-                        entry.target.style.transform = 'translateY(0) scale(1)';
-                        entry.target.style.opacity = '1';
-                    }, entry.target.dataset.index * 50); 
-                } else {
-                    entry.target.style.transform = 'translateY(30px) scale(0.95)';
-                    entry.target.style.opacity = '0';
-                }
-            });
-        }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
-
-        lineSection.dataset.index = Array.from(menu.querySelectorAll('.linesection')).length;
-
-        observer.observe(lineSection);
-
         const favoriteButton = document.createElement('button');
         favoriteButton.style.position = 'absolute';
         favoriteButton.style.right = '5px';
@@ -4401,6 +4377,295 @@ function getTextColor(backgroundColor) {
 
         menu.appendChild(lineSection);
     });
+    const showMoreButton = document.createElement('div');
+showMoreButton.className = 'show-more-button';
+showMoreButton.textContent = 'En voir plus...';
+showMoreButton.style.textAlign = 'center';
+showMoreButton.style.padding = '8px';
+showMoreButton.style.margin = '10px 0';
+showMoreButton.style.borderRadius = '8px';
+showMoreButton.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+showMoreButton.style.color = '#fff';
+showMoreButton.style.cursor = 'pointer';
+showMoreButton.style.fontSize = '14px';
+showMoreButton.style.transition = 'all 0.3s ease';
+
+showMoreButton.onmouseover = () => {
+    showMoreButton.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+};
+showMoreButton.onmouseout = () => {
+    showMoreButton.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+};
+
+// Conteneur pour les éléments cachés
+const hiddenElements = document.createElement('div');
+hiddenElements.id = 'hidden-elements';
+hiddenElements.style.display = 'none';
+hiddenElements.style.transition = 'all 0.3s ease';
+
+// Ajout du conteneur d'affluence
+hiddenElements.appendChild(transportStateContainer);
+
+// Ajout du bouton de localisation
+hiddenElements.appendChild(locationButton);
+
+// Ajout du bouton satellite
+hiddenElements.appendChild(satelliteButton);
+
+// Ajout du bouton Histovec
+hiddenElements.appendChild(alertsButton);
+
+// Fonction pour afficher/masquer les éléments
+showMoreButton.onclick = () => {
+    if (hiddenElements.style.display === 'none') {
+        hiddenElements.style.display = 'block';
+        showMoreButton.textContent = 'Masquer';
+    } else {
+        hiddenElements.style.display = 'none';
+        showMoreButton.textContent = 'En voir plus...';
+    }
+};
+
+// Créer le bouton Paramètres
+const settingsButton = document.createElement('div');
+settingsButton.className = 'alerts-button';
+settingsButton.style.marginTop = '10px';
+
+const settingsIcon = document.createElement('div');
+settingsIcon.className = 'alerts-icon';
+settingsIcon.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+    </svg>
+`;
+
+const settingsContent = document.createElement('div');
+settingsContent.className = 'alerts-content';
+
+const settingsTitle = document.createElement('div');
+settingsTitle.className = 'alerts-title';
+settingsTitle.textContent = 'Paramètres';
+
+const settingsDescription = document.createElement('div');
+settingsDescription.className = 'alerts-description';
+settingsDescription.textContent = 'Langue, apparence et préférences';
+
+settingsContent.appendChild(settingsTitle);
+settingsContent.appendChild(settingsDescription);
+
+settingsButton.appendChild(settingsIcon);
+settingsButton.appendChild(settingsContent);
+
+// Fonction pour afficher le menu paramètres
+settingsButton.onclick = () => {
+    showSettingsPopup();
+};
+
+// Ajout des éléments au menu
+menu.appendChild(showMoreButton);
+menu.appendChild(hiddenElements);
+menu.appendChild(settingsButton);
+
+// Créer la fonction pour afficher le popup des paramètres
+function showSettingsPopup() {
+    // Récupérer les paramètres existants ou utiliser les valeurs par défaut
+    const settings = JSON.parse(localStorage.getItem('settings') || '{"language":"fr","darkMode":false}');
+    
+    const popupContainer = document.createElement('div');
+    popupContainer.style.position = 'fixed';
+    popupContainer.style.top = '0';
+    popupContainer.style.left = '0';
+    popupContainer.style.width = '100%';
+    popupContainer.style.height = '100%';
+    popupContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
+    popupContainer.style.zIndex = '10000';
+    popupContainer.style.display = 'flex';
+    popupContainer.style.justifyContent = 'center';
+    popupContainer.style.alignItems = 'center';
+    
+    const popupContent = document.createElement('div');
+    popupContent.style.backgroundColor = '#fff';
+    popupContent.style.borderRadius = '12px';
+    popupContent.style.padding = '20px';
+    popupContent.style.width = '80%';
+    popupContent.style.maxWidth = '400px';
+    popupContent.style.maxHeight = '80vh';
+    popupContent.style.overflowY = 'auto';
+    popupContent.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
+    
+    // Titre du popup
+    const title = document.createElement('h2');
+    title.textContent = 'Paramètres';
+    title.style.margin = '0 0 20px 0';
+    title.style.fontFamily = 'League Spartan';
+    title.style.fontSize = '24px';
+    title.style.textAlign = 'center';
+    
+    // Section langue
+    const languageSection = document.createElement('div');
+    languageSection.style.marginBottom = '20px';
+    
+    const languageTitle = document.createElement('h3');
+    languageTitle.textContent = 'Langue';
+    languageTitle.style.margin = '0 0 10px 0';
+    languageTitle.style.fontFamily = 'League Spartan';
+    languageTitle.style.fontSize = '18px';
+    
+    const languageSelect = document.createElement('select');
+    languageSelect.style.width = '100%';
+    languageSelect.style.padding = '10px';
+    languageSelect.style.borderRadius = '8px';
+    languageSelect.style.border = '1px solid #ddd';
+    languageSelect.style.fontSize = '16px';
+    languageSelect.style.fontFamily = 'League Spartan';
+    
+    const languages = [
+        { code: 'fr', name: 'Français' },
+        { code: 'en', name: 'English' },
+        { code: 'es', name: 'Español' },
+        { code: 'de', name: 'Deutsch' }
+    ];
+    
+    languages.forEach(lang => {
+        const option = document.createElement('option');
+        option.value = lang.code;
+        option.textContent = lang.name;
+        option.selected = settings.language === lang.code;
+        languageSelect.appendChild(option);
+    });
+    
+    languageSection.appendChild(languageTitle);
+    languageSection.appendChild(languageSelect);
+    
+    // Section apparence
+    const appearanceSection = document.createElement('div');
+    appearanceSection.style.marginBottom = '20px';
+    
+    const appearanceTitle = document.createElement('h3');
+    appearanceTitle.textContent = 'Apparence';
+    appearanceTitle.style.margin = '0 0 10px 0';
+    appearanceTitle.style.fontFamily = 'League Spartan';
+    appearanceTitle.style.fontSize = '18px';
+    
+    const themeContainer = document.createElement('div');
+    themeContainer.style.display = 'flex';
+    themeContainer.style.alignItems = 'center';
+    themeContainer.style.justifyContent = 'space-between';
+    themeContainer.style.padding = '10px';
+    themeContainer.style.borderRadius = '8px';
+    themeContainer.style.border = '1px solid #ddd';
+    
+    const themeLabel = document.createElement('label');
+    themeLabel.textContent = 'Mode sombre';
+    themeLabel.style.fontFamily = 'League Spartan';
+    themeLabel.style.fontSize = '16px';
+    
+    const themeToggle = document.createElement('div');
+    themeToggle.style.position = 'relative';
+    themeToggle.style.width = '50px';
+    themeToggle.style.height = '26px';
+    themeToggle.style.backgroundColor = settings.darkMode ? '#4CAF50' : '#ccc';
+    themeToggle.style.borderRadius = '13px';
+    themeToggle.style.transition = 'background-color 0.3s';
+    themeToggle.style.cursor = 'pointer';
+    
+    const toggleCircle = document.createElement('div');
+    toggleCircle.style.position = 'absolute';
+    toggleCircle.style.top = '3px';
+    toggleCircle.style.left = settings.darkMode ? '27px' : '3px';
+    toggleCircle.style.width = '20px';
+    toggleCircle.style.height = '20px';
+    toggleCircle.style.backgroundColor = '#fff';
+    toggleCircle.style.borderRadius = '50%';
+    toggleCircle.style.transition = 'left 0.3s';
+    
+    themeToggle.appendChild(toggleCircle);
+    themeToggle.onclick = () => {
+        settings.darkMode = !settings.darkMode;
+        themeToggle.style.backgroundColor = settings.darkMode ? '#4CAF50' : '#ccc';
+        toggleCircle.style.left = settings.darkMode ? '27px' : '3px';
+    };
+    
+    themeContainer.appendChild(themeLabel);
+    themeContainer.appendChild(themeToggle);
+    
+    appearanceSection.appendChild(appearanceTitle);
+    appearanceSection.appendChild(themeContainer);
+    
+    // Boutons d'action
+    const buttonsContainer = document.createElement('div');
+    buttonsContainer.style.display = 'flex';
+    buttonsContainer.style.justifyContent = 'space-between';
+    buttonsContainer.style.marginTop = '20px';
+    
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Annuler';
+    cancelButton.style.padding = '10px 20px';
+    cancelButton.style.borderRadius = '8px';
+    cancelButton.style.border = '1px solid #ddd';
+    cancelButton.style.backgroundColor = '#f5f5f5';
+    cancelButton.style.fontSize = '16px';
+    cancelButton.style.fontFamily = 'League Spartan';
+    cancelButton.style.cursor = 'pointer';
+    cancelButton.onclick = () => {
+        document.body.removeChild(popupContainer);
+    };
+    
+    const saveButton = document.createElement('button');
+    saveButton.textContent = 'Enregistrer';
+    saveButton.style.padding = '10px 20px';
+    saveButton.style.borderRadius = '8px';
+    saveButton.style.border = 'none';
+    saveButton.style.backgroundColor = '#4CAF50';
+    saveButton.style.color = '#fff';
+    saveButton.style.fontSize = '16px';
+    saveButton.style.fontFamily = 'League Spartan';
+    saveButton.style.cursor = 'pointer';
+    saveButton.onclick = () => {
+        settings.language = languageSelect.value;
+        localStorage.setItem('settings', JSON.stringify(settings));
+        applySettings(settings);
+        document.body.removeChild(popupContainer);
+        toastBottomRight.success('Paramètres enregistrés avec succès');
+    };
+    
+    buttonsContainer.appendChild(cancelButton);
+    buttonsContainer.appendChild(saveButton);
+    
+    // Assembler le popup
+    popupContent.appendChild(title);
+    popupContent.appendChild(languageSection);
+    popupContent.appendChild(appearanceSection);
+    popupContent.appendChild(buttonsContainer);
+    
+    popupContainer.appendChild(popupContent);
+    document.body.appendChild(popupContainer);
+}
+
+// Fonction pour appliquer les paramètres
+function applySettings(settings) {
+    // Appliquer le mode sombre
+    if (settings.darkMode) {
+        document.body.classList.add('dark-mode');
+        // Ajouter votre logique de mode sombre ici
+    } else {
+        document.body.classList.remove('dark-mode');
+        // Ajouter votre logique de mode clair ici
+    }
+    
+    // Appliquer la langue (à implémenter)
+    // Vous devrez avoir un système de traduction pour cette partie
+}
+
+// Charger et appliquer les paramètres au démarrage
+function loadSettings() {
+    const settings = JSON.parse(localStorage.getItem('settings') || '{"language":"fr","darkMode":false}');
+    applySettings(settings);
+}
+
+// Appeler loadSettings au démarrage de l'application
+document.addEventListener('DOMContentLoaded', loadSettings);
 }
 
 const menubottom1 = document.getElementById('menubtm');
