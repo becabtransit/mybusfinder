@@ -492,6 +492,14 @@ span[style*="padding: 5px 10px;"] {
 body {
   margin: 0;
   overflow: hidden;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none; 
+}
+
+input, textarea {
+  user-select: text;
 }
 
 #loading-screen {
@@ -601,7 +609,7 @@ shape.bounce-down {
 }
 
 .filtre {
-    display: flex;
+    display: none;
     position: absolute;
     bottom: 10px;
     left: 50%; 
@@ -646,6 +654,14 @@ shape.bounce-down {
     border-radius: 18px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
     
+}
+
+.menubottom-ul.expanded {
+    width: 100%;
+    height: 50vh; /* Ajustable selon tes besoins */
+    bottom: 0;
+    border-radius: 18px 18px 0 0; /* Coins arrondis en haut seulement */
+    padding: 20px;
 }
 
 .menubottom ul li {
@@ -1248,6 +1264,16 @@ shape.bounce-down {
     font-weight: bold;
 }
 
+#bottomsheetappearcss {
+    display: none; 
+}
+
+@media screen and (min-width: 1024px) {
+    #bottomsheetappearcss {
+        display: flex;
+    }
+}
+
 
     </style>
 
@@ -1284,6 +1310,10 @@ shape.bounce-down {
             <li>
                 <a onclick="showUpdatePopup('alerts.html');" id="histovecbutton"><span class="icon"><img src="src/newspaper.png" style="width: 40px; height: 40px;"></img></span> <span
                         class="title">Actualités</span></a>
+            </li>
+            <li id="bottomsheetappearcss">
+                <a id="bottomsheetappear"><span class="icon"><img src="src/sandwichbtn.png" style="width: 40px; height: 40px;"></img></span> <span
+                        class="title">Voir plus</span></a>
             </li>
         </ul>
 </div>
@@ -1562,47 +1592,72 @@ function locateUser() {
         let loadingInterval;
 
 
-        function showLoadingScreen() {
+function showLoadingScreen() {
     const loadingScreen = document.getElementById('loading-screen');
     loadingScreen.style.display = 'flex';
-
-
     loadingInterval = setInterval(() => {}, 1000);
 }
 		
 
 
-        var audio = new Audio("src/sounds/musique.mp3"); 
+var audio = new Audio("src/sounds/musique.mp3"); 
 
 function showUpdatePopup(link) {
     const popup = document.getElementById('update-popup');
     const iframe = document.getElementById('webview-frame');
     iframe.src = link; 
     popup.style.display = 'flex'; 
-
-
     const menubottom1 = document.getElementById('menubtm');
-
-
     const menu = document.getElementById('menu');
-            const menubotom = document.getElementById('menubottom');
+    const menubotom = document.getElementById('menubottom');
 
-            menubottom1.classList.remove('slide-downb');
-            menubottom1.classList.add('slide-upb');
-            if (selectedLine) {
-                const filtre = document.getElementById('filtre');
-                filtre.classList.add('slide-upc');
-                filtre.classList.remove('slide-downc');
-                resetMapView();
-            }
+    menubottom1.classList.remove('slide-downb');
+    menubottom1.classList.add('slide-upb');
+        if (selectedLine) {
+            const filtre = document.getElementById('filtre');
+            filtre.classList.add('slide-upc');
+            filtre.classList.remove('slide-downc');
+            filtre.addEventListener('animationend', () => {
+                filtre.style.display = 'none';
+        });
+    resetMapView();            
+}
 
-            menubottom1.addEventListener('transitionend', () => {
-            if (menubottom1.classList.contains('slide-up')) {
-            menubottom1.style.display = 'none';
-            }
-            }, { once: true });
+menubottom1.addEventListener('transitionend', () => {
+    if (menubottom1.classList.contains('slide-up')) {
+        menubottom1.style.display = 'none';
+        }
+    }, { once: true });
+}
 
 
+function showUpdatePopupmusic(link) {
+    const popup = document.getElementById('update-popup');
+    const iframe = document.getElementById('webview-frame');
+    iframe.src = link; 
+    popup.style.display = 'flex'; 
+    musique();
+    const menubottom1 = document.getElementById('menubtm');
+    const menu = document.getElementById('menu');
+    const menubotom = document.getElementById('menubottom');
+
+    menubottom1.classList.remove('slide-downb');
+    menubottom1.classList.add('slide-upb');
+        if (selectedLine) {
+            const filtre = document.getElementById('filtre');
+            filtre.classList.add('slide-upc');
+            filtre.classList.remove('slide-downc');
+            filtre.addEventListener('animationend', () => {
+                filtre.style.display = 'none';
+        });
+    resetMapView();            
+}
+
+menubottom1.addEventListener('transitionend', () => {
+    if (menubottom1.classList.contains('slide-up')) {
+        menubottom1.style.display = 'none';
+        }
+    }, { once: true });
 }
 
 window.addEventListener('message', function(event) {
@@ -1671,10 +1726,10 @@ function closeUpdatePopup() {
     const menubottom1 = document.getElementById('menubtm');
     const menu = document.getElementById('menu');
     menu.classList.add('hidden');
-    menu.addEventListener('transitionend', function onTransitionEnd(event) {
-        if (event.target === menu) { 
-            menu.style.display = 'none';
-        }
+    menu.addEventListener('animationend', function onAnimationEnd(event) {
+    if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+        menu.style.display = 'none';
+    }
     });
     isMenuVisible = false; 
     menubottom1.style.display = 'flex';
@@ -2135,8 +2190,8 @@ async function decodeProtobuf(buffer) {
             
             const menu = document.getElementById('menu');
             menu.classList.add('hidden');
-            menu.addEventListener('transitionend', function onTransitionEnd(event) {
-                if (event.target === menu) { 
+            menu.addEventListener('animationend', function onAnimationEnd(event) {
+                if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                     menu.style.display = 'none';
                 }
             });
@@ -2430,6 +2485,8 @@ let busStopLayers = [];
 let selectedLines = [];
 
 
+
+
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
@@ -2480,33 +2537,6 @@ async function loadGeoJsonLines() {
         }
     });
     
-    addAnimationStyles();
-}
-
-function addAnimationStyles() {
-    if (!document.getElementById('bus-line-styles')) {
-        const styleEl = document.createElement('style');
-        styleEl.id = 'bus-line-styles';
-        styleEl.textContent = `
-            .bus-line {
-                transition: opacity 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), stroke-width 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-            }
-            
-            .line-hover {
-                opacity: 1 !important;
-                stroke-width: 6px;
-                filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
-                animation: linePulse 1.5s infinite;
-            }
-            
-            @keyframes linePulse {
-                0% { stroke-opacity: 0.7; }
-                50% { stroke-opacity: 1; }
-                100% { stroke-opacity: 0.7; }
-            }
-        `;
-        document.head.appendChild(styleEl);
-    }
 }
 
 
@@ -2526,6 +2556,9 @@ function filterByLine(lineId) {
     const filtre = document.getElementById('filtre');
     filtre.classList.add('slide-upc');
     filtre.classList.remove('slide-downc');
+    filtre.addEventListener('animationend', () => {
+        filtre.style.display = 'none';
+    });
     resetMapView();
   } else if (selectedLines.length === 1) {
     zoomToSelectedLine(selectedLines[0]);
@@ -2651,9 +2684,12 @@ function showPopup() {
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
             if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.add('slide-upc');
-        filtre.classList.remove('slide-downc');
+                const filtre = document.getElementById('filtre');
+                filtre.classList.add('slide-upc');
+                filtre.classList.remove('slide-downc');
+                filtre.addEventListener('animationend', () => {
+                    filtre.style.display = 'none';
+                });
         }
 
             menubottom1.addEventListener('transitionend', () => {
@@ -2672,8 +2708,8 @@ function closePopup() {
     const menubottom1 = document.getElementById('menubtm');
             const menu = document.getElementById('menu');
             menu.classList.add('hidden');
-            menu.addEventListener('transitionend', function onTransitionEnd(event) {
-                if (event.target === menu) { 
+            menu.addEventListener('animationend', function onAnimationEnd(event) {
+                if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                     menu.style.display = 'none';
                 }
             });
@@ -2690,12 +2726,15 @@ function closePopup() {
 
 
 const filtre = document.getElementById('filtre');
-        filtre.onclick = () => {
-            if (selectedLine) {
-        filtre.classList.add('slide-upc');
-        filtre.classList.remove('slide-downc');
-        resetMapView();
-        }
+    filtre.onclick = () => {
+        if (selectedLine) {
+            filtre.classList.add('slide-upc');
+            filtre.classList.remove('slide-downc');
+            filtre.addEventListener('animationend', () => {
+                filtre.style.display = 'none';
+            });
+    resetMapView();
+    }
 };
 
 
@@ -2876,6 +2915,8 @@ async function initializeApp() {
 
 
 let gtfsInitialized = false;
+window.isBottomSheetOpen = false;
+
 
 async function fetchVehiclePositions() {
 
@@ -3733,7 +3774,9 @@ animationStyle.textContent = `
 document.head.appendChild(animationStyle);
 
 
+
 function updateMenu() {
+
     const menu = document.getElementById('menu');
     menu.innerHTML = '';
 
@@ -3752,6 +3795,7 @@ function updateMenu() {
         showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
         musique();
     };
+
 
     logoContainer.appendChild(logo);
     menu.appendChild(logoContainer);
@@ -3783,131 +3827,90 @@ function updateMenu() {
         cursor: pointer;
     `;
 
-    const transportImage = document.createElement('img');
-    transportImage.alt = 'Affluence transports';
-    transportImage.style.width = '50px';
-    transportImage.style.height = '36px';
-    transportImage.style.marginRight = '10px';
+    const filterTipContainer = document.createElement('div');
+filterTipContainer.style.cssText = `
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 8px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    position: relative;
+`;
 
-    if (transportState === "normal") {
-        transportImage.src = 'src/1of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.success('Ouf ! Aucune affluence notable. Bon voyage !');
-        };
-    } else if (transportState === "presque saturé") {
-        transportImage.src = 'src/2of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.warning('Affluence modérée. Les transports se remplissent.');
-        };
-    } else if (transportState === "saturé") {
-        transportImage.src = 'src/3of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.error('Forte affluence. Privilégiez les lignes secondaires.');
-        };
-    }
+if (localStorage.getItem('hideFilterTip') !== 'true') {
+    document.body.appendChild(filterTipContainer);
+}
 
-    const transportStateTextContainer = document.createElement('div');
-    transportStateTextContainer.style.textAlign = 'left';
-
-    transportStateContainer.onmouseover = () => {
-        transportStateContainer.style.transform = 'scale(0.98,0.98)';
-        transportStateContainer.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
-    };
-    transportStateContainer.onmouseout = () => {
-        transportStateContainer.style.transform = 'scale(1,1)';
-        transportStateContainer.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-    };
-
-    const transportStateLabel = document.createElement('div');
-    transportStateLabel.textContent = "Affluence transports";
-    transportStateLabel.style.fontSize = '14px';
-    transportStateLabel.style.marginTop = '7px';
-    transportStateLabel.style.color = '#fff';
-
-    const transportStateText = document.createElement('div');
-    transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
-    transportStateText.style.fontSize = '22px';
-    transportStateText.style.fontWeight = 'normal';
-    transportStateText.style.color = '#fff';
-
-    transportStateTextContainer.appendChild(transportStateLabel);
-    transportStateTextContainer.appendChild(transportStateText);
-
-    transportStateContainer.appendChild(transportImage);
-    transportStateContainer.appendChild(transportStateTextContainer);
-    menu.appendChild(transportStateContainer);
-
-    const locationButton = document.createElement('div');
-    locationButton.className = 'alerts-button';
-    locationButton.onclick = () => {
-        locateUser();
-        const menubottom1 = document.getElementById('menubtm');
-        const menu = document.getElementById('menu');
-            menu.classList.add('hidden');
-            menu.addEventListener('transitionend', function onTransitionEnd(event) {
-                if (event.target === menu) { 
-                    menu.style.display = 'none';
-                }
-            });
-        isMenuVisible = false;
-        menubottom1.style.display = 'flex';
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-            if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.remove('slide-upc');
-        filtre.classList.add('slide-downc');
-        }
-        }, 10);
-    };
-
-    const locationIcon = document.createElement('div');
-    locationIcon.className = 'alerts-icon';
-    locationIcon.innerHTML = `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <circle cx="12" cy="12" r="3"></circle>
-        </svg>
-    `;
-
-    const locationContent = document.createElement('div');
-    locationContent.className = 'alerts-content';
-
-    const locationTitle = document.createElement('div');
-    locationTitle.className = 'alerts-title';
-    locationTitle.textContent = 'Ma position';
-
-    const locationDescription = document.createElement('div');
-    locationDescription.className = 'alerts-description';
-    locationDescription.textContent = 'Me localiser sur la carte';
-
-    locationContent.appendChild(locationTitle);
-    locationContent.appendChild(locationDescription);
-
-    locationButton.appendChild(locationIcon);
-    locationButton.appendChild(locationContent);
-    menu.appendChild(locationButton);
-
-
-
-
-
-
-    const satelliteButton = document.createElement('div');
-satelliteButton.className = 'alerts-button';
-
-let isStandardView = localStorage.getItem('isStandardView') === 'true';
-
-window.addEventListener('DOMContentLoaded', () => {
-    applyMapView();
+const filterTipIcon = document.createElement('div');
+filterTipIcon.innerHTML = `
+<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 6 Q14 2, 24 6" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M4 14 Q14 10, 24 14" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M4 22 Q14 18, 24 22" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
     
-    updateButtonText();
+    <circle cx="4" cy="6" r="2" fill="white"/>
+    <circle cx="24" cy="6" r="2" fill="white"/>
+    
+    <circle cx="4" cy="14" r="2" fill="white"/>
+    <circle cx="24" cy="14" r="2" fill="white"/>
+    
+    <circle cx="4" cy="22" r="2" fill="white"/>
+    <circle cx="24" cy="22" r="2" fill="white"/>
+</svg>
+`;
+filterTipIcon.style.marginRight = '12px';
+
+const filterTipContent = document.createElement('div');
+filterTipContent.style.color = 'white';
+
+const filterTipTitle = document.createElement('div');
+filterTipTitle.textContent = 'Nouveau : filtres par lignes';
+filterTipTitle.style.fontSize = '16px';
+
+const filterTipDescription = document.createElement('div');
+filterTipDescription.textContent = 'Sélectionnez vos lignes préférées : elles seront filtrées !';
+filterTipDescription.style.fontSize = '12px';
+filterTipDescription.style.opacity = '0.7';
+filterTipDescription.style.cssText = `
+    font-size: 12px;
+    opacity: 0.7;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+`;
+
+const closeButton = document.createElement('div');
+closeButton.innerHTML = '&times;';
+closeButton.style.cssText = `
+    top: 5px;
+    right: 10px;
+    font-size: 18px;
+    color: white;
+    cursor: pointer;
+`;
+
+closeButton.addEventListener('click', () => {
+    filterTipContainer.style.display = 'none';
+    localStorage.setItem('hideFilterTip', 'true'); 
 });
 
-satelliteButton.onclick = () => {
-    toggleMapView();
-};
+filterTipContent.appendChild(filterTipTitle);
+filterTipContent.appendChild(filterTipDescription);
+
+filterTipContainer.appendChild(filterTipIcon);
+filterTipContainer.appendChild(filterTipContent);
+
+
+const firstMenuElement = menu.firstChild;
+menu.insertBefore(filterTipContainer, firstMenuElement.nextSibling);
+
+
+let isStandardView = localStorage.getItem('isStandardView') === 'true';
 
 function toggleMapView() {
     isStandardView = !isStandardView;
@@ -3917,8 +3920,8 @@ function toggleMapView() {
     const menubottom1 = document.getElementById('menubtm');
         const menu = document.getElementById('menu');
         menu.classList.add('hidden');
-        menu.addEventListener('transitionend', function onTransitionEnd(event) {
-            if (event.target === menu) { 
+        menu.addEventListener('animationend', function onAnimationEnd(event) {
+            if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                 menu.style.display = 'none';
             }
         });
@@ -3931,13 +3934,13 @@ function toggleMapView() {
         const filtre = document.getElementById('filtre');
         filtre.classList.remove('slide-upc');
         filtre.classList.add('slide-downc');
+        filtre.style.display = 'flex';
         }
         }, 10);
 
     
     applyMapView();
-    
-    updateButtonText();
+
 }
 
 function applyMapView() {
@@ -3984,15 +3987,626 @@ function applyMapView() {
 }
 
 
-function updateButtonText() {
-    if (isStandardView) {
-        satelliteTitle.textContent = 'Actuellement en vue satellite';
-        satelliteDescription.textContent = 'Appuyez ici pour passer à la vue standard';
-    } else {
-        satelliteTitle.textContent = 'Actuellement en vue standard';
-        satelliteDescription.textContent = 'Appuyez ici pour passer à la vue satellite';
+let startY;
+let endY;
+const menubtm = document.getElementById('menubtm');
+menubtm.addEventListener('touchstart', (e) => {
+    startY = e.touches[0].clientY;
+});
+
+menubtm.addEventListener('touchmove', (e) => {
+    endY = e.touches[0].clientY;
+});
+
+menubtm.addEventListener('touchend', () => {
+    const swipeDistance = startY - endY;
+    const swipeDistanceforSwap = endY - startY;
+
+    
+    const minSwipeDistance = 50;
+    
+    if (swipeDistance > minSwipeDistance) {
+        showBottomSheet();
+    }
+    
+    startY = null;
+    endY = null;
+});
+
+
+function createBottomSheet() {
+    const SNAP_POINTS = {
+        CLOSED: 100,  // 100% of height (fully closed)
+        PEEK: 60,    // 60% of height (partially open)
+        OPEN: 0      // 0% (fully open)
+        // By Becab Solutions - BottomSheetDisplay.js
+    };
+    const bottomSheet = document.createElement('div');
+    bottomSheet.id = 'bottomSheet';
+    bottomSheet.style.cssText = `
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: rgba(0, 0, 0, 0.7);
+        border-top-left-radius: 20px;
+        border-top-right-radius: 20px;
+        backdrop-filter: blur(20px);
+        box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.2);
+        transform: translateY(100%);
+        transition: transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1);
+        z-index: 1000;
+        max-height: 80vh;
+        overflow-y: auto;
+        padding-bottom: 20px;
+        touch-action: pan-y;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    `;
+
+    const dragHandle = document.createElement('div');
+    dragHandle.style.cssText = `
+        width: 40px;
+        height: 5px;
+        background-color: rgba(255, 255, 255, 0.3);
+        border-radius: 3px;
+        margin: 10px auto;
+        cursor: grab;
+    `;
+    bottomSheet.appendChild(dragHandle)
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const totalMinutes = currentHour * 60 + currentMinutes;
+
+    let transportState = "normal";
+    if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
+        transportState = "presque saturé"; 
+    } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
+        transportState = "saturé";
+    }
+
+    function getTransportGreeting() {
+        const now = new Date();
+        const currentHour = now.getHours();
+
+        const greetings = {
+            morning: [
+                "Bonjour ! Prêt(e) pour une nouvelle journée ?",
+                "Le bus du matin, c'est l'endroit parfait pour finir sa nuit, non ? 😴",
+                "Le saviez-vous ? Le premier bus urbain est apparu en 1662 à Paris !",
+                "C'est l'heure de pointe ! Anticipez votre trajet 🚌",
+                "Un café et un ticket de bus, la routine parfaite du matin ! ☕",
+                "Pensez à laisser descendre avant de monter, ça facilite tout ! 😉"
+            ],
+            midday: [
+                "Pause déj' en vue ! Où allons-nous ? 🍽️",
+                "Fun fact : Le mot bus vient de omnibus, qui signifie pour tous en latin !",
+                "Trajet rapide ou petite balade digestive en bus ?",
+                "Les transports en commun, c’est aussi fait pour une micro sieste ! 😌",
+                "Les chauffeurs de bus ont un bouton secret pour prolonger les feux verts ! (Enfin... parfois 🤫)",
+                "Profitez du calme de cette heure pour voyager tranquille. 🚌"
+            ],
+            afternoon: [
+                "On repart pour un tour ! Prochaine destination ?",
+                "Saviez-vous que certains bus électriques se rechargent en roulant ? 🔋",
+                "Petit conseil : évitez les portes arrières si le bus est bondé ! (un peu d'humour ohhhh...)",
+                "Un bus bondé, c’est comme un Tetris grandeur nature. 🏗️",
+                "Votre station préférée est-elle bien desservie ?",
+                "Bon après-midi ! Pensez à valider votre titre de transport ! 🎟️"
+            ],
+            evening: [
+                "Bonsoir ! Où va-t-on ce soir ? 🌆",
+                "En route pour un voyage écologique ! 🌿",
+                "Petite balade nocturne en transport, ça vous dit ?",
+                "Après une longue journée, un siège dans le bus est un vrai trésor. 😌",
+                "Regardez bien, le dernier bus du soir ne vous attendra pas !",
+                "Ambiance différente la nuit dans les transports, n'est-ce pas ?"
+            ],
+            night: [
+                "Trajet de nuit en cours, bon voyage ! 🌙",
+                "Les bus de nuit sont parfois appelés Les Nocturnes ou Noctiliens selon les villes !",
+                "Les chauffeurs de nuit ont les meilleures anecdotes !",
+                "C'est plus calme à cette heure, profitez du trajet 🛤️",
+                "Une place assise garantie à cette heure-ci !",
+                "Regardez la ville s’illuminer depuis la fenêtre, c’est magique ! ✨"
+            ]
+        };
+
+        if (currentHour >= 5 && currentHour < 10) return greetings.morning[Math.floor(Math.random() * greetings.morning.length)];
+        if (currentHour >= 10 && currentHour < 14) return greetings.midday[Math.floor(Math.random() * greetings.midday.length)];
+        if (currentHour >= 14 && currentHour < 18) return greetings.afternoon[Math.floor(Math.random() * greetings.afternoon.length)];
+        if (currentHour >= 18 && currentHour < 23) return greetings.evening[Math.floor(Math.random() * greetings.evening.length)];
+        return greetings.night[Math.floor(Math.random() * greetings.night.length)];
+    }
+
+
+
+    const transportStateContainer = document.createElement('div');
+    transportStateContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 15px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+        cursor: pointer;
+    `;
+
+    const transportImage = document.createElement('img');
+    transportImage.alt = 'Affluence transports';
+    transportImage.style.width = '50px';
+    transportImage.style.height = '36px';
+    transportImage.style.marginRight = '10px';
+
+    if (transportState === "normal") {
+        transportImage.src = 'src/1of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.success('Ouf ! Aucune affluence notable. Bon voyage !');
+        };
+    } else if (transportState === "presque saturé") {
+        transportImage.src = 'src/2of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.warning('Affluence modérée. Les transports se remplissent.');
+        };
+    } else if (transportState === "saturé") {
+        transportImage.src = 'src/3of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.error('Forte affluence. Privilégiez les lignes secondaires.');
+        };
+    }
+
+    transportStateContainer.onmouseover = () => {
+        transportStateContainer.style.transform = 'scale(0.98,0.98)';
+        transportStateContainer.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+    };
+    transportStateContainer.onmouseout = () => {
+        transportStateContainer.style.transform = 'scale(1,1)';
+        transportStateContainer.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+    };
+
+    const transportStateTextContainer = document.createElement('div');
+    transportStateTextContainer.style.textAlign = 'left';
+
+    const transportStateLabel = document.createElement('div');
+    transportStateLabel.textContent = "Affluence transports";
+    transportStateLabel.style.fontSize = '14px';
+    transportStateLabel.style.marginTop = '7px';
+    transportStateLabel.style.color = '#fff';
+
+    const transportStateText = document.createElement('div');
+    transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
+    transportStateText.style.fontSize = '22px';
+    transportStateText.style.fontWeight = 'normal';
+    transportStateText.style.color = '#fff';
+
+
+
+    transportStateTextContainer.appendChild(transportStateLabel);
+    transportStateTextContainer.appendChild(transportStateText);
+
+    transportStateContainer.appendChild(transportImage);
+    transportStateContainer.appendChild(transportStateTextContainer);
+
+
+    const actu = createStyledButton(
+        'Actualités', 
+        'Dernières informations sur les transports en commun.', 
+        `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="16"></rect>
+            <line x1="7" y1="8" x2="17" y2="8"></line>
+            <line x1="7" y1="12" x2="14" y2="12"></line>
+            <line x1="7" y1="16" x2="12" y2="16"></line>
+        </svg>
+        `,
+        () => showUpdatePopup("alerts.html")
+    );
+
+
+    const locationButton = createStyledButton(
+        'Ma position', 
+        'Me localiser sur la carte', 
+        `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        `,
+        locateUser
+    );
+
+    const satelliteButton = createStyledButton(
+        'Changer de vue', 
+        'Alterner entre la vue satellite ou cartographique', 
+        `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3.6 9l1.5 1.5M9 3.6L10.5 5M21 3l-9 9M18.4 15l1.5 1.5M15 18.4l1.5 1.5M3 21l9-9"/>
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M14.5 9.5L19 5"/>
+            <path d="M5 19l4.5-4.5"/>
+        </svg>
+        `,
+        toggleMapView
+    );
+
+    const histovecButton = createStyledButton(
+        'Histovec', 
+        'Historique d\'affectations des véhicules', 
+        `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="6" width="18" height="10" rx="2" />
+            <circle cx="7" cy="16" r="2" />
+            <circle cx="17" cy="16" r="2" />
+            <path d="M3 10h18" />
+            <path d="M7 6v4" />
+            <path d="M17 6v4" />
+        </svg>
+        `,
+        () => showUpdatePopup("histovec.html")
+    );
+
+    
+    const about = createStyledButton(
+        'A propos', 
+        'My Bus Finder 3Xperience build 250325', 
+        `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="6" r="4"></circle> 
+            <rect x="4" y="12" width="16" height="8" rx="2" /> 
+            <line x1="4" y1="14" x2="20" y2="14"></line> 
+            <line x1="4" y1="16" x2="20" y2="16"></line> 
+        </svg>
+        `,
+        () => showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html")
+    );
+
+
+    bottomSheet.appendChild(dragHandle);
+    const greetingText = document.createElement('div');
+    greetingText.style.cssText = `
+        text-align: center;
+        font-size: 27px;
+        color: white;
+        margin: 22px 20px 0 15px;
+        text-align: right;
+        justify-content: right;
+    `;
+    const createStyledBox = (text, elements) => {
+        const box = document.createElement('div');
+        
+        const title = document.createElement('div');
+        title.textContent = text;
+        title.style.cssText = `
+            font-size: 20px;
+            color: white;
+            margin-top: 17px;
+            margin-right: 15px;
+            text-align: right;
+            justify-content: right;
+        `;
+        
+        box.appendChild(title);
+        elements.forEach(el => box.appendChild(el));
+        
+        box.style.cssText = `
+            margin: 10px;
+            border-radius: 15px;
+        `;
+        return box;
+    };
+
+    greetingText.textContent = getTransportGreeting();
+    bottomSheet.appendChild(greetingText);
+
+    const sedeplacerBox = createStyledBox("Se déplacer", [transportStateContainer, actu, locationButton, satelliteButton]);
+    bottomSheet.appendChild(sedeplacerBox);
+
+    const allerplusloinBox = createStyledBox("Pour aller plus loin...", [histovecButton, about]);
+    bottomSheet.appendChild(allerplusloinBox);
+
+    let startY, initialY, isDragging = false;
+    
+    function startDrag(e) {
+    if (e.type.includes('touch')) {
+        e.preventDefault();
+    }
+    isDragging = true;
+    startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+    initialY = startY;
+    
+    const transform = window.getComputedStyle(bottomSheet).transform;
+    const matrix = new DOMMatrix(transform);
+    currentTranslateY = matrix.m42;
+    
+    bottomSheet.style.transition = 'none';
+}
+
+function drag(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    
+    const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+    const deltaY = currentY - startY;
+    const newTranslateY = Math.max(0, currentTranslateY + deltaY);
+    
+    const maxTranslate = bottomSheet.offsetHeight;
+    const boundedTranslateY = Math.min(maxTranslate, newTranslateY);
+    
+    bottomSheet.style.transform = `translateY(${boundedTranslateY}px)`;
+}
+
+function stopDrag(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    
+    const finalY = e.type.includes('mouse') ? e.clientY : e.changedTouches[0].clientY;
+    const deltaY = finalY - initialY;
+    const currentTranslate = getTranslateY(bottomSheet);
+    const sheetHeight = bottomSheet.offsetHeight;
+    
+    bottomSheet.style.transition = 'transform 0.3s cubic-bezier(0.32, 0.64, 0.45, 1)';
+    
+    const percentageMoved = (currentTranslate / sheetHeight) * 100;
+    
+    if (deltaY > 0) { 
+        if (percentageMoved > 50) {
+            closeBottomSheet();
+            window.isBottomSheetOpen = false;
+        } else if (percentageMoved > 30) {
+            bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
+        } else {
+            bottomSheet.style.transform = 'translateY(0)';
+        }
+    } else { 
+        if (percentageMoved < 30) {
+            bottomSheet.style.transform = 'translateY(0)';
+        } else if (percentageMoved < 70) {
+            bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
+        } else {
+            closeBottomSheet();
+            window.isBottomSheetOpen = false;
+        }
     }
 }
+
+    // Event listeners
+    bottomSheet.addEventListener('mousedown', startDrag);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', stopDrag);
+
+    bottomSheet.addEventListener('touchstart', startDrag, { passive: false });
+    document.addEventListener('touchmove', drag, { passive: false });
+    document.addEventListener('touchend', stopDrag);
+    function getTranslateY(element) {
+    const style = window.getComputedStyle(element);
+    const matrix = new DOMMatrix(style.transform);
+    return matrix.m42;
+}
+
+    document.body.appendChild(bottomSheet);
+    return bottomSheet;
+}
+
+function createStyledButton(title, description, svgContent, onClickHandler) {
+    const button = document.createElement('div');
+    button.className = 'alerts-button';
+    button.style.cssText = `
+        display: flex;
+        align-items: center;
+        margin: 15px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+        cursor: pointer;
+    `;
+
+    const icon = document.createElement('div');
+    icon.className = 'alerts-icon';
+    icon.innerHTML = svgContent;
+    icon.style.color = 'white';
+    icon.style.marginRight = '10px';
+
+    const content = document.createElement('div');
+    content.className = 'alerts-content';
+    content.style.color = 'white';
+
+    const titleElement = document.createElement('div');
+    titleElement.className = 'alerts-title';
+    titleElement.textContent = title;
+    titleElement.style.fontSize = '18px';
+
+    const descriptionElement = document.createElement('div');
+    descriptionElement.className = 'alerts-description';
+    descriptionElement.textContent = description;
+    descriptionElement.style.fontSize = '14px';
+    descriptionElement.style.opacity = '0.7';
+
+    content.appendChild(titleElement);
+    content.appendChild(descriptionElement);
+
+    button.appendChild(icon);
+    button.appendChild(content);
+
+    const handleAction = () => {
+        onClickHandler();
+        setTimeout(() => {
+            closeBottomSheet();
+            window.isBottomSheetOpen = false;
+        }, 50);
+
+    };
+
+    let touchStartY = 0;
+    let touchMoved = false;
+    const touchThreshold = 5;
+
+    const handleButtonAction = () => {
+        onClickHandler();
+        setTimeout(() => {
+            closeBottomSheet();
+            window.isBottomSheetOpen = false;
+        }, 50);
+    };
+
+    if ('ontouchstart' in window) {
+        button.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+            touchMoved = false;
+            button.style.transform = 'scale(0.98,0.98)';
+            button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+        }, { passive: true });
+
+        button.addEventListener('touchmove', (e) => {
+            const touchCurrentY = e.touches[0].clientY;
+            if (Math.abs(touchCurrentY - touchStartY) > touchThreshold) {
+                touchMoved = true;
+                button.style.transform = 'scale(1,1)';
+                button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+            }
+        }, { passive: true });
+
+        button.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            button.style.transform = 'scale(1,1)';
+            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+            
+            if (!touchMoved) {
+                handleButtonAction();
+                setTimeout(() => {
+                    closeBottomSheet();
+                    window.isBottomSheetOpen = false;
+                }, 50);
+            }
+        });
+
+        button.addEventListener('touchcancel', () => {
+            button.style.transform = 'scale(1,1)';
+            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+        });
+    } else {
+        button.addEventListener('click', () => {
+            handleButtonAction();
+            setTimeout(() => {
+                closeBottomSheet();
+                window.isBottomSheetOpen = false;
+            }, 50);
+        });
+    }
+
+    button.onmouseover = () => {
+        button.style.transform = 'scale(0.98,0.98)';
+        button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+    };
+
+    button.onmouseout = () => {
+        button.style.transform = 'scale(1,1)';
+        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+    };
+
+    return button;
+}
+
+function showBottomSheet() {
+    const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
+    const menu = document.getElementById('menu');
+    
+    // Hide menu
+    menu.classList.add('hidden');
+    menu.addEventListener('animationend', function onAnimationEnd(event) {
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+            menu.style.display = 'none';
+        }
+    });
+    isMenuVisible = false;
+
+    const menubotom = document.getElementById('menubottom');
+
+    menubottom1.classList.remove('slide-downb');
+    menubottom1.classList.add('slide-upb');
+    if (selectedLine) {
+        const filtre = document.getElementById('filtre');
+        filtre.classList.add('slide-upc');
+        filtre.classList.remove('slide-downc');
+        filtre.addEventListener('animationend', () => {
+            filtre.style.display = 'none';
+        });
+    }
+
+    menubottom1.addEventListener('transitionend', () => {
+    if (menubottom1.classList.contains('slide-up')) {
+    menubottom1.style.display = 'none';
+    }
+    }, { once: true });
+
+    // Show bottom sheet with animation
+    bottomSheet.style.opacity = '0';
+    bottomSheet.style.transform = 'translateY(100%)';
+    bottomSheet.style.display = 'block';
+    
+    // Trigger reflow
+    bottomSheet.offsetHeight;
+    
+    // Animate in
+    bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
+    bottomSheet.style.opacity = '1';
+    bottomSheet.style.transform = 'translateY(0)';
+    
+    // Set state to open
+    window.isBottomSheetOpen = true;
+
+}
+
+function closeBottomSheet() {
+    const bottomSheet = document.getElementById('bottomSheet');
+    window.isBottomSheetOpen = false;
+
+    if (bottomSheet) {
+        bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
+        
+        bottomSheet.style.transform = 'translateY(100%)';
+        bottomSheet.style.opacity = '0';
+        
+        bottomSheet.addEventListener('transitionend', function onTransitionEnd(e) {
+            if (e.propertyName === 'transform') {
+                bottomSheet.style.display = 'none';
+                bottomSheet.removeEventListener('transitionend', onTransitionEnd);
+            }
+        });
+        menubottom1.style.display = 'flex';
+        setTimeout(() => {
+            menubottom1.classList.remove('slide-upb');
+            menubottom1.classList.add('slide-downb');
+            if (selectedLine) {
+            const filtre = document.getElementById('filtre');
+            filtre.classList.remove('slide-upc');
+            filtre.classList.add('slide-downc');
+            filtre.style.display = 'flex';
+            
+            }
+        }, 10);
+
+
+        setTimeout(() => {
+            if (bottomSheet.style.display !== 'none') {
+                bottomSheet.style.display = 'none';
+                
+            }
+        }, 500);
+    }
+}
+
+document.getElementById('bottomsheetappear').addEventListener('click', function() {
+showBottomSheet();
+});
 
 function getNextStopInfo(vehicleId) {
     const vehicle = markers[vehicleId];
@@ -4019,71 +4633,6 @@ function getNextStopInfo(vehicleId) {
     return null;
 }
 
-const satelliteIcon = document.createElement('div');
-satelliteIcon.className = 'alerts-icon';
-satelliteIcon.innerHTML = `
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3.6 9l1.5 1.5M9 3.6L10.5 5M21 3l-9 9M18.4 15l1.5 1.5M15 18.4l1.5 1.5M3 21l9-9"/>
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M14.5 9.5L19 5"/>
-        <path d="M5 19l4.5-4.5"/>
-    </svg>
-`;
-
-const satelliteContent = document.createElement('div');
-satelliteContent.className = 'alerts-content';
-
-const satelliteTitle = document.createElement('div');
-satelliteTitle.className = 'alerts-title';
-
-const satelliteDescription = document.createElement('div');
-satelliteDescription.className = 'alerts-description';
-
-updateButtonText();
-
-satelliteContent.appendChild(satelliteTitle);
-satelliteContent.appendChild(satelliteDescription);
-
-satelliteButton.appendChild(satelliteIcon);
-satelliteButton.appendChild(satelliteContent);
-menu.appendChild(satelliteButton);
-
-
-
-const alertsButton = document.createElement('div');
-alertsButton.className = 'alerts-button';
-alertsButton.onclick = () => showUpdatePopup("histovec.html");
-
-const alertsIcon = document.createElement('div');
-alertsIcon.className = 'alerts-icon';
-alertsIcon.innerHTML = `
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="6" width="18" height="10" rx="2" />
-        <circle cx="7" cy="16" r="2" />
-        <circle cx="17" cy="16" r="2" />
-        <path d="M3 10h18" />
-        <path d="M7 6v4" />
-        <path d="M17 6v4" />
-    </svg>
-`;
-
-const alertsContent = document.createElement('div');
-alertsContent.className = 'alerts-content';
-
-const alertsTitle = document.createElement('div');
-alertsTitle.className = 'alerts-title';
-alertsTitle.textContent = 'Histovec';
-
-const alertsDescription = document.createElement('div');
-alertsDescription.className = 'alerts-description';
-alertsDescription.textContent = 'Historique d\'affectations des véhicules';
-
-alertsContent.appendChild(alertsTitle);
-alertsContent.appendChild(alertsDescription);
-
-alertsButton.appendChild(alertsIcon);
-alertsButton.appendChild(alertsContent);
-menu.appendChild(alertsButton);
 
     const busesByLineAndDestination = {};
 
@@ -4335,8 +4884,8 @@ function getTextColor(backgroundColor) {
                         selectedLine = lineId;
                         filterByLine(lineId);
                         menu.classList.add('hidden');
-                        menu.addEventListener('transitionend', function onTransitionEnd(event) {
-                            if (event.target === menu) { 
+                        menu.addEventListener('animationend', function onAnimationEnd(event) {
+                            if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                                 menu.style.display = 'none';
                             }
                         });
@@ -4349,6 +4898,7 @@ function getTextColor(backgroundColor) {
                             if (selectedLine) {
                                 filtre.classList.remove('slide-upc');
                                 filtre.classList.add('slide-downc');
+                                filtre.style.display = 'flex';
                             }
                         }, 10);
                     };
@@ -4357,8 +4907,8 @@ function getTextColor(backgroundColor) {
                         map.setView(bus.vehicle.getLatLng(), 15);
                         bus.vehicle.openPopup();
                         menu.classList.add('hidden');
-                        menu.addEventListener('transitionend', function onTransitionEnd(event) {
-                            if (event.target === menu) { 
+                        menu.addEventListener('animationend', function onAnimationEnd(event) {
+                            if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                                 menu.style.display = 'none';
                             }
                         });
@@ -4391,9 +4941,12 @@ const menubottom1 = document.getElementById('menubtm');
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
             if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.add('slide-upc');
-        filtre.classList.remove('slide-downc');
+                const filtre = document.getElementById('filtre');
+                filtre.classList.add('slide-upc');
+                filtre.classList.remove('slide-downc');
+                filtre.addEventListener('animationend', () => {
+                    filtre.style.display = 'none';
+                });
         }
 
             menubottom1.addEventListener('transitionend', () => {
@@ -4411,24 +4964,27 @@ const menubottom1 = document.getElementById('menubtm');
         const closeMap = document.getElementById('map');
         closeMap.onclick = () => {
             const menu = document.getElementById('menu');
+            console.log("isBottomSheetOpen:", isBottomSheetOpen);
             menu.classList.add('hidden');
-            menu.addEventListener('transitionend', function onTransitionEnd(event) {
-                if (event.target === menu) { 
+            menu.addEventListener('animationend', function onAnimationEnd(event) {
+                if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                     menu.style.display = 'none';
                 }
             });
             isMenuVisible = false; 
-            menubottom1.style.display = 'flex';
-    setTimeout(() => {
-        menubottom1.classList.remove('slide-upb');
-        menubottom1.classList.add('slide-downb');
-        if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.remove('slide-upc');
-        filtre.classList.add('slide-downc');
-        }
-    }, 10);
-    
+            if (!isBottomSheetOpen) {
+                menubottom1.style.display = 'flex';
+                setTimeout(() => {
+                    menubottom1.classList.remove('slide-upb');
+                    menubottom1.classList.add('slide-downb');
+                    if (selectedLine) {
+                    const filtre = document.getElementById('filtre');
+                    filtre.classList.remove('slide-upc');
+                    filtre.classList.add('slide-downc');
+                    filtre.style.display = 'flex';
+                    }
+                }, 10);
+            }
         };
 
         updateMenu();
