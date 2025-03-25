@@ -1248,7 +1248,41 @@ shape.bounce-down {
     font-weight: bold;
 }
 
+.floating-button {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    border: none;
+    border-radius: 25px;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
 
+.floating-button:hover {
+    transform: translateX(-50%) scale(0.98);
+    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
+}
+
+.floating-button svg {
+    width: 20px;
+    height: 20px;
+    fill: white;
+}
+
+.floating-button span {
+    color: white;
+    font-family: 'League Spartan', sans-serif;
+    font-size: 16px;
+}
 
 
     </style>
@@ -3719,6 +3753,25 @@ animationStyle.textContent = `
 `;
 document.head.appendChild(animationStyle);
 
+function createFloatingButton() {
+    const button = document.createElement('button');
+    button.className = 'floating-button';
+    button.onclick = showBottomSheet;
+
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.setAttribute("viewBox", "0 0 24 24");
+    icon.innerHTML = `
+        <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/>
+    `;
+
+    const text = document.createElement('span');
+    text.textContent = 'Voir plus';
+
+    button.appendChild(icon);
+    button.appendChild(text);
+
+    return button;
+}
 
 let isBottomSheetOpen = false;
 
@@ -4322,6 +4375,14 @@ function showBottomSheet() {
     
     // Set state to open
     isBottomSheetOpen = true;
+
+    const floatingButton = document.querySelector('.floating-button');
+    if (floatingButton) {
+        floatingButton.style.opacity = '0';
+        setTimeout(() => {
+            floatingButton.style.display = 'none';
+        }, 300);
+    }
 }
 
 function closeBottomSheet() {
@@ -4341,6 +4402,13 @@ function closeBottomSheet() {
             }
         });
         menubottom1.style.display = 'flex';
+        const floatingButton = document.querySelector('.floating-button');
+        if (floatingButton) {
+            floatingButton.style.display = 'flex';
+            setTimeout(() => {
+                floatingButton.style.opacity = '1';
+            }, 10);
+        }
         setTimeout(() => {
             menubottom1.classList.remove('slide-upb');
             menubottom1.classList.add('slide-downb');
@@ -4682,73 +4750,8 @@ function getTextColor(backgroundColor) {
         menu.appendChild(lineSection);
         
     });
-    const buttonContainer = document.createElement('div');
-buttonContainer.style.cssText = `
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    padding: 10px;
-    margin-top: 10px;
-    margin-bottom: 10px;
-`;
-
-// Création du bouton "Voir plus"
-const seeMoreButton = document.createElement('button');
-seeMoreButton.textContent = 'Voir plus';
-seeMoreButton.style.cssText = `
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-family: 'League Spartan';
-    font-size: 14px;
-    cursor: pointer;
-    backdrop-filter: blur(5px);
-    transition: all 0.3s ease;
-`;
-seeMoreButton.onclick = () => {
-    showBottomSheet();
-};
-
-// Création du bouton "À propos"
-const aboutButton = document.createElement('button');
-aboutButton.textContent = 'À propos';
-aboutButton.style.cssText = `
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-family: 'League Spartan';
-    font-size: 14px;
-    cursor: pointer;
-    backdrop-filter: blur(5px);
-    transition: all 0.3s ease;
-`;
-aboutButton.onclick = () => {
-    showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
-    musique();
-};
-
-// Ajout des effets de survol pour les boutons
-[seeMoreButton, aboutButton].forEach(button => {
-    button.onmouseover = () => {
-        button.style.transform = 'scale(0.98)';
-        button.style.background = 'rgba(255, 255, 255, 0.2)';
-    };
-    button.onmouseout = () => {
-        button.style.transform = 'scale(1)';
-        button.style.background = 'rgba(255, 255, 255, 0.1)';
-    };
-});
-
-// Ajout des boutons au conteneur
-buttonContainer.appendChild(seeMoreButton);
-buttonContainer.appendChild(aboutButton);
-
-// Ajout du conteneur au menu
-menu.appendChild(buttonContainer);
+    menu.appendChild(createFloatingButton());
+    
 }
 
 const menubottom1 = document.getElementById('menubtm');
