@@ -4287,60 +4287,66 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
         closeBottomSheet();
     };
 
-    ; 
+    let touchStartY = 0;
+    let touchMoved = false;
+    const touchThreshold = 5;
 
-if ('ontouchstart' in window) {
-    button.addEventListener('touchstart', (e) => {
-        touchStartY = e.touches[0].clientY;
-        touchMoved = false;
-        button.style.transform = 'scale(0.98,0.98)';
-        button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-    }, { passive: true });
+    const handleButtonAction = () => {
+        onClickHandler();
+        setTimeout(() => {
+            closeBottomSheet();
+        }, 50);
+    };
 
-    button.addEventListener('touchmove', (e) => {
-        const touchCurrentY = e.touches[0].clientY;
-        if (Math.abs(touchCurrentY - touchStartY) > touchThreshold) {
-            touchMoved = true;
+    if ('ontouchstart' in window) {
+        button.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+            touchMoved = false;
+            button.style.transform = 'scale(0.98,0.98)';
+            button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+        }, { passive: true });
+
+        button.addEventListener('touchmove', (e) => {
+            const touchCurrentY = e.touches[0].clientY;
+            if (Math.abs(touchCurrentY - touchStartY) > touchThreshold) {
+                touchMoved = true;
+                button.style.transform = 'scale(1,1)';
+                button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+            }
+        }, { passive: true });
+
+        button.addEventListener('touchend', (e) => {
+            e.preventDefault();
             button.style.transform = 'scale(1,1)';
             button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-        }
-    }, { passive: true });
+            
+            if (!touchMoved) {
+                handleButtonAction();
+            }
+        });
 
-    button.addEventListener('touchend', (e) => {
-        e.preventDefault();
+        button.addEventListener('touchcancel', () => {
+            button.style.transform = 'scale(1,1)';
+            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+        });
+    } else {
+        button.addEventListener('click', () => {
+            handleButtonAction();
+        });
+    }
+
+    button.onmouseover = () => {
+        button.style.transform = 'scale(0.98,0.98)';
+        button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+    };
+
+    button.onmouseout = () => {
         button.style.transform = 'scale(1,1)';
         button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-        
-        if (!touchMoved) {
-            setTimeout(() => {
-                onClickHandler();
-                closeBottomSheet();
-            }, 100); 
-        }
-    });
+    };
 
-    button.addEventListener('touchcancel', () => {
-        button.style.transform = 'scale(1,1)';
-        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-    });
-} else {
-    button.addEventListener('click', () => {
-        onClickHandler();
-        closeBottomSheet();
-    });
+    return button;
 }
-
-button.onmouseover = () => {
-    button.style.transform = 'scale(0.98,0.98)';
-    button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-};
-
-button.onmouseout = () => {
-    button.style.transform = 'scale(1,1)';
-    button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-};
-
-return button;}
 
 function showBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
