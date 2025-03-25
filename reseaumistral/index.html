@@ -3977,6 +3977,8 @@ function updateButtonText() {
     }
 }
 
+let isBottomSheetOpen = false;
+
 function createBottomSheet() {
     const SNAP_POINTS = {
         CLOSED: 100,  // 100% of height (fully closed)
@@ -4280,6 +4282,30 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
     button.appendChild(icon);
     button.appendChild(content);
 
+    const handleAction = () => {
+        onClickHandler();
+        closeBottomSheet();
+    };
+
+    if ('ontouchstart' in window) {
+        button.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleAction();
+        }, { passive: false });
+    } else {
+        button.addEventListener('click', handleAction);
+    }
+
+    button.addEventListener('touchstart', () => {
+        button.style.transform = 'scale(0.98,0.98)';
+        button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+    }, { passive: true });
+
+    button.addEventListener('touchend', () => {
+        button.style.transform = 'scale(1,1)';
+        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+    }, { passive: true });
+
     button.onmouseover = () => {
         button.style.transform = 'scale(0.98,0.98)';
         button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
@@ -4288,11 +4314,6 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
     button.onmouseout = () => {
         button.style.transform = 'scale(1,1)';
         button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-    };
-
-    button.onclick = () => {
-        onClickHandler();
-        closeBottomSheet();
     };
 
     return button;
@@ -4323,6 +4344,9 @@ function showBottomSheet() {
     bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
     bottomSheet.style.opacity = '1';
     bottomSheet.style.transform = 'translateY(0)';
+    
+    // Set state to open
+    isBottomSheetOpen = true;
 }
 
 function closeBottomSheet() {
@@ -4330,18 +4354,23 @@ function closeBottomSheet() {
     if (bottomSheet) {
         bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
         
-        bottomSheet.style.transform = 'translateY(150%)';
+        bottomSheet.style.transform = 'translateY(100%)';
+        bottomSheet.style.opacity = '0';
         
         bottomSheet.addEventListener('transitionend', function onTransitionEnd(e) {
             if (e.propertyName === 'transform') {
                 bottomSheet.style.display = 'none';
                 bottomSheet.removeEventListener('transitionend', onTransitionEnd);
+                // Set state to closed
+                isBottomSheetOpen = false;
             }
         });
 
         setTimeout(() => {
             if (bottomSheet.style.display !== 'none') {
                 bottomSheet.style.display = 'none';
+                // Set state to closed (backup)
+                isBottomSheetOpen = false;
             }
         }, 500);
     }
