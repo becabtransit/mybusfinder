@@ -3976,6 +3976,11 @@ function updateButtonText() {
 }
 
 function createBottomSheet() {
+    const SNAP_POINTS = {
+        CLOSED: 100,  // 100% of height (fully closed)
+        PEEK: 60,    // 60% of height (partially open)
+        OPEN: 0      // 0% (fully open)
+    };
     const bottomSheet = document.createElement('div');
     bottomSheet.id = 'bottomSheet';
     bottomSheet.style.cssText = `
@@ -4147,39 +4152,67 @@ function createBottomSheet() {
     let startY, initialY, isDragging = false;
     
     function startDrag(e) {
-        isDragging = true;
-        startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-        initialY = startY;
-        bottomSheet.style.transition = 'transform 0.1s ease-out';
+    if (e.type.includes('touch')) {
+        e.preventDefault();
     }
+    isDragging = true;
+    startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+    initialY = startY;
+    
+    // Get the current transform value
+    const transform = window.getComputedStyle(bottomSheet).transform;
+    const matrix = new DOMMatrix(transform);
+    currentTranslateY = matrix.m42;
+    
+    bottomSheet.style.transition = 'none';
+}
 
-    function drag(e) {
-        if (!isDragging) return;
-        
-        const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-        const deltaY = currentY - startY;
-        
-        if (deltaY > 0) {
-            bottomSheet.style.transform = `translateY(${deltaY}px)`;
-        }
-    }
+function drag(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    
+    const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+    const deltaY = currentY - startY;
+    const newTranslateY = Math.max(0, currentTranslateY + deltaY);
+    
+    const maxTranslate = bottomSheet.offsetHeight;
+    const boundedTranslateY = Math.min(maxTranslate, newTranslateY);
+    
+    bottomSheet.style.transform = `translateY(${boundedTranslateY}px)`;
+}
 
-    function stopDrag(e) {
-        if (!isDragging) return;
-        
-        const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-        const deltaY = currentY - initialY;
-        
-        bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1)';
-        
-        if (deltaY > 100) {
+function stopDrag(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    
+    const finalY = e.type.includes('mouse') ? e.clientY : e.changedTouches[0].clientY;
+    const deltaY = finalY - initialY;
+    const currentTranslate = getTranslateY(bottomSheet);
+    const sheetHeight = bottomSheet.offsetHeight;
+    
+    bottomSheet.style.transition = 'transform 0.3s cubic-bezier(0.32, 0.64, 0.45, 1)';
+    
+    // Calculate the nearest snap point
+    const percentageMoved = (currentTranslate / sheetHeight) * 100;
+    
+    if (deltaY > 0) { // Dragging down
+        if (percentageMoved > 50) {
             closeBottomSheet();
+        } else if (percentageMoved > 30) {
+            bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
         } else {
             bottomSheet.style.transform = 'translateY(0)';
         }
-        
-        isDragging = false;
+    } else { // Dragging up
+        if (percentageMoved < 30) {
+            bottomSheet.style.transform = 'translateY(0)';
+        } else if (percentageMoved < 70) {
+            bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
+        } else {
+            closeBottomSheet();
+        }
     }
+}
 
     // Event listeners
     bottomSheet.addEventListener('mousedown', startDrag);
@@ -4189,6 +4222,11 @@ function createBottomSheet() {
     bottomSheet.addEventListener('touchstart', startDrag, { passive: false });
     document.addEventListener('touchmove', drag, { passive: false });
     document.addEventListener('touchend', stopDrag);
+    function getTranslateY(element) {
+    const style = window.getComputedStyle(element);
+    const matrix = new DOMMatrix(style.transform);
+    return matrix.m42;
+}
 
     document.body.appendChild(bottomSheet);
     return bottomSheet;
