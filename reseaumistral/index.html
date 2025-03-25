@@ -4015,6 +4015,244 @@ function updateButtonText() {
     }
 }
 
+function initBottomSheet() {
+    const bottomSheetContainer = document.createElement('div');
+    bottomSheetContainer.id = 'bottom-sheet';
+    bottomSheetContainer.style.cssText = `
+        position: fixed;
+        bottom: -100%;
+        left: 0;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(20px);
+        border-top-left-radius: 20px;
+        border-top-right-radius: 20px;
+        box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        transition: bottom 0.3s ease-in-out;
+        max-height: 90%;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    `;
+
+    const dragHandle = document.createElement('div');
+    dragHandle.style.cssText = `
+        width: 40px;
+        height: 5px;
+        background: #C7C7CC;
+        border-radius: 3px;
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+    `;
+    bottomSheetContainer.appendChild(dragHandle);
+
+    const bottomSheetContent = document.createElement('div');
+    bottomSheetContent.style.cssText = `
+        padding: 50px 15px 15px;
+    `;
+    bottomSheetContainer.appendChild(bottomSheetContent);
+
+    document.body.appendChild(bottomSheetContainer);
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const totalMinutes = currentHour * 60 + currentMinutes;
+
+    let transportState = "normal";
+    if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
+        transportState = "presque saturé"; 
+    } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
+        transportState = "saturé";
+    }
+
+    const transportStateContainer = document.createElement('div');
+    transportStateContainer.classList.add('transport-state-container');
+    transportStateContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 8px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+        cursor: pointer;
+    `;
+
+    const transportImage = document.createElement('img');
+    transportImage.alt = 'Affluence transports';
+    transportImage.style.width = '50px';
+    transportImage.style.height = '36px';
+    transportImage.style.marginRight = '10px';
+
+    if (transportState === "normal") {
+        transportImage.src = 'src/1of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.success('Ouf ! Aucune affluence notable. Bon voyage !');
+        };
+    } else if (transportState === "presque saturé") {
+        transportImage.src = 'src/2of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.warning('Affluence modérée. Les transports se remplissent.');
+        };
+    } else if (transportState === "saturé") {
+        transportImage.src = 'src/3of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.error('Forte affluence. Privilégiez les lignes secondaires.');
+        };
+    }
+
+    const transportStateTextContainer = document.createElement('div');
+    transportStateTextContainer.style.textAlign = 'left';
+
+    const transportStateLabel = document.createElement('div');
+    transportStateLabel.textContent = "Affluence transports";
+    transportStateLabel.style.fontSize = '14px';
+    transportStateLabel.style.marginTop = '7px';
+    transportStateLabel.style.color = '#fff';
+
+    const transportStateText = document.createElement('div');
+    transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
+    transportStateText.style.fontSize = '22px';
+    transportStateText.style.fontWeight = 'normal';
+    transportStateText.style.color = '#fff';
+
+    transportStateTextContainer.appendChild(transportStateLabel);
+    transportStateTextContainer.appendChild(transportStateText);
+
+    transportStateContainer.appendChild(transportImage);
+    transportStateContainer.appendChild(transportStateTextContainer);
+    bottomSheetContent.appendChild(transportStateContainer);
+
+    const buttons = [
+        { 
+            icon: 'alerts-icon', 
+            title: 'Histovec', 
+            description: 'Historique d\'affectations des véhicules',
+            onclick: () => showUpdatePopup("histovec.html")
+        },
+        { 
+            icon: 'alerts-icon location-icon', 
+            title: 'Ma position', 
+            description: 'Me localiser sur la carte',
+            onclick: locateUser
+        },
+        { 
+            icon: 'alerts-icon satellite-icon', 
+            title: isStandardView ? 'Vue satellite' : 'Vue standard', 
+            description: isStandardView ? 'Passer à la vue satellite' : 'Passer à la vue standard',
+            onclick: toggleMapView
+        }
+    ];
+
+    buttons.forEach(buttonData => {
+        const button = document.createElement('div');
+        button.className = 'alerts-button';
+        button.style.marginTop = '15px';
+        button.onclick = buttonData.onclick;
+
+        const icon = document.createElement('div');
+        icon.className = `alerts-icon ${buttonData.icon}`;
+        icon.innerHTML = getIconSVG(buttonData.title);
+
+        const content = document.createElement('div');
+        content.className = 'alerts-content';
+
+        const title = document.createElement('div');
+        title.className = 'alerts-title';
+        title.textContent = buttonData.title;
+
+        const description = document.createElement('div');
+        description.className = 'alerts-description';
+        description.textContent = buttonData.description;
+
+        content.appendChild(title);
+        content.appendChild(description);
+
+        button.appendChild(icon);
+        button.appendChild(content);
+
+        bottomSheetContent.appendChild(button);
+    });
+
+    window.openBottomSheet = () => {
+        bottomSheetContainer.style.bottom = '0';
+    };
+
+    window.closeBottomSheet = () => {
+        bottomSheetContainer.style.bottom = '-100%';
+    };
+
+    let startY, currentY;
+    dragHandle.addEventListener('touchstart', (e) => {
+        startY = e.touches[0].clientY;
+    });
+
+    dragHandle.addEventListener('touchmove', (e) => {
+        currentY = e.touches[0].clientY;
+    });
+
+    dragHandle.addEventListener('touchend', () => {
+        if (startY - currentY > 50) {
+            closeBottomSheet();
+        }
+    });
+
+    const moreButton = document.createElement('div');
+    moreButton.textContent = 'En voir plus';
+    moreButton.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background-color: #007AFF;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 999;
+    `;
+    moreButton.onclick = openBottomSheet;
+    document.body.appendChild(moreButton);
+}
+
+function getIconSVG(title) {
+    switch(title) {
+        case 'Histovec':
+            return `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="6" width="18" height="10" rx="2" />
+                    <circle cx="7" cy="16" r="2" />
+                    <circle cx="17" cy="16" r="2" />
+                    <path d="M3 10h18" />
+                    <path d="M7 6v4" />
+                    <path d="M17 6v4" />
+                </svg>
+            `;
+        case 'Ma position':
+            return `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            `;
+        case 'Vue satellite':
+        case 'Vue standard':
+            return `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3.6 9l1.5 1.5M9 3.6L10.5 5M21 3l-9 9M18.4 15l1.5 1.5M15 18.4l1.5 1.5M3 21l9-9"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M14.5 9.5L19 5"/>
+                    <path d="M5 19l4.5-4.5"/>
+                </svg>
+            `;
+    }
+}
+
 function getNextStopInfo(vehicleId) {
     const vehicle = markers[vehicleId];
     if (!vehicle) return null;
@@ -4400,252 +4638,7 @@ function getTextColor(backgroundColor) {
     });
 }
 
-function initBottomSheet() {
-    const bottomSheetContainer = document.createElement('div');
-    bottomSheetContainer.id = 'bottom-sheet';
-    bottomSheetContainer.style.cssText = `
-        position: fixed;
-        bottom: -100%;
-        left: 0;
-        width: 100%;
-        background: rgba(255, 255, 255, 0.9);
-        backdrop-filter: blur(20px);
-        border-top-left-radius: 20px;
-        border-top-right-radius: 20px;
-        box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.1);
-        z-index: 1000;
-        transition: bottom 0.3s ease-in-out;
-        max-height: 90%;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-    `;
 
-    // Créer le gestionnaire de glissement
-    const dragHandle = document.createElement('div');
-    dragHandle.style.cssText = `
-        width: 40px;
-        height: 5px;
-        background: #C7C7CC;
-        border-radius: 3px;
-        position: absolute;
-        top: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-    `;
-    bottomSheetContainer.appendChild(dragHandle);
-
-    // Conteneur pour les éléments de la bottom sheet
-    const bottomSheetContent = document.createElement('div');
-    bottomSheetContent.style.cssText = `
-        padding: 50px 15px 15px;
-    `;
-    bottomSheetContainer.appendChild(bottomSheetContent);
-
-    document.body.appendChild(bottomSheetContainer);
-
-    // Recréer le conteneur d'état des transports comme dans updateMenu()
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinutes = now.getMinutes();
-    const totalMinutes = currentHour * 60 + currentMinutes;
-
-    let transportState = "normal";
-    if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
-        transportState = "presque saturé"; 
-    } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
-        transportState = "saturé";
-    }
-
-    const transportStateContainer = document.createElement('div');
-    transportStateContainer.classList.add('transport-state-container');
-    transportStateContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 8px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        backdrop-filter: blur(5px);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-        cursor: pointer;
-    `;
-
-    const transportImage = document.createElement('img');
-    transportImage.alt = 'Affluence transports';
-    transportImage.style.width = '50px';
-    transportImage.style.height = '36px';
-    transportImage.style.marginRight = '10px';
-
-    if (transportState === "normal") {
-        transportImage.src = 'src/1of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.success('Ouf ! Aucune affluence notable. Bon voyage !');
-        };
-    } else if (transportState === "presque saturé") {
-        transportImage.src = 'src/2of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.warning('Affluence modérée. Les transports se remplissent.');
-        };
-    } else if (transportState === "saturé") {
-        transportImage.src = 'src/3of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.error('Forte affluence. Privilégiez les lignes secondaires.');
-        };
-    }
-
-    const transportStateTextContainer = document.createElement('div');
-    transportStateTextContainer.style.textAlign = 'left';
-
-    const transportStateLabel = document.createElement('div');
-    transportStateLabel.textContent = "Affluence transports";
-    transportStateLabel.style.fontSize = '14px';
-    transportStateLabel.style.marginTop = '7px';
-    transportStateLabel.style.color = '#fff';
-
-    const transportStateText = document.createElement('div');
-    transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
-    transportStateText.style.fontSize = '22px';
-    transportStateText.style.fontWeight = 'normal';
-    transportStateText.style.color = '#fff';
-
-    transportStateTextContainer.appendChild(transportStateLabel);
-    transportStateTextContainer.appendChild(transportStateText);
-
-    transportStateContainer.appendChild(transportImage);
-    transportStateContainer.appendChild(transportStateTextContainer);
-    bottomSheetContent.appendChild(transportStateContainer);
-
-    // Reste du code identique à la version précédente
-    const buttons = [
-        { 
-            icon: 'alerts-icon', 
-            title: 'Histovec', 
-            description: 'Historique d\'affectations des véhicules',
-            onclick: () => showUpdatePopup("histovec.html")
-        },
-        { 
-            icon: 'alerts-icon location-icon', 
-            title: 'Ma position', 
-            description: 'Me localiser sur la carte',
-            onclick: locateUser
-        },
-        { 
-            icon: 'alerts-icon satellite-icon', 
-            title: isStandardView ? 'Vue satellite' : 'Vue standard', 
-            description: isStandardView ? 'Passer à la vue satellite' : 'Passer à la vue standard',
-            onclick: toggleMapView
-        }
-    ];
-
-    buttons.forEach(buttonData => {
-        const button = document.createElement('div');
-        button.className = 'alerts-button';
-        button.style.marginTop = '15px';
-        button.onclick = buttonData.onclick;
-
-        const icon = document.createElement('div');
-        icon.className = `alerts-icon ${buttonData.icon}`;
-        icon.innerHTML = getIconSVG(buttonData.title);
-
-        const content = document.createElement('div');
-        content.className = 'alerts-content';
-
-        const title = document.createElement('div');
-        title.className = 'alerts-title';
-        title.textContent = buttonData.title;
-
-        const description = document.createElement('div');
-        description.className = 'alerts-description';
-        description.textContent = buttonData.description;
-
-        content.appendChild(title);
-        content.appendChild(description);
-
-        button.appendChild(icon);
-        button.appendChild(content);
-
-        bottomSheetContent.appendChild(button);
-    });
-
-    // Fonction pour ouvrir la bottom sheet
-    window.openBottomSheet = () => {
-        bottomSheetContainer.style.bottom = '0';
-    };
-
-    // Fonction pour fermer la bottom sheet
-    window.closeBottomSheet = () => {
-        bottomSheetContainer.style.bottom = '-100%';
-    };
-
-    // Gestion du glissement pour fermer
-    let startY, currentY;
-    dragHandle.addEventListener('touchstart', (e) => {
-        startY = e.touches[0].clientY;
-    });
-
-    dragHandle.addEventListener('touchmove', (e) => {
-        currentY = e.touches[0].clientY;
-    });
-
-    dragHandle.addEventListener('touchend', () => {
-        if (startY - currentY > 50) {
-            closeBottomSheet();
-        }
-    });
-
-    // Ajouter un bouton "En voir plus" à la fin de la liste des lignes
-    const moreButton = document.createElement('div');
-    moreButton.textContent = 'En voir plus';
-    moreButton.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background-color: #007AFF;
-        color: white;
-        padding: 10px 20px;
-        border-radius: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        z-index: 999;
-    `;
-    moreButton.onclick = openBottomSheet;
-    document.body.appendChild(moreButton);
-}
-
-// Fonction pour récupérer les SVG d'icônes
-function getIconSVG(title) {
-    switch(title) {
-        case 'Histovec':
-            return `
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="6" width="18" height="10" rx="2" />
-                    <circle cx="7" cy="16" r="2" />
-                    <circle cx="17" cy="16" r="2" />
-                    <path d="M3 10h18" />
-                    <path d="M7 6v4" />
-                    <path d="M17 6v4" />
-                </svg>
-            `;
-        case 'Ma position':
-            return `
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-            `;
-        case 'Vue satellite':
-        case 'Vue standard':
-            return `
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3.6 9l1.5 1.5M9 3.6L10.5 5M21 3l-9 9M18.4 15l1.5 1.5M15 18.4l1.5 1.5M3 21l9-9"/>
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M14.5 9.5L19 5"/>
-                    <path d="M5 19l4.5-4.5"/>
-                </svg>
-            `;
-    }
-}
 
 const menubottom1 = document.getElementById('menubtm');
 
