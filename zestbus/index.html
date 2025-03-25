@@ -3990,29 +3990,37 @@ function applyMapView() {
 let startY;
 let endY;
 const menubtm = document.getElementById('menubtm');
+
 menubtm.addEventListener('touchstart', (e) => {
-    startY = e.touches[0].clientY;
+    const touchStartY = e.touches[0].clientY;
+    const menuRect = menubtm.getBoundingClientRect();
+    
+    if (touchStartY >= menuRect.bottom - 50) {
+        startY = touchStartY;
+    } else {
+        startY = null;
+    }
 });
 
 menubtm.addEventListener('touchmove', (e) => {
-    endY = e.touches[0].clientY;
+    if (startY !== null) {
+        endY = e.touches[0].clientY;
+    }
 });
 
 menubtm.addEventListener('touchend', () => {
-    const swipeDistance = startY - endY;
-    const swipeDistanceforSwap = endY - startY;
-
-    
-    const minSwipeDistance = 50;
-    
-    if (swipeDistance > minSwipeDistance) {
-        showBottomSheet();
+    if (startY !== null && endY !== null) {
+        const swipeDistance = startY - endY; 
+        const minSwipeDistance = 50;
+        
+        if (swipeDistance > minSwipeDistance) {
+            showBottomSheet(); 
+        }
     }
     
     startY = null;
     endY = null;
 });
-
 
 function createBottomSheet() {
     const SNAP_POINTS = {
