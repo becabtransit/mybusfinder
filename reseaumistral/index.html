@@ -1248,6 +1248,20 @@ shape.bounce-down {
     font-weight: bold;
 }
 
+@media (max-width: 600px) {
+    #bottom-sheet {
+        width: 100%;
+        left: 0;
+        right: 0;
+        border-top-left-radius: 20px;
+        border-top-right-radius: 20px;
+    }
+}
+
+#bottom-sheet {
+    -webkit-overflow-scrolling: touch;
+}
+
 
     </style>
 
@@ -3732,6 +3746,140 @@ animationStyle.textContent = `
 `;
 document.head.appendChild(animationStyle);
 
+let bottomSheet;
+let bottomSheetOverlay;
+let moreInfoButton;
+
+function createBottomSheet() {
+    bottomSheet = document.createElement('div');
+    bottomSheet.id = 'bottom-sheet';
+    bottomSheet.style.cssText = `
+        position: fixed;
+        bottom: -100%;
+        left: 0;
+        right: 0;
+        background: rgba(255, 255, 255, 0.9);
+        border-top-left-radius: 20px;
+        border-top-right-radius: 20px;
+        backdrop-filter: blur(20px);
+        box-shadow: 0 -10px 20px rgba(0,0,0,0.1);
+        z-index: 1000;
+        transition: bottom 0.3s ease-in-out;
+        padding-bottom: 30px;
+        max-height: 80vh;
+        overflow-y: auto;
+    `;
+
+    const handle = document.createElement('div');
+    handle.style.cssText = `
+        width: 40px;
+        height: 5px;
+        background: #c7c7cc;
+        border-radius: 3px;
+        margin: 10px auto;
+        cursor: pointer;
+    `;
+    bottomSheet.appendChild(handle);
+
+    const contentContainer = document.createElement('div');
+    contentContainer.id = 'bottom-sheet-content';
+    bottomSheet.appendChild(contentContainer);
+
+    bottomSheetOverlay = document.createElement('div');
+    bottomSheetOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 999;
+        display: none;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+    `;
+
+    bottomSheetOverlay.onclick = closeBottomSheet;
+    handle.onclick = closeBottomSheet;
+
+    let startY, currentY;
+    bottomSheet.addEventListener('touchstart', (e) => {
+        startY = e.touches[0].clientY;
+    });
+
+    bottomSheet.addEventListener('touchmove', (e) => {
+        currentY = e.touches[0].clientY;
+        const deltaY = currentY - startY;
+        if (deltaY > 50) {
+            closeBottomSheet();
+        }
+    });
+
+    document.body.appendChild(bottomSheet);
+    document.body.appendChild(bottomSheetOverlay);
+}
+
+function openBottomSheet() {
+    const contentContainer = document.getElementById('bottom-sheet-content');
+    contentContainer.innerHTML = '';
+
+    const transportStateContainer = document.querySelector('.linesection:first-child');
+    const locationButton = document.querySelector('.alerts-button[onclick*="locateUser"]');
+    const satelliteButton = document.querySelector('.alerts-button[onclick*="toggleMapView"]');
+    const alertsButton = document.querySelector('.alerts-button[onclick*="showUpdatePopup"]');
+
+    contentContainer.appendChild(transportStateContainer.cloneNode(true));
+    contentContainer.appendChild(locationButton.cloneNode(true));
+    contentContainer.appendChild(satelliteButton.cloneNode(true));
+    contentContainer.appendChild(alertsButton.cloneNode(true));
+
+    bottomSheet.style.bottom = '0';
+    bottomSheetOverlay.style.display = 'block';
+    setTimeout(() => {
+        bottomSheetOverlay.style.opacity = '1';
+    }, 10);
+}
+
+function closeBottomSheet() {
+    bottomSheet.style.bottom = '-100%';
+    bottomSheetOverlay.style.opacity = '0';
+    setTimeout(() => {
+        bottomSheetOverlay.style.display = 'none';
+    }, 300);
+}
+
+function createMoreInfoButton() {
+    moreInfoButton = document.createElement('div');
+    moreInfoButton.style.cssText = `
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        background-color: #007aff;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        z-index: 500;
+        font-family: 'League Spartan', sans-serif;
+        transition: transform 0.2s ease;
+    `;
+    moreInfoButton.textContent = 'En voir plus';
+    moreInfoButton.onclick = openBottomSheet;
+    
+    moreInfoButton.addEventListener('touchstart', () => {
+        moreInfoButton.style.transform = 'scale(0.95)';
+    });
+    moreInfoButton.addEventListener('touchend', () => {
+        moreInfoButton.style.transform = 'scale(1)';
+    });
+
+    document.body.appendChild(moreInfoButton);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    createBottomSheet();
+    createMoreInfoButton();
+});
 
 function updateMenu() {
     const menu = document.getElementById('menu');
@@ -4377,6 +4525,9 @@ function getTextColor(backgroundColor) {
 
         menu.appendChild(lineSection);
     });
+    if (moreInfoButton) {
+    document.body.appendChild(moreInfoButton);
+    }
 }
 
 const menubottom1 = document.getElementById('menubtm');
