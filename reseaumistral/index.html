@@ -3835,23 +3835,6 @@ const firstMenuElement = menu.firstChild;
 menu.insertBefore(filterTipContainer, firstMenuElement.nextSibling);
 
 
-
-    const satelliteButton = document.createElement('div');
-satelliteButton.className = 'alerts-button';
-
-let isStandardView = localStorage.getItem('isStandardView') === 'true';
-
-window.addEventListener('DOMContentLoaded', () => {
-    applyMapView();
-    
-    updateButtonText();
-});
-
-satelliteButton.onclick = () => {
-    toggleMapView();
-    closeBottomSheet();
-};
-
 function toggleMapView() {
     isStandardView = !isStandardView;
     
@@ -3880,8 +3863,8 @@ function toggleMapView() {
 
     
     applyMapView();
-    
     updateButtonText();
+    closeBottomSheet();
 }
 
 function applyMapView() {
@@ -3928,16 +3911,6 @@ function applyMapView() {
 }
 
 
-function updateButtonText() {
-    if (isStandardView) {
-        satelliteTitle.textContent = 'Actuellement en vue satellite';
-        satelliteDescription.textContent = 'Appuyez ici pour passer à la vue standard';
-    } else {
-        satelliteTitle.textContent = 'Actuellement en vue standard';
-        satelliteDescription.textContent = 'Appuyez ici pour passer à la vue satellite';
-    }
-}
-
 let startY;
 let endY;
 const menubtm = document.getElementById('menubtm');
@@ -3968,6 +3941,7 @@ function createBottomSheet() {
         CLOSED: 100,  // 100% of height (fully closed)
         PEEK: 60,    // 60% of height (partially open)
         OPEN: 0      // 0% (fully open)
+        // By Becab Solutions - BottomSheetDisplay.js
     };
     const bottomSheet = document.createElement('div');
     bottomSheet.id = 'bottomSheet';
@@ -4004,7 +3978,6 @@ function createBottomSheet() {
     `;
     bottomSheet.appendChild(dragHandle);
 
-    // Transport State Container (recreated)
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinutes = now.getMinutes();
@@ -4085,7 +4058,6 @@ function createBottomSheet() {
     transportStateContainer.appendChild(transportImage);
     transportStateContainer.appendChild(transportStateTextContainer);
 
-    // Location Button
     const locationButton = createStyledButton(
         'Ma position', 
         'Me localiser sur la carte', 
@@ -4098,7 +4070,6 @@ function createBottomSheet() {
         locateUser
     );
 
-    // Satellite Button
     const satelliteButton = createStyledButton(
         'Changer de vue', 
         'Alterner entre la vue satellite ou cartographique', 
@@ -4113,7 +4084,6 @@ function createBottomSheet() {
         toggleMapView
     );
 
-    // Histovec Button
     const histovecButton = createStyledButton(
         'Histovec', 
         'Historique d\'affectations des véhicules', 
@@ -4130,14 +4100,12 @@ function createBottomSheet() {
         () => showUpdatePopup("histovec.html")
     );
 
-    // Append all elements
     bottomSheet.appendChild(dragHandle);
     bottomSheet.appendChild(transportStateContainer);
     bottomSheet.appendChild(locationButton);
     bottomSheet.appendChild(satelliteButton);
     bottomSheet.appendChild(histovecButton);
 
-    // Drag to close functionality
     let startY, initialY, isDragging = false;
     
     function startDrag(e) {
@@ -4148,7 +4116,6 @@ function createBottomSheet() {
     startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
     initialY = startY;
     
-    // Get the current transform value
     const transform = window.getComputedStyle(bottomSheet).transform;
     const matrix = new DOMMatrix(transform);
     currentTranslateY = matrix.m42;
