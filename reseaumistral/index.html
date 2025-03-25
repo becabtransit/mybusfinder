@@ -640,26 +640,28 @@ shape.bounce-down {
     position: absolute;
     bottom: 10px;
     left: 50%; 
-    transform: translateX(-50%) scaleY(1);
-    transform-origin: bottom; 
+    transform: translateX(-50%);
     padding: 12px;
     border: none;
     list-style: none;
     margin: 0;
     z-index: 10000;
+    padding: 0;
     background-color: #0F056B9c;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); 
     border-radius: 18px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-    transition: transform 0.4s cubic-bezier(0.25, 1.5, 0.5, 1), padding 0.4s cubic-bezier(0.25, 1.5, 0.5, 1);
+    
 }
 
 .menubottom-ul.expanded {
-    transform: translateX(-50%) scaleY(1.5); 
-    padding: 24px; 
-    border-radius: 18px 18px 0 0;
+    width: 100%;
+    height: 50vh; /* Ajustable selon tes besoins */
+    bottom: 0;
+    border-radius: 18px 18px 0 0; /* Coins arrondis en haut seulement */
+    padding: 20px;
 }
 
 .menubottom ul li {
@@ -3988,13 +3990,6 @@ function applyMapView() {
 let startY;
 let endY;
 const menubtm = document.getElementById('menubtm');
-const menubottomUl = document.querySelector('.menubottom-ul');
-const minSwipeDistance = 50;
-
-if (localStorage.getItem('menuExpanded') === 'true') {
-    menubottomUl.classList.add('expanded');
-}
-
 menubtm.addEventListener('touchstart', (e) => {
     startY = e.touches[0].clientY;
 });
@@ -4004,20 +3999,20 @@ menubtm.addEventListener('touchmove', (e) => {
 });
 
 menubtm.addEventListener('touchend', () => {
-    if (!endY || !startY) return; 
-
     const swipeDistance = startY - endY;
+    const swipeDistanceforSwap = endY - startY;
 
+    
+    const minSwipeDistance = 50;
+    
     if (swipeDistance > minSwipeDistance) {
         showBottomSheet();
-    } else if (swipeDistance < -minSwipeDistance) {
-        menubottomUl.classList.toggle('expanded');
-        localStorage.setItem('menuExpanded', menubottomUl.classList.contains('expanded'));
     }
-
+    
     startY = null;
     endY = null;
 });
+
 
 function createBottomSheet() {
     const SNAP_POINTS = {
