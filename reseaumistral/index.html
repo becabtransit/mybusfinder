@@ -4420,6 +4420,7 @@ function initBottomSheet() {
         overscroll-behavior: contain;
     `;
 
+    // Créer le gestionnaire de glissement
     const dragHandle = document.createElement('div');
     dragHandle.style.cssText = `
         width: 40px;
@@ -4433,6 +4434,7 @@ function initBottomSheet() {
     `;
     bottomSheetContainer.appendChild(dragHandle);
 
+    // Conteneur pour les éléments de la bottom sheet
     const bottomSheetContent = document.createElement('div');
     bottomSheetContent.style.cssText = `
         padding: 50px 15px 15px;
@@ -4441,9 +4443,81 @@ function initBottomSheet() {
 
     document.body.appendChild(bottomSheetContainer);
 
-    const transportStateContainer = document.querySelector('.transport-state-container').cloneNode(true);
+    // Recréer le conteneur d'état des transports comme dans updateMenu()
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const totalMinutes = currentHour * 60 + currentMinutes;
+
+    let transportState = "normal";
+    if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
+        transportState = "presque saturé"; 
+    } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
+        transportState = "saturé";
+    }
+
+    const transportStateContainer = document.createElement('div');
+    transportStateContainer.classList.add('transport-state-container');
+    transportStateContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 8px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+        cursor: pointer;
+    `;
+
+    const transportImage = document.createElement('img');
+    transportImage.alt = 'Affluence transports';
+    transportImage.style.width = '50px';
+    transportImage.style.height = '36px';
+    transportImage.style.marginRight = '10px';
+
+    if (transportState === "normal") {
+        transportImage.src = 'src/1of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.success('Ouf ! Aucune affluence notable. Bon voyage !');
+        };
+    } else if (transportState === "presque saturé") {
+        transportImage.src = 'src/2of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.warning('Affluence modérée. Les transports se remplissent.');
+        };
+    } else if (transportState === "saturé") {
+        transportImage.src = 'src/3of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.error('Forte affluence. Privilégiez les lignes secondaires.');
+        };
+    }
+
+    const transportStateTextContainer = document.createElement('div');
+    transportStateTextContainer.style.textAlign = 'left';
+
+    const transportStateLabel = document.createElement('div');
+    transportStateLabel.textContent = "Affluence transports";
+    transportStateLabel.style.fontSize = '14px';
+    transportStateLabel.style.marginTop = '7px';
+    transportStateLabel.style.color = '#fff';
+
+    const transportStateText = document.createElement('div');
+    transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
+    transportStateText.style.fontSize = '22px';
+    transportStateText.style.fontWeight = 'normal';
+    transportStateText.style.color = '#fff';
+
+    transportStateTextContainer.appendChild(transportStateLabel);
+    transportStateTextContainer.appendChild(transportStateText);
+
+    transportStateContainer.appendChild(transportImage);
+    transportStateContainer.appendChild(transportStateTextContainer);
     bottomSheetContent.appendChild(transportStateContainer);
 
+    // Reste du code identique à la version précédente
     const buttons = [
         { 
             icon: 'alerts-icon', 
@@ -4495,14 +4569,17 @@ function initBottomSheet() {
         bottomSheetContent.appendChild(button);
     });
 
+    // Fonction pour ouvrir la bottom sheet
     window.openBottomSheet = () => {
         bottomSheetContainer.style.bottom = '0';
     };
 
+    // Fonction pour fermer la bottom sheet
     window.closeBottomSheet = () => {
         bottomSheetContainer.style.bottom = '-100%';
     };
 
+    // Gestion du glissement pour fermer
     let startY, currentY;
     dragHandle.addEventListener('touchstart', (e) => {
         startY = e.touches[0].clientY;
@@ -4518,6 +4595,7 @@ function initBottomSheet() {
         }
     });
 
+    // Ajouter un bouton "En voir plus" à la fin de la liste des lignes
     const moreButton = document.createElement('div');
     moreButton.textContent = 'En voir plus';
     moreButton.style.cssText = `
@@ -4535,6 +4613,7 @@ function initBottomSheet() {
     document.body.appendChild(moreButton);
 }
 
+// Fonction pour récupérer les SVG d'icônes
 function getIconSVG(title) {
     switch(title) {
         case 'Histovec':
@@ -4567,7 +4646,6 @@ function getIconSVG(title) {
             `;
     }
 }
-
 
 const menubottom1 = document.getElementById('menubtm');
 
