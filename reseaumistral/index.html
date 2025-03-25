@@ -4010,6 +4010,43 @@ function createBottomSheet() {
     `;
     bottomSheet.appendChild(dragHandle);
 
+    // Transport State Container - Recreated with original styling
+    const transportStateContainer = document.createElement('div');
+    transportStateContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 12px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+        cursor: pointer;
+    `;
+
+    const transportImage = document.createElement('img');
+    transportImage.alt = 'Affluence transports';
+    transportImage.style.width = '50px';
+    transportImage.style.height = '36px';
+    transportImage.style.marginRight = '10px';
+
+    const transportStateTextContainer = document.createElement('div');
+    transportStateTextContainer.style.textAlign = 'left';
+
+    const transportStateLabel = document.createElement('div');
+    transportStateLabel.textContent = "Affluence transports";
+    transportStateLabel.style.fontSize = '14px';
+    transportStateLabel.style.marginTop = '7px';
+    transportStateLabel.style.color = '#fff';
+
+    const transportStateText = document.createElement('div');
+    transportStateText.style.fontSize = '22px';
+    transportStateText.style.fontWeight = 'normal';
+    transportStateText.style.color = '#fff';
+
+    // Recreate transport state logic from updateMenu
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinutes = now.getMinutes();
@@ -4021,26 +4058,6 @@ function createBottomSheet() {
     } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
         transportState = "saturé";
     }
-
-    const transportStateContainer = document.createElement('div');
-    transportStateContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 10px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        backdrop-filter: blur(5px);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        cursor: pointer;
-    `;
-
-    const transportImage = document.createElement('img');
-    transportImage.alt = 'Affluence transports';
-    transportImage.style.width = '50px';
-    transportImage.style.height = '36px';
-    transportImage.style.marginRight = '10px';
 
     if (transportState === "normal") {
         transportImage.src = 'src/1of3body.png';
@@ -4059,114 +4076,131 @@ function createBottomSheet() {
         };
     }
 
-    const transportStateTextContainer = document.createElement('div');
-    transportStateTextContainer.style.textAlign = 'left';
-
-    const transportStateLabel = document.createElement('div');
-    transportStateLabel.textContent = "Affluence transports";
-    transportStateLabel.style.fontSize = '14px';
-    transportStateLabel.style.marginTop = '7px';
-    transportStateLabel.style.color = '#000';
-
-    const transportStateText = document.createElement('div');
     transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
-    transportStateText.style.fontSize = '22px';
-    transportStateText.style.fontWeight = 'normal';
-    transportStateText.style.color = '#000';
+
+    transportStateContainer.onmouseover = () => {
+        transportStateContainer.style.transform = 'scale(0.98,0.98)';
+        transportStateContainer.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
+    };
+    transportStateContainer.onmouseout = () => {
+        transportStateContainer.style.transform = 'scale(1,1)';
+        transportStateContainer.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+    };
 
     transportStateTextContainer.appendChild(transportStateLabel);
     transportStateTextContainer.appendChild(transportStateText);
 
     transportStateContainer.appendChild(transportImage);
     transportStateContainer.appendChild(transportStateTextContainer);
+    bottomSheet.appendChild(transportStateContainer);
 
+    // Location Button - Recreated with original styling
     const locationButton = document.createElement('div');
-    locationButton.className = 'bottom-sheet-button';
-    locationButton.style.cssText = `
-        display: flex;
-        align-items: center;
-        padding: 15px;
-        margin: 10px;
-        background-color: rgba(0,0,0,0.05);
-        border-radius: 12px;
-        cursor: pointer;
-    `;
+    locationButton.className = 'alerts-button';
     locationButton.onclick = () => {
         locateUser();
         closeBottomSheet();
     };
 
     const locationIcon = document.createElement('div');
+    locationIcon.className = 'alerts-icon';
     locationIcon.innerHTML = `
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
             <circle cx="12" cy="12" r="3"></circle>
         </svg>
     `;
-    locationIcon.style.marginRight = '15px';
 
-    const locationText = document.createElement('div');
-    locationText.innerHTML = `
-        <div style="font-size: 18px;">Ma position</div>
-        <div style="font-size: 14px; color: rgba(0,0,0,0.6);">Me localiser sur la carte</div>
-    `;
+    const locationContent = document.createElement('div');
+    locationContent.className = 'alerts-content';
+
+    const locationTitle = document.createElement('div');
+    locationTitle.className = 'alerts-title';
+    locationTitle.textContent = 'Ma position';
+
+    const locationDescription = document.createElement('div');
+    locationDescription.className = 'alerts-description';
+    locationDescription.textContent = 'Me localiser sur la carte';
+
+    locationContent.appendChild(locationTitle);
+    locationContent.appendChild(locationDescription);
 
     locationButton.appendChild(locationIcon);
-    locationButton.appendChild(locationText);
+    locationButton.appendChild(locationContent);
+    
+    // Hover effects
+    locationButton.onmouseover = () => {
+        locationButton.style.transform = 'scale(0.98)';
+        locationButton.style.opacity = '0.9';
+    };
+    locationButton.onmouseout = () => {
+        locationButton.style.transform = 'scale(1)';
+        locationButton.style.opacity = '1';
+    };
 
+    bottomSheet.appendChild(locationButton);
+
+    // Satellite Button - Recreated with original styling
     const satelliteButton = document.createElement('div');
-    satelliteButton.className = 'bottom-sheet-button';
-    satelliteButton.style.cssText = `
-        display: flex;
-        align-items: center;
-        padding: 15px;
-        margin: 10px;
-        background-color: rgba(0,0,0,0.05);
-        border-radius: 12px;
-        cursor: pointer;
-    `;
+    satelliteButton.className = 'alerts-button';
     satelliteButton.onclick = () => {
         toggleMapView();
         closeBottomSheet();
     };
 
     const satelliteIcon = document.createElement('div');
+    satelliteIcon.className = 'alerts-icon';
     satelliteIcon.innerHTML = `
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3.6 9l1.5 1.5M9 3.6L10.5 5M21 3l-9 9M18.4 15l1.5 1.5M15 18.4l1.5 1.5M3 21l9-9M14.5 9.5L19 5"/>
+            <path d="M3.6 9l1.5 1.5M9 3.6L10.5 5M21 3l-9 9M18.4 15l1.5 1.5M15 18.4l1.5 1.5M3 21l9-9"/>
             <circle cx="12" cy="12" r="3"/>
+            <path d="M14.5 9.5L19 5"/>
             <path d="M5 19l4.5-4.5"/>
         </svg>
     `;
-    satelliteIcon.style.marginRight = '15px';
 
-    const satelliteText = document.createElement('div');
-    satelliteText.innerHTML = `
-        <div style="font-size: 18px;">Vue carte</div>
-        <div style="font-size: 14px; color: rgba(0,0,0,0.6);">Changer le type de vue</div>
-    `;
+    const satelliteContent = document.createElement('div');
+    satelliteContent.className = 'alerts-content';
+
+    const satelliteTitle = document.createElement('div');
+    satelliteTitle.className = 'alerts-title';
+    satelliteTitle.textContent = isStandardView ? 'Actuellement en vue standard' : 'Actuellement en vue satellite';
+
+    const satelliteDescription = document.createElement('div');
+    satelliteDescription.className = 'alerts-description';
+    satelliteDescription.textContent = isStandardView 
+        ? 'Appuyez ici pour passer à la vue satellite' 
+        : 'Appuyez ici pour passer à la vue standard';
+
+    satelliteContent.appendChild(satelliteTitle);
+    satelliteContent.appendChild(satelliteDescription);
 
     satelliteButton.appendChild(satelliteIcon);
-    satelliteButton.appendChild(satelliteText);
+    satelliteButton.appendChild(satelliteContent);
+    
+    // Hover effects
+    satelliteButton.onmouseover = () => {
+        satelliteButton.style.transform = 'scale(0.98)';
+        satelliteButton.style.opacity = '0.9';
+    };
+    satelliteButton.onmouseout = () => {
+        satelliteButton.style.transform = 'scale(1)';
+        satelliteButton.style.opacity = '1';
+    };
 
-    const histovecButton = document.createElement('div');
-    histovecButton.className = 'bottom-sheet-button';
-    histovecButton.style.cssText = `
-        display: flex;
-        align-items: center;
-        padding: 15px;
-        margin: 10px;
-        background-color: rgba(0,0,0,0.05);
-        border-radius: 12px;
-        cursor: pointer;
-    `;
-    histovecButton.onclick = () => {
+    bottomSheet.appendChild(satelliteButton);
+
+    // Histovec Button - Recreated with original styling
+    const alertsButton = document.createElement('div');
+    alertsButton.className = 'alerts-button';
+    alertsButton.onclick = () => {
         showUpdatePopup("histovec.html");
         closeBottomSheet();
     };
 
-    const histovecIcon = document.createElement('div');
-    histovecIcon.innerHTML = `
+    const alertsIcon = document.createElement('div');
+    alertsIcon.className = 'alerts-icon';
+    alertsIcon.innerHTML = `
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="6" width="18" height="10" rx="2" />
             <circle cx="7" cy="16" r="2" />
@@ -4176,62 +4210,86 @@ function createBottomSheet() {
             <path d="M17 6v4" />
         </svg>
     `;
-    histovecIcon.style.marginRight = '15px';
 
-    const histovecText = document.createElement('div');
-    histovecText.innerHTML = `
-        <div style="font-size: 18px;">Histovec</div>
-        <div style="font-size: 14px; color: rgba(0,0,0,0.6);">Historique des véhicules</div>
-    `;
+    const alertsContent = document.createElement('div');
+    alertsContent.className = 'alerts-content';
 
-    histovecButton.appendChild(histovecIcon);
-    histovecButton.appendChild(histovecText);
+    const alertsTitle = document.createElement('div');
+    alertsTitle.className = 'alerts-title';
+    alertsTitle.textContent = 'Histovec';
 
-    bottomSheet.appendChild(transportStateContainer);
-    bottomSheet.appendChild(locationButton);
-    bottomSheet.appendChild(satelliteButton);
-    bottomSheet.appendChild(histovecButton);
+    const alertsDescription = document.createElement('div');
+    alertsDescription.className = 'alerts-description';
+    alertsDescription.textContent = 'Historique d\'affectations des véhicules';
 
+    alertsContent.appendChild(alertsTitle);
+    alertsContent.appendChild(alertsDescription);
+
+    alertsButton.appendChild(alertsIcon);
+    alertsButton.appendChild(alertsContent);
+    
+    // Hover effects
+    alertsButton.onmouseover = () => {
+        alertsButton.style.transform = 'scale(0.98)';
+        alertsButton.style.opacity = '0.9';
+    };
+    alertsButton.onmouseout = () => {
+        alertsButton.style.transform = 'scale(1)';
+        alertsButton.style.opacity = '1';
+    };
+
+    bottomSheet.appendChild(alertsButton);
+
+    // Drag to close functionality with sticky effect
     let startY, isDragging = false, initialTranslateY = 0;
     
     function startDrag(e) {
         isDragging = true;
         startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-        initialTranslateY = bottomSheet.getBoundingClientRect().top;
+        initialTranslateY = parseFloat(getComputedStyle(bottomSheet).transform.split(',')[5]);
         bottomSheet.style.transition = 'none';
     }
 
     function drag(e) {
         if (!isDragging) return;
-        e.preventDefault();
+        
         const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
         const deltaY = currentY - startY;
         
+        // Prevent default to stop scroll
+        e.preventDefault();
+        
+        // Only allow downward drag
         if (deltaY > 0) {
-            bottomSheet.style.transform = `translateY(${deltaY}px)`;
+            const translateY = initialTranslateY + deltaY;
+            bottomSheet.style.transform = `translateY(${translateY}px)`;
         }
     }
 
     function stopDrag(e) {
         if (!isDragging) return;
-        const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-        const deltaY = currentY - startY;
-        
-        bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1)';
-        
-        if (deltaY > 100) {
-            closeBottomSheet();
-        } else {
-            bottomSheet.style.transform = 'translateY(0)';
-        }
         
         isDragging = false;
+        bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1)';
+        
+        const currentTranslateY = parseFloat(getComputedStyle(bottomSheet).transform.split(',')[5]);
+        const screenHeight = window.innerHeight;
+        
+        // If dragged more than 1/3 of screen height, close
+        if (currentTranslateY > screenHeight / 3) {
+            closeBottomSheet();
+        } else {
+            // Snap back to original position
+            bottomSheet.style.transform = 'translateY(0)';
+        }
     }
 
+    // Mouse events
     bottomSheet.addEventListener('mousedown', startDrag);
-    document.addEventListener('mousemove', drag);
+    document.addEventListener('mousemove', drag, { passive: false });
     document.addEventListener('mouseup', stopDrag);
 
+    // Touch events
     bottomSheet.addEventListener('touchstart', startDrag, { passive: false });
     document.addEventListener('touchmove', drag, { passive: false });
     document.addEventListener('touchend', stopDrag, { passive: false });
@@ -4244,6 +4302,7 @@ function showBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
     
+    // Hide menu
     menu.classList.add('hidden');
     menu.addEventListener('transitionend', function onTransitionEnd(event) {
         if (event.target === menu) { 
@@ -4252,13 +4311,30 @@ function showBottomSheet() {
     });
     isMenuVisible = false;
 
+    // Show bottom sheet with animation
+    bottomSheet.style.opacity = '0';
+    bottomSheet.style.transform = 'translateY(100%)';
+    bottomSheet.style.display = 'block';
+    
+    // Trigger reflow
+    bottomSheet.offsetHeight;
+    
+    // Animate in
+    bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.4s ease-out';
     bottomSheet.style.transform = 'translateY(0)';
+    bottomSheet.style.opacity = '1';
 }
 
 function closeBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet');
     if (bottomSheet) {
         bottomSheet.style.transform = 'translateY(100%)';
+        bottomSheet.style.opacity = '0';
+        
+        // Hide after animation
+        setTimeout(() => {
+            bottomSheet.style.display = 'none';
+        }, 400);
     }
 }
 
