@@ -3815,25 +3815,36 @@ function updateMenu() {
 filterTipContainer.style.cssText = `
     display: flex;
     align-items: center;
-    margin: 15px;
+    margin: 5px;
     padding: 12px;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     backdrop-filter: blur(5px);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     cursor: pointer;
+    position: relative;
 `;
+
+if (localStorage.getItem('hideFilterTip') !== 'true') {
+    document.body.appendChild(filterTipContainer);
+}
 
 const filterTipIcon = document.createElement('div');
 filterTipIcon.innerHTML = `
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M14 6 C 12 6, 10 8, 10 10" stroke="white" stroke-width="1.5"/>
-        <rect x="4" y="14" width="20" height="4" rx="1" fill="rgba(255,255,255,0.3)"/>
-        <rect x="4" y="19" width="20" height="4" rx="1" fill="rgba(255,255,255,0.15)"/>
-        <path d="M6 6h16M6 8h16" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="14" cy="10" r="2.5" fill="white"/>
-        <path d="M13 3L15 3L14 5z" fill="white"/>
-    </svg>
+<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 6 Q14 2, 24 6" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M4 14 Q14 10, 24 14" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M4 22 Q14 18, 24 22" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+    
+    <circle cx="4" cy="6" r="2" fill="white"/>
+    <circle cx="24" cy="6" r="2" fill="white"/>
+    
+    <circle cx="4" cy="14" r="2" fill="white"/>
+    <circle cx="24" cy="14" r="2" fill="white"/>
+    
+    <circle cx="4" cy="22" r="2" fill="white"/>
+    <circle cx="24" cy="22" r="2" fill="white"/>
+</svg>
 `;
 filterTipIcon.style.marginRight = '12px';
 
@@ -3841,22 +3852,101 @@ const filterTipContent = document.createElement('div');
 filterTipContent.style.color = 'white';
 
 const filterTipTitle = document.createElement('div');
-filterTipTitle.textContent = 'Astuce : Filtrage rapide';
+filterTipTitle.textContent = 'Nouveau : filtres par lignes';
 filterTipTitle.style.fontSize = '16px';
 
 const filterTipDescription = document.createElement('div');
-filterTipDescription.textContent = 'Cliquez sur une section de ligne pour filtrer les bus';
+filterTipDescription.textContent = 'Cliquez sur une ou plusieurs lignes pour l\'afficher dans la carte.';
 filterTipDescription.style.fontSize = '12px';
 filterTipDescription.style.opacity = '0.7';
+
+const closeButton = document.createElement('div');
+closeButton.innerHTML = '&times;';
+closeButton.style.cssText = `
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    font-size: 18px;
+    color: white;
+    cursor: pointer;
+`;
+
+closeButton.addEventListener('click', () => {
+    filterTipContainer.style.display = 'none';
+    localStorage.setItem('hideFilterTip', 'true'); 
+});
 
 filterTipContent.appendChild(filterTipTitle);
 filterTipContent.appendChild(filterTipDescription);
 
 filterTipContainer.appendChild(filterTipIcon);
 filterTipContainer.appendChild(filterTipContent);
+filterTipContainer.appendChild(closeButton);
+
+const settingsTipContainer = document.createElement('div');
+settingsTipContainer.style.cssText = `
+    display: flex;
+    align-items: center;
+    margin: 5px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    position: relative;
+`;
+
+if (localStorage.getItem('hideSettingsTip') !== 'true') {
+    document.body.appendChild(settingsTipContainer);
+}
+
+const settingsTipIcon = document.createElement('div');
+settingsTipIcon.innerHTML = `
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="14" cy="14" r="10" stroke="white" stroke-width="1.5" fill="rgba(255,255,255,0.1)"/>
+        <path d="M9 14h10m-5-5v10" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+`;
+settingsTipIcon.style.marginRight = '12px';
+
+const settingsTipContent = document.createElement('div');
+settingsTipContent.style.color = 'white';
+
+const settingsTipTitle = document.createElement('div');
+settingsTipTitle.textContent = 'Nouveau : accès rapide aux réglages';
+settingsTipTitle.style.fontSize = '16px';
+
+const settingsTipDescription = document.createElement('div');
+settingsTipDescription.textContent = 'Désormais, faites glisser vers le bas la barre de navigation pour accéder aux options, ou sur le bouton "Réglages" sur PC.';
+settingsTipDescription.style.fontSize = '12px';
+settingsTipDescription.style.opacity = '0.7';
+
+const closeSettingsButton = document.createElement('div');
+closeSettingsButton.innerHTML = '&times;';
+closeSettingsButton.style.cssText = `
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    font-size: 18px;
+    color: white;
+    cursor: pointer;
+`;
+
+closeSettingsButton.addEventListener('click', () => {
+    settingsTipContainer.style.display = 'none';
+    localStorage.setItem('hideSettingsTip', 'true'); 
+});
+
+settingsTipContent.appendChild(settingsTipTitle);
+settingsTipContent.appendChild(settingsTipDescription);
+
+settingsTipContainer.appendChild(settingsTipIcon);
+settingsTipContainer.appendChild(settingsTipContent);
+settingsTipContainer.appendChild(closeSettingsButton);
 
 const firstMenuElement = menu.firstChild;
-menu.insertBefore(filterTipContainer, firstMenuElement.nextSibling);
+menu.insertBefore(filterTipContainer, settingsTipContainer, firstMenuElement.nextSibling);
 
 let isStandardView = localStorage.getItem('isStandardView') === 'true';
 
