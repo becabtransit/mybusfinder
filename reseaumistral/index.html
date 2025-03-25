@@ -1248,6 +1248,64 @@ shape.bounce-down {
     font-weight: bold;
 }
 
+.more-options-button {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    background: rgba(33, 33, 33, 0.85);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2),
+                0 0 0 1px rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    border: none;
+    outline: none;
+    padding: 0;
+}
+
+.more-options-button:hover {
+    transform: translateX(-50%) scale(1.05);
+    background: rgba(45, 45, 45, 0.9);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25),
+                0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.more-options-button:active {
+    transform: translateX(-50%) scale(0.95);
+}
+
+@media (max-width: 768px) {
+    .more-options-button {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+    }
+}
+
+@keyframes slideUpButton {
+    from {
+        transform: translate(-50%, 100%);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+.more-options-button.show {
+    animation: slideUpButton 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 
 
 
@@ -3848,16 +3906,19 @@ moreOptionsButton.style.cssText = `
     justify-content: center;
 `;
 
-const moreOptionsIcon = document.createElement('div');
-moreOptionsIcon.className = 'alerts-icon';
-moreOptionsIcon.innerHTML = `
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-        <circle cx="12" cy="12" r="1"/>
-        <circle cx="12" cy="6" r="1"/>
-        <circle cx="12" cy="18" r="1"/>
-    </svg>
-`;
-moreOptionsIcon.style.color = 'white';
+moreOptionsButton.className = 'more-options-button show';
+moreOptionsButton.onclick = showBottomSheet;
+moreOptionsButton.setAttribute('aria-label', 'Plus d\'options');
+
+moreOptionsButton.innerHTML = `
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M13 12C13 12.5523 12.5523 13 12 13C11.4477 13 11 12.5523 11 12C11 11.4477 11.4477 11 12 11C12.5523 11 13 11.4477 13 12Z" fill="white"/>
+    <path d="M13 7C13 7.55228 12.5523 8 12 8C11.4477 8 11 7.55228 11 7C11 6.44772 11.4477 6 12 6C12.5523 6 13 6.44772 13 7Z" fill="white"/>
+    <path d="M13 17C13 17.5523 12.5523 18 12 18C11.4477 18 11 17.5523 11 17C11 16.4477 11.4477 16 12 16C12.5523 16 13 16.4477 13 17Z" fill="white"/>
+    <circle cx="12" cy="12" r="11" stroke="white" stroke-width="1.5" stroke-opacity="0.3"/>
+</svg>`;
+
+menu.appendChild(moreOptionsButton);
 
 moreOptionsButton.appendChild(moreOptionsIcon);
 menu.appendChild(moreOptionsButton);
