@@ -1264,7 +1264,10 @@ shape.bounce-down {
     cursor: pointer;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
-    z-index: 1000;
+    z-index: 9999;
+    position: fixed;
+    margin-bottom: 20px;
+    pointer-events: auto;
 }
 
 .floating-button:hover {
@@ -3874,6 +3877,19 @@ satelliteButton.onclick = () => {
 };
 
 function createFloatingButton() {
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = `
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 9999;
+        pointer-events: none;
+        display: flex;
+        justify-content: center;
+        padding-bottom: 20px;
+    `;
+
     const button = document.createElement('button');
     button.className = 'floating-button';
     button.onclick = showBottomSheet;
@@ -3889,8 +3905,10 @@ function createFloatingButton() {
 
     button.appendChild(icon);
     button.appendChild(text);
+    buttonContainer.appendChild(button);
 
-    return button;
+    document.body.appendChild(buttonContainer);
+    return buttonContainer;
 }
 
 function toggleMapView() {
@@ -4378,11 +4396,11 @@ function showBottomSheet() {
     // Set state to open
     isBottomSheetOpen = true;
 
-    const floatingButton = document.querySelector('.floating-button');
-    if (floatingButton) {
-        floatingButton.style.opacity = '0';
+    const buttonContainer = document.querySelector('.floating-button').parentElement;
+    if (buttonContainer) {
+        buttonContainer.style.opacity = '0';
         setTimeout(() => {
-            floatingButton.style.display = 'none';
+            buttonContainer.style.display = 'none';
         }, 300);
     }
 }
@@ -4404,11 +4422,11 @@ function closeBottomSheet() {
             }
         });
         menubottom1.style.display = 'flex';
-        const floatingButton = document.querySelector('.floating-button');
-        if (floatingButton) {
-            floatingButton.style.display = 'flex';
+        const buttonContainer = document.querySelector('.floating-button').parentElement;
+        if (buttonContainer) {
+            buttonContainer.style.display = 'flex';
             setTimeout(() => {
-                floatingButton.style.opacity = '1';
+                buttonContainer.style.opacity = '1';
             }, 10);
         }
         setTimeout(() => {
@@ -4752,7 +4770,7 @@ function getTextColor(backgroundColor) {
         menu.appendChild(lineSection);
         
     });
-    menu.appendChild(createFloatingButton());
+    createFloatingButton();
     
 }
 
