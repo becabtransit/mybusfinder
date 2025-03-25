@@ -4169,24 +4169,25 @@ function stopDrag(e) {
     
     bottomSheet.style.transition = 'transform 0.3s cubic-bezier(0.32, 0.64, 0.45, 1)';
     
-    // Calculate the nearest snap point
     const percentageMoved = (currentTranslate / sheetHeight) * 100;
     
-    if (deltaY > 0) { // Dragging down
+    if (deltaY > 0) { 
         if (percentageMoved > 50) {
             closeBottomSheet();
+            isBottomSheetOpen = false;
         } else if (percentageMoved > 30) {
             bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
         } else {
             bottomSheet.style.transform = 'translateY(0)';
         }
-    } else { // Dragging up
+    } else { 
         if (percentageMoved < 30) {
             bottomSheet.style.transform = 'translateY(0)';
         } else if (percentageMoved < 70) {
             bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
         } else {
             closeBottomSheet();
+            isBottomSheetOpen = false;
         }
     }
 }
@@ -4255,6 +4256,8 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
     const handleAction = () => {
         onClickHandler();
         closeBottomSheet();
+        isBottomSheetOpen = false;
+
     };
 
     let touchStartY = 0;
@@ -4265,6 +4268,7 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
         onClickHandler();
         setTimeout(() => {
             closeBottomSheet();
+            isBottomSheetOpen = false;
         }, 50);
     };
 
@@ -4377,15 +4381,11 @@ function closeBottomSheet() {
         
         bottomSheet.style.transform = 'translateY(100%)';
         bottomSheet.style.opacity = '0';
-        isBottomSheetOpen = false;
-
         
         bottomSheet.addEventListener('transitionend', function onTransitionEnd(e) {
             if (e.propertyName === 'transform') {
                 bottomSheet.style.display = 'none';
                 bottomSheet.removeEventListener('transitionend', onTransitionEnd);
-                isBottomSheetOpen = false;
-
             }
         });
         menubottom1.style.display = 'flex';
@@ -4397,8 +4397,7 @@ function closeBottomSheet() {
             filtre.classList.remove('slide-upc');
             filtre.classList.add('slide-downc');
             filtre.style.display = 'flex';
-            isBottomSheetOpen = false;
-
+            
             }
         }, 10);
 
