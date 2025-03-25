@@ -4010,90 +4010,231 @@ function createBottomSheet() {
     `;
     bottomSheet.appendChild(dragHandle);
 
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const totalMinutes = currentHour * 60 + currentMinutes;
+
+    let transportState = "normal";
+    if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
+        transportState = "presque saturé"; 
+    } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
+        transportState = "saturé";
+    }
+
     const transportStateContainer = document.createElement('div');
-    transportStateContainer.innerHTML = document.querySelector('.transport-state-container')?.innerHTML || '';
-    transportStateContainer.classList.add('bottom-sheet-item');
-    transportStateContainer.style.margin = '10px';
+    transportStateContainer.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 10px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        cursor: pointer;
+    `;
+
+    const transportImage = document.createElement('img');
+    transportImage.alt = 'Affluence transports';
+    transportImage.style.width = '50px';
+    transportImage.style.height = '36px';
+    transportImage.style.marginRight = '10px';
+
+    if (transportState === "normal") {
+        transportImage.src = 'src/1of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.success('Ouf ! Aucune affluence notable. Bon voyage !');
+        };
+    } else if (transportState === "presque saturé") {
+        transportImage.src = 'src/2of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.warning('Affluence modérée. Les transports se remplissent.');
+        };
+    } else if (transportState === "saturé") {
+        transportImage.src = 'src/3of3body.png';
+        transportStateContainer.onclick = () => {
+            toastBottomRight.error('Forte affluence. Privilégiez les lignes secondaires.');
+        };
+    }
+
+    const transportStateTextContainer = document.createElement('div');
+    transportStateTextContainer.style.textAlign = 'left';
+
+    const transportStateLabel = document.createElement('div');
+    transportStateLabel.textContent = "Affluence transports";
+    transportStateLabel.style.fontSize = '14px';
+    transportStateLabel.style.marginTop = '7px';
+    transportStateLabel.style.color = '#000';
+
+    const transportStateText = document.createElement('div');
+    transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
+    transportStateText.style.fontSize = '22px';
+    transportStateText.style.fontWeight = 'normal';
+    transportStateText.style.color = '#000';
+
+    transportStateTextContainer.appendChild(transportStateLabel);
+    transportStateTextContainer.appendChild(transportStateText);
+
+    transportStateContainer.appendChild(transportImage);
+    transportStateContainer.appendChild(transportStateTextContainer);
 
     const locationButton = document.createElement('div');
-    locationButton.innerHTML = document.querySelector('.alerts-button[onclick*="locateUser"]')?.innerHTML || '';
-    locationButton.classList.add('bottom-sheet-item', 'alerts-button');
-    locationButton.style.margin = '10px';
+    locationButton.className = 'bottom-sheet-button';
+    locationButton.style.cssText = `
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        margin: 10px;
+        background-color: rgba(0,0,0,0.05);
+        border-radius: 12px;
+        cursor: pointer;
+    `;
     locationButton.onclick = () => {
         locateUser();
         closeBottomSheet();
     };
 
+    const locationIcon = document.createElement('div');
+    locationIcon.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+    `;
+    locationIcon.style.marginRight = '15px';
+
+    const locationText = document.createElement('div');
+    locationText.innerHTML = `
+        <div style="font-size: 18px;">Ma position</div>
+        <div style="font-size: 14px; color: rgba(0,0,0,0.6);">Me localiser sur la carte</div>
+    `;
+
+    locationButton.appendChild(locationIcon);
+    locationButton.appendChild(locationText);
+
     const satelliteButton = document.createElement('div');
-    satelliteButton.innerHTML = document.querySelector('.alerts-button[onclick*="toggleMapView"]')?.innerHTML || '';
-    satelliteButton.classList.add('bottom-sheet-item', 'alerts-button');
-    satelliteButton.style.margin = '10px';
+    satelliteButton.className = 'bottom-sheet-button';
+    satelliteButton.style.cssText = `
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        margin: 10px;
+        background-color: rgba(0,0,0,0.05);
+        border-radius: 12px;
+        cursor: pointer;
+    `;
     satelliteButton.onclick = () => {
         toggleMapView();
         closeBottomSheet();
     };
 
-    const alertsButton = document.createElement('div');
-    alertsButton.innerHTML = document.querySelector('.alerts-button[onclick*="showUpdatePopup"]')?.innerHTML || '';
-    alertsButton.classList.add('bottom-sheet-item', 'alerts-button');
-    alertsButton.style.margin = '10px';
-    alertsButton.onclick = () => {
+    const satelliteIcon = document.createElement('div');
+    satelliteIcon.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3.6 9l1.5 1.5M9 3.6L10.5 5M21 3l-9 9M18.4 15l1.5 1.5M15 18.4l1.5 1.5M3 21l9-9M14.5 9.5L19 5"/>
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M5 19l4.5-4.5"/>
+        </svg>
+    `;
+    satelliteIcon.style.marginRight = '15px';
+
+    const satelliteText = document.createElement('div');
+    satelliteText.innerHTML = `
+        <div style="font-size: 18px;">Vue carte</div>
+        <div style="font-size: 14px; color: rgba(0,0,0,0.6);">Changer le type de vue</div>
+    `;
+
+    satelliteButton.appendChild(satelliteIcon);
+    satelliteButton.appendChild(satelliteText);
+
+    const histovecButton = document.createElement('div');
+    histovecButton.className = 'bottom-sheet-button';
+    histovecButton.style.cssText = `
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        margin: 10px;
+        background-color: rgba(0,0,0,0.05);
+        border-radius: 12px;
+        cursor: pointer;
+    `;
+    histovecButton.onclick = () => {
         showUpdatePopup("histovec.html");
         closeBottomSheet();
     };
 
+    const histovecIcon = document.createElement('div');
+    histovecIcon.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="6" width="18" height="10" rx="2" />
+            <circle cx="7" cy="16" r="2" />
+            <circle cx="17" cy="16" r="2" />
+            <path d="M3 10h18" />
+            <path d="M7 6v4" />
+            <path d="M17 6v4" />
+        </svg>
+    `;
+    histovecIcon.style.marginRight = '15px';
+
+    const histovecText = document.createElement('div');
+    histovecText.innerHTML = `
+        <div style="font-size: 18px;">Histovec</div>
+        <div style="font-size: 14px; color: rgba(0,0,0,0.6);">Historique des véhicules</div>
+    `;
+
+    histovecButton.appendChild(histovecIcon);
+    histovecButton.appendChild(histovecText);
+
     bottomSheet.appendChild(transportStateContainer);
     bottomSheet.appendChild(locationButton);
     bottomSheet.appendChild(satelliteButton);
-    bottomSheet.appendChild(alertsButton);
+    bottomSheet.appendChild(histovecButton);
 
-    let startY, isDragging = false;
+    let startY, isDragging = false, initialTranslateY = 0;
     
-    dragHandle.addEventListener('mousedown', startDrag);
-    document.addEventListener('mousemove', drag);
-    document.addEventListener('mouseup', stopDrag);
-
-    dragHandle.addEventListener('touchstart', startDragTouch, { passive: false });
-    document.addEventListener('touchmove', dragTouch, { passive: false });
-    document.addEventListener('touchend', stopDragTouch);
-
     function startDrag(e) {
         isDragging = true;
-        startY = e.clientY;
+        startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        initialTranslateY = bottomSheet.getBoundingClientRect().top;
+        bottomSheet.style.transition = 'none';
     }
 
     function drag(e) {
         if (!isDragging) return;
-        const deltaY = e.clientY - startY;
-        if (deltaY > 50) {
-            closeBottomSheet();
-            isDragging = false;
+        e.preventDefault();
+        const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        const deltaY = currentY - startY;
+        
+        if (deltaY > 0) {
+            bottomSheet.style.transform = `translateY(${deltaY}px)`;
         }
     }
 
-    function stopDrag() {
-        isDragging = false;
-    }
-
-    function startDragTouch(e) {
-        e.preventDefault();
-        isDragging = true;
-        startY = e.touches[0].clientY;
-    }
-
-    function dragTouch(e) {
-        e.preventDefault();
+    function stopDrag(e) {
         if (!isDragging) return;
-        const deltaY = e.touches[0].clientY - startY;
-        if (deltaY > 50) {
+        const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        const deltaY = currentY - startY;
+        
+        bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1)';
+        
+        if (deltaY > 100) {
             closeBottomSheet();
-            isDragging = false;
+        } else {
+            bottomSheet.style.transform = 'translateY(0)';
         }
-    }
-
-    function stopDragTouch() {
+        
         isDragging = false;
     }
+
+    bottomSheet.addEventListener('mousedown', startDrag);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', stopDrag);
+
+    bottomSheet.addEventListener('touchstart', startDrag, { passive: false });
+    document.addEventListener('touchmove', drag, { passive: false });
+    document.addEventListener('touchend', stopDrag, { passive: false });
 
     document.body.appendChild(bottomSheet);
     return bottomSheet;
