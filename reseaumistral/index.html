@@ -1797,48 +1797,26 @@ showLoadingScreen();
 
 class LineSectionAnimationManager {
     constructor(options = {}) {
-        // Configuration par défaut
         this.defaultOptions = {
             selector: '.linesection',
-            threshold: 0.1, // 10% de l'élément visible
-            rootMargin: '0px 0px -50px 0px', // Décalage pour un déclenchement un peu avant
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px',
             animationClass: 'animate-scroll',
+            animatedClass: 'section-animated',
             debug: false
         };
 
-        // Fusionner les options personnalisées avec les défauts
         this.options = { ...this.defaultOptions, ...options };
-
-        // Initialiser l'Intersection Observer
+        this.observedElements = new Set();
         this.initObserver();
     }
 
     initObserver() {
-        // Configuration de l'Intersection Observer
         this.observer = new IntersectionObserver(
-            (entries, observer) => {
+            (entries) => {
                 entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        // Ajouter la classe d'animation sans interférer avec les autres styles
-                        entry.target.classList.add(this.options.animationClass);
-
-                        // Animation personnalisée qui préserve vos interactions existantes
-                        entry.target.style.opacity = '0';
-                        entry.target.style.transform = 'scale(0.9)';
-                        
-                        // Transition douce qui s'intègre à vos styles existants
-                        entry.target.style.transition = 'opacity 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
-                        
-                        // Petit délai pour s'assurer que la transition soit prise en compte
-                        requestAnimationFrame(() => {
-                            entry.target.style.opacity = '1';
-                            entry.target.style.transform = 'scale(1)';
-                        });
-
-                        // Log de débogage si activé
-                        if (this.options.debug) {
-                            console.log('LineSection animé:', entry.target);
-                        }
+                    if (entry.isIntersecting && !entry.target.classList.contains(this.options.animatedClass)) {
+                        this.animateElement(entry.target);
                     }
                 });
             }, 
@@ -1847,33 +1825,60 @@ class LineSectionAnimationManager {
                 rootMargin: this.options.rootMargin
             }
         );
-
-        // Observer tous les éléments .linesection
-        document.querySelectorAll(this.options.selector).forEach(element => {
-            this.observer.observe(element);
-        });
     }
 
-    // Méthode pour ajouter de nouveaux éléments dynamiquement
-    addElements(newElements) {
-        newElements.forEach(element => {
-            this.observer.observe(element);
+    animateElement(element) {
+        if (element.classList.contains(this.options.animatedClass)) return;
+
+        element.classList.add(this.options.animationClass);
+        element.classList.add(this.options.animatedClass);
+        
+        element.style.opacity = '0';
+        element.style.transform = 'scale(0.9)';
+        
+        element.style.transition = 'opacity 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
+        
+        requestAnimationFrame(() => {
+            element.style.opacity = '1';
+            element.style.transform = 'scale(1)';
         });
+
+        if (this.options.debug) {
+            console.log('LineSection animé:', element);
+        }
     }
 
-    // Méthode pour arrêter complètement l'observation
-    disconnect() {
+    observeElements() {
         this.observer.disconnect();
+
+        document.querySelectorAll(this.options.selector).forEach(element => {
+            if (!element.classList.contains(this.options.animatedClass)) {
+                this.observer.observe(element);
+            }
+        });
+    }
+
+    reset() {
+        document.querySelectorAll(`.${this.options.animatedClass}`).forEach(element => {
+            element.classList.remove(this.options.animatedClass);
+            element.classList.remove(this.options.animationClass);
+            element.style.opacity = '';
+            element.style.transform = '';
+            element.style.transition = '';
+        });
+        this.observeElements();
     }
 }
 
-// Exemple d'initialisation après votre fonction updateMenu()
-function initLineSectionAnimations() {
-    // Crée le gestionnaire d'animations après que le menu soit mis à jour
-    window.lineSectionAnimations = new LineSectionAnimationManager({
-        debug: false // Mettez à true pour des logs de débogage
+let lineSectionAnimations = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('scroll', () => {
+        if (lineSectionAnimations) {
+            lineSectionAnimations.observeElements();
+        }
     });
-}
+});
 
 
 let data;
@@ -5024,7 +5029,14 @@ function getTextColor(backgroundColor) {
 
         menu.appendChild(lineSection);
     });
-    initLineSectionAnimations();
+    if (!lineSectionAnimations) {
+        lineSectionAnimations = new LineSectionAnimationManager({
+            debug: false
+        });
+    } else {
+        lineSectionAnimations.reset();
+    }
+
 }
 
 const menubottom1 = document.getElementById('menubtm');
