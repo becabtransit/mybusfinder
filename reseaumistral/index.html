@@ -1274,14 +1274,6 @@ shape.bounce-down {
     }
 }
 
-.linesection {
-     opacity: 0;
-     transform: scale(0.5);
- }
-.linesection.animate {
-     opacity: 1;
-     transform: scale(1);
-}
 
 
     </style>
@@ -1794,90 +1786,6 @@ function hideLoadingScreen() {
 document.addEventListener('DOMContentLoaded', initializeApp);
 const doc = document;
 showLoadingScreen();
-
-class LineSectionAnimationManager {
-    constructor(options = {}) {
-        this.defaultOptions = {
-            selector: '.linesection',
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px',
-            animationClass: 'animate-scroll',
-            animatedClass: 'section-animated',
-            debug: false
-        };
-
-        this.options = { ...this.defaultOptions, ...options };
-        this.observedElements = new Set();
-        this.initObserver();
-    }
-
-    initObserver() {
-        this.observer = new IntersectionObserver(
-            (entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting && !entry.target.classList.contains(this.options.animatedClass)) {
-                        this.animateElement(entry.target);
-                    }
-                });
-            }, 
-            {
-                threshold: this.options.threshold,
-                rootMargin: this.options.rootMargin
-            }
-        );
-    }
-
-    animateElement(element) {
-        if (element.classList.contains(this.options.animatedClass)) return;
-
-        element.classList.add(this.options.animationClass);
-        element.classList.add(this.options.animatedClass);
-        
-        element.style.opacity = '0';
-        element.style.transform = 'scale(0.9)';
-        
-        element.style.transition = 'opacity 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
-        
-        requestAnimationFrame(() => {
-            element.style.opacity = '1';
-            element.style.transform = 'scale(1)';
-        });
-
-        if (this.options.debug) {
-            console.log('LineSection animé:', element);
-        }
-    }
-
-    observeElements() {
-        this.observer.disconnect();
-
-        document.querySelectorAll(this.options.selector).forEach(element => {
-            if (!element.classList.contains(this.options.animatedClass)) {
-                this.observer.observe(element);
-            }
-        });
-    }
-
-    reset() {
-        document.querySelectorAll(`.${this.options.animatedClass}`).forEach(element => {
-            element.classList.remove(this.options.animatedClass);
-            element.classList.remove(this.options.animationClass);
-            element.style.opacity = '';
-            element.style.transform = '';
-            element.style.transition = '';
-        });
-        this.observeElements();
-    }
-}
-
-
-document.addEventListener('DOMContentLoaded', () => {
-    window.addEventListener('scroll', () => {
-        if (lineSectionAnimations) {
-            lineSectionAnimations.observeElements();
-        }
-    });
-});
 
 
 let data;
@@ -5028,15 +4936,6 @@ function getTextColor(backgroundColor) {
 
         menu.appendChild(lineSection);
     });
-    let lineSectionAnimations = null;
-    if (!lineSectionAnimations) {
-        lineSectionAnimations = new LineSectionAnimationManager({
-            debug: false
-        });
-    } else {
-        lineSectionAnimations.reset();
-    }
-
 }
 
 const menubottom1 = document.getElementById('menubtm');
