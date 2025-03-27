@@ -1446,7 +1446,8 @@ shape.bounce-down {
 </div>
   
 
- <script src="src/js/toastjs.js"></script>       
+ <script src="src/js/toastjs.js"></script>  
+ <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>     
  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5815761294049475"
      crossorigin="anonymous"></script>
 
@@ -1546,6 +1547,30 @@ async function initMap() {
     });
 
     resetRotationBtn.addEventListener('click', resetRotation);
+
+    function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
+        if (isMobileDevice()) {
+            var mapElement = document.getElementById('map');
+            var hammertime = new Hammer(mapElement);
+
+            hammertime.get('rotate').set({ enable: true });
+
+            var initialRotation = 0;
+            var currentRotation = 0;
+
+            hammertime.on('rotatestart', function(ev) {
+                initialRotation = currentRotation;
+            });
+
+            hammertime.on('rotate', function(ev) {
+                currentRotation = initialRotation + ev.rotation;
+                
+                mapInstance.setBearing(currentRotation);
+            });
+        }
 
     mapInstance.on('moveend', function() {
         if (isSunOrientationVisible) {
