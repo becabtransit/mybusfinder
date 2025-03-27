@@ -287,7 +287,12 @@ visibility: hidden;
             animation: jspcommentlappelercettekeyframe 0.1s linear forwards;
         }
 
-
+        .linesection {
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+        }
 
         @keyframes jspcommentlappelercettekeyframe {
             to {
@@ -1269,25 +1274,13 @@ shape.bounce-down {
     }
 }
 
-@keyframes appear{
-    from{
-        opacity: 0;
-        scale: 0.5;
-    }
-    to{
-        opacity: 1;
-        scale: 1;
-    }
-}
-
 .linesection {
-    cursor: pointer;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-    animation: appear linear;
-    animation-timeline: menuright();
-    animation-range: entry 0% cover 40%;
+     opacity: 0;
+     transform: scale(0.5);
+ }
+.linesection.animate {
+     opacity: 1;
+     transform: scale(1);
 }
 
 
@@ -1345,7 +1338,7 @@ shape.bounce-down {
     <div id="map"></div>
 
 
-    <div id="menu" class="menuright"></div>
+    <div id="menu"></div>
     <div id="update-popup" class="update-popup">
         <div class="popup-content">
             <button id="close-popup" class="close-btn">
@@ -1801,6 +1794,21 @@ function hideLoadingScreen() {
 document.addEventListener('DOMContentLoaded', initializeApp);
 const doc = document;
 showLoadingScreen();
+
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.classList.add('animate');
+            observer.unobserve(entry.target);
+        }
+    });
+}, {
+    threshold: 0.1 
+});
+
+document.querySelectorAll('.linesection').forEach(element => {
+    observer.observe(element);
+});
 
 
 let data;
