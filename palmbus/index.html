@@ -13,9 +13,8 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
-    <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
     <meta name="google-adsense-account" content="ca-pub-5815761294049475">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
         <style>
@@ -1118,10 +1117,6 @@ shape.bounce-down {
   background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="rgb(252, 132, 40)" d="M445 4 29 195c-48 23-32 93 19 93h176v176c0 51 70 67 93 19L508 67c16-38-25-79-63-63z"/></svg>');
 }
 
-.leaflet-control-rotate {
-    display: none;
-}
-
 .leaflet-touch .leaflet-bar .leaflet-locate-text-active {
   width: 100%;
   max-width: 200px;
@@ -1330,41 +1325,6 @@ shape.bounce-down {
             cursor: pointer;
         }
 
-        #resetRotationBtn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 56px;
-            height: 56px;
-            background-color: #3498db;
-            border-radius: 50%;
-            border: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            cursor: pointer;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-            transform: translateX(150%);
-            opacity: 0;
-        }
-        #resetRotationBtn.visible {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        #resetRotationBtn:hover {
-            background-color: #2980b9;
-            box-shadow: 0 6px 8px rgba(0,0,0,0.2);
-        }
-        #resetRotationBtn svg {
-            width: 24px;
-            height: 24px;
-            fill: white;
-        }
-
-        
-
     </style>
 
 </head>
@@ -1417,11 +1377,6 @@ shape.bounce-down {
 
 
     <div id="map"></div>
-    <button id="resetRotationBtn">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-            <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-        </svg>
-    </button>
     <svg id="sun-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
 
 
@@ -1453,7 +1408,7 @@ shape.bounce-down {
 </div>
   
 
- <script src="src/js/toastjs.js"></script>  
+ <script src="src/js/toastjs.js"></script>       
  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5815761294049475"
      crossorigin="anonymous"></script>
 
@@ -1530,48 +1485,12 @@ async function initMap() {
     }
     
     const mapInstance = L.map('map', {
-        zoomControl: false,
-        rotate: true, 
-        rotateControl: {
-            closeOnZeroBearing: true
-        },
-        touchRotate: true,  
-        touchGestures: true  
-        }).setView(defaultCoords, defaultZoom);
+        zoomControl: false 
+    }).setView(defaultCoords, defaultZoom);
     
     L.popup({
         closeButton: false
     });
-
-    const resetRotationBtn = document.getElementById('resetRotationBtn');
-
-    function resetRotation() {
-        mapInstance.setBearing(0); 
-        if (map.options.rotateControl && map.options.rotateControl.closeOnZeroBearing) {
-            resetRotationBtn.classList.remove('visible');
-        }
-    }
-
-    mapInstance.on('move', function() {
-        if (isSunOrientationVisible) {
-            updateSunOrientation();
-        }
-    });
-
-
-    mapInstance.on('rotate', function() {
-        const currentBearing = map.getBearing(); 
-        if (isSunOrientationVisible) {
-            updateSunOrientation();
-        }
-        if (Math.abs(currentBearing) > 5) {
-            resetRotationBtn.classList.add('visible');
-        } else {
-            resetRotationBtn.classList.remove('visible');
-        }
-    });
-
-    resetRotationBtn.addEventListener('click', resetRotation);    
 
     mapInstance.on('moveend', function() {
         if (isSunOrientationVisible) {
@@ -1720,107 +1639,105 @@ function locateUser() {
 })();
 
 const sunOverlay = document.getElementById('sun-overlay');
-let isSunOrientationVisible = false; 
+    let isSunOrientationVisible = false; 
 
-function updateSunOrientation(date = new Date()) {
-    sunOverlay.innerHTML = '';
+    function updateSunOrientation(date = new Date()) {
+        sunOverlay.innerHTML = '';
 
-    const center = map.getCenter();
-    const centerLat = center.lat;
-    const centerLon = center.lng;
-    const mapBearing = map.getBearing(); // Obtenir l'angle de rotation actuel de la carte
+        const center = map.getCenter();
+        const centerLat = center.lat;
+        const centerLon = center.lng;
 
-    const sunTimes = SunCalc.getTimes(date, centerLat, centerLon);
-    const sunrise = sunTimes.sunrise;
-    const sunset = sunTimes.sunset;
+        const sunTimes = SunCalc.getTimes(date, centerLat, centerLon);
+        const sunrise = sunTimes.sunrise;
+        const sunset = sunTimes.sunset;
 
-    const mapSize = map.getSize();
-    const centerPoint = {
-        x: mapSize.x / 2,
-        y: mapSize.y / 2
-    };
+        const mapSize = map.getSize();
+        const centerPoint = {
+            x: mapSize.x / 2,
+            y: mapSize.y / 2
+        };
 
-    const currentTime = new Date(sunrise);
-    const radius = Math.min(mapSize.x, mapSize.y) * 0.4; 
+        const currentTime = new Date(sunrise);
+        const radius = Math.min(mapSize.x, mapSize.y) * 0.4; 
 
-    while (currentTime <= sunset) {
-        const sunPosition = SunCalc.getPosition(currentTime, centerLat, centerLon);
+        while (currentTime <= sunset) {
+            const sunPosition = SunCalc.getPosition(currentTime, centerLat, centerLon);
+            
+            const azimuthDegrees = sunPosition.azimuth * (180 / Math.PI);
+            const angleRad = (azimuthDegrees + 90) * (Math.PI / 180); 
+
+            const endX = centerPoint.x + radius * Math.cos(angleRad);
+            const endY = centerPoint.y + radius * Math.sin(angleRad);
+
+            const hourColor = getColorForTime();
+
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute('x1', centerPoint.x);
+            line.setAttribute('y1', centerPoint.y);
+            line.setAttribute('x2', endX);
+            line.setAttribute('y2', endY);
+            line.setAttribute('stroke', hourColor);
+            line.setAttribute('stroke-width', '2');
+            line.classList.add('sun-line');
+            sunOverlay.appendChild(line);
+
+            const hourCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            hourCircle.setAttribute('cx', endX);
+            hourCircle.setAttribute('cy', endY);
+            hourCircle.setAttribute('r', '25');
+            hourCircle.setAttribute('fill', hourColor);
+
+            const hourText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            hourText.setAttribute('x', endX);
+            hourText.setAttribute('y', endY);
+            hourText.setAttribute('text-anchor', 'middle');
+            hourText.setAttribute('dy', '.3em');
+            hourText.setAttribute('fill', 'white');
+            hourText.setAttribute('font-size', '18');
+            hourText.textContent = currentTime.getHours();
+
+            sunOverlay.appendChild(hourCircle);
+            sunOverlay.appendChild(hourText);
+
+            currentTime.setHours(currentTime.getHours() + 1);
+        }
+
+        const now = new Date();
+        if (now >= sunrise && now <= sunset) {
+            const nowSunPosition = SunCalc.getPosition(now, centerLat, centerLon);
+            const nowAzimuthDegrees = nowSunPosition.azimuth * (180 / Math.PI);
+            const nowAngleRad = (nowAzimuthDegrees + 90) * (Math.PI / 180); 
+
+            const nowEndX = centerPoint.x + radius * Math.cos(nowAngleRad);
+            const nowEndY = centerPoint.y + radius * Math.sin(nowAngleRad);
+
+            const nowLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            nowLine.setAttribute('x1', centerPoint.x);
+            nowLine.setAttribute('y1', centerPoint.y);
+            nowLine.setAttribute('x2', nowEndX);
+            nowLine.setAttribute('y2', nowEndY);
+            nowLine.setAttribute('stroke', 'black');
+            nowLine.setAttribute('stroke-width', '4');
+            sunOverlay.appendChild(nowLine);
+        }
+    }
+
+    function getColorForTime() {
+        return 'black'; 
+    }
+
+    function toggleSunOrientation() {
+        isSunOrientationVisible = !isSunOrientationVisible;
         
-        // Ajuster l'angle en tenant compte de la rotation de la carte
-        const azimuthDegrees = sunPosition.azimuth * (180 / Math.PI);
-        const angleRad = ((azimuthDegrees + 90 - mapBearing) * Math.PI / 180); // Soustraire mapBearing
-
-        const endX = centerPoint.x + radius * Math.cos(angleRad);
-        const endY = centerPoint.y + radius * Math.sin(angleRad);
-
-        const hourColor = getColorForTime();
-
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute('x1', centerPoint.x);
-        line.setAttribute('y1', centerPoint.y);
-        line.setAttribute('x2', endX);
-        line.setAttribute('y2', endY);
-        line.setAttribute('stroke', hourColor);
-        line.setAttribute('stroke-width', '2');
-        line.classList.add('sun-line');
-        sunOverlay.appendChild(line);
-
-        const hourCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        hourCircle.setAttribute('cx', endX);
-        hourCircle.setAttribute('cy', endY);
-        hourCircle.setAttribute('r', '25');
-        hourCircle.setAttribute('fill', hourColor);
-
-        const hourText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        hourText.setAttribute('x', endX);
-        hourText.setAttribute('y', endY);
-        hourText.setAttribute('text-anchor', 'middle');
-        hourText.setAttribute('dy', '.3em');
-        hourText.setAttribute('fill', 'white');
-        hourText.setAttribute('font-size', '18');
-        hourText.textContent = currentTime.getHours();
-
-        sunOverlay.appendChild(hourCircle);
-        sunOverlay.appendChild(hourText);
-
-        currentTime.setHours(currentTime.getHours() + 1);
+        if (isSunOrientationVisible) {
+            sunOverlay.style.opacity = 1; 
+            updateSunOrientation();
+        } else {
+            sunOverlay.style.opacity = 0; 
+            setTimeout(() => sunOverlay.innerHTML = '', 500); 
+        }
     }
-
-    const now = new Date();
-    if (now >= sunrise && now <= sunset) {
-        const nowSunPosition = SunCalc.getPosition(now, centerLat, centerLon);
-        const nowAzimuthDegrees = nowSunPosition.azimuth * (180 / Math.PI);
-        const nowAngleRad = ((nowAzimuthDegrees + 90 - mapBearing) * Math.PI / 180); // Soustraire mapBearing
-
-        const nowEndX = centerPoint.x + radius * Math.cos(nowAngleRad);
-        const nowEndY = centerPoint.y + radius * Math.sin(nowAngleRad);
-
-        const nowLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        nowLine.setAttribute('x1', centerPoint.x);
-        nowLine.setAttribute('y1', centerPoint.y);
-        nowLine.setAttribute('x2', nowEndX);
-        nowLine.setAttribute('y2', nowEndY);
-        nowLine.setAttribute('stroke', 'black');
-        nowLine.setAttribute('stroke-width', '4');
-        sunOverlay.appendChild(nowLine);
-    }
-}
-
-function getColorForTime() {
-    return 'black'; 
-}
-
-function toggleSunOrientation() {
-    isSunOrientationVisible = !isSunOrientationVisible;
-    
-    if (isSunOrientationVisible) {
-        sunOverlay.style.opacity = 1; 
-        updateSunOrientation();
-    } else {
-        sunOverlay.style.opacity = 0; 
-        setTimeout(() => sunOverlay.innerHTML = '', 500); 
-    }
-}
 
 
 
