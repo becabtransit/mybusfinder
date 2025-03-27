@@ -1324,19 +1324,20 @@ shape.bounce-down {
             border: 1px solid #ccc;
             cursor: pointer;
         }
+        
         .first-visit-tooltip {
         position: fixed;
-        bottom: 80px; 
+        bottom: 80px;
         left: 50%;
         transform: translateX(-50%);
         background-color: rgba(15, 5, 107, 0.8);
         color: white;
-        padding: 10px 20px;
+        padding: 10px 15px;
         border-radius: 15px;
         z-index: 10001;
         display: flex;
         align-items: center;
-        justify-content: center;
+        gap: 10px;
         opacity: 0;
         visibility: hidden;
         transition: opacity 0.3s, visibility 0.3s;
@@ -1349,15 +1350,9 @@ shape.bounce-down {
         visibility: visible;
     }
 
-    .first-visit-tooltip .tooltip-content {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .first-visit-tooltip .bounce-arrow {
-        width: 40px;
-        height: 40px;
+    .first-visit-tooltip .up-arrow {
+        width: 24px;
+        height: 24px;
         animation: bounce 1s infinite;
     }
 
@@ -1384,12 +1379,11 @@ shape.bounce-down {
 </div>
 
 <div id="first-visit-tooltip" class="first-visit-tooltip">
-    <div class="tooltip-content">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="bounce-arrow">
-            <path d="M7 10l5 5 5-5" stroke="white" stroke-width="2" fill="none"/>
-        </svg>
-        <p>Glissez vers le haut pour afficher les paramètres</p>
-    </div>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="up-arrow">
+        <path d="M12 19V5l-7 7" stroke="white" stroke-width="2" fill="none"/>
+        <path d="M12 19V5l7 7" stroke="white" stroke-width="2" fill="none"/>
+    </svg>
+    <span>Glissez vers le haut pour les paramètres</span>
 </div>
  <div class="menubottom">
         <ul id="menubtm" class="menubottom-ul">
@@ -1461,29 +1455,38 @@ shape.bounce-down {
      crossorigin="anonymous"></script>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+ document.addEventListener('DOMContentLoaded', function() {
     const tooltip = document.getElementById('first-visit-tooltip');
     
-    if (!localStorage.getItem('firstVisitTooltipShown')) {
-        tooltip.classList.add('show');
-        
-        localStorage.setItem('firstVisitTooltipShown', 'true');
-        
-        const hideTooltip = () => {
-            tooltip.classList.remove('show');
-            document.removeEventListener('click', hideTooltip);
+    function showFirstVisitTooltip() {
+        if (!localStorage.getItem('firstVisitTooltipShown')) {
+            tooltip.classList.add('show');
+            localStorage.setItem('firstVisitTooltipShown', 'true');
+            
+            const hideTooltip = () => {
+                tooltip.classList.remove('show');
+            };
+            
+            const tooltipTimeout = setTimeout(hideTooltip, 10000);
+            
+            document.addEventListener('click', function(event) {
+                if (!tooltip.contains(event.target)) {
+                    clearTimeout(tooltipTimeout);
+                    hideTooltip();
+                }
+            });
+        }
+    }
+
+    if (typeof hideLoadingScreen === 'function') {
+        const originalHideLoadingScreen = hideLoadingScreen;
+        hideLoadingScreen = function() {
+            originalHideLoadingScreen.apply(this, arguments);
+            setTimeout(showFirstVisitTooltip, 2000);
         };
-        
-        const tooltipTimeout = setTimeout(hideTooltip, 10000);
-        
-        document.addEventListener('click', function(event) {
-            if (!tooltip.contains(event.target)) {
-                clearTimeout(tooltipTimeout);
-                hideTooltip();
-            }
-        });
     }
 });
+
 async function getSetvar() {
     try {
         const response5 = await fetch('setvar/settings/theme/maincolor.txt');
