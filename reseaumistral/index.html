@@ -1275,6 +1275,7 @@ shape.bounce-down {
 }
 
 .linesection {
+     opacity: 0;
      transform: scale(0.5);
  }
 .linesection.animate {
@@ -1794,19 +1795,84 @@ document.addEventListener('DOMContentLoaded', initializeApp);
 const doc = document;
 showLoadingScreen();
 
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            entry.target.classList.add('animate');
-            observer.unobserve(entry.target);
-        }
-    });
-}, {
-    threshold: 0.1 
-});
+class ScrollAnimationManager {
+    constructor(selector, options = {}) {
+        this.defaultOptions = {
+            threshold: 0.1, 
+            rootMargin: '0px 0px -50px 0px', 
+            animationClass: 'animate-scroll',
+            removeClassAfterAnimation: false,
+            debug: false
+        };
 
-document.querySelectorAll('.linesection').forEach(element => {
-    observer.observe(element);
+        this.options = { ...this.defaultOptions, ...options };
+
+        this.selector = selector;
+
+        this.initObserver();
+    }
+
+    initObserver() {
+        this.observer = new IntersectionObserver(
+            (entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add(this.options.animationClass);
+
+                        if (this.options.debug) {
+                            console.log('Element animé:', entry.target);
+                        }
+
+                        if (this.options.removeClassAfterAnimation) {
+                            entry.target.addEventListener('animationend', () => {
+                                entry.target.classList.remove(this.options.animationClass);
+                            }, { once: true });
+                        }
+
+                        // observer.unobserve(entry.target);
+                    }
+                });
+            }, 
+            {
+                threshold: this.options.threshold,
+                rootMargin: this.options.rootMargin
+            }
+        );
+
+        document.querySelectorAll(this.selector).forEach(element => {
+            this.observer.observe(element);
+        });
+    }
+
+    addElements(newElements) {
+        newElements.forEach(element => {
+            this.observer.observe(element);
+        });
+    }
+
+    disconnect() {
+        this.observer.disconnect();
+    }
+}
+
+const styles = `
+.linesection {
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+
+.linesection.animate-scroll {
+    opacity: 1;
+    transform: scale(1);
+}
+`;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const scrollAnimations = new ScrollAnimationManager('.linesection', {
+        threshold: 0.2,
+        debug: false
+    });
 });
 
 
