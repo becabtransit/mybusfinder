@@ -1324,6 +1324,47 @@ shape.bounce-down {
             border: 1px solid #ccc;
             cursor: pointer;
         }
+        .first-visit-tooltip {
+        position: fixed;
+        bottom: 80px; 
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: rgba(15, 5, 107, 0.8);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 15px;
+        z-index: 10001;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s, visibility 0.3s;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .first-visit-tooltip.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .first-visit-tooltip .tooltip-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .first-visit-tooltip .bounce-arrow {
+        width: 40px;
+        height: 40px;
+        animation: bounce 1s infinite;
+    }
+
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
 
     </style>
 
@@ -1342,7 +1383,14 @@ shape.bounce-down {
     <span class="filtre-texte">Réinitialiser les filtres</span>
 </div>
 
-
+<div id="first-visit-tooltip" class="first-visit-tooltip">
+    <div class="tooltip-content">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="bounce-arrow">
+            <path d="M7 10l5 5 5-5" stroke="white" stroke-width="2" fill="none"/>
+        </svg>
+        <p>Glissez vers le haut pour afficher les paramètres</p>
+    </div>
+</div>
  <div class="menubottom">
         <ul id="menubtm" class="menubottom-ul">
             <li>
@@ -1413,6 +1461,29 @@ shape.bounce-down {
      crossorigin="anonymous"></script>
 
 <script>
+    document.addEventListener('DOMContentLoaded', function() {
+    const tooltip = document.getElementById('first-visit-tooltip');
+    
+    if (!localStorage.getItem('firstVisitTooltipShown')) {
+        tooltip.classList.add('show');
+        
+        localStorage.setItem('firstVisitTooltipShown', 'true');
+        
+        const hideTooltip = () => {
+            tooltip.classList.remove('show');
+            document.removeEventListener('click', hideTooltip);
+        };
+        
+        const tooltipTimeout = setTimeout(hideTooltip, 10000);
+        
+        document.addEventListener('click', function(event) {
+            if (!tooltip.contains(event.target)) {
+                clearTimeout(tooltipTimeout);
+                hideTooltip();
+            }
+        });
+    }
+});
 async function getSetvar() {
     try {
         const response5 = await fetch('setvar/settings/theme/maincolor.txt');
