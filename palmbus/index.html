@@ -4703,7 +4703,7 @@ function createBottomSheet() {
         () => showUpdatePopup("histovec.html")
     );
 
-    const togglesun = createStyledButton(
+    const togglesun = createStyledButtonBeta(
         'Mode spotting', 
         '', 
         `
@@ -4858,6 +4858,149 @@ function stopDrag(e) {
 
     document.body.appendChild(bottomSheet);
     return bottomSheet;
+}
+
+function createStyledButtonBeta(title, description, svgContent, onClickHandler) {
+    const button = document.createElement('div');
+    button.className = 'alerts-button';
+    button.style.cssText = `
+        display: flex;
+        align-items: center;
+        margin: 15px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+        cursor: pointer;
+    `;
+
+    const icon = document.createElement('div');
+    icon.className = 'alerts-icon';
+    icon.innerHTML = svgContent;
+    icon.style.color = 'white';
+    icon.style.marginRight = '10px';
+
+    const content = document.createElement('div');
+    content.className = 'alerts-content';
+    content.style.color = 'white';
+    content.style.display = 'flex';
+    content.style.alignItems = 'center';
+
+    const titleWrapper = document.createElement('div');
+    titleWrapper.style.display = 'flex';
+    titleWrapper.style.alignItems = 'center';
+
+    const titleElement = document.createElement('div');
+    titleElement.className = 'alerts-title';
+    titleElement.textContent = title;
+    titleElement.style.fontSize = '18px';
+    titleElement.style.marginRight = '10px';
+
+    const betaTag = document.createElement('div');
+    betaTag.textContent = 'beta';
+    betaTag.style.cssText = `
+        background-color: green;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+        text-transform: uppercase;
+        font-weight: bold;
+    `;
+
+    titleWrapper.appendChild(titleElement);
+    titleWrapper.appendChild(betaTag);
+
+    const descriptionElement = document.createElement('div');
+    descriptionElement.className = 'alerts-description';
+    descriptionElement.textContent = description;
+    descriptionElement.style.fontSize = '14px';
+    descriptionElement.style.opacity = '0.7';
+
+    content.appendChild(titleWrapper);
+    content.appendChild(descriptionElement);
+
+    button.appendChild(icon);
+    button.appendChild(content);
+
+    const handleAction = () => {
+        onClickHandler();
+        setTimeout(() => {
+            closeBottomSheet();
+            window.isBottomSheetOpen = false;
+        }, 50);
+    };
+
+    let touchStartY = 0;
+    let touchMoved = false;
+    const touchThreshold = 5;
+
+    const handleButtonAction = () => {
+        onClickHandler();
+        setTimeout(() => {
+            closeBottomSheet();
+            window.isBottomSheetOpen = false;
+        }, 50);
+    };
+
+    if ('ontouchstart' in window) {
+        button.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+            touchMoved = false;
+            button.style.transform = 'scale(0.98,0.98)';
+            button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+        }, { passive: true });
+
+        button.addEventListener('touchmove', (e) => {
+            const touchCurrentY = e.touches[0].clientY;
+            if (Math.abs(touchCurrentY - touchStartY) > touchThreshold) {
+                touchMoved = true;
+                button.style.transform = 'scale(1,1)';
+                button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+            }
+        }, { passive: true });
+
+        button.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            button.style.transform = 'scale(1,1)';
+            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+            
+            if (!touchMoved) {
+                handleButtonAction();
+                setTimeout(() => {
+                    closeBottomSheet();
+                    window.isBottomSheetOpen = false;
+                }, 50);
+            }
+        });
+
+        button.addEventListener('touchcancel', () => {
+            button.style.transform = 'scale(1,1)';
+            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+        });
+    } else {
+        button.addEventListener('click', () => {
+            handleButtonAction();
+            setTimeout(() => {
+                closeBottomSheet();
+                window.isBottomSheetOpen = false;
+            }, 50);
+        });
+    }
+
+    button.onmouseover = () => {
+        button.style.transform = 'scale(0.98,0.98)';
+        button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+    };
+
+    button.onmouseout = () => {
+        button.style.transform = 'scale(1,1)';
+        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+    };
+
+    return button;
 }
 
 function createStyledButton(title, description, svgContent, onClickHandler) {
