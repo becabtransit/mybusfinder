@@ -1290,7 +1290,7 @@ shape.bounce-down {
             width: 100%;
             height: 100%;
             pointer-events: none;
-            z-index: 1000;
+            z-index: 999;
             opacity: 0;
             transition: opacity 0.5s ease-in-out; 
         }
@@ -1733,9 +1733,13 @@ const sunOverlay = document.getElementById('sun-overlay');
         if (isSunOrientationVisible) {
             sunOverlay.style.opacity = 1; 
             updateSunOrientation();
+            window.nearbyVehiclesControl.show();
+            window.nearbyVehiclesControl.collapse();
+
         } else {
             sunOverlay.style.opacity = 0; 
             setTimeout(() => sunOverlay.innerHTML = '', 500); 
+            window.nearbyVehiclesControl.hide();
         }
     }
 
@@ -3611,6 +3615,287 @@ const ANIMATION_CONFIG = {
     ITEM_MARGIN: 10
 };
 
+function createNearbyVehiclesControl() {
+    if (window.nearbyVehiclesControlInstance) {
+        return window.nearbyVehiclesControlInstance;
+    }
+
+    const NearbyVehiclesControl = L.Control.extend({
+        options: {
+            position: 'topright'
+        },
+
+        initialize: function(map) {
+            L.Control.prototype.initialize.call(this, { map: map });
+            this._lastUpdateCenter = null;
+        },
+
+        onAdd: function(map) {
+            if (this._container) {
+                return this._container;
+            }
+
+            this._container = L.DomUtil.create('div', 'nearby-vehicles-control');
+            this._container.style.cssText = `
+                position: absolute;
+                width: max-content;
+                font-family: 'League Spartan', sans-serif;
+                top: 20px;
+                right: 20px;
+                margin-left: 20px;
+                background-color: rgba(0, 0, 0, 0.3);
+                border-radius: 15px;
+                box-shadow: 0 4px 20px 4px rgba(0, 0, 0, 0.2);
+                z-index: 1000;
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                overflow: hidden;
+                transition: all 0.3s ease;
+                max-height: 60px;
+                opacity: 0;
+                display: none;
+            `;
+
+            const header = L.DomUtil.create('div', 'nearby-vehicles-header');
+            header.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 15px;
+                cursor: pointer;
+            `;
+
+            const title = L.DomUtil.create('h3', '');
+            title.textContent = 'Véhicules à proximité';
+            title.style.cssText = `
+                margin: 0;
+                margin-right: 15px;
+                font-size: 20px;
+                font-weight: 600;
+                color: white;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            `;
+
+            const closeButton = L.DomUtil.create('button', '');
+            closeButton.innerHTML = '✕';
+            closeButton.style.cssText = `
+                background: rgba(255,255,255,0.1);
+                border: none;
+                border-radius: 50%;
+                width: 30px;
+                height: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 16px;
+                cursor: pointer;
+                color: white;
+                transition: background-color 0.3s ease;
+                opacity: 0;
+                pointer-events: none;
+            `;
+
+            header.appendChild(title);
+            header.appendChild(closeButton);
+            this._container.appendChild(header);
+
+            this._listContainer = L.DomUtil.create('div', 'nearby-vehicles-list');
+            this._listContainer.style.cssText = `
+                max-height: 350px;
+                overflow-y: auto;
+                padding: 10px 15px;
+                opacity: 0;
+                transform: translateY(-20px);
+                transition: all 0.3s ease;
+            `;
+            this._container.appendChild(this._listContainer);
+
+            this._isExpanded = false;
+            this._isVisible = false;
+
+            header.addEventListener('click', () => {
+                this.toggleExpand();
+            });
+
+            closeButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.collapse();
+            });
+
+            map.on('moveend', () => this._updateVehiclesIfNeeded(map));
+
+            return this._container;
+        },
+
+        _updateVehiclesIfNeeded: function(map) {
+            const currentCenter = map.getCenter();
+            const distanceMoved = this._lastUpdateCenter 
+                ? currentCenter.distanceTo(this._lastUpdateCenter) 
+                : Infinity;
+
+            if (!this._lastUpdateCenter || distanceMoved > 500) {
+                this._lastUpdateCenter = currentCenter;
+                
+                if (this._isExpanded) {
+                    this.show();
+                }
+            }
+        },
+
+        show: function() {
+            this._container.style.display = 'block';
+            
+            setTimeout(() => {
+                this._container.style.opacity = '1';
+            }, 10);
+
+            const userLocation = map.getCenter();
+
+            const closestVehicles = Object.values(markers)
+                .filter(marker => marker.options && marker.options.icon)
+                .map(marker => ({
+                    marker: marker,
+                    distance: userLocation.distanceTo(marker.getLatLng())
+                }))
+                .sort((a, b) => a.distance - b.distance)
+                .slice(0, 5);
+
+            this._listContainer.innerHTML = '';
+
+            closestVehicles.forEach((item) => {
+                const marker = item.marker;
+                const distance = (item.distance / 1000).toFixed(1);
+                
+                const vehicleId = marker.id;
+                const line = marker.line;
+                const backgroundColor = lineColors[line] || '#000000';
+                const textColor = 'white';
+
+                const vehicleItem = L.DomUtil.create('div', 'nearby-vehicle-item');
+                vehicleItem.style.cssText = `
+                    display: flex;
+                    align-items: center;
+                    margin-bottom: 10px;
+                    background-color: rgba(255, 255, 255, 0.1);
+                    border-radius: 10px;
+                    padding: 10px;
+                    cursor: pointer;
+                    transition: transform 0.3s ease, box-shadow 0.3s ease;
+                    position: relative;
+                    overflow: hidden;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    color: white;
+                `;
+
+                vehicleItem.innerHTML = `
+                    <div style="flex-grow: 1; z-index: 1; position: relative;">
+                        <strong>Ligne ${lineName[line] || 'Inconnue'}</strong>
+                        <div style="font-size: 0.8em; opacity: 0.7;">
+                            à ${distance} km
+                        </div>
+                    </div>
+                    <div style="
+                        background: transparent; 
+                        color: white; 
+                        padding: 5px 10px; 
+                        border-radius: 5px; 
+                        z-index: 1; 
+                        position: relative;
+                        border: 1px solid white;
+                    ">
+                        ${vehicleId}
+                    </div>
+                `;
+
+                vehicleItem.addEventListener('click', () => {
+                    map.setView(marker.getLatLng(), 15);
+                    marker.openPopup();
+                    this.collapse();
+                });
+
+                this._listContainer.appendChild(vehicleItem);
+            });
+
+            if (!this._isExpanded) {
+                this.expand();
+            }
+
+            this._isVisible = true;
+            return this;
+        },
+
+        hide: function() {
+            this._container.style.opacity = '0';
+            
+            setTimeout(() => {
+                this._container.style.display = 'none';
+            }, 300);
+
+            this._isVisible = false;
+            this._isExpanded = false;
+            return this;
+        },
+
+        expand: function() {
+            const header = this._container.querySelector('.nearby-vehicles-header');
+            const closeButton = header.querySelector('button');
+            const listContainer = this._listContainer;
+
+            this._container.style.maxHeight = '500px';
+            listContainer.style.opacity = '1';
+            listContainer.style.transform = 'translateY(0)';
+            
+            closeButton.style.opacity = '1';
+            closeButton.style.pointerEvents = 'auto';
+
+            this._isExpanded = true;
+            return this;
+        },
+
+        collapse: function() {
+            const header = this._container.querySelector('.nearby-vehicles-header');
+            const closeButton = header.querySelector('button');
+            const listContainer = this._listContainer;
+
+            this._container.style.maxHeight = '60px';
+            listContainer.style.opacity = '0';
+            listContainer.style.transform = 'translateY(-20px)';
+            
+            closeButton.style.opacity = '0';
+            closeButton.style.pointerEvents = 'none';
+
+            this._isExpanded = false;
+            return this;
+        },
+
+        toggleExpand: function() {
+            if (this._isExpanded) {
+                this.collapse();
+            } else {
+                this.expand();
+            }
+            return this;
+        }
+    });
+
+    const nearbyVehiclesControl = new NearbyVehiclesControl(map);
+    map.addControl(nearbyVehiclesControl);
+
+    window.nearbyVehiclesControlInstance = nearbyVehiclesControl;
+
+    window.nearbyVehiclesControl = {
+        show: () => nearbyVehiclesControl.show(),
+        hide: () => nearbyVehiclesControl.hide(),
+        expand: () => nearbyVehiclesControl.expand(),
+        collapse: () => nearbyVehiclesControl.collapse(),
+        toggleExpand: () => nearbyVehiclesControl.toggleExpand()
+    };
+
+    return nearbyVehiclesControl;
+}
+
+createNearbyVehiclesControl();
 
 let isAnimating = false;
 
@@ -4421,7 +4706,7 @@ function createBottomSheet() {
         () => showUpdatePopup("histovec.html")
     );
 
-    const togglesun = createStyledButton(
+    const togglesun = createStyledButtonBeta(
         'Mode spotting', 
         '', 
         `
@@ -4439,7 +4724,7 @@ function createBottomSheet() {
     
     const about = createStyledButton(
         'A propos', 
-        'My Bus Finder 3Xperience build 250325', 
+        'My Bus Finder 3Xperience build 280325', 
         `
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="6" r="4"></circle> 
@@ -4576,6 +4861,149 @@ function stopDrag(e) {
 
     document.body.appendChild(bottomSheet);
     return bottomSheet;
+}
+
+function createStyledButtonBeta(title, description, svgContent, onClickHandler) {
+    const button = document.createElement('div');
+    button.className = 'alerts-button';
+    button.style.cssText = `
+        display: flex;
+        align-items: center;
+        margin: 15px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+        cursor: pointer;
+    `;
+
+    const icon = document.createElement('div');
+    icon.className = 'alerts-icon';
+    icon.innerHTML = svgContent;
+    icon.style.color = 'white';
+    icon.style.marginRight = '10px';
+
+    const content = document.createElement('div');
+    content.className = 'alerts-content';
+    content.style.color = 'white';
+    content.style.display = 'flex';
+    content.style.alignItems = 'center';
+
+    const titleWrapper = document.createElement('div');
+    titleWrapper.style.display = 'flex';
+    titleWrapper.style.alignItems = 'center';
+
+    const titleElement = document.createElement('div');
+    titleElement.className = 'alerts-title';
+    titleElement.textContent = title;
+    titleElement.style.fontSize = '18px';
+    titleElement.style.marginRight = '10px';
+
+    const betaTag = document.createElement('div');
+    betaTag.textContent = 'beta';
+    betaTag.style.cssText = `
+        background-color: green;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+        text-transform: uppercase;
+        font-weight: bold;
+    `;
+
+    titleWrapper.appendChild(titleElement);
+    titleWrapper.appendChild(betaTag);
+
+    const descriptionElement = document.createElement('div');
+    descriptionElement.className = 'alerts-description';
+    descriptionElement.textContent = description;
+    descriptionElement.style.fontSize = '14px';
+    descriptionElement.style.opacity = '0.7';
+
+    content.appendChild(titleWrapper);
+    content.appendChild(descriptionElement);
+
+    button.appendChild(icon);
+    button.appendChild(content);
+
+    const handleAction = () => {
+        onClickHandler();
+        setTimeout(() => {
+            closeBottomSheet();
+            window.isBottomSheetOpen = false;
+        }, 50);
+    };
+
+    let touchStartY = 0;
+    let touchMoved = false;
+    const touchThreshold = 5;
+
+    const handleButtonAction = () => {
+        onClickHandler();
+        setTimeout(() => {
+            closeBottomSheet();
+            window.isBottomSheetOpen = false;
+        }, 50);
+    };
+
+    if ('ontouchstart' in window) {
+        button.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+            touchMoved = false;
+            button.style.transform = 'scale(0.98,0.98)';
+            button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+        }, { passive: true });
+
+        button.addEventListener('touchmove', (e) => {
+            const touchCurrentY = e.touches[0].clientY;
+            if (Math.abs(touchCurrentY - touchStartY) > touchThreshold) {
+                touchMoved = true;
+                button.style.transform = 'scale(1,1)';
+                button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+            }
+        }, { passive: true });
+
+        button.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            button.style.transform = 'scale(1,1)';
+            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+            
+            if (!touchMoved) {
+                handleButtonAction();
+                setTimeout(() => {
+                    closeBottomSheet();
+                    window.isBottomSheetOpen = false;
+                }, 50);
+            }
+        });
+
+        button.addEventListener('touchcancel', () => {
+            button.style.transform = 'scale(1,1)';
+            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+        });
+    } else {
+        button.addEventListener('click', () => {
+            handleButtonAction();
+            setTimeout(() => {
+                closeBottomSheet();
+                window.isBottomSheetOpen = false;
+            }, 50);
+        });
+    }
+
+    button.onmouseover = () => {
+        button.style.transform = 'scale(0.98,0.98)';
+        button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
+    };
+
+    button.onmouseout = () => {
+        button.style.transform = 'scale(1,1)';
+        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
+    };
+
+    return button;
 }
 
 function createStyledButton(title, description, svgContent, onClickHandler) {
