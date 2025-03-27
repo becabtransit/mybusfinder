@@ -1795,41 +1795,50 @@ document.addEventListener('DOMContentLoaded', initializeApp);
 const doc = document;
 showLoadingScreen();
 
-class ScrollAnimationManager {
-    constructor(selector, options = {}) {
+class LineSectionAnimationManager {
+    constructor(options = {}) {
+        // Configuration par défaut
         this.defaultOptions = {
-            threshold: 0.1, 
-            rootMargin: '0px 0px -50px 0px', 
+            selector: '.linesection',
+            threshold: 0.1, // 10% de l'élément visible
+            rootMargin: '0px 0px -50px 0px', // Décalage pour un déclenchement un peu avant
             animationClass: 'animate-scroll',
-            removeClassAfterAnimation: false,
             debug: false
         };
 
+        // Fusionner les options personnalisées avec les défauts
         this.options = { ...this.defaultOptions, ...options };
 
-        this.selector = selector;
-
+        // Initialiser l'Intersection Observer
         this.initObserver();
     }
 
     initObserver() {
+        // Configuration de l'Intersection Observer
         this.observer = new IntersectionObserver(
             (entries, observer) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
+                        // Ajouter la classe d'animation sans interférer avec les autres styles
                         entry.target.classList.add(this.options.animationClass);
 
+                        // Animation personnalisée qui préserve vos interactions existantes
+                        entry.target.style.opacity = '0';
+                        entry.target.style.transform = 'scale(0.9)';
+                        
+                        // Transition douce qui s'intègre à vos styles existants
+                        entry.target.style.transition = 'opacity 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
+                        
+                        // Petit délai pour s'assurer que la transition soit prise en compte
+                        requestAnimationFrame(() => {
+                            entry.target.style.opacity = '1';
+                            entry.target.style.transform = 'scale(1)';
+                        });
+
+                        // Log de débogage si activé
                         if (this.options.debug) {
-                            console.log('Element animé:', entry.target);
+                            console.log('LineSection animé:', entry.target);
                         }
-
-                        if (this.options.removeClassAfterAnimation) {
-                            entry.target.addEventListener('animationend', () => {
-                                entry.target.classList.remove(this.options.animationClass);
-                            }, { once: true });
-                        }
-
-                        // observer.unobserve(entry.target);
                     }
                 });
             }, 
@@ -1839,41 +1848,32 @@ class ScrollAnimationManager {
             }
         );
 
-        document.querySelectorAll(this.selector).forEach(element => {
+        // Observer tous les éléments .linesection
+        document.querySelectorAll(this.options.selector).forEach(element => {
             this.observer.observe(element);
         });
     }
 
+    // Méthode pour ajouter de nouveaux éléments dynamiquement
     addElements(newElements) {
         newElements.forEach(element => {
             this.observer.observe(element);
         });
     }
 
+    // Méthode pour arrêter complètement l'observation
     disconnect() {
         this.observer.disconnect();
     }
 }
 
-const styles = `
-.linesection {
-    opacity: 0;
-    transform: scale(0.5);
-    transition: all 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
-}
-
-.linesection.animate-scroll {
-    opacity: 1;
-    transform: scale(1);
-}
-`;
-
-document.addEventListener('DOMContentLoaded', () => {
-    const scrollAnimations = new ScrollAnimationManager('.linesection', {
-        threshold: 0.2,
-        debug: false
+// Exemple d'initialisation après votre fonction updateMenu()
+function initLineSectionAnimations() {
+    // Crée le gestionnaire d'animations après que le menu soit mis à jour
+    window.lineSectionAnimations = new LineSectionAnimationManager({
+        debug: false // Mettez à true pour des logs de débogage
     });
-});
+}
 
 
 let data;
@@ -5024,6 +5024,7 @@ function getTextColor(backgroundColor) {
 
         menu.appendChild(lineSection);
     });
+    initLineSectionAnimations();
 }
 
 const menubottom1 = document.getElementById('menubtm');
