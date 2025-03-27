@@ -3614,7 +3614,6 @@ const ANIMATION_CONFIG = {
 };
 
 function createNearbyVehiclesControl() {
-    // Singleton pattern to prevent multiple controls
     if (window.nearbyVehiclesControlInstance) {
         return window.nearbyVehiclesControlInstance;
     }
@@ -3630,15 +3629,14 @@ function createNearbyVehiclesControl() {
         },
 
         onAdd: function(map) {
-            // Prevent multiple instantiations
             if (this._container) {
                 return this._container;
             }
 
-            // Create main container
             this._container = L.DomUtil.create('div', 'nearby-vehicles-control');
             this._container.style.cssText = `
                 position: absolute;
+                font-family: 'League Spartan', sans-serif;
                 top: 20px;
                 right: 20px;
                 width: 340px;
@@ -3656,7 +3654,6 @@ function createNearbyVehiclesControl() {
                 display: none;
             `;
 
-            // Create header (always visible)
             const header = L.DomUtil.create('div', 'nearby-vehicles-header');
             header.style.cssText = `
                 display: flex;
@@ -3699,7 +3696,6 @@ function createNearbyVehiclesControl() {
             header.appendChild(closeButton);
             this._container.appendChild(header);
 
-            // Create list container
             this._listContainer = L.DomUtil.create('div', 'nearby-vehicles-list');
             this._listContainer.style.cssText = `
                 max-height: 350px;
@@ -3711,22 +3707,18 @@ function createNearbyVehiclesControl() {
             `;
             this._container.appendChild(this._listContainer);
 
-            // Track expanded state
             this._isExpanded = false;
             this._isVisible = false;
 
-            // Header click to expand
             header.addEventListener('click', () => {
                 this.toggleExpand();
             });
 
-            // Close button click to collapse
             closeButton.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.collapse();
             });
 
-            // Add map move event listener to update vehicles
             map.on('moveend', () => this._updateVehiclesIfNeeded(map));
 
             return this._container;
@@ -3738,11 +3730,9 @@ function createNearbyVehiclesControl() {
                 ? currentCenter.distanceTo(this._lastUpdateCenter) 
                 : Infinity;
 
-            // Update if moved more than 500 meters or first time
             if (!this._lastUpdateCenter || distanceMoved > 500) {
                 this._lastUpdateCenter = currentCenter;
                 
-                // Only update if currently expanded
                 if (this._isExpanded) {
                     this.show();
                 }
@@ -3750,18 +3740,14 @@ function createNearbyVehiclesControl() {
         },
 
         show: function() {
-            // Ensure the container is displayed
             this._container.style.display = 'block';
             
-            // Fade in
             setTimeout(() => {
                 this._container.style.opacity = '1';
             }, 10);
 
-            // Find user's current location
             const userLocation = map.getCenter();
 
-            // Calculate distances and sort markers
             const closestVehicles = Object.values(markers)
                 .filter(marker => marker.options && marker.options.icon)
                 .map(marker => ({
@@ -3771,10 +3757,8 @@ function createNearbyVehiclesControl() {
                 .sort((a, b) => a.distance - b.distance)
                 .slice(0, 5);
 
-            // Clear previous list
             this._listContainer.innerHTML = '';
 
-            // Populate list
             closestVehicles.forEach((item) => {
                 const marker = item.marker;
                 const distance = (item.distance / 1000).toFixed(1);
@@ -3804,7 +3788,7 @@ function createNearbyVehiclesControl() {
                     <div style="flex-grow: 1; z-index: 1; position: relative;">
                         <strong>Ligne ${lineName[line] || 'Inconnue'}</strong>
                         <div style="font-size: 0.8em; opacity: 0.7;">
-                            À ${distance} km
+                            à ${distance} km
                         </div>
                     </div>
                     <div style="
@@ -3829,7 +3813,6 @@ function createNearbyVehiclesControl() {
                 this._listContainer.appendChild(vehicleItem);
             });
 
-            // Expand if not already expanded
             if (!this._isExpanded) {
                 this.expand();
             }
@@ -3839,10 +3822,8 @@ function createNearbyVehiclesControl() {
         },
 
         hide: function() {
-            // Fade out
             this._container.style.opacity = '0';
             
-            // Hide after fade out
             setTimeout(() => {
                 this._container.style.display = 'none';
             }, 300);
@@ -3894,14 +3875,11 @@ function createNearbyVehiclesControl() {
         }
     });
 
-    // Create and add the control to the map
     const nearbyVehiclesControl = new NearbyVehiclesControl(map);
     map.addControl(nearbyVehiclesControl);
 
-    // Store as singleton instance
     window.nearbyVehiclesControlInstance = nearbyVehiclesControl;
 
-    // Expose the control methods globally for easy access
     window.nearbyVehiclesControl = {
         show: () => nearbyVehiclesControl.show(),
         hide: () => nearbyVehiclesControl.hide(),
@@ -3913,7 +3891,6 @@ function createNearbyVehiclesControl() {
     return nearbyVehiclesControl;
 }
 
-// Call this function once to set up the control
 createNearbyVehiclesControl();
 
 let isAnimating = false;
