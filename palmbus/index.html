@@ -1546,18 +1546,22 @@ async function initMap() {
     const resetRotationBtn = document.getElementById('resetRotationBtn');
 
     function resetRotation() {
-        mapInstance.setBearing(0);
-        resetRotationBtn.classList.remove('visible');
+        mapInstance.setBearing(0); 
+        if (map.options.rotateControl && map.options.rotateControl.closeOnZeroBearing) {
+            resetRotationBtn.classList.remove('visible');
+        }
     }
 
-    mapInstance.on('rotate', function(e) {
-        if (Math.abs(e.bearing) > 5) {
+    mapInstance.on('rotate', function() {
+        const currentBearing = map.getBearing(); 
+        if (Math.abs(currentBearing) > 5) {
             resetRotationBtn.classList.add('visible');
+        } else {
+            resetRotationBtn.classList.remove('visible');
         }
     });
 
-    resetRotationBtn.addEventListener('click', resetRotation);
-    
+    resetRotationBtn.addEventListener('click', resetRotation);    
 
     mapInstance.on('moveend', function() {
         if (isSunOrientationVisible) {
