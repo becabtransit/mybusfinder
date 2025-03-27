@@ -1358,6 +1358,32 @@ shape.bounce-down {
             fill: white;
         }
 
+        #rotationOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #rotationIndicator {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
     </style>
 
 </head>
@@ -1410,6 +1436,9 @@ shape.bounce-down {
 
 
     <div id="map"></div>
+    <div id="rotationOverlay">
+        <div id="rotationIndicator">0°</div>
+    </div>
     <button id="resetRotationBtn">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
             <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
@@ -1531,6 +1560,66 @@ async function initMap() {
     
     L.popup({
         closeButton: false
+    });
+
+    const mapContainer = document.getElementById('map');
+    const rotationIndicator = document.getElementById('rotationIndicator');
+    
+    let isRotating = false;
+    let startAngle = 0;
+    let currentRotation = 0;
+
+    function calculateAngle(x1, y1, x2, y2) {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        return Math.atan2(dy, dx) * (180 / Math.PI);
+    }
+
+    let touch1 = null, touch2 = null;
+
+    mapContainer.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            isRotating = true;
+            touch1 = e.touches[0];
+            touch2 = e.touches[1];
+            
+            startAngle = calculateAngle(
+                touch1.pageX, touch1.pageY, 
+                touch2.pageX, touch2.pageY
+            );
+            
+            rotationIndicator.style.opacity = 1;
+        }
+    });
+
+    mapContainer.addEventListener('touchmove', (e) => {
+        if (isRotating && e.touches.length === 2) {
+            const newTouch1 = e.touches[0];
+            const newTouch2 = e.touches[1];
+            
+            const newAngle = calculateAngle(
+                newTouch1.pageX, newTouch1.pageY, 
+                newTouch2.pageX, newTouch2.pageY
+            );
+            
+            const rotationDelta = newAngle - startAngle;
+            currentRotation += rotationDelta;
+            
+            currentRotation = currentRotation % 360;
+            
+            mapContainer.style.transform = `rotate(${currentRotation}deg)`;
+            
+            rotationIndicator.textContent = `${Math.round(currentRotation)}°`;
+            
+            startAngle = newAngle;
+        }
+    });
+
+    mapContainer.addEventListener('touchend', (e) => {
+        if (isRotating) {
+            isRotating = false;
+            rotationIndicator.style.opacity = 0;
+        }
     });
 
     const resetRotationBtn = document.getElementById('resetRotationBtn');
