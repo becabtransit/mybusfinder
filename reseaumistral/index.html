@@ -1274,7 +1274,56 @@ shape.bounce-down {
     }
 }
 
-
+#map-container { 
+            position: relative; 
+            height: 100vh; 
+            width: 100%; 
+        }
+        #map { 
+            height: 100%; 
+            width: 100%; 
+        }
+        #sun-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out; 
+        }
+        .sun-line {
+            position: absolute;
+            stroke-width: 2;
+            fill: none;
+        }
+        .hour-circle {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 18px;
+            opacity: 0.9;
+            color: white;
+            text-shadow: 1px 1px 2px black;
+            transform: translate(-50%, -50%);
+        }
+        #toggle-sun-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1001;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
 
     </style>
 
@@ -1328,6 +1377,8 @@ shape.bounce-down {
 
 
     <div id="map"></div>
+    <svg id="sun-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+
 
 
     <div id="menu"></div>
@@ -1580,6 +1631,114 @@ function locateUser() {
 (async function() {
     map = await initMap();
 })();
+
+const sunOverlay = document.getElementById('sun-overlay');
+    let isSunOrientationVisible = false; 
+
+    function updateSunOrientation(date = new Date()) {
+        sunOverlay.innerHTML = '';
+
+        const center = map.getCenter();
+        const centerLat = center.lat;
+        const centerLon = center.lng;
+
+        const sunTimes = SunCalc.getTimes(date, centerLat, centerLon);
+        const sunrise = sunTimes.sunrise;
+        const sunset = sunTimes.sunset;
+
+        const mapSize = map.getSize();
+        const centerPoint = {
+            x: mapSize.x / 2,
+            y: mapSize.y / 2
+        };
+
+        const currentTime = new Date(sunrise);
+        const radius = Math.min(mapSize.x, mapSize.y) * 0.4; 
+
+        while (currentTime <= sunset) {
+            const sunPosition = SunCalc.getPosition(currentTime, centerLat, centerLon);
+            
+            const azimuthDegrees = sunPosition.azimuth * (180 / Math.PI);
+            const angleRad = (azimuthDegrees + 90) * (Math.PI / 180); 
+
+            const endX = centerPoint.x + radius * Math.cos(angleRad);
+            const endY = centerPoint.y + radius * Math.sin(angleRad);
+
+            const hourColor = getColorForTime();
+
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute('x1', centerPoint.x);
+            line.setAttribute('y1', centerPoint.y);
+            line.setAttribute('x2', endX);
+            line.setAttribute('y2', endY);
+            line.setAttribute('stroke', hourColor);
+            line.setAttribute('stroke-width', '2');
+            line.classList.add('sun-line');
+            sunOverlay.appendChild(line);
+
+            const hourCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            hourCircle.setAttribute('cx', endX);
+            hourCircle.setAttribute('cy', endY);
+            hourCircle.setAttribute('r', '25');
+            hourCircle.setAttribute('fill', hourColor);
+
+            const hourText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            hourText.setAttribute('x', endX);
+            hourText.setAttribute('y', endY);
+            hourText.setAttribute('text-anchor', 'middle');
+            hourText.setAttribute('dy', '.3em');
+            hourText.setAttribute('fill', 'white');
+            hourText.setAttribute('font-size', '18');
+            hourText.textContent = currentTime.getHours();
+
+            sunOverlay.appendChild(hourCircle);
+            sunOverlay.appendChild(hourText);
+
+            currentTime.setHours(currentTime.getHours() + 1);
+        }
+
+        const now = new Date();
+        if (now >= sunrise && now <= sunset) {
+            const nowSunPosition = SunCalc.getPosition(now, centerLat, centerLon);
+            const nowAzimuthDegrees = nowSunPosition.azimuth * (180 / Math.PI);
+            const nowAngleRad = (nowAzimuthDegrees + 90) * (Math.PI / 180); 
+
+            const nowEndX = centerPoint.x + radius * Math.cos(nowAngleRad);
+            const nowEndY = centerPoint.y + radius * Math.sin(nowAngleRad);
+
+            const nowLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            nowLine.setAttribute('x1', centerPoint.x);
+            nowLine.setAttribute('y1', centerPoint.y);
+            nowLine.setAttribute('x2', nowEndX);
+            nowLine.setAttribute('y2', nowEndY);
+            nowLine.setAttribute('stroke', 'black');
+            nowLine.setAttribute('stroke-width', '4');
+            sunOverlay.appendChild(nowLine);
+        }
+    }
+
+    function getColorForTime() {
+        return 'black'; 
+    }
+
+    function toggleSunOrientation() {
+        isSunOrientationVisible = !isSunOrientationVisible;
+        
+        if (isSunOrientationVisible) {
+            sunOverlay.style.opacity = 1; 
+            updateSunOrientation();
+        } else {
+            sunOverlay.style.opacity = 0; 
+            setTimeout(() => sunOverlay.innerHTML = '', 500); 
+        }
+    }
+
+    map.on('moveend', function() {
+        if (isSunOrientationVisible) {
+            updateSunOrientation();
+        }
+    });
+
 
 
         const markers = {};
@@ -4260,6 +4419,21 @@ function createBottomSheet() {
         () => showUpdatePopup("histovec.html")
     );
 
+    const togglesun = createStyledButton(
+        'Mode spotting', 
+        '', 
+        `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3.6 9l1.5 1.5M9 3.6L10.5 5M21 3l-9 9M18.4 15l1.5 1.5M15 18.4l1.5 1.5M3 21l9-9"/>
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M14.5 9.5L19 5"/>
+            <path d="M5 19l4.5-4.5"/>
+        </svg>
+        `,
+        toggleSunOrientation
+    );
+
+    
     
     const about = createStyledButton(
         'A propos', 
@@ -4316,7 +4490,7 @@ function createBottomSheet() {
     const sedeplacerBox = createStyledBox("Se déplacer", [transportStateContainer, actu, locationButton, satelliteButton]);
     bottomSheet.appendChild(sedeplacerBox);
 
-    const allerplusloinBox = createStyledBox("Pour aller plus loin...", [histovecButton, about]);
+    const allerplusloinBox = createStyledBox("Pour aller plus loin...", [histovecButton, togglesun, about]);
     bottomSheet.appendChild(allerplusloinBox);
 
     let startY, initialY, isDragging = false;
