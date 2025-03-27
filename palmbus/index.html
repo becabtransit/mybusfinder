@@ -13,8 +13,9 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
-<script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-gesture-handling@1.2.2/dist/leaflet-gesture-handling.min.css" />
     <meta name="google-adsense-account" content="ca-pub-5815761294049475">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
         <style>
@@ -29,7 +30,6 @@
             background-color: #f4f4f4; 
             color: #333; 
             transition: background-color 0.5s ease; 
-            overscroll-behavior: none;
         }
 
         @font-face {
@@ -43,7 +43,6 @@
             position: absolute;
             top: 0;
             left: 0;
-            touch-action: none;
         }
 			
 			
@@ -1535,6 +1534,8 @@ async function initMap() {
         closeButton: false
     });
 
+    mapInstance.gestureHandling.enable();
+
     const resetRotationBtn = document.getElementById('resetRotationBtn');
 
     function resetRotation() {
@@ -1549,30 +1550,7 @@ async function initMap() {
     });
 
     resetRotationBtn.addEventListener('click', resetRotation);
-
-    function isMobileDevice() {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        }
-
-        if (isMobileDevice()) {
-            var mapElement = document.getElementById('map');
-            var hammertime = new Hammer(mapElement);
-
-            hammertime.get('rotate').set({ enable: true });
-
-            var initialRotation = 0;
-            var currentRotation = 0;
-
-            hammertime.on('rotatestart', function(ev) {
-                initialRotation = currentRotation;
-            });
-
-            hammertime.on('rotate', function(ev) {
-                currentRotation = initialRotation + ev.rotation;
-                
-                mapInstance.setBearing(currentRotation);
-            });
-        }
+    
 
     mapInstance.on('moveend', function() {
         if (isSunOrientationVisible) {
