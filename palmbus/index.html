@@ -3615,8 +3615,8 @@ const ANIMATION_CONFIG = {
 
 function createNearbyVehiclesControl() {
     // Singleton pattern to prevent multiple controls
-    if (window.nearbyVehiclesControl) {
-        return window.nearbyVehiclesControl;
+    if (window.nearbyVehiclesControlInstance) {
+        return window.nearbyVehiclesControlInstance;
     }
 
     const NearbyVehiclesControl = L.Control.extend({
@@ -3625,16 +3625,15 @@ function createNearbyVehiclesControl() {
         },
 
         initialize: function(map) {
-            L.Control.prototype.initialize.call(this, {position: 'topright'});
-            this._map = map;
-            this._isVisible = false;
-            this._isExpanded = false;
+            L.Control.prototype.initialize.call(this, { map: map });
+            this._lastUpdateCenter = null;
         },
 
         onAdd: function(map) {
-            // Remove any existing controls
-            const existingControls = document.querySelectorAll('.nearby-vehicles-control');
-            existingControls.forEach(el => el.remove());
+            // Prevent multiple instantiations
+            if (this._container) {
+                return this._container;
+            }
 
             // Create main container
             this._container = L.DomUtil.create('div', 'nearby-vehicles-control');
@@ -3654,6 +3653,7 @@ function createNearbyVehiclesControl() {
                 transition: all 0.3s ease;
                 max-height: 60px;
                 opacity: 0;
+                display: none;
             `;
 
             // Create header (always visible)
@@ -3679,8 +3679,8 @@ function createNearbyVehiclesControl() {
             const closeButton = L.DomUtil.create('button', '');
             closeButton.innerHTML = '✕';
             closeButton.style.cssText = `
-                background: transparent;
-                border: 1px solid white;
+                background: rgba(255,255,255,0.1);
+                border: none;
                 border-radius: 50%;
                 width: 30px;
                 height: 30px;
@@ -3690,7 +3690,7 @@ function createNearbyVehiclesControl() {
                 font-size: 16px;
                 cursor: pointer;
                 color: white;
-                transition: all 0.3s ease;
+                transition: background-color 0.3s ease;
                 opacity: 0;
                 pointer-events: none;
             `;
@@ -3711,6 +3711,10 @@ function createNearbyVehiclesControl() {
             `;
             this._container.appendChild(this._listContainer);
 
+            // Track expanded state
+            this._isExpanded = false;
+            this._isVisible = false;
+
             // Header click to expand
             header.addEventListener('click', () => {
                 this.toggleExpand();
@@ -3722,20 +3726,42 @@ function createNearbyVehiclesControl() {
                 this.collapse();
             });
 
-            // Update on map move
-            map.on('move', () => {
-                if (this._isVisible && this._isExpanded) {
-                    this.updateVehicles();
-                }
-            });
+            // Add map move event listener to update vehicles
+            map.on('moveend', () => this._updateVehiclesIfNeeded(map));
 
             return this._container;
         },
 
-        updateVehicles: function() {
-            // Reuse the show method's logic without changing visibility
-            const userLocation = this._map.getCenter();
+        _updateVehiclesIfNeeded: function(map) {
+            const currentCenter = map.getCenter();
+            const distanceMoved = this._lastUpdateCenter 
+                ? currentCenter.distanceTo(this._lastUpdateCenter) 
+                : Infinity;
 
+            // Update if moved more than 500 meters or first time
+            if (!this._lastUpdateCenter || distanceMoved > 500) {
+                this._lastUpdateCenter = currentCenter;
+                
+                // Only update if currently expanded
+                if (this._isExpanded) {
+                    this.show();
+                }
+            }
+        },
+
+        show: function() {
+            // Ensure the container is displayed
+            this._container.style.display = 'block';
+            
+            // Fade in
+            setTimeout(() => {
+                this._container.style.opacity = '1';
+            }, 10);
+
+            // Find user's current location
+            const userLocation = map.getCenter();
+
+            // Calculate distances and sort markers
             const closestVehicles = Object.values(markers)
                 .filter(marker => marker.options && marker.options.icon)
                 .map(marker => ({
@@ -3756,6 +3782,7 @@ function createNearbyVehiclesControl() {
                 const vehicleId = marker.id;
                 const line = marker.line;
                 const backgroundColor = lineColors[line] || '#000000';
+                const textColor = 'white';
 
                 const vehicleItem = L.DomUtil.create('div', 'nearby-vehicle-item');
                 vehicleItem.style.cssText = `
@@ -3794,54 +3821,41 @@ function createNearbyVehiclesControl() {
                 `;
 
                 vehicleItem.addEventListener('click', () => {
-                    this._map.setView(marker.getLatLng(), 15);
+                    map.setView(marker.getLatLng(), 15);
                     marker.openPopup();
                     this.collapse();
                 });
 
                 this._listContainer.appendChild(vehicleItem);
             });
-        },
 
-        show: function() {
-            if (this._isVisible) return;
-            
-            this._container.style.opacity = '1';
-            this._container.style.display = 'block';
+            // Expand if not already expanded
+            if (!this._isExpanded) {
+                this.expand();
+            }
+
             this._isVisible = true;
-            
-            // Initially collapse
-            this.collapse();
+            return this;
         },
 
         hide: function() {
-            if (!this._isVisible) return;
-            
+            // Fade out
             this._container.style.opacity = '0';
-            this._container.style.display = 'none';
+            
+            // Hide after fade out
+            setTimeout(() => {
+                this._container.style.display = 'none';
+            }, 300);
+
             this._isVisible = false;
             this._isExpanded = false;
-        },
-
-        toggleExpand: function() {
-            if (!this._isVisible) return;
-
-            if (this._isExpanded) {
-                this.collapse();
-            } else {
-                this.expand();
-            }
+            return this;
         },
 
         expand: function() {
-            if (!this._isVisible) return;
-
             const header = this._container.querySelector('.nearby-vehicles-header');
             const closeButton = header.querySelector('button');
             const listContainer = this._listContainer;
-
-            // Update vehicles when expanding
-            this.updateVehicles();
 
             this._container.style.maxHeight = '500px';
             listContainer.style.opacity = '1';
@@ -3851,11 +3865,10 @@ function createNearbyVehiclesControl() {
             closeButton.style.pointerEvents = 'auto';
 
             this._isExpanded = true;
+            return this;
         },
 
         collapse: function() {
-            if (!this._isVisible) return;
-
             const header = this._container.querySelector('.nearby-vehicles-header');
             const closeButton = header.querySelector('button');
             const listContainer = this._listContainer;
@@ -3868,6 +3881,16 @@ function createNearbyVehiclesControl() {
             closeButton.style.pointerEvents = 'none';
 
             this._isExpanded = false;
+            return this;
+        },
+
+        toggleExpand: function() {
+            if (this._isExpanded) {
+                this.collapse();
+            } else {
+                this.expand();
+            }
+            return this;
         }
     });
 
@@ -3875,7 +3898,10 @@ function createNearbyVehiclesControl() {
     const nearbyVehiclesControl = new NearbyVehiclesControl(map);
     map.addControl(nearbyVehiclesControl);
 
-    // Expose the control methods globally
+    // Store as singleton instance
+    window.nearbyVehiclesControlInstance = nearbyVehiclesControl;
+
+    // Expose the control methods globally for easy access
     window.nearbyVehiclesControl = {
         show: () => nearbyVehiclesControl.show(),
         hide: () => nearbyVehiclesControl.hide(),
