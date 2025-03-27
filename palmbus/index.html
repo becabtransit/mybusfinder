@@ -3628,16 +3628,15 @@ function createNearbyVehiclesControl() {
                 position: absolute;
                 bottom: 20px;
                 right: 20px;
-                width: 300px;
-                background-color: rgba(255, 255, 255, 0.9);
+                width: 340px;
+                background-color: rgba(255, 255, 255, 0.1);
                 border-radius: 15px;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+                box-shadow: 0 4px 20px 4px rgba(0, 0, 0, 0.2);
                 z-index: 1000;
-                backdrop-filter: blur(10px);
-                -webkit-backdrop-filter: blur(10px);
-                padding: 15px;
-                max-height: 400px;
-                overflow-y: auto;
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                overflow: hidden;
             `;
 
             // Create header
@@ -3646,28 +3645,43 @@ function createNearbyVehiclesControl() {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 10px;
-                border-bottom: 1px solid rgba(0,0,0,0.1);
-                padding-bottom: 10px;
+                padding: 15px;
+                background-color: rgba(0, 0, 0, 0.1);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             `;
 
             const title = L.DomUtil.create('h3', '');
             title.textContent = 'Véhicules à proximité';
             title.style.cssText = `
                 margin: 0;
-                font-size: 18px;
+                font-size: 20px;
+                font-weight: 600;
                 color: #333;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.1);
             `;
 
             const closeButton = L.DomUtil.create('button', '');
             closeButton.innerHTML = '✕';
             closeButton.style.cssText = `
-                background: none;
+                background: rgba(0,0,0,0.1);
                 border: none;
-                font-size: 20px;
+                border-radius: 50%;
+                width: 30px;
+                height: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 16px;
                 cursor: pointer;
                 color: #666;
+                transition: background-color 0.3s ease;
             `;
+            closeButton.addEventListener('mouseenter', () => {
+                closeButton.style.backgroundColor = 'rgba(0,0,0,0.2)';
+            });
+            closeButton.addEventListener('mouseleave', () => {
+                closeButton.style.backgroundColor = 'rgba(0,0,0,0.1)';
+            });
             closeButton.addEventListener('click', () => {
                 this.hide();
             });
@@ -3681,6 +3695,7 @@ function createNearbyVehiclesControl() {
             this._listContainer.style.cssText = `
                 max-height: 350px;
                 overflow-y: auto;
+                padding: 10px 15px;
             `;
             this._container.appendChild(this._listContainer);
 
@@ -3720,23 +3735,51 @@ function createNearbyVehiclesControl() {
                     display: flex;
                     align-items: center;
                     margin-bottom: 10px;
-                    background-color: ${backgroundColor}20;
+                    background-color: rgba(255, 255, 255, 0.1);
                     border-radius: 10px;
                     padding: 10px;
                     cursor: pointer;
+                    transition: transform 0.3s ease, box-shadow 0.3s ease;
+                    position: relative;
+                    overflow: hidden;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
                 `;
 
-                vehicleItem.innerHTML = `
-                    <div style="flex-grow: 1; color: ${textColor};">
+                // Add subtle glow effect
+                const glowOverlay = document.createElement('div');
+                glowOverlay.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: linear-gradient(45deg, ${backgroundColor}33, transparent);
+                    opacity: 0.3;
+                    pointer-events: none;
+                `;
+                vehicleItem.appendChild(glowOverlay);
+
+                vehicleItem.innerHTML += `
+                    <div style="flex-grow: 1; color: ${textColor}; z-index: 1; position: relative;">
                         <strong>Ligne ${lineName[line] || 'Inconnue'}</strong>
                         <div style="font-size: 0.8em; opacity: 0.7;">
                             À ${distance} km
                         </div>
                     </div>
-                    <div style="background: ${backgroundColor}; color: ${textColor}; padding: 5px 10px; border-radius: 5px;">
+                    <div style="background: ${backgroundColor}; color: ${textColor}; padding: 5px 10px; border-radius: 5px; z-index: 1; position: relative;">
                         ${vehicleId}
                     </div>
                 `;
+
+                // Hover and click effects
+                vehicleItem.addEventListener('mouseenter', () => {
+                    vehicleItem.style.transform = 'scale(1.02)';
+                    vehicleItem.style.boxShadow = `0 4px 15px rgba(0,0,0,0.1)`;
+                });
+                vehicleItem.addEventListener('mouseleave', () => {
+                    vehicleItem.style.transform = 'scale(1)';
+                    vehicleItem.style.boxShadow = 'none';
+                });
 
                 vehicleItem.addEventListener('click', () => {
                     // Center map on vehicle and open popup
@@ -3748,13 +3791,25 @@ function createNearbyVehiclesControl() {
                 this._listContainer.appendChild(vehicleItem);
             });
 
-            // Show the container
+            // Show the container with a fade-in animation
+            this._container.style.opacity = '0';
             this._container.style.display = 'block';
             map.getContainer().appendChild(this._container);
+            
+            setTimeout(() => {
+                this._container.style.transition = 'opacity 0.3s ease';
+                this._container.style.opacity = '1';
+            }, 10);
         },
 
         hide: function() {
-            this._container.style.display = 'none';
+            // Fade out animation
+            this._container.style.transition = 'opacity 0.3s ease';
+            this._container.style.opacity = '0';
+            
+            setTimeout(() => {
+                this._container.style.display = 'none';
+            }, 300);
         },
 
         toggle: function() {
@@ -3775,9 +3830,11 @@ function createNearbyVehiclesControl() {
         }
     });
 
+    // Create and add the control to the map
     const nearbyVehiclesControl = new NearbyVehiclesControl();
     map.addControl(nearbyVehiclesControl);
 
+    // Expose the control methods globally for easy access
     window.nearbyVehiclesControl = {
         show: () => nearbyVehiclesControl.show(),
         hide: () => nearbyVehiclesControl.hide(),
@@ -3787,6 +3844,7 @@ function createNearbyVehiclesControl() {
     return nearbyVehiclesControl;
 }
 
+// Call this function once to set up the control
 createNearbyVehiclesControl();
 
 let isAnimating = false;
