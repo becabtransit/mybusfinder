@@ -3614,12 +3614,28 @@ const ANIMATION_CONFIG = {
 };
 
 function createNearbyVehiclesControl() {
+    // Ensure only one instance is created
+    if (window.nearbyVehiclesControlInstance) {
+        map.removeControl(window.nearbyVehiclesControlInstance);
+    }
+
     const NearbyVehiclesControl = L.Control.extend({
         options: {
             position: 'topright'
         },
 
+        initialize: function(options) {
+            L.setOptions(this, options);
+            this._isVisible = false;
+            this._isExpanded = false;
+        },
+
         onAdd: function(map) {
+            // Prevent multiple controls
+            if (window.nearbyVehiclesControlInstance) {
+                map.removeControl(window.nearbyVehiclesControlInstance);
+            }
+
             // Create main container
             this._container = L.DomUtil.create('div', 'nearby-vehicles-control');
             this._container.style.cssText = `
@@ -3636,8 +3652,8 @@ function createNearbyVehiclesControl() {
                 border: 1px solid rgba(255, 255, 255, 0.2);
                 overflow: hidden;
                 transition: all 0.3s ease;
-                max-height: 60px;
-                opacity: 1;
+                max-height: 0;
+                opacity: 0;
             `;
 
             // Create header (always visible)
@@ -3695,24 +3711,24 @@ function createNearbyVehiclesControl() {
             `;
             this._container.appendChild(this._listContainer);
 
-            // Track expanded state
-            this._isExpanded = false;
-
-            // Header click to expand
+            // Header click to expand/contract
             header.addEventListener('click', () => {
-                this.toggle();
+                this.toggleExpand();
             });
 
             // Close button click to collapse
             closeButton.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.collapse();
+                this.contract();
             });
+
+            // Store the instance globally
+            window.nearbyVehiclesControlInstance = this;
 
             return this._container;
         },
 
-        show: function() {
+        updateVehicles: function() {
             // Find user's current location
             const userLocation = map.getCenter();
 
@@ -3737,7 +3753,6 @@ function createNearbyVehiclesControl() {
                 const vehicleId = marker.id;
                 const line = marker.line;
                 const backgroundColor = lineColors[line] || '#000000';
-                const textColor = 'white';
 
                 const vehicleItem = L.DomUtil.create('div', 'nearby-vehicle-item');
                 vehicleItem.style.cssText = `
@@ -3770,19 +3785,34 @@ function createNearbyVehiclesControl() {
                 vehicleItem.addEventListener('click', () => {
                     map.setView(marker.getLatLng(), 15);
                     marker.openPopup();
-                    this.collapse();
+                    this.contract();
                 });
 
                 this._listContainer.appendChild(vehicleItem);
             });
+        },
 
-            this.expand();
+        show: function() {
+            this._container.style.maxHeight = '60px';
+            this._container.style.opacity = '1';
+            this._isVisible = true;
+        },
+
+        hide: function() {
+            this._container.style.maxHeight = '0';
+            this._container.style.opacity = '0';
+            this._isVisible = false;
+            this._isExpanded = false;
         },
 
         expand: function() {
+            if (!this._isVisible) this.show();
+
             const header = this._container.querySelector('.nearby-vehicles-header');
             const closeButton = header.querySelector('button');
             const listContainer = this._listContainer;
+
+            this.updateVehicles(); // Update vehicles when expanding
 
             this._container.style.maxHeight = '500px';
             listContainer.style.opacity = '1';
@@ -3794,7 +3824,7 @@ function createNearbyVehiclesControl() {
             this._isExpanded = true;
         },
 
-        collapse: function() {
+        contract: function() {
             const header = this._container.querySelector('.nearby-vehicles-header');
             const closeButton = header.querySelector('button');
             const listContainer = this._listContainer;
@@ -3809,11 +3839,11 @@ function createNearbyVehiclesControl() {
             this._isExpanded = false;
         },
 
-        toggle: function() {
+        toggleExpand: function() {
             if (this._isExpanded) {
-                this.collapse();
+                this.contract();
             } else {
-                this.show();
+                this.expand();
             }
         }
     });
@@ -3822,12 +3852,22 @@ function createNearbyVehiclesControl() {
     const nearbyVehiclesControl = new NearbyVehiclesControl();
     map.addControl(nearbyVehiclesControl);
 
-    // Expose the control methods globally for easy access
+    // Expose the control methods globally
     window.nearbyVehiclesControl = {
         show: () => nearbyVehiclesControl.show(),
-        hide: () => nearbyVehiclesControl.collapse(),
-        toggle: () => nearbyVehiclesControl.toggle()
+        hide: () => nearbyVehiclesControl.hide(),
+        expand: () => nearbyVehiclesControl.expand(),
+        contract: () => nearbyVehiclesControl.contract(),
+        toggleExpand: () => nearbyVehiclesControl.toggleExpand(),
+        updateVehicles: () => nearbyVehiclesControl.updateVehicles()
     };
+
+    // Update vehicles when map moves
+    map.on('moveend', () => {
+        if (window.nearbyVehiclesControl && window.nearbyVehiclesControl.updateVehicles) {
+            window.nearbyVehiclesControl.updateVehicles();
+        }
+    });
 
     return nearbyVehiclesControl;
 }
