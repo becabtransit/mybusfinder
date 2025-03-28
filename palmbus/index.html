@@ -4496,52 +4496,52 @@ function applyMapView() {
 
 let startX;
 let endX;
+let startY;
+let endY;
 const menubtm = document.getElementById('menubtm');
 
 menubtm.addEventListener('touchstart', (e) => {
     const touchStartY = e.touches[0].clientY;
     const menuRect = menubtm.getBoundingClientRect();
     
+    startX = e.touches[0].clientX;
+    
     if (touchStartY >= menuRect.bottom - 50) {
         startY = touchStartY;
     } else {
         startY = null;
     }
-
-    startX = e.touches[0].clientX;
 });
 
 menubtm.addEventListener('touchmove', (e) => {
+    endX = e.touches[0].clientX;
+    
     if (startY !== null) {
         endY = e.touches[0].clientY;
     }
-
-    endX = e.touches[0].clientX;
 });
 
 menubtm.addEventListener('touchend', () => {
-    if (startY !== null && endY !== null) {
-        const swipeDistance = startY - endY; 
+    if (startX !== null && endX !== null && startY !== null && endY !== null) {
+        const horizontalSwipeDistance = startX - endX;
+        const verticalSwipeDistance = startY - endY;
         const minSwipeDistance = 30;
-        
-        if (swipeDistance > minSwipeDistance) {
-            showBottomSheet(); 
+
+        if (Math.abs(horizontalSwipeDistance) > Math.abs(verticalSwipeDistance)) {
+            if (horizontalSwipeDistance > minSwipeDistance) {
+                showMenu();
+            }
+        } else {
+            if (verticalSwipeDistance > minSwipeDistance) {
+                showBottomSheet();
+            }
         }
     }
     
-    if (startX !== null && endX !== null) {
-        const swipeDistance = startX - endX;
-        const minSwipeDistance = 30;
-        
-        if (swipeDistance > minSwipeDistance) {
-            showMenu();
-        }
-    }
-    
-    startY = null;
-    endY = null;
     startX = null;
     endX = null;
+    startY = null;
+    endY = null;
 });
 
 function createBottomSheet() {
