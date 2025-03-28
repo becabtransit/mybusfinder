@@ -1332,14 +1332,14 @@ shape.bounce-down {
     transform: translateX(-50%);
     background-color: rgba(15, 5, 107, 0.8);
     color: white;
-    padding: 8px 15px;
+    padding: 10px 15px;
     border-radius: 15px;
     z-index: 10001;
     display: flex;
     align-items: center;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.3s, visibility 0.3s;
+    transition: all 0.3s ease;
     backdrop-filter: blur(8px);
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
@@ -1355,16 +1355,16 @@ shape.bounce-down {
     gap: 8px;
 }
 
-.first-visit-tooltip .up-arrow {
-    width: 24px;
-    height: 24px;
-    animation: float 1s ease-in-out infinite alternate;
+.first-visit-tooltip svg {
+    stroke: white;
+    animation: bounce 1s infinite;
 }
 
-@keyframes float {
-    from { transform: translateY(0); }
-    to { transform: translateY(-5px); }
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
 }
+
     </style>
 
 </head>
@@ -1461,37 +1461,41 @@ shape.bounce-down {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    function showFirstVisitTooltip() {
-        const tooltip = document.getElementById('first-visit-tooltip');
-        
-        if (!localStorage.getItem('firstVisitTooltipShown')) {
-            tooltip.classList.add('show');
-            localStorage.setItem('firstVisitTooltipShown', 'true');
+    const tooltip = document.getElementById('first-visit-tooltip');
+    
+    let navigationCount = parseInt(localStorage.getItem('navigationCount') || '0');
+    
+    if (!localStorage.getItem('firstVisitTooltipShown')) {
+        function countNavigation() {
+            navigationCount++;
+            localStorage.setItem('navigationCount', navigationCount.toString());
             
-            const hideTooltip = () => {
-                tooltip.classList.remove('show');
-            };
-            
-            const tooltipTimeout = setTimeout(hideTooltip, 10000);
-            
-            document.addEventListener('click', function clickHandler(event) {
-                if (!tooltip.contains(event.target)) {
-                    clearTimeout(tooltipTimeout);
-                    hideTooltip();
+            if (navigationCount === 2) {
+                tooltip.classList.add('show');
+                localStorage.setItem('firstVisitTooltipShown', 'true');
+                
+                const hideTooltip = () => {
+                    tooltip.classList.remove('show');
                     document.removeEventListener('click', clickHandler);
+                };
+                
+                const tooltipTimeout = setTimeout(hideTooltip, 10000);
+                
+                function clickHandler(event) {
+                    if (!tooltip.contains(event.target)) {
+                        clearTimeout(tooltipTimeout);
+                        hideTooltip();
+                    }
                 }
-            });
-        }
-    }
-
-    const originalCloseUpdatePopup = window.closeUpdatePopup;
-    window.closeUpdatePopup = function() {
-        if (originalCloseUpdatePopup) {
-            originalCloseUpdatePopup.apply(this, arguments);
+                
+                document.addEventListener('click', clickHandler);
+            }
         }
         
-        setTimeout(showFirstVisitTooltip, 2000);
-    };
+        window.addEventListener('popstate', countNavigation);
+        window.addEventListener('pushstate', countNavigation);
+        window.addEventListener('replacestate', countNavigation);
+    }
 });
 
 async function getSetvar() {
