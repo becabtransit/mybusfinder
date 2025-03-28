@@ -5237,18 +5237,16 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
     return button;
 }
 
-
 function showBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
     const menubottom1 = document.getElementById('menubottom1');
     const filtre = document.getElementById('filtre');
-
+    
     bottomSheet.getAnimations().forEach(animation => animation.cancel());
+    menu.getAnimations().forEach(animation => animation.cancel());
     menubottom1.getAnimations().forEach(animation => animation.cancel());
-    if (filtre) {
-        filtre.getAnimations().forEach(animation => animation.cancel());
-    }
+    if (filtre) filtre.getAnimations().forEach(animation => animation.cancel());
 
     menu.classList.add('hidden');
     menu.addEventListener('animationend', function onAnimationEnd(event) {
@@ -5272,16 +5270,16 @@ function showBottomSheet() {
         }, { once: true });
     }
 
+    bottomSheet.style.opacity = '0';
+    bottomSheet.style.transform = 'translateY(100%)';
     bottomSheet.style.display = 'block';
-    bottomSheet.animate([
-        { opacity: 0, transform: 'translateY(100%)' },
-        { opacity: 1, transform: 'translateY(0)' }
-    ], {
-        duration: 400,
-        easing: 'cubic-bezier(0,.74,.28,.99)',
-        fill: 'forwards'
-    });
-
+    
+    bottomSheet.offsetHeight;
+    
+    bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0,.74,.28,.99), opacity 0.3s ease-out';
+    bottomSheet.style.opacity = '1';
+    bottomSheet.style.transform = 'translateY(0)';
+    
     window.isBottomSheetOpen = true;
 }
 
@@ -5290,46 +5288,33 @@ function closeBottomSheet() {
     const menubottom1 = document.getElementById('menubottom1');
     const filtre = document.getElementById('filtre');
 
-    if (!bottomSheet) return;
-
     bottomSheet.getAnimations().forEach(animation => animation.cancel());
     menubottom1.getAnimations().forEach(animation => animation.cancel());
-    if (filtre) {
-        filtre.getAnimations().forEach(animation => animation.cancel());
-    }
+    if (filtre) filtre.getAnimations().forEach(animation => animation.cancel());
 
-    const bottomSheetAnimation = bottomSheet.animate([
-        { opacity: 1, transform: 'translateY(0)' },
-        { opacity: 0, transform: 'translateY(100%)' }
-    ], {
-        duration: 400,
-        easing: 'cubic-bezier(0.32, 0.64, 0.45, 1)',
-        fill: 'forwards'
-    });
+    window.isBottomSheetOpen = false;
 
-    bottomSheetAnimation.onfinish = () => {
-        bottomSheet.style.display = 'none';
-        window.isBottomSheetOpen = false;
-    };
+    if (bottomSheet) {
+        bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
+        bottomSheet.style.transform = 'translateY(100%)';
+        bottomSheet.style.opacity = '0';
+        
+        bottomSheet.addEventListener('transitionend', function onTransitionEnd(e) {
+            if (e.propertyName === 'transform') {
+                bottomSheet.style.display = 'none';
+                bottomSheet.removeEventListener('transitionend', onTransitionEnd);
+            }
+        }, { once: true });
 
-    menubottom1.style.display = 'flex';
-    menubottom1.animate([
-        { transform: 'translateY(-100%)' },
-        { transform: 'translateY(0)' }
-    ], {
-        duration: 400,
-        fill: 'forwards'
-    });
+        menubottom1.style.display = 'flex';
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
 
-    if (selectedLine && filtre) {
-        filtre.style.display = 'flex';
-        filtre.animate([
-            { transform: 'translateY(100%)' },
-            { transform: 'translateY(0)' }
-        ], {
-            duration: 400,
-            fill: 'forwards'
-        });
+        if (selectedLine && filtre) {
+            filtre.classList.remove('slide-upc');
+            filtre.classList.add('slide-downc');
+            filtre.style.display = 'flex';
+        }
     }
 }
 
