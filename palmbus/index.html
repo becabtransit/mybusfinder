@@ -5237,92 +5237,99 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
     return button;
 }
 
+
 function showBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
-    
-    // Hide menu
+    const menubottom1 = document.getElementById('menubottom1');
+    const filtre = document.getElementById('filtre');
+
+    bottomSheet.getAnimations().forEach(animation => animation.cancel());
+    menubottom1.getAnimations().forEach(animation => animation.cancel());
+    if (filtre) {
+        filtre.getAnimations().forEach(animation => animation.cancel());
+    }
+
     menu.classList.add('hidden');
     menu.addEventListener('animationend', function onAnimationEnd(event) {
         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
             menu.style.display = 'none';
         }
-    });
+    }, { once: true });
     isMenuVisible = false;
-
-    const menubotom = document.getElementById('menubottom');
 
     menubottom1.classList.remove('slide-downb');
     menubottom1.classList.add('slide-upb');
-    if (selectedLine) {
-        const filtre = document.getElementById('filtre');
+    menubottom1.addEventListener('animationend', () => {
+        menubottom1.style.display = 'none';
+    }, { once: true });
+
+    if (selectedLine && filtre) {
         filtre.classList.add('slide-upc');
         filtre.classList.remove('slide-downc');
         filtre.addEventListener('animationend', () => {
             filtre.style.display = 'none';
-        });
+        }, { once: true });
     }
 
-    menubottom1.addEventListener('transitionend', () => {
-    if (menubottom1.classList.contains('slide-up')) {
-    menubottom1.style.display = 'none';
-    }
-    }, { once: true });
-
-    // Show bottom sheet with animation
-    bottomSheet.style.opacity = '0';
-    bottomSheet.style.transform = 'translateY(100%)';
     bottomSheet.style.display = 'block';
-    
-    // Trigger reflow
-    bottomSheet.offsetHeight;
-    
-    // Animate in
-    bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0,.74,.28,.99), opacity 0.3s ease-out';
-    bottomSheet.style.opacity = '1';
-    bottomSheet.style.transform = 'translateY(0)';
-    
-    // Set state to open
-    window.isBottomSheetOpen = true;
+    bottomSheet.animate([
+        { opacity: 0, transform: 'translateY(100%)' },
+        { opacity: 1, transform: 'translateY(0)' }
+    ], {
+        duration: 400,
+        easing: 'cubic-bezier(0,.74,.28,.99)',
+        fill: 'forwards'
+    });
 
+    window.isBottomSheetOpen = true;
 }
 
 function closeBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet');
-    window.isBottomSheetOpen = false;
+    const menubottom1 = document.getElementById('menubottom1');
+    const filtre = document.getElementById('filtre');
 
-    if (bottomSheet) {
-        bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
-        
-        bottomSheet.style.transform = 'translateY(100%)';
-        bottomSheet.style.opacity = '0';
-        
-        bottomSheet.addEventListener('transitionend', function onTransitionEnd(e) {
-            if (e.propertyName === 'transform') {
-                bottomSheet.style.display = 'none';
-                bottomSheet.removeEventListener('transitionend', onTransitionEnd);
-            }
+    if (!bottomSheet) return;
+
+    bottomSheet.getAnimations().forEach(animation => animation.cancel());
+    menubottom1.getAnimations().forEach(animation => animation.cancel());
+    if (filtre) {
+        filtre.getAnimations().forEach(animation => animation.cancel());
+    }
+
+    const bottomSheetAnimation = bottomSheet.animate([
+        { opacity: 1, transform: 'translateY(0)' },
+        { opacity: 0, transform: 'translateY(100%)' }
+    ], {
+        duration: 400,
+        easing: 'cubic-bezier(0.32, 0.64, 0.45, 1)',
+        fill: 'forwards'
+    });
+
+    bottomSheetAnimation.onfinish = () => {
+        bottomSheet.style.display = 'none';
+        window.isBottomSheetOpen = false;
+    };
+
+    menubottom1.style.display = 'flex';
+    menubottom1.animate([
+        { transform: 'translateY(-100%)' },
+        { transform: 'translateY(0)' }
+    ], {
+        duration: 400,
+        fill: 'forwards'
+    });
+
+    if (selectedLine && filtre) {
+        filtre.style.display = 'flex';
+        filtre.animate([
+            { transform: 'translateY(100%)' },
+            { transform: 'translateY(0)' }
+        ], {
+            duration: 400,
+            fill: 'forwards'
         });
-        menubottom1.style.display = 'flex';
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-            if (selectedLine) {
-            const filtre = document.getElementById('filtre');
-            filtre.classList.remove('slide-upc');
-            filtre.classList.add('slide-downc');
-            filtre.style.display = 'flex';
-            
-            }
-        }, 10);
-
-
-        setTimeout(() => {
-            if (bottomSheet.style.display !== 'none') {
-                bottomSheet.style.display = 'none';
-                
-            }
-        }, 500);
     }
 }
 
