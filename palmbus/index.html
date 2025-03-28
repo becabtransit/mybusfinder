@@ -5240,73 +5240,94 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
 function showBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
+    const menubottom = document.getElementById('menubottom');
+    const filtre = document.getElementById('filtre');
 
     menu.classList.add('hidden');
     menu.addEventListener('animationend', function onAnimationEnd(event) {
-        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) {
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
             menu.style.display = 'none';
+            menu.removeEventListener('animationend', onAnimationEnd);
         }
     });
     isMenuVisible = false;
 
-    const menubottom1 = document.getElementById('menubottom');
+    menubottom1.style.transition = 'none';
     menubottom1.classList.remove('slide-downb');
+    menubottom1.offsetHeight;
+    menubottom1.style.transition = '';
     menubottom1.classList.add('slide-upb');
-    if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.add('slide-upc');
+
+    if (selectedLine && filtre) {
+        filtre.style.transition = 'none';
         filtre.classList.remove('slide-downc');
-        filtre.addEventListener('animationend', () => {
+        filtre.offsetHeight;
+        filtre.style.transition = '';
+        filtre.classList.add('slide-upc');
+        
+        const filtreAnimEnd = () => {
             filtre.style.display = 'none';
-        });
+            filtre.removeEventListener('animationend', filtreAnimEnd);
+        };
+        filtre.addEventListener('animationend', filtreAnimEnd);
     }
 
-    menubottom1.addEventListener('transitionend', () => {
+    const menuTransEnd = () => {
         if (menubottom1.classList.contains('slide-upb')) {
             menubottom1.style.display = 'none';
         }
-    }, { once: true });
+        menubottom1.removeEventListener('transitionend', menuTransEnd);
+    };
+    menubottom1.addEventListener('transitionend', menuTransEnd);
 
     bottomSheet.style.opacity = '0';
     bottomSheet.style.transform = 'translateY(100%)';
     bottomSheet.style.display = 'block';
-
     bottomSheet.offsetHeight;
-
+    
     bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0,.74,.28,.99), opacity 0.3s ease-out';
     bottomSheet.style.opacity = '1';
     bottomSheet.style.transform = 'translateY(0)';
-
+    
     window.isBottomSheetOpen = true;
 }
 
 function closeBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet');
+    const filtre = document.getElementById('filtre');
     window.isBottomSheetOpen = false;
 
     if (bottomSheet) {
         bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
         bottomSheet.style.transform = 'translateY(100%)';
         bottomSheet.style.opacity = '0';
-
-        bottomSheet.addEventListener('transitionend', function onTransitionEnd(e) {
+        
+        const bottomSheetTransEnd = (e) => {
             if (e.propertyName === 'transform') {
                 bottomSheet.style.display = 'none';
-                bottomSheet.removeEventListener('transitionend', onTransitionEnd);
+                bottomSheet.removeEventListener('transitionend', bottomSheetTransEnd);
+            }
+        };
+        bottomSheet.addEventListener('transitionend', bottomSheetTransEnd);
+
+        menubottom1.style.display = 'flex';
+        
+        requestAnimationFrame(() => {
+            menubottom1.style.transition = 'none';
+            menubottom1.classList.remove('slide-upb');
+            menubottom1.offsetHeight;
+            menubottom1.style.transition = '';
+            menubottom1.classList.add('slide-downb');
+
+            if (selectedLine && filtre) {
+                filtre.style.transition = 'none';
+                filtre.classList.remove('slide-upc');
+                filtre.style.display = 'flex';
+                filtre.offsetHeight;
+                filtre.style.transition = '';
+                filtre.classList.add('slide-downc');
             }
         });
-        const menubottom1 = document.getElementById('menubottom');
-        menubottom1.style.display = 'flex';
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-            if (selectedLine) {
-                const filtre = document.getElementById('filtre');
-                filtre.classList.remove('slide-upc');
-                filtre.classList.add('slide-downc');
-                filtre.style.display = 'flex';
-            }
-        }, 10);
 
         setTimeout(() => {
             if (bottomSheet.style.display !== 'none') {
