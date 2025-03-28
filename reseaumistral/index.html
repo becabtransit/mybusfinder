@@ -1326,41 +1326,45 @@ shape.bounce-down {
         }
 
         .first-visit-tooltip {
-        position: fixed;
-        bottom: 80px;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: rgba(15, 5, 107, 0.8);
-        color: white;
-        padding: 10px 15px;
-        border-radius: 15px;
-        z-index: 10001;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s, visibility 0.3s;
-        backdrop-filter: blur(8px);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(15, 5, 107, 0.8);
+    color: white;
+    padding: 8px 15px;
+    border-radius: 15px;
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
 
-    .first-visit-tooltip.show {
-        opacity: 1;
-        visibility: visible;
-    }
+.first-visit-tooltip.show {
+    opacity: 1;
+    visibility: visible;
+}
 
-    .first-visit-tooltip .up-arrow {
-        width: 24px;
-        height: 24px;
-        animation: bounce 1s infinite;
-    }
+.first-visit-tooltip .tooltip-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 
-    @keyframes bounce {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-10px); }
-    }
+.first-visit-tooltip .up-arrow {
+    width: 24px;
+    height: 24px;
+    animation: float 1s ease-in-out infinite alternate;
+}
 
+@keyframes float {
+    from { transform: translateY(0); }
+    to { transform: translateY(-5px); }
+}
     </style>
 
 </head>
@@ -1379,11 +1383,12 @@ shape.bounce-down {
 </div>
 
 <div id="first-visit-tooltip" class="first-visit-tooltip">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="up-arrow">
-        <path d="M12 19V5l-7 7" stroke="white" stroke-width="2" fill="none"/>
-        <path d="M12 19V5l7 7" stroke="white" stroke-width="2" fill="none"/>
-    </svg>
-    <span>Glissez vers le haut pour les paramètres</span>
+    <div class="tooltip-content">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="up-arrow">
+            <path d="M12 5l-7 7h14l-7-7z" fill="white"/>
+        </svg>
+        <span>Glissez vers le haut pour les paramètres</span>
+    </div>
 </div>
  <div class="menubottom">
         <ul id="menubtm" class="menubottom-ul">
@@ -1456,10 +1461,9 @@ shape.bounce-down {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const tooltip = document.getElementById('first-visit-tooltip');
-    const menubtm = document.getElementById('menubtm');
-    
     function showFirstVisitTooltip() {
+        const tooltip = document.getElementById('first-visit-tooltip');
+        
         if (!localStorage.getItem('firstVisitTooltipShown')) {
             tooltip.classList.add('show');
             localStorage.setItem('firstVisitTooltipShown', 'true');
@@ -1470,20 +1474,24 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const tooltipTimeout = setTimeout(hideTooltip, 10000);
             
-            menubtm.addEventListener('click', function(event) {
-                clearTimeout(tooltipTimeout);
-                hideTooltip();
+            document.addEventListener('click', function clickHandler(event) {
+                if (!tooltip.contains(event.target)) {
+                    clearTimeout(tooltipTimeout);
+                    hideTooltip();
+                    document.removeEventListener('click', clickHandler);
+                }
             });
         }
     }
 
-    if (typeof closeUpdatePopup === 'function') {
-        const originalcloseUpdatePopup= closeUpdatePopup;
-        closeUpdatePopup = function() {
-            originalcloseUpdatePopup.apply(this, arguments);
-            setTimeout(showFirstVisitTooltip, 2000);
-        };
-    }
+    const originalCloseUpdatePopup = window.closeUpdatePopup;
+    window.closeUpdatePopup = function() {
+        if (originalCloseUpdatePopup) {
+            originalCloseUpdatePopup.apply(this, arguments);
+        }
+        
+        setTimeout(showFirstVisitTooltip, 2000);
+    };
 });
 
 async function getSetvar() {
