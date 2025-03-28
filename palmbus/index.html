@@ -4494,8 +4494,8 @@ function applyMapView() {
 }
 
 
-let startY;
-let endY;
+let startX;
+let endX;
 const menubtm = document.getElementById('menubtm');
 
 menubtm.addEventListener('touchstart', (e) => {
@@ -4507,26 +4507,41 @@ menubtm.addEventListener('touchstart', (e) => {
     } else {
         startY = null;
     }
+
+    startX = e.touches[0].clientX;
 });
 
 menubtm.addEventListener('touchmove', (e) => {
     if (startY !== null) {
         endY = e.touches[0].clientY;
     }
+
+    endX = e.touches[0].clientX;
 });
 
 menubtm.addEventListener('touchend', () => {
     if (startY !== null && endY !== null) {
         const swipeDistance = startY - endY; 
-        const minSwipeDistance = 50;
+        const minSwipeDistance = 30;
         
         if (swipeDistance > minSwipeDistance) {
             showBottomSheet(); 
         }
     }
     
+    if (startX !== null && endX !== null) {
+        const swipeDistance = startX - endX;
+        const minSwipeDistance = 30;
+        
+        if (swipeDistance > minSwipeDistance) {
+            showMenu();
+        }
+    }
+    
     startY = null;
     endY = null;
+    startX = null;
+    endX = null;
 });
 
 function createBottomSheet() {
@@ -4834,7 +4849,7 @@ function createBottomSheet() {
     greetingText.textContent = getTransportGreeting();
     bottomSheet.appendChild(greetingText);
 
-    const sedeplacerBox = createStyledBox("Se déplacer", [transportStateContainer, actu, locationButton, satelliteButton]);
+    const sedeplacerBox = createStyledBox("Se déplacer", [transportStateContainer, locationButton, satelliteButton]);
     bottomSheet.appendChild(sedeplacerBox);
 
     const allerplusloinBox = createStyledBox("Pour aller plus loin...", [histovecButton, togglesun, about]);
@@ -4880,12 +4895,12 @@ function stopDrag(e) {
     const currentTranslate = getTranslateY(bottomSheet);
     const sheetHeight = bottomSheet.offsetHeight;
     
-    bottomSheet.style.transition = 'transform 0.3s cubic-bezier(0.32, 0.64, 0.45, 1)';
+    bottomSheet.style.transition = 'transform 0.3s ease-out';
     
     const percentageMoved = (currentTranslate / sheetHeight) * 100;
     
     if (deltaY > 0) { 
-        if (percentageMoved > 50) {
+        if (percentageMoved > 10) {
             closeBottomSheet();
             window.isBottomSheetOpen = false;
         } else if (percentageMoved > 30) {
