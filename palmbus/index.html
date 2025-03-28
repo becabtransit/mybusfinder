@@ -1366,6 +1366,16 @@ shape.bounce-down {
     50% { transform: translateY(-5px); }
 }
 
+#slide-overlay {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 30px;
+    height: 100%;
+    background-color: transparent;
+    z-index: 1000;
+}
+
     </style>
 
 </head>
@@ -4494,11 +4504,9 @@ function applyMapView() {
 }
 
 
-let startX;
-let endX;
-let startY;
-let endY;
+let startY, endY, startX, endX;
 const menubtm = document.getElementById('menubtm');
+const slideOverlay = document.getElementById('slide-overlay');
 
 menubtm.addEventListener('touchstart', (e) => {
     const touchStartY = e.touches[0].clientY;
@@ -4542,6 +4550,28 @@ menubtm.addEventListener('touchend', () => {
     endX = null;
     startY = null;
     endY = null;
+});
+
+slideOverlay.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+});
+
+slideOverlay.addEventListener('touchmove', (e) => {
+    endX = e.touches[0].clientX;
+});
+
+slideOverlay.addEventListener('touchend', () => {
+    if (startX !== null && endX !== null) {
+        const swipeDistance = startX - endX;
+        const minSwipeDistance = 30;
+        
+        if (swipeDistance > minSwipeDistance) {
+            showMenu();
+        }
+        
+        startX = null;
+        endX = null;
+    }
 });
 
 function createBottomSheet() {
