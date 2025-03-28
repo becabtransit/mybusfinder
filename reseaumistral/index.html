@@ -1465,37 +1465,44 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let navigationCount = parseInt(localStorage.getItem('navigationCount') || '0');
     
-    if (!localStorage.getItem('firstVisitTooltipShown')) {
-        function countNavigation() {
-            navigationCount++;
-            localStorage.setItem('navigationCount', navigationCount.toString());
-            
-            if (navigationCount === 2) {
-                tooltip.classList.add('show');
-                localStorage.setItem('firstVisitTooltipShown', 'true');
-                
-                const hideTooltip = () => {
-                    tooltip.classList.remove('show');
-                    document.removeEventListener('click', clickHandler);
-                };
-                
-                const tooltipTimeout = setTimeout(hideTooltip, 10000);
-                
-                function clickHandler(event) {
-                    if (!tooltip.contains(event.target)) {
-                        clearTimeout(tooltipTimeout);
-                        hideTooltip();
-                    }
-                }
-                
-                document.addEventListener('click', clickHandler);
-            }
-        }
+    function showTooltip() {
+        tooltip.classList.add('show');
         
-        window.addEventListener('popstate', countNavigation);
-        window.addEventListener('pushstate', countNavigation);
-        window.addEventListener('replacestate', countNavigation);
+        const tooltipTimeout = setTimeout(() => {
+            tooltip.classList.remove('show');
+        }, 10000);
+        
+        const hideTooltip = () => {
+            tooltip.classList.remove('show');
+            document.removeEventListener('click', clickHandler);
+        };
+        
+        const clickHandler = (event) => {
+            if (!tooltip.contains(event.target)) {
+                clearTimeout(tooltipTimeout);
+                hideTooltip();
+            }
+        };
+        
+        document.addEventListener('click', clickHandler);
     }
+    
+    function checkNavigationAndShowTooltip() {
+        navigationCount++;
+        localStorage.setItem('navigationCount', navigationCount.toString());
+        
+        if (navigationCount === 2) {
+            setTimeout(showTooltip, 3000);
+        }
+    }
+    
+    const originalHideLoadingScreen = window.hideLoadingScreen;
+    window.hideLoadingScreen = function() {
+        if (originalHideLoadingScreen) {
+            originalHideLoadingScreen.apply(this, arguments);
+        }
+        checkNavigationAndShowTooltip();
+    };
 });
 
 async function getSetvar() {
