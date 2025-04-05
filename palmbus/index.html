@@ -1366,26 +1366,6 @@ shape.bounce-down {
     50% { transform: translateY(-5px); }
 }
 
-        #slide-overlay {
-            position: fixed;
-            top: 0;
-            right: 0;
-            width: 30px;
-            height: 100%;
-            background-color: transparent;
-            z-index: 9999;
-            pointer-events: none; 
-        }
-        
-        #slide-detection-zone {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 20px;
-            height: 100%;
-            pointer-events: auto; 
-        }
-
     </style>
 
 </head>
@@ -1435,9 +1415,7 @@ shape.bounce-down {
             </li>
         </ul>
 </div>
-<div id="slide-overlay">
-    <div id="slide-detection-zone"></div>
-</div>
+
 	
 
 
@@ -4521,12 +4499,17 @@ function applyMapView() {
 }
 
 
-let startY, endY, startX, endX;
+let startY;
+let endY;
+let startX;
+let endX;
 const menubtm = document.getElementById('menubtm');
-const slideDetection = document.getElementById('slide-detection-zone');
-let isTracking = false;
+let touchStartX = null;
+let touchStartTime = null;
+let isEdgeTouch = false;
+const edgeThreshold = 20;
+const minSwipeDistance = 50; 
 
-// Gestion du menu du bas (code inchangé)
 menubtm.addEventListener('touchstart', (e) => {
     const touchStartY = e.touches[0].clientY;
     const menuRect = menubtm.getBoundingClientRect();
@@ -4541,11 +4524,11 @@ menubtm.addEventListener('touchstart', (e) => {
 });
 
 menubtm.addEventListener('touchmove', (e) => {
-    endX = e.touches[0].clientX;
-    
     if (startY !== null) {
         endY = e.touches[0].clientY;
     }
+    
+    endX = e.touches[0].clientX;
 });
 
 menubtm.addEventListener('touchend', () => {
@@ -4553,7 +4536,7 @@ menubtm.addEventListener('touchend', () => {
         const horizontalSwipeDistance = startX - endX;
         const verticalSwipeDistance = startY - endY;
         const minSwipeDistance = 50;
-
+        
         if (Math.abs(horizontalSwipeDistance) > Math.abs(verticalSwipeDistance)) {
             if (horizontalSwipeDistance > minSwipeDistance) {
                 showMenu();
@@ -4571,38 +4554,41 @@ menubtm.addEventListener('touchend', () => {
     endY = null;
 });
 
-slideDetection.addEventListener('touchstart', (e) => {
-    startX = e.touches[0].clientX;
-    isTracking = true;
-    
-    document.addEventListener('touchmove', handleDocumentTouchMove);
-    document.addEventListener('touchend', handleDocumentTouchEnd);
-    e.preventDefault(); 
-});
-
-function handleDocumentTouchMove(e) {
-    if (isTracking) {
-        endX = e.touches[0].clientX;
-    }
+function isTouchNearRightEdge(x) {
+    return window.innerWidth - x <= edgeThreshold;
 }
 
-function handleDocumentTouchEnd(e) {
-    if (isTracking && startX !== null && endX !== null) {
-        const swipeDistance = startX - endX;
-        const minSwipeDistance = 50;
+document.addEventListener('touchstart', function(e) {
+    const touchX = e.touches[0].clientX;
+    
+    if (isTouchNearRightEdge(touchX)) {
+        touchStartX = touchX;
+        touchStartTime = Date.now();
+        isEdgeTouch = true;
+    }
+}, { passive: true }); 
+
+document.addEventListener('touchmove', function(e) {
+    if (isEdgeTouch) {
+        const currentX = e.touches[0].clientX;
+    }
+}, { passive: true });
+
+document.addEventListener('touchend', function(e) {
+    if (isEdgeTouch && touchStartX !== null) {
+        const touchEndX = e.changedTouches[0].clientX;
+        const swipeDistance = touchStartX - touchEndX;
+        const touchDuration = Date.now() - touchStartTime;
         
-        if (swipeDistance > minSwipeDistance) {
+        if (swipeDistance > minSwipeDistance && touchDuration < 300) {
             showMenu();
         }
+        
+        isEdgeTouch = false;
+        touchStartX = null;
+        touchStartTime = null;
     }
-    
-    isTracking = false;
-    startX = null;
-    endX = null;
-    
-    document.removeEventListener('touchmove', handleDocumentTouchMove);
-    document.removeEventListener('touchend', handleDocumentTouchEnd);
-}
+});
 
 
 function createBottomSheet() {
