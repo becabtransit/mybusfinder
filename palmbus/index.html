@@ -3179,6 +3179,7 @@ async function initializeApp() {
 
 let gtfsInitialized = false;
 window.isBottomSheetOpen = false;
+window.isMenuShowed = false;
 
 
 async function fetchVehiclePositions() {
@@ -4531,9 +4532,6 @@ menubtm.addEventListener('touchmove', (e) => {
     endX = e.touches[0].clientX;
 });
 
-window.isBottomSheetOpen = false;
-window.isMenuShowed = false;
-
 menubtm.addEventListener('touchend', () => {
     if (startX !== null && endX !== null && startY !== null && endY !== null) {
         if (!isBottomSheetOpen && !isMenuShowed) {
@@ -4954,7 +4952,6 @@ function stopDrag(e) {
     if (deltaY > 0) { 
         if (percentageMoved > 50) {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         } else if (percentageMoved > 30) {
             bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
         } else {
@@ -4967,7 +4964,6 @@ function stopDrag(e) {
             bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
         } else {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         }
     }
 }
@@ -5060,7 +5056,6 @@ function createStyledButtonBeta(title, description, svgContent, onClickHandler) 
         onClickHandler();
         setTimeout(() => {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         }, 50);
     };
 
@@ -5072,7 +5067,6 @@ function createStyledButtonBeta(title, description, svgContent, onClickHandler) 
         onClickHandler();
         setTimeout(() => {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         }, 50);
     };
 
@@ -5102,7 +5096,6 @@ function createStyledButtonBeta(title, description, svgContent, onClickHandler) 
                 handleButtonAction();
                 setTimeout(() => {
                     closeBottomSheet();
-                    window.isBottomSheetOpen = false;
                 }, 50);
             }
         });
@@ -5116,7 +5109,6 @@ function createStyledButtonBeta(title, description, svgContent, onClickHandler) 
             handleButtonAction();
             setTimeout(() => {
                 closeBottomSheet();
-                window.isBottomSheetOpen = false;
             }, 50);
         });
     }
@@ -5181,7 +5173,6 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
         onClickHandler();
         setTimeout(() => {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         }, 50);
 
     };
@@ -5194,7 +5185,6 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
         onClickHandler();
         setTimeout(() => {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         }, 50);
     };
 
@@ -5224,7 +5214,6 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
                 handleButtonAction();
                 setTimeout(() => {
                     closeBottomSheet();
-                    window.isBottomSheetOpen = false;
                 }, 50);
             }
         });
@@ -5238,7 +5227,6 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
             handleButtonAction();
             setTimeout(() => {
                 closeBottomSheet();
-                window.isBottomSheetOpen = false;
             }, 50);
         });
     }
@@ -5259,6 +5247,13 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
 function showBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
+
+    bottomSheet.addEventListener('animationend', function onAnimationEnd(event) {
+                if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+                    menu.style.display = 'none';
+                }
+            });
+
     
     // Hide menu
     menu.classList.add('hidden');
@@ -5309,7 +5304,6 @@ function showBottomSheet() {
 
 function closeBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet');
-    window.isBottomSheetOpen = false;
 
     if (bottomSheet) {
         bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
@@ -5340,7 +5334,7 @@ function closeBottomSheet() {
         setTimeout(() => {
             if (bottomSheet.style.display !== 'none') {
                 bottomSheet.style.display = 'none';
-                
+                window.isBottomSheetOpen = false;
             }
         }, 500);
     }
