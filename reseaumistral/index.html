@@ -1415,6 +1415,7 @@ shape.bounce-down {
             </li>
         </ul>
 </div>
+
 	
 
 
@@ -1985,6 +1986,7 @@ function closeUpdatePopup() {
     const menubottom1 = document.getElementById('menubtm');
     const menu = document.getElementById('menu');
     menu.classList.add('hidden');
+    window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
     if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
         menu.style.display = 'none';
@@ -2449,6 +2451,7 @@ async function decodeProtobuf(buffer) {
             
             const menu = document.getElementById('menu');
             menu.classList.add('hidden');
+            window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
                 if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                     menu.style.display = 'none';
@@ -2967,6 +2970,7 @@ function closePopup() {
     const menubottom1 = document.getElementById('menubtm');
             const menu = document.getElementById('menu');
             menu.classList.add('hidden');
+            window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
                 if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                     menu.style.display = 'none';
@@ -3096,29 +3100,66 @@ function getVehicleOptionsBadges(parkNumber) {
     if (model) {
         const params = model.params;
         
+        const badgeStyle = `
+            padding: 6px 10px; 
+            background: #00000077; 
+            font-weight: normal; 
+            white-space: nowrap; 
+            -webkit-backdrop-filter: blur(8px); 
+            border-radius: 10px; 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 6px;
+            height: 20px;
+        `;
+        
+        const svgStyle = `
+            display: inline-block;
+            vertical-align: top;
+            position: relative;
+            top: -1px;
+        `;
+        
+        const textStyle = `
+            display: inline-block;
+            line-height: 20px;
+            vertical-align: middle;
+            position: relative;
+            top: 1px;
+        `;
+
         if (params.isElectric) {
-            badges += `<span style="padding: 6px 10px; background: #00000077; font-weight: normal; white-space: nowrap; -webkit-backdrop-filter: blur(8px); border-radius: 10px;">
-                <img src="src/elec.png" alt="Électrique" style="height: 20px; vertical-align: middle;">
+            badges += `<span style="${badgeStyle}">
+                <img src="src/elec.png" alt="Électrique" style="height: 20px;">
             </span> `;
         }
         if (params.isHybrid) {
-            badges += `<span style="padding: 6px 10px; background: #00000077; font-weight: normal; white-space: nowrap; -webkit-backdrop-filter: blur(8px); border-radius: 10px;"">
-                <img src="src/hyb.png" alt="Hybride" style="height: 20px; vertical-align: middle;">
+            badges += `<span style="${badgeStyle}">
+                <img src="src/hyb.png" alt="Hybride" style="height: 20px;">
             </span> `;
         }
         if (params.isGnv) {
-            badges += `<span style="padding: 6px 10px; background: #00000077; font-weight: normal; white-space: nowrap; -webkit-backdrop-filter: blur(8px); border-radius: 10px;">
-                <img src="src/gnv.png" alt="Gaz Naturel" style="height: 20px; vertical-align: middle;">
+            badges += `<span style="${badgeStyle}">
+                <img src="src/gnv.png" alt="Gaz Naturel" style="height: 20px;">
             </span> `;
         }
         if (params.isUsbPlugs) {
-            badges += `<span style="padding: 7px 12px 6px; background: #00000077; font-weight: normal; white-space: nowrap; -webkit-backdrop-filter: blur(8px); border-radius: 10px;">⚡ USB</span> `;
+            badges += `<span style="${badgeStyle}">
+                <svg style="${svgStyle}" width="17" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <circle cx="12" cy="17" r="1" stroke="#ffffff" stroke-width="1.5"></circle> <circle cx="8" cy="9" r="1" stroke="#ffffff" stroke-width="1.5"></circle> <path d="M11.25 16C11.25 16.4142 11.5858 16.75 12 16.75C12.4142 16.75 12.75 16.4142 12.75 16H11.25ZM12 6L12.5303 5.46967C12.2374 5.17678 11.7626 5.17678 11.4697 5.46967L12 6ZM12.4697 7.53033C12.7626 7.82322 13.2374 7.82322 13.5303 7.53033C13.8232 7.23744 13.8232 6.76256 13.5303 6.46967L12.4697 7.53033ZM10.4697 6.46967C10.1768 6.76256 10.1768 7.23744 10.4697 7.53033C10.7626 7.82322 11.2374 7.82322 11.5303 7.53033L10.4697 6.46967ZM11.4697 6.53033L12.4697 7.53033L13.5303 6.46967L12.5303 5.46967L11.4697 6.53033ZM11.4697 5.46967L10.4697 6.46967L11.5303 7.53033L12.5303 6.53033L11.4697 5.46967ZM12.75 16V14.125H11.25V16H12.75ZM12.75 14.125V6H11.25V14.125H12.75Z" fill="#ffffff"></path> <path d="M8 10V11.0296C8 11.9044 8.5685 12.6777 9.40345 12.9386L10.8069 13.3772C11.5167 13.599 12 14.2563 12 15" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M16 11V12.0296C16 12.9044 15.4315 13.6777 14.5966 13.9386L13.1931 14.3772C12.4833 14.599 12 15.2563 12 16" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M15 10C15 9.5286 15 9.29289 15.1464 9.14645C15.2929 9 15.5286 9 16 9C16.4714 9 16.7071 9 16.8536 9.14645C17 9.29289 17 9.5286 17 10C17 10.4714 17 10.7071 16.8536 10.8536C16.7071 11 16.4714 11 16 11C15.5286 11 15.2929 11 15.1464 10.8536C15 10.7071 15 10.4714 15 10Z" stroke="#ffffff" stroke-width="1.5"></path> <path d="M7 3.33782C8.47087 2.48697 10.1786 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 10.1786 2.48697 8.47087 3.33782 7" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>             
+                <span style="${textStyle}">USB</span>
+            </span> `;
         }
         if (params.isAirConditioned) {
-            badges += `<span style="padding: 7px 12px 6px; background: #00000077; font-weight: normal; white-space: nowrap; -webkit-backdrop-filter: blur(8px); border-radius: 10px;">❄️ Climatisé</span> `;
+            badges += `<span style="${badgeStyle}">
+                <svg style="${svgStyle}" width="17" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" fill="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <g id="a"></g> <g id="b"> <path d="M29,8v5c0,1.1-.9,2-2,2h-1.21l-.1-1H6.31l-.1,1h-1.21c-1.1,0-2-.9-2-2v-5c0-1.1,.9-2,2-2H27c1.1,0,2,.9,2,2Z" style="fill:#ffffff;"></path> <path d="M27,5H5c-1.6543,0-3,1.3457-3,3v5c0,1.6543,1.3457,3,3,3h.098l-.0926,.8975c-.0293,.2812,.0625,.562,.252,.7725,.1899,.21,.4595,.3301,.7427,.3301H26c.2832,0,.5527-.1201,.7427-.3301,.1895-.2104,.2812-.4912,.252-.7725l-.0926-.8975h.098c1.6543,0,3-1.3457,3-3v-5c0-1.6543-1.3457-3-3-3ZM7.1084,16l.1035-1H24.7881l.1035,1H7.1084Zm20.8916-3c0,.5513-.4487,1-1,1h-.3044l-.0106-.1025c-.0527-.5098-.4819-.8975-.9946-.8975H6.3096c-.5127,0-.9419,.3877-.9946,.8975l-.0106,.1025h-.3044c-.5513,0-1-.4487-1-1v-5c0-.5513,.4487-1,1-1H27c.5513,0,1,.4487,1,1v5Zm-1-3c0,.5522-.4478,1-1,1h-1c-.5522,0-1-.4478-1-1s.4478-1,1-1h1c.5522,0,1,.4478,1,1Zm-4,0c0,.5522-.4478,1-1,1h-1c-.5522,0-1-.4478-1-1s.4478-1,1-1h1c.5522,0,1,.4478,1,1Zm-1.3291,15.2422c.4097,.3706,.4414,1.0029,.0708,1.4126-.1973,.2183-.4692,.3291-.7422,.3291-.2393,0-.479-.0854-.6704-.2583-2.5371-2.2954-2.3774-6.5806-2.3696-6.7622,.0244-.5513,.4976-.9932,1.0415-.9536,.5508,.0234,.979,.4893,.9565,1.0405-.0015,.0352-.1216,3.5322,1.7134,5.1919Zm6.2363-.8213c-.1694,.3647-.5308,.5791-.9077,.5791-.1411,0-.2842-.0298-.4204-.0928-.1099-.0513-2.6978-1.2852-3.667-4.624-.1538-.5303,.1514-1.0854,.6816-1.2393,.5322-.1538,1.0854,.1514,1.2393,.6816,.707,2.4355,2.5693,3.3589,2.5879,3.3672,.501,.2324,.7188,.8271,.4863,1.3281Zm-13.8667-4.4575c.0078,.1816,.1675,4.4668-2.3696,6.7622-.1914,.1729-.4312,.2583-.6704,.2583-.2729,0-.5444-.1108-.7422-.3291-.3706-.4097-.3389-1.042,.0708-1.4126,1.5327-1.3862,1.7563-4.2168,1.7134-5.1899-.0244-.5518,.4028-1.019,.9546-1.0435,.5381-.0249,1.0186,.4023,1.0435,.9546Zm-4.9526,.3198c-.9692,3.3389-3.5571,4.5728-3.667,4.624-.1362,.063-.2793,.0928-.4204,.0928-.377,0-.7383-.2144-.9077-.5791-.2314-.499-.0161-1.0913,.481-1.3257,.0938-.0454,1.8901-.9468,2.5933-3.3696,.1538-.5303,.7065-.8359,1.2393-.6816,.5303,.1538,.8354,.709,.6816,1.2393Z" style="fill:#ffffff;"></path> </g> </g></svg>
+                <span style="${textStyle}">Climatisé</span>
+            </span> `;
         }
         if (params.isHeatingUnit) {
-            badges += `<span style="padding: 7px 12px 6px; background: #00000077; font-weight: normal; white-space: nowrap; -webkit-backdrop-filter: blur(8px); border-radius: 10px;">🌡️ Chauffé</span> `;
+            badges += `<span style="${badgeStyle}">
+                <svg style="${svgStyle}" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" xml:space="preserve" fill="#000000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path style="fill:#ffffff;" d="M465.94,475.301h-70.358c-7.484,0-13.553-6.068-13.553-13.553s6.069-13.553,13.553-13.553h70.358 c10.452,0,18.955-8.503,18.955-18.955V182.167c0-10.452-8.503-18.955-18.955-18.955H137.925c-10.452,0-18.955,8.503-18.955,18.955 v247.073c0,10.452,8.503,18.955,18.955,18.955h182.984c7.484,0,13.553,6.068,13.553,13.553s-6.069,13.553-13.553,13.553H137.925 c-25.398,0-46.06-20.663-46.06-46.06V182.167c0-25.398,20.663-46.06,46.06-46.06H465.94c25.398,0,46.06,20.663,46.06,46.06v247.073 C512,454.637,491.337,475.301,465.94,475.301z"></path> <path style="fill:#ffffff;" d="M190.663,411.956L190.663,411.956c-13.019,0-23.67-10.651-23.67-23.67V223.118 c0-13.019,10.651-23.67,23.67-23.67l0,0c13.019,0,23.67,10.651,23.67,23.67v165.167C214.333,401.304,203.68,411.956,190.663,411.956 z"></path> <path style="fill:#ffffff;" d="M190.663,425.508c-20.526,0-37.223-16.698-37.223-37.223V223.118 c0-20.524,16.697-37.221,37.223-37.221s37.223,16.697,37.223,37.221v165.167C227.884,408.811,211.187,425.508,190.663,425.508z M190.663,213.004c-5.578,0-10.117,4.539-10.117,10.116v165.166c0,5.578,4.539,10.117,10.117,10.117s10.117-4.539,10.117-10.117 V223.118C200.779,217.541,196.241,213.004,190.663,213.004z"></path> <path style="fill:#ffffff;" d="M301.932,411.956L301.932,411.956c-13.019,0-23.67-10.651-23.67-23.67V223.118 c0-13.019,10.651-23.67,23.67-23.67l0,0c13.019,0,23.67,10.651,23.67,23.67v165.167C325.601,401.304,314.95,411.956,301.932,411.956 z"></path> <path style="fill:#ffffff;" d="M301.931,425.508c-20.526,0-37.223-16.698-37.223-37.223V223.118 c0-20.524,16.697-37.221,37.223-37.221c20.526,0,37.223,16.697,37.223,37.221v165.167 C339.154,408.811,322.457,425.508,301.931,425.508z M301.931,213.004c-5.578,0-10.117,4.539-10.117,10.116v165.166 c0,5.578,4.539,10.117,10.117,10.117s10.117-4.539,10.117-10.117V223.118C312.048,217.541,307.509,213.004,301.931,213.004z"></path> <path style="fill:#ffffff;" d="M413.202,411.956L413.202,411.956c-13.019,0-23.67-10.651-23.67-23.67V223.118 c0-13.019,10.651-23.67,23.67-23.67l0,0c13.019,0,23.67,10.651,23.67,23.67v165.167C436.87,401.304,426.219,411.956,413.202,411.956 z"></path> <g> <path style="fill:#ffffff;" d="M413.202,425.508c-20.526,0-37.223-16.698-37.223-37.223V223.118 c0-20.524,16.697-37.221,37.223-37.221s37.223,16.697,37.223,37.221v165.167C450.424,408.811,433.726,425.508,413.202,425.508z M413.202,213.004c-5.578,0-10.117,4.539-10.117,10.116v165.166c0,5.578,4.539,10.117,10.117,10.117s10.117-4.539,10.117-10.117 V223.118C423.319,217.541,418.78,213.004,413.202,213.004z"></path> <path style="fill:#ffffff;" d="M105.416,230.486H58.277c-7.484,0-13.553-6.068-13.553-13.553c0-7.485,6.069-13.553,13.553-13.553 h47.139c7.484,0,13.553,6.068,13.553,13.553C118.969,224.418,112.901,230.486,105.416,230.486z"></path> <path style="fill:#ffffff;" d="M105.416,408.027H58.277c-7.484,0-13.553-6.068-13.553-13.553c0-7.485,6.069-13.553,13.553-13.553 h47.139c7.484,0,13.553,6.068,13.553,13.553C118.969,401.959,112.901,408.027,105.416,408.027z"></path> <path style="fill:#ffffff;" d="M47.435,251.51c-7.484,0-13.553-6.068-13.553-13.553V92.943c0-7.485,6.069-13.553,13.553-13.553 s13.553,6.068,13.553,13.553v145.014C60.987,245.442,54.918,251.51,47.435,251.51z"></path> <path style="fill:#ffffff;" d="M47.435,475.301c-7.484,0-13.553-6.068-13.553-13.553V305.703c0-7.485,6.069-13.553,13.553-13.553 s13.553,6.068,13.553,13.553v156.045C60.987,469.234,54.918,475.301,47.435,475.301z"></path> </g> <rect x="13.553" y="50.253" style="fill:#ffffff;" width="67.764" height="73.185"></rect> <path style="fill:#ffffff;" d="M81.317,136.989H13.553C6.069,136.989,0,130.922,0,123.436V50.252 c0-7.485,6.069-13.553,13.553-13.553h67.764c7.484,0,13.553,6.068,13.553,13.553v73.185C94.869,130.922,88.8,136.989,81.317,136.989 z M27.106,109.884h40.658V63.804H27.106V109.884z"></path> </g></svg>
+                <span style="${textStyle}">Chauffé</span>
+            </span> `;
         }
     } 
     
@@ -3174,7 +3215,7 @@ async function initializeApp() {
 
 
 let gtfsInitialized = false;
-window.isBottomSheetOpen = false;
+
 
 
 async function fetchVehiclePositions() {
@@ -4427,6 +4468,7 @@ function toggleMapView() {
     const menubottom1 = document.getElementById('menubtm');
         const menu = document.getElementById('menu');
         menu.classList.add('hidden');
+        window.isMenuShowed = false;
         menu.addEventListener('animationend', function onAnimationEnd(event) {
             if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                 menu.style.display = 'none';
@@ -4496,11 +4538,20 @@ function applyMapView() {
 
 let startY;
 let endY;
+let startX;
+let endX;
 const menubtm = document.getElementById('menubtm');
+let touchStartX = null;
+let touchStartTime = null;
+let isEdgeTouch = false;
+const edgeThreshold = 10;
+const minSwipeDistance = 20; 
 
 menubtm.addEventListener('touchstart', (e) => {
     const touchStartY = e.touches[0].clientY;
     const menuRect = menubtm.getBoundingClientRect();
+    
+    startX = e.touches[0].clientX;
     
     if (touchStartY >= menuRect.bottom - 50) {
         startY = touchStartY;
@@ -4513,21 +4564,72 @@ menubtm.addEventListener('touchmove', (e) => {
     if (startY !== null) {
         endY = e.touches[0].clientY;
     }
+    
+    endX = e.touches[0].clientX;
 });
 
 menubtm.addEventListener('touchend', () => {
-    if (startY !== null && endY !== null) {
-        const swipeDistance = startY - endY; 
+    if (startX !== null && endX !== null && startY !== null && endY !== null) {
+        if (!isBottomSheetOpen && !isMenuShowed) {
+        const horizontalSwipeDistance = startX - endX;
+        const verticalSwipeDistance = startY - endY;
         const minSwipeDistance = 50;
         
-        if (swipeDistance > minSwipeDistance) {
-            showBottomSheet(); 
+        if (Math.abs(horizontalSwipeDistance) > Math.abs(verticalSwipeDistance)) {
+            if (horizontalSwipeDistance > minSwipeDistance) {
+                showMenu();
+            }
+        } else {
+            if (verticalSwipeDistance > minSwipeDistance) {
+                showBottomSheet();
+            }
         }
     }
+}
     
+    startX = null;
+    endX = null;
     startY = null;
     endY = null;
 });
+
+function isTouchNearRightEdge(x) {
+    return window.innerWidth - x <= edgeThreshold;
+}
+
+document.addEventListener('touchstart', function(e) {
+    const touchX = e.touches[0].clientX;
+    
+    if (isTouchNearRightEdge(touchX)) {
+        touchStartX = touchX;
+        touchStartTime = Date.now();
+        isEdgeTouch = true;
+    }
+}, { passive: true }); 
+
+document.addEventListener('touchmove', function(e) {
+    if (isEdgeTouch) {
+        const currentX = e.touches[0].clientX;
+    }
+}, { passive: true });
+
+document.addEventListener('touchend', function(e) {
+    if (isEdgeTouch && touchStartX !== null) {
+        const touchEndX = e.changedTouches[0].clientX;
+        const swipeDistance = touchStartX - touchEndX;
+        const touchDuration = Date.now() - touchStartTime;
+        if (!isBottomSheetOpen) {
+            if (swipeDistance > minSwipeDistance && touchDuration < 300) {
+                showMenu();
+            }
+        }   
+        
+        isEdgeTouch = false;
+        touchStartX = null;
+        touchStartTime = null;
+    }
+});
+
 
 function createBottomSheet() {
     const SNAP_POINTS = {
@@ -4784,7 +4886,7 @@ function createBottomSheet() {
     
     const about = createStyledButton(
         'A propos', 
-        'My Bus Finder 3Xperience build 280325', 
+        'My Bus Finder 3Xperience build 060425', 
         `
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="6" r="4"></circle> 
@@ -4834,7 +4936,7 @@ function createBottomSheet() {
     greetingText.textContent = getTransportGreeting();
     bottomSheet.appendChild(greetingText);
 
-    const sedeplacerBox = createStyledBox("Se déplacer", [transportStateContainer, actu, locationButton, satelliteButton]);
+    const sedeplacerBox = createStyledBox("Se déplacer", [transportStateContainer, locationButton, satelliteButton]);
     bottomSheet.appendChild(sedeplacerBox);
 
     const allerplusloinBox = createStyledBox("Pour aller plus loin...", [histovecButton, togglesun, about]);
@@ -4880,14 +4982,13 @@ function stopDrag(e) {
     const currentTranslate = getTranslateY(bottomSheet);
     const sheetHeight = bottomSheet.offsetHeight;
     
-    bottomSheet.style.transition = 'transform 0.3s cubic-bezier(0.32, 0.64, 0.45, 1)';
+    bottomSheet.style.transition = 'transform 0.3s ease-out';
     
     const percentageMoved = (currentTranslate / sheetHeight) * 100;
     
     if (deltaY > 0) { 
         if (percentageMoved > 50) {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         } else if (percentageMoved > 30) {
             bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
         } else {
@@ -4900,10 +5001,10 @@ function stopDrag(e) {
             bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
         } else {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         }
     }
 }
+
 
     // Event listeners
     bottomSheet.addEventListener('mousedown', startDrag);
@@ -4992,7 +5093,6 @@ function createStyledButtonBeta(title, description, svgContent, onClickHandler) 
         onClickHandler();
         setTimeout(() => {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         }, 50);
     };
 
@@ -5004,7 +5104,6 @@ function createStyledButtonBeta(title, description, svgContent, onClickHandler) 
         onClickHandler();
         setTimeout(() => {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         }, 50);
     };
 
@@ -5034,7 +5133,6 @@ function createStyledButtonBeta(title, description, svgContent, onClickHandler) 
                 handleButtonAction();
                 setTimeout(() => {
                     closeBottomSheet();
-                    window.isBottomSheetOpen = false;
                 }, 50);
             }
         });
@@ -5048,7 +5146,6 @@ function createStyledButtonBeta(title, description, svgContent, onClickHandler) 
             handleButtonAction();
             setTimeout(() => {
                 closeBottomSheet();
-                window.isBottomSheetOpen = false;
             }, 50);
         });
     }
@@ -5113,7 +5210,6 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
         onClickHandler();
         setTimeout(() => {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         }, 50);
 
     };
@@ -5126,7 +5222,6 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
         onClickHandler();
         setTimeout(() => {
             closeBottomSheet();
-            window.isBottomSheetOpen = false;
         }, 50);
     };
 
@@ -5156,7 +5251,6 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
                 handleButtonAction();
                 setTimeout(() => {
                     closeBottomSheet();
-                    window.isBottomSheetOpen = false;
                 }, 50);
             }
         });
@@ -5170,7 +5264,6 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
             handleButtonAction();
             setTimeout(() => {
                 closeBottomSheet();
-                window.isBottomSheetOpen = false;
             }, 50);
         });
     }
@@ -5188,12 +5281,17 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
     return button;
 }
 
+window.isBottomSheetOpen = false;
+window.isMenuShowed = false;
+
 function showBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
-    
+
+
     // Hide menu
     menu.classList.add('hidden');
+    window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
             menu.style.display = 'none';
@@ -5221,16 +5319,16 @@ function showBottomSheet() {
     }, { once: true });
 
     // Show bottom sheet with animation
-    bottomSheet.style.opacity = '0';
+    bottomSheet.style.opacity = '1';
     bottomSheet.style.transform = 'translateY(100%)';
+
     bottomSheet.style.display = 'block';
     
     // Trigger reflow
     bottomSheet.offsetHeight;
     
     // Animate in
-    bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
-    bottomSheet.style.opacity = '1';
+    bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0,.74,.28,.99), opacity 0.3s ease-out';
     bottomSheet.style.transform = 'translateY(0)';
     
     // Set state to open
@@ -5240,7 +5338,6 @@ function showBottomSheet() {
 
 function closeBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet');
-    window.isBottomSheetOpen = false;
 
     if (bottomSheet) {
         bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
@@ -5271,8 +5368,10 @@ function closeBottomSheet() {
         setTimeout(() => {
             if (bottomSheet.style.display !== 'none') {
                 bottomSheet.style.display = 'none';
-                
             }
+            setTimeout(() => {
+                window.isBottomSheetOpen = false;
+            }, 200);
         }, 500);
     }
 }
@@ -5557,6 +5656,7 @@ function getTextColor(backgroundColor) {
                         selectedLine = lineId;
                         filterByLine(lineId);
                         menu.classList.add('hidden');
+                        window.isMenuShowed = false;
                         menu.addEventListener('animationend', function onAnimationEnd(event) {
                             if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                                 menu.style.display = 'none';
@@ -5580,6 +5680,7 @@ function getTextColor(backgroundColor) {
                         map.setView(bus.vehicle.getLatLng(), 15);
                         bus.vehicle.openPopup();
                         menu.classList.add('hidden');
+                        window.isMenuShowed = false;
                         menu.addEventListener('animationend', function onAnimationEnd(event) {
                             if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                                 menu.style.display = 'none';
@@ -5606,6 +5707,7 @@ const menubottom1 = document.getElementById('menubtm');
 
 
         function showMenu() {
+            window.isMenuShowed = true;
             const menu = document.getElementById('menu');
             const menubotom = document.getElementById('menubottom');
             menu.classList.remove('hidden');
@@ -5637,8 +5739,8 @@ const menubottom1 = document.getElementById('menubtm');
         const closeMap = document.getElementById('map');
         closeMap.onclick = () => {
             const menu = document.getElementById('menu');
-            console.log("isBottomSheetOpen:", isBottomSheetOpen);
             menu.classList.add('hidden');
+            window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
                 if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
                     menu.style.display = 'none';
