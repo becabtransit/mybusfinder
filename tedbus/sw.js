@@ -7,7 +7,7 @@ self.addEventListener('install', event => {
   
   event.waitUntil(
     caches.open(OFFLINE_CACHE).then(cache => {
-      return cache.add(OFFLINE_PAGE);
+      return cache.add(new Request(OFFLINE_PAGE, { cache: 'no-cache' }));
     })
   );
 });
@@ -30,19 +30,24 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  event.respondWith(
-    fetch(event.request, { cache: 'no-store' })
-      .catch(() => {
-        if (event.request.mode === 'navigate') {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .catch(() => {
           return caches.match(OFFLINE_PAGE);
-        }
-        
-        return new Response('', {
-          status: 503,
-          statusText: 'Service temporairement indisponible'
-        });
-      })
-  );
+        })
+    );
+  } else {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .catch(() => {
+          return new Response('', {
+            status: 503,
+            statusText: 'Service temporairement indisponible'
+          });
+        })
+    );
+  }
 });
 
 self.addEventListener('message', event => {
