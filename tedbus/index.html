@@ -1537,28 +1537,25 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then(registration => {
-        console.log('Service Worker enregistré avec succès:', registration.scope);
-        
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
-          
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               window.location.reload();
             }
           });
         });
-      })
-      .catch(error => {
-        console.log('Échec de l\'enregistrement du Service Worker:', error);
+        
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        });
       });
-  });
-  
-  window.addEventListener('online', () => {
-    window.location.reload();
+      
+    navigator.serviceWorker.ready.then(registration => {
+      registration.update();
+    });
   });
 }
-
 document.addEventListener('DOMContentLoaded', function() {
     const tooltip = document.getElementById('first-visit-tooltip');
     
