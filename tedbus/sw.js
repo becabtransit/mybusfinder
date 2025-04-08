@@ -1,6 +1,6 @@
 const CACHE_VERSION = 'v1-' + new Date().getTime();
 const OFFLINE_CACHE = 'offline-only-' + CACHE_VERSION;
-const OFFLINE_PAGE = '/offline.html';
+const OFFLINE_PAGE = 'offline.html';
 
 self.addEventListener('install', event => {
   self.skipWaiting();
