@@ -15,7 +15,6 @@ tarteaucitron.lang = {
     "acceptAll": "Прийняти все",
     "personalize": "Налаштувати",
     "close": "Закрити",
-    "closeBanner": "Приховати банер cookie",
 
     "privacyUrl": "Політика конфіденційності",
 

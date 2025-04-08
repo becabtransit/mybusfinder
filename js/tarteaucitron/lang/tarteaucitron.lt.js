@@ -15,7 +15,6 @@ tarteaucitron.lang = {
     "personalize": "Suasmeninkite",
     "acceptAll": "Gerai, priimu visus",
     "close": "Uždaryti",
-    "closeBanner": "Slėpti slapukų reklamjuostę",
 
     "privacyUrl": "Privatumo politika",
 

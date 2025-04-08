@@ -16,7 +16,6 @@ tarteaucitron.lang = {
     "acceptAll": "تقبل كل شيء",
     "personalize": "تخصيص",
     "close": "اغلاق",
-    "closeBanner": "إخفاء لافتة ملفات تعريف الارتباط",
 
     "privacyUrl": "سياسة الخصوصية",
 

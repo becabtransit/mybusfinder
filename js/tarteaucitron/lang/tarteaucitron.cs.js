@@ -15,7 +15,6 @@ tarteaucitron.lang = {
     "personalize": "Přizpůsobit",
     "acceptAll": "OK, přijmout vše",
     "close": "Zavřít",
-    "closeBanner": "Skrýt banner souborů cookie",
 
     "privacyUrl": "Zásady ochrany osobních údajů",
     

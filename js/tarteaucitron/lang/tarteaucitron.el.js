@@ -15,7 +15,6 @@ tarteaucitron.lang = {
     "personalize": "Εξατομίκευση",
     "acceptAll": "OK, αποδοχή όλων",
     "close": "Κλείσιμο",
-    "closeBanner": "Απόκρυψη banner cookies",
 
     "privacyUrl": "Πολιτική απορρήτου",
     

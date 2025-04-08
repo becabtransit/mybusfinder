@@ -15,7 +15,6 @@ tarteaucitron.lang = {
 	"personalize"     : "Personaliser",
 	"acceptAll"       : "OK, aksepter alt",
 	"close"           : "Steng",
-    "closeBanner"     : "Skjul informasjonskapselbanner",
 
 	"privacyUrl" : "Personvernregler",
 
