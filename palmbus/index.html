@@ -1531,29 +1531,30 @@ shape.bounce-down {
      crossorigin="anonymous"></script>
  <script src="../js/tarteaucitron/tarteaucitron.min.js"></script>
 
- <script>(function patchTarteaucitronColor() {
-    if (typeof tarteaucitron === 'undefined') {
-      console.warn("tarteaucitron non chargé au moment du patch !");
-      return;
-    }
+ <script>(function patchWhenReady() {
+    const interval = setInterval(() => {
+      if (typeof tarteaucitron !== 'undefined' && typeof tarteaucitron.color === 'function') {
+        clearInterval(interval);
   
-    // Sauvegarde de la version originale (au cas où)
-    const originalColorFunction = tarteaucitron.color;
+        const originalColor = tarteaucitron.color;
   
-    // Patch de la fonction
-    tarteaucitron.color = function (element, color) {
-      try {
-        if (typeof color === 'undefined') {
-          console.error("⚠️ [tarteaucitron] color() a reçu 'undefined' comme couleur :", element);
-        } else if (typeof color.length === 'undefined') {
-          console.error("⚠️ [tarteaucitron] color.length est undefined :", color, " - Element :", element);
-        }
+        tarteaucitron.color = function (element, color) {
+          try {
+            if (typeof color === 'undefined') {
+              console.error("⚠️ [tarteaucitron] color() a reçu 'undefined' comme couleur :", element);
+            } else if (typeof color.length === 'undefined') {
+              console.error("⚠️ [tarteaucitron] color.length est undefined :", color, " - Élément :", element);
+            }
   
-        return originalColorFunction.apply(this, arguments);
-      } catch (e) {
-        console.error("❌ Erreur dans tarteaucitron.color:", e, " - Arguments:", arguments);
+            return originalColor.apply(this, arguments);
+          } catch (e) {
+            console.error("❌ Erreur dans tarteaucitron.color:", e, " - Arguments:", arguments);
+          }
+        };
+  
+        console.log("✅ Patch tarteaucitron.color appliqué");
       }
-    };
+    }, 50);
   })();
   </script>
  <script type="text/javascript">
