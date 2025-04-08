@@ -19,7 +19,7 @@ var scripts = document.getElementsByTagName('script'),
 
 
 var tarteaucitron = {
-    "version": "1.20.2",
+    "version": 1.20,
     "cdn": cdn,
     "user": {},
     "lang": {},
@@ -2343,10 +2343,10 @@ var tarteaucitron = {
                 height = tarteaucitron.getElemAttr(elem, 'height');
 
             if (width !== "") {
-                elem.style.width = tarteaucitron.getStyleSize(width);
+                elem.style.width = parseInt(width, 10) + 'px';
             }
             if (height !== "") {
-                elem.style.height = tarteaucitron.getStyleSize(height);
+                elem.style.height = parseInt(height, 10) + 'px';
             }
 
             if (typeof content === 'function') {
@@ -2465,26 +2465,6 @@ var tarteaucitron = {
         }
 
         return "";
-    },
-    "getStyleSize": function (value) {
-        if (value == null) {
-            return 'auto';
-        }
-
-        value = String(value).trim();
-
-        var units = ['px', '%', 'em', 'rem', 'vh', 'vw', 'vmin', 'vmax', 'ch', 'ex', 'pt', 'pc', 'cm', 'mm', 'in', 'q'];
-        var pattern = new RegExp('^\\d+(\\.\\d+)?(' + units.join('|') + ')$');
-
-        if (pattern.test(value)) {
-            return value;
-        }
-
-        if (/^\d+(\.\d+)?$/.test(value)) {
-            return value + 'px';
-        }
-
-        return 'auto';
     },
     "addClickEventToId": function (elemId, func) {
         tarteaucitron.addClickEventToElement(document.getElementById(elemId), func);
