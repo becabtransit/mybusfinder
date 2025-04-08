@@ -1533,6 +1533,31 @@ shape.bounce-down {
 
  
  <script type="text/javascript">
+
+(function patchTarteaucitronColor() {
+  if (typeof tarteaucitron === 'undefined') {
+    console.warn("tarteaucitron non chargé au moment du patch !");
+    return;
+  }
+
+  // Sauvegarde de la version originale (au cas où)
+  const originalColorFunction = tarteaucitron.color;
+
+  // Patch de la fonction
+  tarteaucitron.color = function (element, color) {
+    try {
+      if (typeof color === 'undefined') {
+        console.error("⚠️ [tarteaucitron] color() a reçu 'undefined' comme couleur :", element);
+      } else if (typeof color.length === 'undefined') {
+        console.error("⚠️ [tarteaucitron] color.length est undefined :", color, " - Element :", element);
+      }
+
+      return originalColorFunction.apply(this, arguments);
+    } catch (e) {
+      console.error("❌ Erreur dans tarteaucitron.color:", e, " - Arguments:", arguments);
+    }
+  };
+})();
  /* tarteaucitron */
 
 tarteaucitron.init({
@@ -1591,29 +1616,6 @@ tarteaucitron.init({
         });
     </script>
 <script>
-
-(function() {
-  const originalColorFunction = tarteaucitron.color;
-
-  tarteaucitron.color = function(input) {
-    try {
-      // On loggue ce que la fonction reçoit
-      console.log("[tarteaucitron debug] Appel de color() avec :", input);
-
-      // On vérifie si input est défini et a une propriété length
-      if (typeof input === 'undefined' || typeof input.length === 'undefined') {
-        console.warn("[tarteaucitron debug] ⚠️ Valeur inattendue dans color():", input);
-        return '#ccc'; // valeur de fallback pour éviter le crash
-      }
-
-      // Sinon on appelle la vraie fonction
-      return originalColorFunction(input);
-    } catch (e) {
-      console.error("[tarteaucitron debug] Erreur dans color():", e);
-      return '#ccc';
-    }
-  };
-})();
 
 
 if ('serviceWorker' in navigator) {
