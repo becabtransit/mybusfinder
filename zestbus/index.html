@@ -508,13 +508,31 @@ input, textarea {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: #000000;
-  background-size: cover;
+  background: linear-gradient(
+    45deg,
+    #000000,
+    #1a1a1a,
+    #242424
+  );
+  background-size: 200% 200%;
   display: flex;
   justify-content: center;
   align-items: center;
   flex-direction: column;
   z-index: 10000;
+  animation: gradientAnimation 5s ease infinite;
+}
+
+@keyframes gradientAnimation {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .shapes-container {
@@ -1366,6 +1384,58 @@ shape.bounce-down {
     50% { transform: translateY(-5px); }
 }
 
+.logo-bottom {
+  display: block;
+  margin: 0 auto;
+  max-width: 50%;
+  height: auto;
+  position: absolute;
+  bottom: 20px; 
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.logo-bottom.logoscr {
+  transform: translateX(-50%) translateY(100px);
+  opacity: 0;
+  filter: blur(5px);
+  transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+}
+
+.logo-bottom.logoscrapp {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  filter: blur(0);
+}
+
+@media (max-width: 600px) {
+  .logo-bottom {
+    width: 50%;
+    max-width: 200px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .logo-bottom {
+    width: 10%;
+    max-width: 400px;
+  }
+}
+
+@keyframes rainbowShadow {
+  0% { filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.7)); }  
+  16.6% { filter: drop-shadow(0 0 10px rgba(255, 165, 0, 0.7)); }  
+  33.3% { filter: drop-shadow(0 0 10px rgba(255, 255, 0, 0.7)); }  
+  50% { filter: drop-shadow(0 0 10px rgba(0, 255, 0, 0.7)); }  
+  66.6% { filter: drop-shadow(0 0 10px rgba(0, 0, 255, 0.7)); } 
+  83.3% { filter: drop-shadow(0 0 10px rgba(128, 0, 128, 0.7)); } 
+  100% { filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.7)); }  
+}
+
+.rainbow-shadow {
+  animation: rainbowShadow 3s infinite linear;
+}
+
     </style>
 
 </head>
@@ -1453,7 +1523,8 @@ shape.bounce-down {
 
 	
 <div id="loading-screen" class="logobkg">
-    <img id="logoscr" class="logoscr" src="src/whitelogo.png" style="display: block; margin: 0 auto; max-width: 50%; height: auto;"/>
+    <img id="logoscr" class="logoscr rainbow-shadow" src="src/whitelogo.png" style="display: block; margin: 0 auto; max-width: 50%; height: auto;"/>
+    <img id="bottom-logo" class="logoscr logo-bottom" src="src/credits.png" />
 </div>
   
 
@@ -1558,6 +1629,7 @@ setColors();
 setTimeout(() => {
     const logoscr = document.getElementById('logoscr');
     logoscr.classList.add('logoscrapp');
+    document.getElementById("bottom-logo").classList.add("logoscrapp");
 }, 10); 
 
 async function initMap() {
@@ -2022,7 +2094,6 @@ document.getElementById('close-popup').addEventListener('click', closeUpdatePopu
 function hideLoadingScreen() {
     setTimeout(() => {
         const loadingScreen = document.getElementById('loading-screen');
-        loadingScreen.classList.add('loading-screen-fade');
 
 
         setTimeout(() => {
@@ -2208,10 +2279,14 @@ async function getFromCache() {
 
 async function extractGTFSFiles() {
     try {
+        toastBottomRight.info('Mise à jour de la base de données dynamiques. Cette opération va prendre quelques secondes 🙂');
+
 
         const response = await fetch('proxy-cors/proxy_gtfs.php');
         if (!response.ok) {
             throw new Error(`Échec téléchargement ${response.status} ${response.statusText}`);
+            toastBottomRight.warning('Oups ! Une erreur s\'est produite... avez vous actualisé la page ?');
+
         }
         
         const zipData = await response.arrayBuffer();
@@ -3519,16 +3594,22 @@ async function fetchVehiclePositions() {
                             " class="custom-scrollbar">
                                 <!-- Numéro de parc -->
                                 <span style="
-                                    background: #00000077;
-                                    color: #ffffff;
-                                    padding: 7px 12px 6px;
-                                    border-radius: 10px;
-                                    font-weight: normal;
-                                    font-size: 14px;
-                                    white-space: nowrap;
+                                    padding: 6px 10px; 
+                                    background: #00000077; 
+                                    font-weight: normal; 
+                                    white-space: nowrap; 
                                     -webkit-backdrop-filter: blur(8px); 
+                                    border-radius: 10px; 
+                                    display: inline-flex; 
+                                    align-items: center; 
+                                    gap: 6px;
+                                    height: 20px;
                                 ">
-                                    Véhicule ${vehicle.vehicle.label}
+
+                                <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
+                                <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${vehicle.vehicle.label || "Véhicule inconnu."}</span>
+
+                                    
                                 </span>
                                 
                                 <!-- Badges des options du véhicule -->
@@ -4886,7 +4967,7 @@ function createBottomSheet() {
     
     const about = createStyledButton(
         'A propos', 
-        'My Bus Finder 3Xperience build 060425', 
+        'My Bus Finder 3Xperience build 090425', 
         `
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="6" r="4"></circle> 
@@ -5623,8 +5704,13 @@ function getTextColor(backgroundColor) {
                     terminusInfo = `à destination de ${destination}.`;
                 }
             }
-                    const mainText = document.createElement('div');
-                    mainText.textContent = `Bus ${bus.parkNumber} ${nextStopInfo}`;
+                const mainText = document.createElement('div');
+                    const labelMatch = popupContent.match(/<span style="display: inline-block[^>]*>([^<]+)<\/span>/);
+                    const vehicleLabel = labelMatch ? labelMatch[1].trim() : "Véhicule inconnu";
+
+                    const displayLabel = vehicleLabel.replace(/Véhicule inconnu\./, "inconnu");
+
+                    mainText.textContent = `Bus ${displayLabel} ${nextStopInfo}`;
                     mainText.style.fontSize = '1.2em';  
                     mainText.style.fontWeight = '500';  
                     mainText.style.color = textColor;
