@@ -1023,7 +1023,6 @@ shape.bounce-down {
 #webview-frame {
     width: 100%;
     height: 100%;
-    border-radius: 10px;
 }
 
 .vehicle-thumbnail {
@@ -1532,6 +1531,29 @@ shape.bounce-down {
      crossorigin="anonymous"></script>
 
 <script>
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(registration => {
+        console.log('Service Worker enregistré avec succès');
+        
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
+        
+        registration.update();
+      })
+      .catch(error => {
+        console.error('Erreur lors de l\'enregistrement du service Worker:', error);
+      });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const tooltip = document.getElementById('first-visit-tooltip');
     
