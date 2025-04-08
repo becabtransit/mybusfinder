@@ -503,19 +503,65 @@ input, textarea {
 }
 
 #loading-screen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: #000000;
-  background-size: cover;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  z-index: 10000;
-}
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #000000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 10000;
+    }
+    .particles-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    .particle {
+      position: absolute;
+      background-color: rgba(255, 255, 255, 0.5);
+      border-radius: 50%;
+      animation: float 15s linear infinite;
+    }
+    
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+    @keyframes fadeInOut {
+      0%, 100% {
+        opacity: 0.3;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+    
+    @keyframes float {
+      0% {
+        transform: translateY(100vh) scale(0);
+        opacity: 0;
+      }
+      10% {
+        opacity: 1;
+      }
+      90% {
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(-20vh) scale(1);
+        opacity: 0;
+      }
+    }
 
 .shapes-container {
   width: 100%;
@@ -1505,6 +1551,7 @@ shape.bounce-down {
 
 	
 <div id="loading-screen" class="logobkg">
+    <div class="particles-container" id="particles"></div>
     <img id="logoscr" class="logoscr rainbow-shadow" src="src/whitelogo.png" style="display: block; margin: 0 auto; max-width: 50%; height: auto;"/>
     <img id="bottom-logo" class="logoscr logo-bottom" src="src/credits.png" />
 </div>
@@ -1515,6 +1562,39 @@ shape.bounce-down {
      crossorigin="anonymous"></script>
 
 <script>
+
+const particlesContainer = document.getElementById('particles');
+    const particleCount = 30;
+    
+    for (let i = 0; i < particleCount; i++) {
+      createParticle();
+    }
+    
+    function createParticle() {
+      const particle = document.createElement('div');
+      particle.classList.add('particle');
+      
+      const size = Math.random() * 10 + 3;
+      const posX = Math.random() * 100;
+      const delay = Math.random() * 10;
+      const duration = Math.random() * 10 + 10;
+      const opacity = Math.random() * 0.6 + 0.2;
+      
+      particle.style.width = `${size}px`;
+      particle.style.height = `${size}px`;
+      particle.style.left = `${posX}%`;
+      particle.style.opacity = opacity;
+      particle.style.animationDelay = `${delay}s`;
+      particle.style.animationDuration = `${duration}s`;
+      
+      particlesContainer.appendChild(particle);
+      
+      particle.addEventListener('animationend', () => {
+        particle.remove();
+        createParticle();
+      });
+    }
+
 document.addEventListener('DOMContentLoaded', function() {
     const tooltip = document.getElementById('first-visit-tooltip');
     
