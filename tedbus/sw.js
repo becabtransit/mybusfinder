@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v1-' + new Date().getTime();
 const OFFLINE_CACHE = 'offline-only-' + CACHE_VERSION;
 const OFFLINE_PAGE = 'offline.html';
 
@@ -7,7 +7,7 @@ self.addEventListener('install', event => {
   
   event.waitUntil(
     caches.open(OFFLINE_CACHE).then(cache => {
-      return cache.add(new Request(OFFLINE_PAGE, {cache: 'reload'}));
+      return cache.add(OFFLINE_PAGE);
     })
   );
 });
@@ -30,22 +30,18 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(OFFLINE_PAGE);
-      })
-    );
-    return;
-  }
-
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return new Response('', {
-        status: 503,
-        statusText: 'Service temporairement indisponible'
-      });
-    })
+    fetch(event.request, { cache: 'no-store' })
+      .catch(() => {
+        if (event.request.mode === 'navigate') {
+          return caches.match(OFFLINE_PAGE);
+        }
+        
+        return new Response('', {
+          status: 503,
+          statusText: 'Service temporairement indisponible'
+        });
+      })
   );
 });
 
