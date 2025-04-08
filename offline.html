@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="MyBusFinder">
+  <title>MyBusFinder - Hors ligne</title>
+  <style>
+    @font-face {
+      font-family: 'League Spartan';
+      src: url('src/fonts/leaguespartan.ttf') format('truetype');
+    }
+
+    html, body {
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0;
+      padding: 0;
+      font-family: 'League Spartan', sans-serif;
+      background: linear-gradient(
+        45deg,
+        #000000,
+        #1a1a1a,
+        #242424
+      );
+      background-size: 200% 200%;
+      animation: gradientAnimation 5s ease infinite;
+      color: #ffffff;
+      overflow: hidden;
+    }
+
+    @keyframes gradientAnimation {
+      0% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+
+    .offline-container {
+      text-align: center;
+      padding: 20px;
+      border-radius: 18px;
+      background-color: rgba(15, 5, 107, 0.6);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+      max-width: 90%;
+      width: 400px;
+      animation: zoomFadeIn 0.6s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
+    }
+
+    @keyframes zoomFadeIn {
+      0% {
+        opacity: 0;
+        transform: scale(0.8);
+        filter: blur(13px);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+        filter: blur(0);
+      }
+    }
+
+    .logo {
+      width: 100px;
+      height: auto;
+      margin-bottom: 20px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      font-size: 16px;
+      margin-bottom: 30px;
+      line-height: 1.4;
+    }
+
+    .retry-btn {
+      background-color: #363636;
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      border-radius: 50px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), 
+                  background-color 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .retry-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -120%;
+      width: 120%;
+      height: 100%;
+      background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transform: skewX(-25deg);
+      transition: left 0.8s cubic-bezier(0.25, 1.5, 0.5, 1);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .retry-btn:hover::before {
+      left: 120%;
+    }
+
+    .retry-btn:hover {
+      background-color: #2c2c2c;
+      transform: scale(0.98);
+    }
+
+    .retry-btn:active {
+      transform: scale(0.95);
+      background-color: #333333;
+    }
+
+    .signal-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+      animation: signalFade 2s infinite alternate;
+    }
+
+    @keyframes signalFade {
+      0% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+
+    .status-text {
+      font-size: 14px;
+      opacity: 0.7;
+      margin-top: 20px;
+    }
+
+    .glass-effect {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .glass-effect.animate::before {
+      animation: glass-slide 1s ease forwards;
+    }
+
+    @keyframes glass-slide {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 150%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="offline-container glass-effect">
+    <div class="signal-icon">📡</div>
+    <h1>Vous êtes hors ligne</h1>
+    <p>Oups 😔... My Bus Finder nécessite une connexion internet pour fonctionner. On attend plus que toi pour restaurer ma jolie relation entre ton bus et ton téléphone 🙂 </p>
+    <button class="retry-btn" onclick="checkConnection()">Réessayer</button>
+    <p class="status-text">Vérification de la connexion internet...</p>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const glassEffect = document.querySelector('.glass-effect');
+      glassEffect.classList.add('animate');
+      
+      setInterval(function() {
+        glassEffect.classList.remove('animate');
+        setTimeout(function() {
+          glassEffect.classList.add('animate');
+        }, 100);
+      }, 4000);
+    });
+
+    function checkConnection() {
+      if (navigator.onLine) {
+        window.location.reload();
+      } else {
+        const button = document.querySelector('.retry-btn');
+        button.textContent = 'Toujours hors ligne';
+        setTimeout(() => {
+          button.textContent = 'Réessayer';
+        }, 1500);
+      }
+    }
+
+    setInterval(checkConnection, 5000);
+
+    window.addEventListener('online', () => {
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>
