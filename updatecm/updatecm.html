@@ -1095,7 +1095,7 @@
         
         <div class="logo-container" id="logoContainer">
             <img src="src/whitelogo.png" alt="Logo" style=" width: 60%;"/>
-            <p class="logo-subtitle">Votre nouveau compagnon de mobilité</p>
+            <p data-i18n="logosubtitle" class="logo-subtitle">Votre nouveau compagnon de mobilité</p>
             <div class="version-badge">3.0X</div>
         </div>
         
@@ -1104,26 +1104,26 @@
                 <div class="credits-content" id="credits">
                     <div class="credits-header">
                         <div class="credits-title">My Bus Finder 3.0X</div>
-                        <div class="credits-subtitle">Votre compagnon de mobilité pour mieux se déplacer</div>
+                        <div data-i18n="creditssubtitle" class="credits-subtitle">Votre compagnon de mobilité pour mieux se déplacer</div>
                     </div>
                     
-                    <div class="category">Développement</div>
+                    <div data-i18n="development" class="category">Développement</div>
                     <div class="credit-item">Bechir A.</div>
                     
-                    <div class="category">Design</div>
+                    <div data-i18n="design" class="category">Design</div>
                     <div class="credit-item">Microsoft Fluent Design</div>
-                    <div class="credit-role">Système d'interface</div>
+                    <div data-i18n="uikit" class="credit-role">Système d'interface</div>
                     
-                    <div class="category">Partenaires</div>
+                    <div data-i18n="partners" class="category">Partenaires</div>
                     <div class="credit-item">PAN Data.Gouv</div>
                     <div class="credit-item">Palm Bus realtime servers</div>
                     <div class="credit-item">General Transit Feed Service in RealTime</div>
                     
-                    <div class="category">Remerciements</div>
-                    <div class="credit-item">À toute l'équipe de test</div>
-                    <div class="credit-item">À nos utilisateurs pour leur confiance</div>
+                    <div data-i18n="thanks" class="category">Remerciements</div>
+                    <div data-i18n="tothetestpeople" class="credit-item">À toute l'équipe de test</div>
+                    <div data-i18n="totheusers" class="credit-item">À nos utilisateurs pour leur confiance</div>
                     
-                    <div class="copyright">© 2025 My Bus Finder - Tous droits réservés</div>
+                    <div class="copyright">© 2025 My Bus Finder - All rights reserved</div>
                 </div>
             </div>
         </div>
@@ -1261,7 +1261,62 @@
     </div>
     
     <div class="back-to-top" id="backToTopButton"><i class="fas fa-arrow-up"></i></div>
-    
+    <script>
+        const i18n = {
+        translations: {},
+        currentLang: 'fr',
+        
+        getLanguageFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const lang = urlParams.get('lang');
+            return lang || localStorage.getItem('preferredLanguage') || 'fr';
+        },
+        
+        async loadTranslations() {
+            this.currentLang = this.getLanguageFromUrl();
+            localStorage.setItem('preferredLanguage', this.currentLang);
+            
+            try {
+            const response = await fetch(`../locales/${this.currentLang}.json`);
+            this.translations = await response.json();
+            document.dispatchEvent(new CustomEvent('translationsLoaded'));
+            return this.translations;
+            } catch (error) {
+            console.error("Erreur lors du chargement des traductions:", error);
+            return {};
+            }
+        },
+        
+        t(key, params = {}) {
+            let text = this.translations[key] || key;
+            
+            Object.keys(params).forEach(param => {
+            text = text.replace(`{${param}}`, params[param]);
+            });
+            
+            return text;
+        },
+        
+        applyTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(element => {
+            const key = element.getAttribute('data-i18n');
+            if (this.translations[key]) {
+                element.innerHTML = this.translations[key];
+            }
+            });
+        }
+        };
+
+        window.t = (key, params) => i18n.t(key, params);
+
+        document.addEventListener('DOMContentLoaded', async () => {
+        await i18n.loadTranslations();
+        i18n.applyTranslations();
+        });
+
+        window.i18n = i18n;
+    </script>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const logoContainer = document.getElementById('logoContainer');
