@@ -1583,37 +1583,64 @@ tarteaucitron.init({
         (tarteaucitron.job = tarteaucitron.job || []).push('gcmadstorage');
     </script>
 
+    <script>
+        const i18n = {
+        translations: {},
+        currentLang: 'fr',
+        
+        getLanguageFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const lang = urlParams.get('lang');
+            return lang || localStorage.getItem('preferredLanguage') || 'fr';
+        },
+        
+        async loadTranslations() {
+            this.currentLang = this.getLanguageFromUrl();
+            localStorage.setItem('preferredLanguage', this.currentLang);
+            
+            try {
+            const response = await fetch(`../locales/${this.currentLang}.json`);
+            this.translations = await response.json();
+            document.dispatchEvent(new CustomEvent('translationsLoaded'));
+            return this.translations;
+            } catch (error) {
+            console.error("Erreur lors du chargement des traductions:", error);
+            return {};
+            }
+        },
+        
+        t(key, params = {}) {
+            let text = this.translations[key] || key;
+            
+            Object.keys(params).forEach(param => {
+            text = text.replace(`{${param}}`, params[param]);
+            });
+            
+            return text;
+        },
+        
+        applyTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(element => {
+            const key = element.getAttribute('data-i18n');
+            if (this.translations[key]) {
+                element.innerHTML = this.translations[key];
+            }
+            });
+        }
+        };
+
+        window.t = (key, params) => i18n.t(key, params);
+
+        document.addEventListener('DOMContentLoaded', async () => {
+        await i18n.loadTranslations();
+        i18n.applyTranslations();
+        });
+
+        window.i18n = i18n;
+    </script>
+
 <script>
 
-function getLanguageFromUrl() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const lang = urlParams.get('lang');
-  return lang || 'fr'; 
-}
-
-async function loadTranslations() {
-  currentLang = getLanguageFromUrl();
-  localStorage.setItem('preferredLanguage', currentLang);
-  
-  try {
-    const response = await fetch(`../locales/${currentLang}.json`);
-    translations = await response.json();
-    applyTranslations();
-  } catch (error) {
-    console.error("Erreur lors du chargement des traduction", error);
-  }
-}
-
-function applyTranslations(translations) {
-  document.querySelectorAll('[data-i18n]').forEach(element => {
-    const key = element.getAttribute('data-i18n');
-    if (translations[key]) {
-      element.innerHTML = translations[key];
-    }
-  });
-}
-
-document.addEventListener('DOMContentLoaded', loadTranslations);
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
