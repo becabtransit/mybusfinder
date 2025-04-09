@@ -5469,76 +5469,78 @@ function createBottomSheet() {
         justify-content: right;
     `;
 
-function createStyledBox(text, elements) {
-    const box = document.createElement('div');
-    
-    const titleContainer = document.createElement('div');
-    titleContainer.style.cssText = `
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        cursor: pointer;
-    `;
-    
-    const title = document.createElement('div');
-    title.textContent = text;
-    title.style.cssText = `
-        font-size: 20px;
-        color: white;
-        margin-top: 17px;
-        margin-right: 10px;
-        text-align: right;
-    `;
-    
-    const toggleIcon = document.createElement('div');
-    toggleIcon.innerHTML = `
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-            <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-    `;
-    toggleIcon.style.marginTop = '17px';
-    
-    titleContainer.appendChild(title);
-    titleContainer.appendChild(toggleIcon);
-    box.appendChild(titleContainer);
-    
-    const contentContainer = document.createElement('div');
-    contentContainer.style.cssText = `
-        overflow: hidden;
-        transition: max-height 0.3s ease-out;
-        max-height: 1000px; 
-    `;
-    
-    elements.forEach(el => contentContainer.appendChild(el));
-    box.appendChild(contentContainer);
-    
-    box.style.cssText = `
-        margin: 10px;
-        border-radius: 15px;
-    `;
-    
-    let isOpen = true;
-    titleContainer.addEventListener('click', () => {
-        isOpen = !isOpen;
-        if (isOpen) {
-            contentContainer.style.maxHeight = '1000px';
-            toggleIcon.innerHTML = `
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+
+    const createStyledBox = (text, elements, isCollapsible = false) => {
+        const box = document.createElement('div');
+        
+        const header = document.createElement('div');
+        header.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: ${isCollapsible ? 'pointer' : 'default'};
+            padding: 5px;
+        `;
+        
+        const title = document.createElement('div');
+        title.textContent = text;
+        title.style.cssText = `
+            font-size: 20px;
+            color: white;
+            margin-top: 5px;
+            margin-right: 15px;
+            text-align: right;
+            justify-content: right;
+        `;
+        
+        header.appendChild(title);
+        
+        if (isCollapsible) {
+            const indicator = document.createElement('div');
+            indicator.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
                     <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
             `;
-        } else {
-            contentContainer.style.maxHeight = '0px';
-            toggleIcon.innerHTML = `
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                    <polyline points="6 15 12 9 18 15"></polyline>
-                </svg>
+            indicator.style.cssText = `
+                transition: transform 0.3s ease;
+                margin-left: 10px;
             `;
+            header.appendChild(indicator);
+            
+            const elementsContainer = document.createElement('div');
+            elementsContainer.style.cssText = `
+                overflow: hidden;
+                transition: max-height 0.3s ease;
+                max-height: 1000px; /* Valeur initiale suffisamment grande */
+            `;
+            
+            elements.forEach(el => elementsContainer.appendChild(el));
+            
+            header.addEventListener('click', () => {
+                if (elementsContainer.style.maxHeight !== '0px') {
+                    elementsContainer.style.maxHeight = '0px';
+                    indicator.style.transform = 'rotate(180deg)';
+                } else {
+                    elementsContainer.style.maxHeight = '1000px';
+                    indicator.style.transform = 'rotate(0deg)';
+                }
+            });
+            
+            box.appendChild(header);
+            box.appendChild(elementsContainer);
+        } else {
+            box.appendChild(header);
+            elements.forEach(el => box.appendChild(el));
         }
-    });
-    
-    return box;
-}
+        
+        box.style.cssText = `
+            margin: 10px;
+            border-radius: 15px;
+            overflow: hidden;
+        `;
+        return box;
+    };
 
     greetingText.textContent = getTransportGreeting();
     bottomSheet.appendChild(greetingText);
@@ -5546,7 +5548,7 @@ function createStyledBox(text, elements) {
     const sedeplacerBox = createStyledBox(t("tomove"), [transportStateContainer, locationButton, satelliteButton]);
     bottomSheet.appendChild(sedeplacerBox);
 
-    const allerplusloinBox = createStyledBox(t("gofurther"), [histovecButton, togglesun, changelang, about]);
+    const allerplusloinBox = createStyledBox(t("gofurther"), [histovecButton, togglesun, changelang, about], true);
     bottomSheet.appendChild(allerplusloinBox);
 
     let startY, initialY, isDragging = false;
