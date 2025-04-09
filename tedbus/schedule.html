@@ -1229,7 +1229,7 @@ select:focus {
         </div>
         
         <div id="lines-view" class="view page-transition">
-            <h2 data-i18n="selectaline">Sélectionnez une ligne</h2>
+            <h2 data-i18n="selectalinee">Sélectionnez une ligne</h2>
             <div id="lines-container" class="bus-list"></div>
         </div>
         
@@ -1259,7 +1259,7 @@ select:focus {
                 </button>
             </div>
             <div class="textpop">
-                <h4 data-i18n="selectstopanddest">Sélectionnez un arrêt et une destination</h4>
+                <h4 data-i18n="selectstopanddestination">Sélectionnez un arrêt et une destination</h4>
                 <h1 id="destination-title"></h1>
             </div>
             <div class="destination-select-wrapper">
@@ -1318,7 +1318,7 @@ select:focus {
     <div class="overlay" id="overlay"></div>
     <div class="stops-timeline-menu" id="stops-timeline-menu">
         <div class="stops-timeline-header">
-            <h3 data-i18n="stopsdesservis">Arrêts desservis</h3>
+            <h3 data-i18n="stopsdesservis"></h3>
             <button class="stops-timeline-close" onclick="closeStopsTimeline()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 6L6 18M6 6l12 12"/>
@@ -1617,7 +1617,7 @@ function displayRealtimeSchedule(arrivals) {
     if (!arrivals || arrivals.length === 0) {
         container.innerHTML = `
             <div class="no-data-message">
-                Oups... aucun passage prévu prochainement
+                ${t("nodeparture")}
             </div>
         `;
         return;
@@ -1628,23 +1628,23 @@ function displayRealtimeSchedule(arrivals) {
         item.className = 'realtime-item';
         
         let delayClass = 'delay-ontime';
-        let delayText = 'À l\'heure';
+        let delayText = `${t("ontime")}`;
         let delayTextTheo = arrival.theoretical ? 
-            `Départ prévu initialement à ${arrival.theoretical}` : '';
+            `${t("delayed")} ${arrival.theoretical}` : '';
 
         if (arrival.delay > 5) {
             delayClass = 'delay-late';
-            delayText = `${arrival.delay} minutes de retard`;
+            delayText = `${arrival.delay} ${t("delayed2")}`;
         } else if (arrival.delay < -2) {
             delayClass = 'delay-early';
-            delayText = `${Math.abs(arrival.delay)} minutes d'avance`;
+            delayText = `${Math.abs(arrival.delay)} ${t("avance")}`;
         }
 
         item.innerHTML = `
             <div class="arrival-info">
                 <div class="arrival-time">
                     ${arrival.time}
-                    <span class="vehicle-id">Bus ${arrival.vehicleId}</span>
+                    <span class="vehicle-id">${t("bus")} ${arrival.vehicleId}</span>
                 </div>
                 <div class="theoretical-time">${delayTextTheo}</div>
                 <div class="delay-indicator ${delayClass}">${delayText}</div>
@@ -2428,7 +2428,7 @@ function showInMap() {
     if (favorites.length > 0) {
         const favoritesSection = document.createElement('div');
         favoritesSection.className = 'favorites-section';
-        favoritesSection.innerHTML = '<h3 data-i18n="favoritestops">Mes arrêts favoris</h3>';
+        favoritesSection.innerHTML = `<h3>${t("favoritestops")}</h3>`;
         
         favorites.forEach(favorite => {
             if (!routes[favorite.routeId]) {
@@ -2471,7 +2471,7 @@ function showInMap() {
     const linesSection = document.createElement('div');
     linesSection.className = 'lines-section';
     if (favorites.length > 0) {
-        linesSection.innerHTML = '<h3 data-i18n="alllines">Toutes les lignes</h3>';
+        linesSection.innerHTML = `<h3>${t("alllines")}</h3>`;
     }
     
     Object.entries(routes).forEach(([routeId, route]) => {
@@ -2528,7 +2528,7 @@ function processRealtimeDataForStop(message, routeId, stopId) {
 
 function displayRealtimeDataInFavorite(arrivals, container) {
     if (arrivals.length === 0) {
-        container.innerHTML = '<div class="favorite-realtime" data-i18n="noscheduledarrival">Pas de passage prévu</div>';
+        container.innerHTML = `<div class="favorite-realtime">${t("noscheduledarrival")}</div>`;
         return;
     }
 
@@ -2582,10 +2582,10 @@ function displayRealtimeDataInFavorite(arrivals, container) {
     container.innerHTML = '';
     
     document.getElementById('destination-title').textContent = 
-        `Ligne ${routes[routeId].short_name}`;
+        `${t("line")} ${routes[routeId].short_name}`;
     
     const destinationSelect = document.getElementById('destination-select');
-    destinationSelect.innerHTML = '<option data-i18n="selectdestination" value="">Sélectionnez une destination</option>';
+    destinationSelect.innerHTML = `<option value="">${t("selectdestination")}</option>`;
     
     const destinations = new Set();
     trips[routeId].forEach(({ trip_id }) => {
@@ -2865,7 +2865,7 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     const activeServiceIds = getActiveServiceIds(dayOfWeek, gtfsDate);
     
     if (activeServiceIds.length === 0) {
-        scheduleContainer.innerHTML += `<p data-i18n="noserviceavailable">Pas de service disponible pour cette date.</p>`;
+        scheduleContainer.innerHTML += `<p>${t("noserviceavailable")}</p>`;
         return;
     }
     
@@ -2874,7 +2874,7 @@ function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     );
     
     if (validTrips.length === 0) {
-        scheduleContainer.innerHTML += `<p data-i18n="nobusonline">Pas de bus de cette ligne circulant à cette date.</p>`;
+        scheduleContainer.innerHTML += `<p>${t("nobusonline")}</p>`;
         return;
     }
     
@@ -2913,7 +2913,7 @@ function displaySchedule(validTrips, stopId, destinationId, container) {
     });
     
     if (schedule.length === 0) {
-        container.innerHTML += `<p data-i18n="nobusforthisstop">Pas d'horaires disponibles pour cet arrêt.</p>`;
+        container.innerHTML += `<p>${t("nobusforthisstop")}</p>`;
         return;
     }
     
