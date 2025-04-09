@@ -3542,7 +3542,12 @@ function safeVibrate(pattern, force = false) {
     return true;
 }
 
-function createLanguageSwitcher(container) {
+function showLanguageSwitcher() {
+  if (document.getElementById('lang-popup-overlay')) {
+    document.getElementById('lang-popup-overlay').style.display = 'flex';
+    return;
+  }
+
   const languages = [
     { code: 'fr', name: 'Français' },
     { code: 'en', name: 'English' },
@@ -3550,93 +3555,144 @@ function createLanguageSwitcher(container) {
     { code: 'it', name: 'Italiano' }
   ];
   
-  const switcherContainer = document.createElement('div');
-  switcherContainer.className = 'language-switcher glass-effect';
-  switcherContainer.style.position = 'absolute';
-  switcherContainer.style.top = '20px';
-  switcherContainer.style.right = '20px';
-  switcherContainer.style.backgroundColor = 'rgba(15, 5, 107, 0.6)';
-  switcherContainer.style.backdropFilter = 'blur(8px)';
-  switcherContainer.style.WebkitBackdropFilter = 'blur(8px)';
-  switcherContainer.style.borderRadius = '12px';
-  switcherContainer.style.boxShadow = '0 0 15px rgba(0, 0, 0, 0.4)';
-  switcherContainer.style.padding = '12px';
-  switcherContainer.style.zIndex = '1000';
-  switcherContainer.style.fontFamily = 'League Spartan, sans-serif';
-  switcherContainer.style.transition = 'all 0.3s cubic-bezier(0.25, 1.5, 0.5, 1)';
-  switcherContainer.style.transform = 'translateY(-100px)';
-  switcherContainer.style.opacity = '0';
+  const overlay = document.createElement('div');
+  overlay.id = 'lang-popup-overlay';
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100%';
+  overlay.style.height = '100%';
+  overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+  overlay.style.backdropFilter = 'blur(8px)';
+  overlay.style.WebkitBackdropFilter = 'blur(8px)';
+  overlay.style.display = 'flex';
+  overlay.style.justifyContent = 'center';
+  overlay.style.alignItems = 'center';
+  overlay.style.zIndex = '2000';
+  overlay.style.opacity = '0';
+  overlay.style.transition = 'opacity 0.3s cubic-bezier(0.25, 1.5, 0.5, 1)';
   
-  const mainButton = document.createElement('div');
-  mainButton.className = 'lang-main-button';
-  mainButton.style.display = 'flex';
-  mainButton.style.alignItems = 'center';
-  mainButton.style.justifyContent = 'space-between';
-  mainButton.style.cursor = 'pointer';
-  mainButton.style.color = '#ffffff';
-  mainButton.style.padding = '8px 12px';
-  mainButton.style.borderRadius = '8px';
-  mainButton.style.transition = 'background-color 0.3s';
+  const popup = document.createElement('div');
+  popup.className = 'language-popup glass-effect';
+  popup.style.backgroundColor = 'rgba(15, 5, 107, 0.6)';
+  popup.style.borderRadius = '18px';
+  popup.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.5)';
+  popup.style.padding = '25px';
+  popup.style.minWidth = '300px';
+  popup.style.maxWidth = '90%';
+  popup.style.position = 'relative';
+  popup.style.fontFamily = 'League Spartan, sans-serif';
+  popup.style.color = '#ffffff';
+  popup.style.transform = 'scale(0.8)';
+  popup.style.opacity = '0';
+  popup.style.transition = 'all 0.4s cubic-bezier(0.25, 1.5, 0.5, 1)';
   
-  const globeIcon = document.createElement('span');
-  globeIcon.innerHTML = '🌐';
-  globeIcon.style.marginRight = '10px';
-  globeIcon.style.fontSize = '18px';
+  const closeButton = document.createElement('div');
+  closeButton.innerHTML = '✕';
+  closeButton.style.position = 'absolute';
+  closeButton.style.top = '15px';
+  closeButton.style.right = '15px';
+  closeButton.style.fontSize = '20px';
+  closeButton.style.cursor = 'pointer';
+  closeButton.style.color = '#ffffff';
+  closeButton.style.width = '30px';
+  closeButton.style.height = '30px';
+  closeButton.style.display = 'flex';
+  closeButton.style.justifyContent = 'center';
+  closeButton.style.alignItems = 'center';
+  closeButton.style.borderRadius = '50%';
+  closeButton.style.transition = 'all 0.2s';
   
-  const currentLangText = document.createElement('span');
-  currentLangText.id = 'current-lang-text';
-  currentLangText.textContent = languages.find(lang => lang.code === i18n.currentLang)?.name || 'Langue';
+  closeButton.onmouseover = () => {
+    closeButton.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+  };
   
-  const arrowIcon = document.createElement('span');
-  arrowIcon.innerHTML = '▼';
-  arrowIcon.style.fontSize = '12px';
-  arrowIcon.style.marginLeft = '10px';
-  arrowIcon.style.transition = 'transform 0.3s';
+  closeButton.onmouseout = () => {
+    closeButton.style.backgroundColor = 'transparent';
+  };
   
-  mainButton.appendChild(globeIcon);
-  mainButton.appendChild(currentLangText);
-  mainButton.appendChild(arrowIcon);
+  closeButton.onclick = () => {
+    closePopup();
+  };
   
-  const dropdown = document.createElement('div');
-  dropdown.className = 'lang-dropdown';
-  dropdown.style.display = 'none';
-  dropdown.style.flexDirection = 'column';
-  dropdown.style.marginTop = '10px';
-  dropdown.style.borderRadius = '8px';
-  dropdown.style.overflow = 'hidden';
-  dropdown.style.boxShadow = '0 5px 15px rgba(0, 0, 0, 0.3)';
-  dropdown.style.backgroundColor = 'rgba(36, 36, 36, 0.95)';
-  dropdown.style.animation = 'none';
+  const title = document.createElement('h2');
+  title.textContent = t('select_language') || 'Sélectionner une langue';
+  title.style.textAlign = 'center';
+  title.style.marginTop = '0';
+  title.style.marginBottom = '20px';
+  title.style.fontSize = '24px';
+  
+  const langOptions = document.createElement('div');
+  langOptions.style.display = 'flex';
+  langOptions.style.flexDirection = 'column';
+  langOptions.style.gap = '10px';
   
   languages.forEach(lang => {
-    const langOption = document.createElement('div');
-    langOption.className = 'lang-option';
-    langOption.textContent = lang.name;
-    langOption.dataset.lang = lang.code;
-    langOption.style.padding = '10px 15px';
-    langOption.style.cursor = 'pointer';
-    langOption.style.transition = 'background-color 0.2s';
-    langOption.style.color = '#ffffff';
+    const langButton = document.createElement('button');
+    langButton.textContent = lang.name;
+    langButton.dataset.lang = lang.code;
+    langButton.style.padding = '12px 25px';
+    langButton.style.borderRadius = '50px';
+    langButton.style.fontSize = '16px';
+    langButton.style.fontWeight = 'bold';
+    langButton.style.fontFamily = 'League Spartan, sans-serif';
+    langButton.style.cursor = 'pointer';
+    langButton.style.border = 'none';
+    langButton.style.transition = 'transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), background-color 0.3s cubic-bezier(0.25, 1.5, 0.5, 1)';
+    langButton.style.position = 'relative';
+    langButton.style.overflow = 'hidden';
     
     if (lang.code === i18n.currentLang) {
-      langOption.style.backgroundColor = 'rgba(80, 80, 80, 0.5)';
-      langOption.style.fontWeight = 'bold';
+      langButton.style.backgroundColor = '#246ca5';
+      langButton.style.color = 'white';
+    } else {
+      langButton.style.backgroundColor = '#363636';
+      langButton.style.color = 'white';
     }
     
-    langOption.onmouseover = () => {
-      langOption.style.backgroundColor = 'rgba(80, 80, 80, 0.3)';
+    langButton.onmouseover = () => {
+      langButton.style.backgroundColor = lang.code === i18n.currentLang ? '#1c5a8c' : '#2c2c2c';
+      langButton.style.transform = 'scale(0.98)';
     };
     
-    langOption.onmouseout = () => {
-      if (lang.code !== i18n.currentLang) {
-        langOption.style.backgroundColor = 'transparent';
-      } else {
-        langOption.style.backgroundColor = 'rgba(80, 80, 80, 0.5)';
-      }
+    langButton.onmouseout = () => {
+      langButton.style.backgroundColor = lang.code === i18n.currentLang ? '#246ca5' : '#363636';
+      langButton.style.transform = 'scale(1)';
     };
     
-    langOption.onclick = async (e) => {
-      e.stopPropagation();
+    langButton.onmousedown = () => {
+      langButton.style.transform = 'scale(0.95)';
+    };
+    
+    langButton.onmouseup = () => {
+      langButton.style.transform = 'scale(0.98)';
+    };
+    
+    const shine = document.createElement('div');
+    shine.style.position = 'absolute';
+    shine.style.top = '0';
+    shine.style.left = '-120%';
+    shine.style.width = '120%';
+    shine.style.height = '100%';
+    shine.style.background = 'linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent)';
+    shine.style.transform = 'skewX(-25deg)';
+    shine.style.transition = 'left 0.8s cubic-bezier(0.25, 1.5, 0.5, 1)';
+    shine.style.pointerEvents = 'none';
+    langButton.appendChild(shine);
+    
+    langButton.onmouseover = (e) => {
+      langButton.style.backgroundColor = lang.code === i18n.currentLang ? '#1c5a8c' : '#2c2c2c';
+      langButton.style.transform = 'scale(0.98)';
+      shine.style.left = '120%';
+    };
+    
+    langButton.onmouseout = () => {
+      langButton.style.backgroundColor = lang.code === i18n.currentLang ? '#246ca5' : '#363636';
+      langButton.style.transform = 'scale(1)';
+      shine.style.left = '-120%';
+    };
+    
+    langButton.onclick = async () => {
       const newLang = lang.code;
       
       if (newLang !== i18n.currentLang) {
@@ -3644,9 +3700,9 @@ function createLanguageSwitcher(container) {
         transitionOverlay.style.position = 'fixed';
         transitionOverlay.style.top = '0';
         transitionOverlay.style.left = '0';
-        transitionOverlay.style.width = '100%';
+        transitionOverlay.style.width = '100%'; 
         transitionOverlay.style.height = '100%';
-        transitionOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+        transitionOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
         transitionOverlay.style.zIndex = '9999';
         transitionOverlay.style.opacity = '0';
         transitionOverlay.style.transition = 'opacity 0.3s ease';
@@ -3664,77 +3720,62 @@ function createLanguageSwitcher(container) {
             window.location.search = urlParams.toString();
           }, 300);
         }, 50);
+      } else {
+        closePopup();
       }
-      
-      toggleDropdown(false);
     };
     
-    dropdown.appendChild(langOption);
+    langOptions.appendChild(langButton);
   });
   
-  switcherContainer.appendChild(mainButton);
-  switcherContainer.appendChild(dropdown);
+  popup.appendChild(closeButton);
+  popup.appendChild(title);
+  popup.appendChild(langOptions);
+  overlay.appendChild(popup);
   
-  let isOpen = false;
-  
-  function toggleDropdown(forceState) {
-    isOpen = forceState !== undefined ? forceState : !isOpen;
-    
-    if (isOpen) {
-      dropdown.style.display = 'flex';
-      dropdown.style.animation = 'zoomFadeIn 0.3s cubic-bezier(0.25, 1.5, 0.5, 1) forwards';
-      arrowIcon.style.transform = 'rotate(180deg)';
-      mainButton.style.backgroundColor = 'rgba(80, 80, 80, 0.3)';
-    } else {
-      dropdown.style.animation = 'none';
-      dropdown.style.display = 'none';
-      arrowIcon.style.transform = 'rotate(0deg)';
-      mainButton.style.backgroundColor = 'transparent';
-    }
-  }
-  
-  mainButton.onclick = () => toggleDropdown();
-  
-  document.addEventListener('click', (e) => {
-    if (!switcherContainer.contains(e.target) && isOpen) {
-      toggleDropdown(false);
-    }
-  });
+  document.body.appendChild(overlay);
   
   setTimeout(() => {
-    switcherContainer.style.transform = 'translateY(0)';
-    switcherContainer.style.opacity = '1';
-  }, 300);
+    overlay.style.opacity = '1';
+    popup.style.transform = 'scale(1)';
+    popup.style.opacity = '1';
+  }, 50);
   
-  if (container) {
-    if (typeof container === 'string') {
-      document.querySelector(container).appendChild(switcherContainer);
-    } else {
-      container.appendChild(switcherContainer);
-    }
-  } else {
-    document.body.appendChild(switcherContainer);
+  function closePopup() {
+    overlay.style.opacity = '0';
+    popup.style.transform = 'scale(0.8)';
+    popup.style.opacity = '0';
+    
+    setTimeout(() => {
+      overlay.style.display = 'none';
+    }, 300);
   }
   
-  return {
-    element: switcherContainer,
-    updateCurrentLanguage: (langCode) => {
-      currentLangText.textContent = languages.find(lang => lang.code === langCode)?.name || 'Langue';
-      
-      document.querySelectorAll('.lang-option').forEach(option => {
-        if (option.dataset.lang === langCode) {
-          option.style.backgroundColor = 'rgba(80, 80, 80, 0.5)';
-          option.style.fontWeight = 'bold';
-        } else {
-          option.style.backgroundColor = 'transparent';
-          option.style.fontWeight = 'normal';
-        }
-      });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      closePopup();
     }
+  });
+  
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.style.display !== 'none') {
+      closePopup();
+    }
+  });
+  
+  return {
+    open: () => {
+      overlay.style.display = 'flex';
+      setTimeout(() => {
+        overlay.style.opacity = '1';
+        popup.style.transform = 'scale(1)';
+        popup.style.opacity = '1';
+      }, 50);
+    },
+    close: closePopup,
+    element: overlay
   };
 }
-
-
 
 
 let gtfsInitialized = false;
