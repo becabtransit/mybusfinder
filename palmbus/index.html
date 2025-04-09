@@ -4966,6 +4966,222 @@ document.addEventListener('touchend', function(e) {
     }
 });
 
+function createLanguageSwitcher(container) {
+  // Config des langues disponibles (pour rajoutes langues, juste rajouter un objet dans le tableau
+  // et rajouter la langue dans le fichier de traduction i18n.js)
+  const languages = [
+    { code: 'fr', name: 'Français 🥖🥐' },
+    { code: 'en', name: 'English 🐟🍟' },
+    { code: 'it', name: 'Italiano 🍕🍍 (désolé nader)' },
+    { code: 'ar', name: 'عربي 🫖🍖' }
+  ];
+  
+  const switcherContainer = document.createElement('div');
+  switcherContainer.className = 'language-switcher glass-effect';
+  switcherContainer.style.position = 'absolute';
+  switcherContainer.style.top = '20px';
+  switcherContainer.style.right = '20px';
+  switcherContainer.style.backgroundColor = 'rgba(15, 5, 107, 0.6)';
+  switcherContainer.style.backdropFilter = 'blur(8px)';
+  switcherContainer.style.WebkitBackdropFilter = 'blur(8px)';
+  switcherContainer.style.borderRadius = '12px';
+  switcherContainer.style.boxShadow = '0 0 15px rgba(0, 0, 0, 0.4)';
+  switcherContainer.style.padding = '12px';
+  switcherContainer.style.zIndex = '1000';
+  switcherContainer.style.fontFamily = 'League Spartan, sans-serif';
+  switcherContainer.style.transition = 'all 0.3s cubic-bezier(0.25, 1.5, 0.5, 1)';
+  switcherContainer.style.transform = 'translateY(-100px)';
+  switcherContainer.style.opacity = '0';
+  
+  const mainButton = document.createElement('div');
+  mainButton.className = 'lang-main-button';
+  mainButton.style.display = 'flex';
+  mainButton.style.alignItems = 'center';
+  mainButton.style.justifyContent = 'space-between';
+  mainButton.style.cursor = 'pointer';
+  mainButton.style.color = '#ffffff';
+  mainButton.style.padding = '8px 12px';
+  mainButton.style.borderRadius = '8px';
+  mainButton.style.transition = 'background-color 0.3s';
+  
+  const globeIcon = document.createElement('span');
+  globeIcon.innerHTML = '🌐';
+  globeIcon.style.marginRight = '10px';
+  globeIcon.style.fontSize = '18px';
+  
+  const currentLangText = document.createElement('span');
+  currentLangText.id = 'current-lang-text';
+  currentLangText.textContent = languages.find(lang => lang.code === i18n.currentLang)?.name || 'Langue';
+  
+  const arrowIcon = document.createElement('span');
+  arrowIcon.innerHTML = '▼';
+  arrowIcon.style.fontSize = '12px';
+  arrowIcon.style.marginLeft = '10px';
+  arrowIcon.style.transition = 'transform 0.3s';
+  
+  mainButton.appendChild(globeIcon);
+  mainButton.appendChild(currentLangText);
+  mainButton.appendChild(arrowIcon);
+  
+  const dropdown = document.createElement('div');
+  dropdown.className = 'lang-dropdown';
+  dropdown.style.display = 'none';
+  dropdown.style.flexDirection = 'column';
+  dropdown.style.marginTop = '10px';
+  dropdown.style.borderRadius = '8px';
+  dropdown.style.overflow = 'hidden';
+  dropdown.style.boxShadow = '0 5px 15px rgba(0, 0, 0, 0.3)';
+  dropdown.style.backgroundColor = 'rgba(36, 36, 36, 0.95)';
+  dropdown.style.animation = 'none';
+  
+  languages.forEach(lang => {
+    const langOption = document.createElement('div');
+    langOption.className = 'lang-option';
+    langOption.textContent = lang.name;
+    langOption.dataset.lang = lang.code;
+    langOption.style.padding = '10px 15px';
+    langOption.style.cursor = 'pointer';
+    langOption.style.transition = 'background-color 0.2s';
+    langOption.style.color = '#ffffff';
+    
+    if (lang.code === i18n.currentLang) {
+      langOption.style.backgroundColor = 'rgba(80, 80, 80, 0.5)';
+      langOption.style.fontWeight = 'bold';
+    }
+    
+    langOption.onmouseover = () => {
+      langOption.style.backgroundColor = 'rgba(80, 80, 80, 0.3)';
+    };
+    
+    langOption.onmouseout = () => {
+      if (lang.code !== i18n.currentLang) {
+        langOption.style.backgroundColor = 'transparent';
+      } else {
+        langOption.style.backgroundColor = 'rgba(80, 80, 80, 0.5)';
+      }
+    };
+    
+    langOption.onclick = async (e) => {
+      e.stopPropagation();
+      const newLang = lang.code;
+      
+      if (newLang !== i18n.currentLang) {
+        const transitionOverlay = document.createElement('div');
+        transitionOverlay.style.position = 'fixed';
+        transitionOverlay.style.top = '0';
+        transitionOverlay.style.left = '0';
+        transitionOverlay.style.width = '100%';
+        transitionOverlay.style.height = '100%';
+        transitionOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+        transitionOverlay.style.zIndex = '9999';
+        transitionOverlay.style.opacity = '0';
+        transitionOverlay.style.transition = 'opacity 0.3s ease';
+        document.body.appendChild(transitionOverlay);
+        
+        setTimeout(() => {
+          transitionOverlay.style.opacity = '1';
+          
+          const urlParams = new URLSearchParams(window.location.search);
+          urlParams.set('lang', newLang);
+          
+          localStorage.setItem('preferredLanguage', newLang);
+          
+          setTimeout(() => {
+            window.location.search = urlParams.toString();
+          }, 300);
+        }, 50);
+      }
+      
+      toggleDropdown(false);
+    };
+    
+    dropdown.appendChild(langOption);
+  });
+  
+  switcherContainer.appendChild(mainButton);
+  switcherContainer.appendChild(dropdown);
+  
+  let isOpen = false;
+  
+  function toggleDropdown(forceState) {
+    isOpen = forceState !== undefined ? forceState : !isOpen;
+    
+    if (isOpen) {
+      dropdown.style.display = 'flex';
+      dropdown.style.animation = 'zoomFadeIn 0.3s cubic-bezier(0.25, 1.5, 0.5, 1) forwards';
+      arrowIcon.style.transform = 'rotate(180deg)';
+      mainButton.style.backgroundColor = 'rgba(80, 80, 80, 0.3)';
+    } else {
+      dropdown.style.animation = 'none';
+      dropdown.style.display = 'none';
+      arrowIcon.style.transform = 'rotate(0deg)';
+      mainButton.style.backgroundColor = 'transparent';
+    }
+  }
+  
+  mainButton.onclick = () => toggleDropdown();
+  
+  document.addEventListener('click', (e) => {
+    if (!switcherContainer.contains(e.target) && isOpen) {
+      toggleDropdown(false);
+    }
+  });
+  
+  setTimeout(() => {
+    switcherContainer.style.transform = 'translateY(0)';
+    switcherContainer.style.opacity = '1';
+  }, 300);
+  
+  if (container) {
+    if (typeof container === 'string') {
+      document.querySelector(container).appendChild(switcherContainer);
+    } else {
+      container.appendChild(switcherContainer);
+    }
+  } else {
+    document.body.appendChild(switcherContainer);
+  }
+  
+  return {
+    element: switcherContainer,
+    updateCurrentLanguage: (langCode) => {
+      currentLangText.textContent = languages.find(lang => lang.code === langCode)?.name || 'Langue';
+      
+      document.querySelectorAll('.lang-option').forEach(option => {
+        if (option.dataset.lang === langCode) {
+          option.style.backgroundColor = 'rgba(80, 80, 80, 0.5)';
+          option.style.fontWeight = 'bold';
+        } else {
+          option.style.backgroundColor = 'transparent';
+          option.style.fontWeight = 'normal';
+        }
+      });
+    }
+  };
+}
+
+const langSwitcher = createLanguageSwitcher();
+langSwitcher.element.style.display = 'none';
+
+function hideLanguageSwitcher() {
+  langSwitcher.element.style.transform = 'translateY(-100px)';
+  langSwitcher.element.style.opacity = '0';
+  
+  setTimeout(() => {
+    langSwitcher.element.style.display = 'none';
+  }, 300); 
+}
+
+function showLanguageSwitcher() {
+  langSwitcher.element.style.display = 'block';
+  
+  setTimeout(() => {
+    langSwitcher.element.style.transform = 'translateY(0)';
+    langSwitcher.element.style.opacity = '1';
+  }, 10);
+}
+
+
 
 function createBottomSheet() {
     const SNAP_POINTS = {
@@ -5600,6 +5816,7 @@ window.isBottomSheetOpen = false;
 window.isMenuShowed = false;
 
 function showBottomSheet() {
+    showLanguageSwitcher();
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
     safeVibrate(50);
@@ -5651,6 +5868,7 @@ function showBottomSheet() {
 }
 
 function closeBottomSheet() {
+    hideLanguageSwitcher();
     const bottomSheet = document.getElementById('bottomSheet');
 
     safeVibrate(50);
