@@ -1649,12 +1649,14 @@ if ('serviceWorker' in navigator) {
         
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-            toastBottomRight.info('Préparation en cours.')
+            toastBottomRight.info(t("toastfirstinit"))
+            setTimeout(() => {
+                if (!refreshing) {
+                refreshing = true;
+                window.location.reload();
+                }
+            }, 3000);
 
-          if (!refreshing) {
-            refreshing = true;
-            window.location.reload();
-          }
         });
         
         registration.update();
@@ -1894,7 +1896,7 @@ function onLocationFound(e) {
 }
 
 function onLocationError(e) {
-    toastBottomRight.warning("Vous avez refusé la localisation.");
+    toastBottomRight.warning(t("toastlostnofoundlocation"));
 }
 
 function locateUser() {
@@ -1928,7 +1930,7 @@ function locateUser() {
             locationOptions
         );
     } else {
-        toastBottomRight.error("La géolocalisation n'est pas supportée par votre navigateur");
+        toastBottomRight.error(t("toastunsupportedlocation"));
     }
 }
 
@@ -2141,7 +2143,7 @@ function focusOnVehicle(vehicleId) {
         const marker = Object.values(markers).find(m => m.id === vehicleId);
         
         if (!marker) {
-            toastBottomRight.error('La position du véhicule est indisponible');
+            toastBottomRight.error(t("toastvehiculepastrouve"));
             return;
         }
         
@@ -2152,7 +2154,7 @@ function focusOnVehicle(vehicleId) {
             
             const markerIcon = marker._icon.querySelector('.marker-icon');
             if (!markerIcon) {
-                toastBottomRight.error('La position du véhicule est indisponible');
+                toastBottomRight.error(t("toastvehiculepastrouve"));
 
                 return;
             }
@@ -2163,10 +2165,10 @@ function focusOnVehicle(vehicleId) {
             }, 500);
             
         } catch (mapError) {
-            toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : manipulating marker error');
+            toastBottomRight.error(t("toastfatalerror") + ' : manipulating marker error');
         }
     } catch (error) {
-        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : focusOnVehicle function error');
+        toastBottomRight.error(t("toastfatalerror") + 'focusOnVehicle function error');
     }
 }
 
@@ -2411,13 +2413,13 @@ async function getFromCache() {
 
 async function extractGTFSFiles() {
     try {
-        toastBottomRight.info('Mise à jour de la base de données dynamiques. Cette opération va prendre quelques secondes 🙂');
+        toastBottomRight.info(t("updatingdynamicdata"));
 
 
         const response = await fetch('proxy-cors/proxy_gtfs.php');
         if (!response.ok) {
             throw new Error(`Échec téléchargement ${response.status} ${response.statusText}`);
-            toastBottomRight.warning('Oups ! Une erreur s\'est produite... avez vous actualisé la page ?');
+            toastBottomRight.warning(t("errordynamicdata"));
 
         }
         
@@ -2587,7 +2589,7 @@ async function initializeGTFS() {
                 const result = await extractGTFSFiles();
                 extractedFiles = result.extractedFiles;
                 await saveToCache(extractedFiles, result.metadata);
-                toastBottomRight.success('Données téléchargées avec succès !');
+                toastBottomRight.success(t("downloadsuccess"));
             } 
         }
         
@@ -2624,14 +2626,14 @@ async function clearGTFSCache() {
             const request = store.clear();
 
             request.onsuccess = () => {
-                toastBottomRight.success('Cache effacé avec succès !');
+                toastBottomRight.success('Cache ERAZED with error code 0x0');
                 resolve();
             };
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
         console.error('Erreur lors de l\'effacement du cache', error);
-        toastBottomRight.error('Erreur lors de l\'effacement du cache');
+        toastBottomRight.error('Cache ERAZED with error code 0x1');
         throw error;
     }
 }
@@ -3229,7 +3231,7 @@ async function loadVehicleModels() {
         
     } catch (error) {
         console.error('Erreur lors du chargement des modèles de véhicules ', error);
-        toastBottomRight.error('Erreur lors du chargement des modèles de véhicules ', error);
+        toastBottomRight.error(t("errorfetchvehicles"), error);
     }
 }
 
@@ -3241,7 +3243,6 @@ async function loadVehicleModelFile(fileName) {
         
         if (lines.length < 8) {
             console.error(`Format invalide pour le fichier ${fileName}`);
-            toastBottomRight.error(`Format invalide pour le fichier ${fileName}`);
             return;
         }
         
@@ -3278,7 +3279,7 @@ async function loadVehicleModelFile(fileName) {
         
     } catch (error) {
         console.error(`Erreur lors du chargement du fichier ${fileName}:`, error);
-        toastBottomRight.error('Une erreur est survenue.');
+        toastBottomRight.error(t("internalerror"));
 
     }
 }
@@ -3414,7 +3415,7 @@ async function initializeApp() {
         await fetchVehiclePositions();
     } catch (error) {
         console.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
-        toastBottomRight.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
+        toastBottomRight.error(t("bootloadererror"), error);
 
     }
 }
@@ -5963,7 +5964,7 @@ const menubottom1 = document.getElementById('menubtm');
 
     } catch (error) {
         console.error('Err récup des données ! ', error);
-        toastBottomRight.info('Aucun bus ne circule actuellement... 💤 à très vite !!');
+        toastBottomRight.info(t("toastnobus"));
 
     }
 }
@@ -6076,7 +6077,7 @@ async function main() {
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
-        toastBottomRight.error("Une erreur critique est survenue. Nous investigons actuellement sur la cause de la panne.");
+        toastBottomRight.error(t("toastcriticalerror"));
     }
 }
 
