@@ -5468,76 +5468,26 @@ function createBottomSheet() {
         text-align: right;
         justify-content: right;
     `;
-
-
-    const createStyledBox = (text, elements, isCollapsible = false) => {
+    const createStyledBox = (text, elements) => {
         const box = document.createElement('div');
-        
-        const header = document.createElement('div');
-        header.style.cssText = `
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: ${isCollapsible ? 'pointer' : 'default'};
-            padding: 5px;
-        `;
         
         const title = document.createElement('div');
         title.textContent = text;
         title.style.cssText = `
             font-size: 20px;
             color: white;
-            margin-top: 5px;
+            margin-top: 17px;
             margin-right: 15px;
             text-align: right;
             justify-content: right;
         `;
         
-        header.appendChild(title);
-        
-        if (isCollapsible) {
-            const indicator = document.createElement('div');
-            indicator.innerHTML = `
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-            `;
-            indicator.style.cssText = `
-                transition: transform 0.3s ease;
-                margin-left: 10px;
-            `;
-            header.appendChild(indicator);
-            
-            const elementsContainer = document.createElement('div');
-            elementsContainer.style.cssText = `
-                overflow: hidden;
-                transition: max-height 0.3s ease;
-                max-height: 1000px; /* Valeur initiale suffisamment grande */
-            `;
-            
-            elements.forEach(el => elementsContainer.appendChild(el));
-            
-            header.addEventListener('click', () => {
-                if (elementsContainer.style.maxHeight !== '0px') {
-                    elementsContainer.style.maxHeight = '0px';
-                    indicator.style.transform = 'rotate(180deg)';
-                } else {
-                    elementsContainer.style.maxHeight = '1000px';
-                    indicator.style.transform = 'rotate(0deg)';
-                }
-            });
-            
-            box.appendChild(header);
-            box.appendChild(elementsContainer);
-        } else {
-            box.appendChild(header);
-            elements.forEach(el => box.appendChild(el));
-        }
+        box.appendChild(title);
+        elements.forEach(el => box.appendChild(el));
         
         box.style.cssText = `
             margin: 10px;
             border-radius: 15px;
-            overflow: hidden;
         `;
         return box;
     };
@@ -5548,9 +5498,61 @@ function createBottomSheet() {
     const sedeplacerBox = createStyledBox(t("tomove"), [transportStateContainer, locationButton, satelliteButton]);
     bottomSheet.appendChild(sedeplacerBox);
 
-    const allerplusloinBox = createStyledBox(t("gofurther"), [histovecButton, togglesun, changelang, about], true);
-    bottomSheet.appendChild(allerplusloinBox);
+    const allerplusloinBox = createStyledBox(t("gofurther"), [histovecButton, togglesun, changelang, about]);
+    const makeBoxCollapsible = (box) => {
+        const title = box.firstChild;
+        const contentContainer = document.createElement('div');
+        contentContainer.style.cssText = `
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            max-height: 500px;
+        `;
+        
+        while (box.childNodes.length > 1) {
+            contentContainer.appendChild(box.childNodes[1]);
+        }
+        box.appendChild(contentContainer);
+        
+        const arrow = document.createElement('span');
+        arrow.innerHTML = '▼';
+        arrow.style.cssText = `
+            margin-left: 8px;
+            font-size: 14px;
+            transition: transform 0.3s ease;
+            display: inline-block;
+        `;
+        title.appendChild(arrow);
+        
+        title.style.cursor = 'pointer';
+        title.style.userSelect = 'none';
+        
+        let isCollapsed = false;
+        
+        const toggleCollapse = () => {
+            isCollapsed = !isCollapsed;
+            if (isCollapsed) {
+                contentContainer.style.maxHeight = '0px';
+                arrow.style.transform = 'rotate(-90deg)';
+            } else {
+                contentContainer.style.maxHeight = '500px';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        };
+        
+        title.addEventListener('click', toggleCollapse);
+        
+        title.addEventListener('mouseover', () => {
+            title.style.opacity = '0.8';
+        });
+        title.addEventListener('mouseout', () => {
+            title.style.opacity = '1';
+        });
+        
+        return box;
+    };
 
+    const collapsibleAllerplusloinBox = makeBoxCollapsible(allerplusloinBox);
+    bottomSheet.appendChild(collapsibleAllerplusloinBox);
     let startY, initialY, isDragging = false;
     
     function startDrag(e) {
