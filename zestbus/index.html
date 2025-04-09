@@ -1585,13 +1585,10 @@ tarteaucitron.init({
 
 <script>
 
-let translations = {};
-let currentLang = 'fr';
-
 function getLanguageFromUrl() {
   const urlParams = new URLSearchParams(window.location.search);
   const lang = urlParams.get('lang');
-  return lang || localStorage.getItem('preferredLanguage') || 'fr'; 
+  return lang || 'fr'; 
 }
 
 async function loadTranslations() {
@@ -1603,12 +1600,17 @@ async function loadTranslations() {
     translations = await response.json();
     applyTranslations();
   } catch (error) {
-    console.error("Erreur lors du chargement traductions", error);
+    console.error("Erreur lors du chargement des traduction", error);
   }
 }
 
-function t(key) {
-  return translations[key] || key;
+function applyTranslations(translations) {
+  document.querySelectorAll('[data-i18n]').forEach(element => {
+    const key = element.getAttribute('data-i18n');
+    if (translations[key]) {
+      element.innerHTML = translations[key];
+    }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', loadTranslations);
