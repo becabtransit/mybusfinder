@@ -2118,13 +2118,29 @@ function showLoadingScreen() {
 var audio = new Audio("src/sounds/musique.mp3"); 
 
 function showUpdatePopup(link) {
-    const currentUrlParams = new URLSearchParams(window.location.search);
-    const url = new URL(link, window.location.origin);
-    currentUrlParams.forEach((value, key) => {
-        url.searchParams.set(key, value);
-    });
-
-    const finalUrl = url.toString();
+    const isRelativeLink = !link.match(/^(http|https):\/\//);
+    
+    let finalUrl;
+    if (isRelativeLink) {
+        const currentUrlParams = new URLSearchParams(window.location.search);
+        const baseUrl = window.location.origin + window.location.pathname;
+        const url = new URL(link, baseUrl);
+        
+        currentUrlParams.forEach((value, key) => {
+            url.searchParams.set(key, value);
+        });
+        
+        finalUrl = url.toString();
+    } else {
+        const currentUrlParams = new URLSearchParams(window.location.search);
+        const url = new URL(link);
+        
+        currentUrlParams.forEach((value, key) => {
+            url.searchParams.set(key, value);
+        });
+        
+        finalUrl = url.toString();
+    }
     
     const popup = document.getElementById('update-popup');
     const iframe = document.getElementById('webview-frame');
@@ -2155,13 +2171,29 @@ function showUpdatePopup(link) {
 
 
 function showUpdatePopupmusic(link) {
-    const currentUrlParams = new URLSearchParams(window.location.search);
-    const url = new URL(link, window.location.origin);
-    currentUrlParams.forEach((value, key) => {
-        url.searchParams.set(key, value);
-    });
-
-    const finalUrl = url.toString();
+    const isRelativeLink = !link.match(/^(http|https):\/\//);
+    
+    let finalUrl;
+    if (isRelativeLink) {
+        const currentUrlParams = new URLSearchParams(window.location.search);
+        const baseUrl = window.location.origin + window.location.pathname;
+        const url = new URL(link, baseUrl);
+        
+        currentUrlParams.forEach((value, key) => {
+            url.searchParams.set(key, value);
+        });
+        
+        finalUrl = url.toString();
+    } else {
+        const currentUrlParams = new URLSearchParams(window.location.search);
+        const url = new URL(link);
+        
+        currentUrlParams.forEach((value, key) => {
+            url.searchParams.set(key, value);
+        });
+        
+        finalUrl = url.toString();
+    }
     
     const popup = document.getElementById('update-popup');
     const iframe = document.getElementById('webview-frame');
@@ -2190,7 +2222,6 @@ function showUpdatePopupmusic(link) {
         }
     }, { once: true });
 }
-
 window.addEventListener('message', function(event) {
     if (event.data && event.data.action === 'showUpdatePopup') {
         if (window.parent && typeof window.parent.showUpdatePopup === 'function') {
