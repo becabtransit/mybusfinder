@@ -3489,25 +3489,58 @@ async function initializeApp() {
 }
 
 let isVibrating = false;
+let vibrationTimeout = null;
 
-function safeVibrate(pattern) {
-    if (isVibrating) {
-        return;
+/**
+ * Fonction pour gérer les vibrations de manière sécurisée sans chevauchement
+ * @param {Array|Number} pattern - Motif de vibration (un nombre pour une vibration simple, un tableau pour un motif)
+ * @param {Boolean} force - Forcer la vibration même si une autre est en cours
+ * @returns {Boolean} - Indique si la vibration à été déclenchée
+ * Par Becab Systems
+ */
+function safeVibrate(pattern, force = false) {
+    if (!navigator.vibrate) {
+        return false;
+    }
+    
+    if (isVibrating && !force) {
+        return false;
+    }
+    
+    if (isVibrating && force) {
+        navigator.vibrate(0);
+        
+        if (vibrationTimeout) {
+            clearTimeout(vibrationTimeout);
+            vibrationTimeout = null;
+        }
     }
     
     isVibrating = true;
     
-    const totalDuration = pattern.reduce((a, b) => a + b, 0);
+    const vibrationPattern = Array.isArray(pattern) ? pattern : [pattern];
     
-    if (navigator.vibrate) {
-        navigator.vibrate(pattern);
+    const totalDuration = vibrationPattern.reduce((a, b) => a + b, 0) + 50;
+    
+    try {
+        const success = navigator.vibrate(vibrationPattern);
+        
+        if (success === false) {
+            isVibrating = false;
+            return false;
+        }
+    } catch (error) {
+        isVibrating = false;
+        return false;
     }
     
-    setTimeout(() => {
+    vibrationTimeout = setTimeout(() => {
         isVibrating = false;
+        vibrationTimeout = null;
     }, totalDuration);
+    
+    return true;
 }
-
 
 
 let gtfsInitialized = false;
@@ -5939,7 +5972,7 @@ function getTextColor(backgroundColor) {
                     busItem.style.overflow = 'hidden';
                     busItem.style.maxWidth = '300px';
                     lineSection.onclick = () => {
-                        safeVibrate([50, 30, 50]);
+                        safeVibrate([50, 30, 50], true);
                         const lineId = line;
                         selectedLine = lineId;
                         filterByLine(lineId);
@@ -5965,7 +5998,7 @@ function getTextColor(backgroundColor) {
                     };
 
                     busItem.onclick = (event) => {
-                        safeVibrate([50, 300, 50, 30, 50]);
+                        safeVibrate([50, 300, 50, 30, 50], true);
                         map.setView(bus.vehicle.getLatLng(), 15);
                         bus.vehicle.openPopup();
                         menu.classList.add('hidden');
