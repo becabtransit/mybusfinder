@@ -1688,6 +1688,7 @@ tarteaucitron.init({
     window.i18n = i18n;
     </script>
 
+
 <script>
 
 
@@ -1698,14 +1699,12 @@ if ('serviceWorker' in navigator) {
         
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-            toastBottomRight.info(t("toastfirstinit"))
-            setTimeout(() => {
-                if (!refreshing) {
-                refreshing = true;
-                window.location.reload();
-                }
-            }, 3000);
+            toastBottomRight.info('Préparation en cours.')
 
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
         });
         
         registration.update();
@@ -1945,7 +1944,7 @@ function onLocationFound(e) {
 }
 
 function onLocationError(e) {
-    toastBottomRight.warning(t("toastlostnofoundlocation"));
+    toastBottomRight.warning("Vous avez refusé la localisation.");
 }
 
 function locateUser() {
@@ -1979,7 +1978,7 @@ function locateUser() {
             locationOptions
         );
     } else {
-        toastBottomRight.error(t("toastunsupportedlocation"));
+        toastBottomRight.error("La géolocalisation n'est pas supportée par votre navigateur");
     }
 }
 
@@ -2118,33 +2117,9 @@ function showLoadingScreen() {
 var audio = new Audio("src/sounds/musique.mp3"); 
 
 function showUpdatePopup(link) {
-    const isRelativeLink = !link.match(/^(http|https):\/\//);
-    
-    let finalUrl;
-    if (isRelativeLink) {
-        const currentUrlParams = new URLSearchParams(window.location.search);
-        const baseUrl = window.location.origin + window.location.pathname;
-        const url = new URL(link, baseUrl);
-        
-        currentUrlParams.forEach((value, key) => {
-            url.searchParams.set(key, value);
-        });
-        
-        finalUrl = url.toString();
-    } else {
-        const currentUrlParams = new URLSearchParams(window.location.search);
-        const url = new URL(link);
-        
-        currentUrlParams.forEach((value, key) => {
-            url.searchParams.set(key, value);
-        });
-        
-        finalUrl = url.toString();
-    }
-    
     const popup = document.getElementById('update-popup');
     const iframe = document.getElementById('webview-frame');
-    iframe.src = finalUrl; 
+    iframe.src = link; 
     popup.style.display = 'flex'; 
     const menubottom1 = document.getElementById('menubtm');
     const menu = document.getElementById('menu');
@@ -2152,52 +2127,28 @@ function showUpdatePopup(link) {
 
     menubottom1.classList.remove('slide-downb');
     menubottom1.classList.add('slide-upb');
-    if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.add('slide-upc');
-        filtre.classList.remove('slide-downc');
-        filtre.addEventListener('animationend', () => {
-            filtre.style.display = 'none';
+        if (selectedLine) {
+            const filtre = document.getElementById('filtre');
+            filtre.classList.add('slide-upc');
+            filtre.classList.remove('slide-downc');
+            filtre.addEventListener('animationend', () => {
+                filtre.style.display = 'none';
         });
-        resetMapView();            
-    }
+    resetMapView();            
+}
 
-    menubottom1.addEventListener('transitionend', () => {
-        if (menubottom1.classList.contains('slide-up')) {
-            menubottom1.style.display = 'none';
+menubottom1.addEventListener('transitionend', () => {
+    if (menubottom1.classList.contains('slide-up')) {
+        menubottom1.style.display = 'none';
         }
     }, { once: true });
 }
 
 
 function showUpdatePopupmusic(link) {
-    const isRelativeLink = !link.match(/^(http|https):\/\//);
-    
-    let finalUrl;
-    if (isRelativeLink) {
-        const currentUrlParams = new URLSearchParams(window.location.search);
-        const baseUrl = window.location.origin + window.location.pathname;
-        const url = new URL(link, baseUrl);
-        
-        currentUrlParams.forEach((value, key) => {
-            url.searchParams.set(key, value);
-        });
-        
-        finalUrl = url.toString();
-    } else {
-        const currentUrlParams = new URLSearchParams(window.location.search);
-        const url = new URL(link);
-        
-        currentUrlParams.forEach((value, key) => {
-            url.searchParams.set(key, value);
-        });
-        
-        finalUrl = url.toString();
-    }
-    
     const popup = document.getElementById('update-popup');
     const iframe = document.getElementById('webview-frame');
-    iframe.src = finalUrl; 
+    iframe.src = link; 
     popup.style.display = 'flex'; 
     musique();
     const menubottom1 = document.getElementById('menubtm');
@@ -2206,22 +2157,23 @@ function showUpdatePopupmusic(link) {
 
     menubottom1.classList.remove('slide-downb');
     menubottom1.classList.add('slide-upb');
-    if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.add('slide-upc');
-        filtre.classList.remove('slide-downc');
-        filtre.addEventListener('animationend', () => {
-            filtre.style.display = 'none';
+        if (selectedLine) {
+            const filtre = document.getElementById('filtre');
+            filtre.classList.add('slide-upc');
+            filtre.classList.remove('slide-downc');
+            filtre.addEventListener('animationend', () => {
+                filtre.style.display = 'none';
         });
-        resetMapView();            
-    }
+    resetMapView();            
+}
 
-    menubottom1.addEventListener('transitionend', () => {
-        if (menubottom1.classList.contains('slide-up')) {
-            menubottom1.style.display = 'none';
+menubottom1.addEventListener('transitionend', () => {
+    if (menubottom1.classList.contains('slide-up')) {
+        menubottom1.style.display = 'none';
         }
     }, { once: true });
 }
+
 window.addEventListener('message', function(event) {
     if (event.data && event.data.action === 'showUpdatePopup') {
         if (window.parent && typeof window.parent.showUpdatePopup === 'function') {
@@ -2239,7 +2191,7 @@ function focusOnVehicle(vehicleId) {
         const marker = Object.values(markers).find(m => m.id === vehicleId);
         
         if (!marker) {
-            toastBottomRight.error(t("toastvehiculepastrouve"));
+            toastBottomRight.error('La position du véhicule est indisponible');
             return;
         }
         
@@ -2250,7 +2202,7 @@ function focusOnVehicle(vehicleId) {
             
             const markerIcon = marker._icon.querySelector('.marker-icon');
             if (!markerIcon) {
-                toastBottomRight.error(t("toastvehiculepastrouve"));
+                toastBottomRight.error('La position du véhicule est indisponible');
 
                 return;
             }
@@ -2261,10 +2213,10 @@ function focusOnVehicle(vehicleId) {
             }, 500);
             
         } catch (mapError) {
-            toastBottomRight.error(t("toastfatalerror") + ' : manipulating marker error');
+            toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : manipulating marker error');
         }
     } catch (error) {
-        toastBottomRight.error(t("toastfatalerror") + 'focusOnVehicle function error');
+        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : focusOnVehicle function error');
     }
 }
 
@@ -2335,7 +2287,7 @@ function hideLoadingScreen() {
             setTimeout(() => {
                 loadingScreen.style.display = 'none';
                 if(!localStorage.getItem('premierLancement')) {
-                    showUpdatePopup('../updatecm/updatecm.html');
+                    showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
                     localStorage.setItem('premierLancement', 'true');
                 } 
             }, 300);
@@ -2509,13 +2461,13 @@ async function getFromCache() {
 
 async function extractGTFSFiles() {
     try {
-        toastBottomRight.info(t("updatingdynamicdata"));
+        toastBottomRight.info('Mise à jour de la base de données dynamiques. Cette opération va prendre quelques secondes 🙂');
 
 
         const response = await fetch('proxy-cors/proxy_gtfs.php');
         if (!response.ok) {
             throw new Error(`Échec téléchargement ${response.status} ${response.statusText}`);
-            toastBottomRight.warning(t("errordynamicdata"));
+            toastBottomRight.warning('Oups ! Une erreur s\'est produite... avez vous actualisé la page ?');
 
         }
         
@@ -2685,7 +2637,7 @@ async function initializeGTFS() {
                 const result = await extractGTFSFiles();
                 extractedFiles = result.extractedFiles;
                 await saveToCache(extractedFiles, result.metadata);
-                toastBottomRight.success(t("downloadsuccess"));
+                toastBottomRight.success('Données téléchargées avec succès !');
             } 
         }
         
@@ -2722,14 +2674,14 @@ async function clearGTFSCache() {
             const request = store.clear();
 
             request.onsuccess = () => {
-                toastBottomRight.success('Cache ERAZED with error code 0x0');
+                toastBottomRight.success('Cache effacé avec succès !');
                 resolve();
             };
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
         console.error('Erreur lors de l\'effacement du cache', error);
-        toastBottomRight.error('Cache ERAZED with error code 0x1');
+        toastBottomRight.error('Erreur lors de l\'effacement du cache');
         throw error;
     }
 }
@@ -3327,7 +3279,7 @@ async function loadVehicleModels() {
         
     } catch (error) {
         console.error('Erreur lors du chargement des modèles de véhicules ', error);
-        toastBottomRight.error(t("errorfetchvehicles"), error);
+        toastBottomRight.error('Erreur lors du chargement des modèles de véhicules ', error);
     }
 }
 
@@ -3339,6 +3291,7 @@ async function loadVehicleModelFile(fileName) {
         
         if (lines.length < 8) {
             console.error(`Format invalide pour le fichier ${fileName}`);
+            toastBottomRight.error(`Format invalide pour le fichier ${fileName}`);
             return;
         }
         
@@ -3375,7 +3328,7 @@ async function loadVehicleModelFile(fileName) {
         
     } catch (error) {
         console.error(`Erreur lors du chargement du fichier ${fileName}:`, error);
-        toastBottomRight.error(t("internalerror"));
+        toastBottomRight.error('Une erreur est survenue.');
 
     }
 }
@@ -3511,7 +3464,7 @@ async function initializeApp() {
         await fetchVehiclePositions();
     } catch (error) {
         console.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
-        toastBottomRight.error(t("bootloadererror"), error);
+        toastBottomRight.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
 
     }
 }
@@ -3638,7 +3591,7 @@ async function fetchVehiclePositions() {
                     const firstStopDelay = filteredStops[0].delay || 0;
                     const minutes = Math.max(0, Math.ceil(firstStopDelay / 60));
                     
-                    stopsHeaderText = t("nextstops");
+                    stopsHeaderText = t("arrivalat");
                     
                     if (filteredStops.length === 1) {
                         stopsHeaderText = minutes === 0 ? t("imminentdeparture") : `${t("departurein")} ${minutes} ${t("min")}`;
@@ -4650,7 +4603,7 @@ function updateMenu() {
     logo.style.margin = '0 auto';
     logo.style.cursor = 'pointer';
     logo.onclick = () => {
-        showUpdatePopup('../updatecm/updatecm.html');
+        showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
         musique();
     };
 
@@ -4663,11 +4616,11 @@ function updateMenu() {
     const currentMinutes = now.getMinutes();
     const totalMinutes = currentHour * 60 + currentMinutes;
 
-    let transportState = "normal";
+    let transportState = `${t("normal")}`;
     if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
-        transportState = "presque saturé"; 
+        transportState = `${t("presquesature")}`; 
     } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
-        transportState = "saturé";
+        transportState = `${t("sature")}`;
     }
 
     const transportStateContainer = document.createElement('div');
@@ -4987,11 +4940,11 @@ function createBottomSheet() {
     const currentMinutes = now.getMinutes();
     const totalMinutes = currentHour * 60 + currentMinutes;
 
-    let transportState = "normal";
+    let transportState = `${t("normal")}`;
     if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
-        transportState = "presque saturé"; 
+        transportState = `${t("presquesature")}`; 
     } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
-        transportState = "saturé";
+        transportState = `${t("sature")}`;
     }
 
     function getTransportGreeting() {
@@ -5071,17 +5024,17 @@ function createBottomSheet() {
     transportImage.style.height = '36px';
     transportImage.style.marginRight = '10px';
 
-    if (transportState === "normal") {
+    if (transportState === `${t("normal")}`) {
         transportImage.src = 'src/1of3body.png';
         transportStateContainer.onclick = () => {
             toastBottomRight.success(t("statenormal"));
         };
-    } else if (transportState === "presque saturé") {
+    } else if (transportState === `${t("presquesature")}`) {
         transportImage.src = 'src/2of3body.png';
         transportStateContainer.onclick = () => {
             toastBottomRight.warning(t("statemiddle"));
         };
-    } else if (transportState === "saturé") {
+    } else if (transportState === `${t("sature")}`) {
         transportImage.src = 'src/3of3body.png';
         transportStateContainer.onclick = () => {
             toastBottomRight.error(t("statecrowded"));
@@ -5179,12 +5132,12 @@ function createBottomSheet() {
     
     
     const about = createStyledButton(
-        t("about"), 
+        't("about")', 
         'MBF 3Xperience build 090425', 
         `
         <svg width="24" height="24" viewBox="0 0 52 52" fill="#ffffff" stroke="currentColor" stroke-width="2" data-name="Layer 1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" stroke="#ffffff"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"><path d="M26,52A26,26,0,0,1,22.88.19,25.78,25.78,0,0,1,34.73,1.5a2,2,0,1,1-1.35,3.77,22,22,0,0,0-21,38,22,22,0,0,0,35.41-20,2,2,0,1,1,4-.48A26,26,0,0,1,26,52Z"></path><path d="M26,43.86a2,2,0,0,1-2-2V22.66a2,2,0,1,1,4,0v19.2A2,2,0,0,1,26,43.86Z"></path><circle cx="26" cy="15.71" r="2.57"></circle></g></svg>
         `,
-        () => showUpdatePopupmusic("../updatecm/updatecm.html")
+        () => showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html")
     );
 
 
@@ -6060,7 +6013,7 @@ const menubottom1 = document.getElementById('menubtm');
 
     } catch (error) {
         console.error('Err récup des données ! ', error);
-        toastBottomRight.info(t("toastnobus"));
+        toastBottomRight.info('Aucun bus ne circule actuellement... 💤 à très vite !!');
 
     }
 }
@@ -6173,7 +6126,7 @@ async function main() {
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
-        toastBottomRight.error(t("toastcriticalerror"));
+        toastBottomRight.error("Une erreur critique est survenue. Nous investigons actuellement sur la cause de la panne.");
     }
 }
 
