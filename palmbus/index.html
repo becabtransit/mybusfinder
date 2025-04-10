@@ -6014,43 +6014,41 @@ function getNextStopInfo(vehicleId) {
             if (aIsFavorite && !bIsFavorite) return -1;
             if (!aIsFavorite && bIsFavorite) return 1;
             
-    const getLinePriority = (line) => {
+    const getSortKey = (line) => {
+        
+        let typeValue = 1000; 
+        
         if (/^[A-Za-z]$/.test(line)) {
-            return 0; 
+            typeValue = 100;
+        } 
+        else if (/^\d+$/.test(line)) {
+            typeValue = 200;
+        } 
+        else if (/^\d+[A-Za-z]+$/.test(line)) {
+            const numPart = parseInt(line.match(/^\d+/)[0], 10);
+            typeValue = 200; 
+            return typeValue + numPart + 0.5; 
         }
         
-        if (/^\d+$/.test(line)) {
-            return 1;
+        if (typeValue === 200) {
+            return typeValue + parseInt(line, 10);
         }
         
-        const mixedMatch = line.match(/^(\d+)([A-Za-z].*)$/);
-        if (mixedMatch) {
-            return 2;
+        if (typeValue === 100) {
+            return typeValue + line.charCodeAt(0);
         }
         
-        return 3; 
+        return typeValue;
     };
 
-    const priorityA = getLinePriority(a);
-    const priorityB = getLinePriority(b);
+    const valueA = getSortKey(a);
+    const valueB = getSortKey(b);
 
-    if (priorityA !== priorityB) {
-        return priorityA - priorityB;
+    if (valueA !== valueB) {
+        return valueA - valueB;
     }
 
-    if (priorityA === 0) {
-        return a.localeCompare(b);
-    } else if (priorityA === 1) {
-        return parseInt(a, 10) - parseInt(b, 10);
-    } else if (priorityA === 2) {
-        const [, numA, textA] = a.match(/^(\d+)([A-Za-z].*)$/);
-        const [, numB, textB] = b.match(/^(\d+)([A-Za-z].*)$/);
-        
-        const numCompare = parseInt(numA, 10) - parseInt(numB, 10);
-        return numCompare !== 0 ? numCompare : textA.localeCompare(textB);
-    } else {
-        return a.localeCompare(b);
-    }
+    return a.localeCompare(b);
     });
 
 
