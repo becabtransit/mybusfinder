@@ -6014,10 +6014,15 @@ function getNextStopInfo(vehicleId) {
             if (aIsFavorite && !bIsFavorite) return -1;
             if (!aIsFavorite && bIsFavorite) return 1;
             
+    const extractNumber = (str) => {
+        const match = str.match(/^(\d+)/);
+        return match ? parseInt(match[0]) : NaN;
+    };
+
     const getLineType = (line) => {
         if (/^[A-Za-z]$/.test(line)) return 1;
         if (/^\d+$/.test(line)) return 2;
-        if (/^\d+[A-Za-z]+$/.test(line)) return 3;
+        if (/^\d+[A-Za-z]/.test(line)) return 3;
         return 4;
     };
 
@@ -6031,18 +6036,17 @@ function getNextStopInfo(vehicleId) {
     } else if (typeA === 2) {
         return parseInt(a) - parseInt(b);
     } else if (typeA === 3) {
-        const numA = parseInt(a.match(/^\d+/)[0]);
-        const numB = parseInt(b.match(/^\d+/)[0]);
+        const numA = extractNumber(a);
+        const numB = extractNumber(b);
         
         if (numA !== numB) return numA - numB;
         
-        const letterA = a.match(/[A-Za-z]+$/)[0];
-        const letterB = b.match(/[A-Za-z]+$/)[0];
+        const letterA = a.replace(/^\d+/, '');
+        const letterB = b.replace(/^\d+/, '');
         return letterA.localeCompare(letterB);
     } else {
         return a.localeCompare(b);
     }
-
 });
 
 
