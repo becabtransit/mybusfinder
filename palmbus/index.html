@@ -6014,40 +6014,44 @@ function getNextStopInfo(vehicleId) {
             if (aIsFavorite && !bIsFavorite) return -1;
             if (!aIsFavorite && bIsFavorite) return 1;
             
-    const extractNumber = (str) => {
-        const match = str.match(/^(\d+)/);
-        return match ? parseInt(match[0]) : NaN;
+    const isSingleLetter = str => /^[A-Za-z]$/.test(str);
+    const isPureNumber = str => /^\d+$/.test(str);
+    const isNumberLetter = str => /^\d+[A-Za-z]+$/.test(str);
+    const isTextName = str => /^[A-Za-z]{2,}/.test(str);
+
+    const getPriority = str => {
+        if (isSingleLetter(str)) return 1;
+        if (isPureNumber(str)) return 2;
+        if (isNumberLetter(str)) return 3;
+        return 4; 
     };
 
-    const getLineType = (line) => {
-        if (/^[A-Za-z]$/.test(line)) return 1;
-        if (/^\d+$/.test(line)) return 2;
-        if (/^\d+[A-Za-z]/.test(line)) return 3;
-        return 4;
-    };
+    const priorityA = getPriority(a);
+    const priorityB = getPriority(b);
 
-    const typeA = getLineType(a);
-    const typeB = getLineType(b);
+    if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+    }
 
-    if (typeA !== typeB) return typeA - typeB;
-
-    if (typeA === 1) {
+    if (isSingleLetter(a)) {
         return a.localeCompare(b);
-    } else if (typeA === 2) {
+    } else if (isPureNumber(a)) {
         return parseInt(a) - parseInt(b);
-    } else if (typeA === 3) {
-        const numA = extractNumber(a);
-        const numB = extractNumber(b);
+    } else if (isNumberLetter(a)) {
+        const numPartA = parseInt(a.match(/^\d+/)[0]);
+        const numPartB = parseInt(b.match(/^\d+/)[0]);
         
-        if (numA !== numB) return numA - numB;
+        if (numPartA !== numPartB) {
+            return numPartA - numPartB;
+        }
         
-        const letterA = a.replace(/^\d+/, '');
-        const letterB = b.replace(/^\d+/, '');
-        return letterA.localeCompare(letterB);
+        const letterPartA = a.replace(/^\d+/, '');
+        const letterPartB = b.replace(/^\d+/, '');
+        return letterPartA.localeCompare(letterPartB);
     } else {
         return a.localeCompare(b);
     }
-});
+    });
 
 
 function hexToRgb(hex) {
