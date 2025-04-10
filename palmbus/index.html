@@ -6014,40 +6014,40 @@ function getNextStopInfo(vehicleId) {
             if (aIsFavorite && !bIsFavorite) return -1;
             if (!aIsFavorite && bIsFavorite) return 1;
             
-    const isSingleLetter = str => /^[A-Za-z]$/.test(str);
-    const isPureNumber = str => /^\d+$/.test(str);
-    const isNumberLetter = str => /^\d+[A-Za-z]+$/.test(str);
-    const isTextName = str => /^[A-Za-z]{2,}/.test(str);
-
-    const getPriority = str => {
-        if (isSingleLetter(str)) return 1;
-        if (isPureNumber(str)) return 2;
-        if (isNumberLetter(str)) return 3;
-        return 4; 
+    const getLinePriority = (line) => {
+        if (/^[A-Za-z]$/.test(line)) {
+            return 0; 
+        }
+        
+        if (/^\d+$/.test(line)) {
+            return 1;
+        }
+        
+        const mixedMatch = line.match(/^(\d+)([A-Za-z].*)$/);
+        if (mixedMatch) {
+            return 2;
+        }
+        
+        return 3; 
     };
 
-    const priorityA = getPriority(a);
-    const priorityB = getPriority(b);
+    const priorityA = getLinePriority(a);
+    const priorityB = getLinePriority(b);
 
     if (priorityA !== priorityB) {
         return priorityA - priorityB;
     }
 
-    if (isSingleLetter(a)) {
+    if (priorityA === 0) {
         return a.localeCompare(b);
-    } else if (isPureNumber(a)) {
-        return parseInt(a) - parseInt(b);
-    } else if (isNumberLetter(a)) {
-        const numPartA = parseInt(a.match(/^\d+/)[0]);
-        const numPartB = parseInt(b.match(/^\d+/)[0]);
+    } else if (priorityA === 1) {
+        return parseInt(a, 10) - parseInt(b, 10);
+    } else if (priorityA === 2) {
+        const [, numA, textA] = a.match(/^(\d+)([A-Za-z].*)$/);
+        const [, numB, textB] = b.match(/^(\d+)([A-Za-z].*)$/);
         
-        if (numPartA !== numPartB) {
-            return numPartA - numPartB;
-        }
-        
-        const letterPartA = a.replace(/^\d+/, '');
-        const letterPartB = b.replace(/^\d+/, '');
-        return letterPartA.localeCompare(letterPartB);
+        const numCompare = parseInt(numA, 10) - parseInt(numB, 10);
+        return numCompare !== 0 ? numCompare : textA.localeCompare(textB);
     } else {
         return a.localeCompare(b);
     }
