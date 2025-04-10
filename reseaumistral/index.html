@@ -3600,6 +3600,7 @@ function createLanguageSwitcher(container) {
   switcherContainer.style.transform = 'translateY(-100px)';
   switcherContainer.style.opacity = '0';
   
+  
   const mainButton = document.createElement('div');
   mainButton.className = 'lang-main-button';
   mainButton.style.display = 'flex';
@@ -6013,8 +6014,42 @@ function getNextStopInfo(vehicleId) {
             if (aIsFavorite && !bIsFavorite) return -1;
             if (!aIsFavorite && bIsFavorite) return 1;
             
-            return isNaN(a) ? (isNaN(b) ? a.localeCompare(b) : 1) : (isNaN(b) ? -1 : parseInt(a) - parseInt(b));
-        });
+    const getSortKey = (line) => {
+        
+        let typeValue = 1000; 
+        
+        if (/^[A-Za-z]$/.test(line)) {
+            typeValue = 100;
+        } 
+        else if (/^\d+$/.test(line)) {
+            typeValue = 200;
+        } 
+        else if (/^\d+[A-Za-z]+$/.test(line)) {
+            const numPart = parseInt(line.match(/^\d+/)[0], 10);
+            typeValue = 200; 
+            return typeValue + numPart + 0.5; 
+        }
+        
+        if (typeValue === 200) {
+            return typeValue + parseInt(line, 10);
+        }
+        
+        if (typeValue === 100) {
+            return typeValue + line.charCodeAt(0);
+        }
+        
+        return typeValue;
+    };
+
+    const valueA = getSortKey(a);
+    const valueB = getSortKey(b);
+
+    if (valueA !== valueB) {
+        return valueA - valueB;
+    }
+
+    return a.localeCompare(b);
+    });
 
 
 function hexToRgb(hex) {
