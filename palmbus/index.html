@@ -1852,7 +1852,7 @@ async function initMap() {
         }
     }
     
-    window.mapInstance = L.map('map', {
+    const mapInstance = L.map('map', {
         zoomControl: false 
     }).setView(defaultCoords, defaultZoom);
     
@@ -3787,6 +3787,536 @@ function showLanguageSwitcher() {
   }, 10);
 }
 
+
+
+
+async function fetchVehiclePositions() {
+
+    if (!gtfsInitialized) {
+        console.log("fetchVehiclePositions: GTFS pas encore initialisé, attente...");
+        return; 
+    }
+        if (!window.timeAnimationStyleAdded) {
+        const timeAnimationStyle = `
+        <style id="time-animation-styles">
+            .time-display {
+                transition: opacity 0.3s ease-out;
+            }
+            
+            .time-display.fade-out {
+                opacity: 0;
+            }
+            
+            @keyframes radiateWaves {
+                0% { transform: scale(0.7); opacity: 0.5; }
+                50% { transform: scale(1.2); opacity: 1; }
+                100% { transform: scale(1); opacity: 0.7; }
+            }
+            
+            .time-indicator .rss-waves {
+                transform-origin: 5px 19px; 
+            }
+            
+            .time-indicator.animate .rss-waves {
+                animation: radiateWaves 0.6s ease-out;
+            }
+            
+            @keyframes scrollText {
+                0% { transform: translateX(0); }
+                10% { transform: translateX(0); }
+                60% { transform: translateX(calc(-100% + 70px)); }
+                90% { transform: translateX(calc(-100% + 70px)); }
+                100% { transform: translateX(0); }
+            }
+            
+            .stop-name-container:hover .stop-name-wrapper[style*="animation"] {
+                animation-play-state: running !important;
+            }
+        </style>
+        `;
+        document.head.insertAdjacentHTML('beforeend', timeAnimationStyle);
+        window.timeAnimationStyleAdded = true;
+    }
+    try {
+        const response = await fetch('proxy-cors/proxy_vehpos.php');
+        const buffer = await response.arrayBuffer();
+        const data = await decodeProtobuf(buffer);
+
+        const activeVehicleIds = new Set();
+
+                const tempElement = document.createElement('div');
+        tempElement.style.font = getComputedStyle(document.body).font;
+        tempElement.style.visibility = 'hidden';
+        tempElement.style.position = 'absolute';
+        tempElement.style.whiteSpace = 'nowrap';
+        document.body.appendChild(tempElement);
+        
+
+
+            data.entity.forEach(entity => {
+                const vehicle = entity.vehicle;
+                if (vehicle) {
+
+                const id = vehicle.vehicle.id;
+                const vehicleOptionsBadges = getVehicleOptionsBadges(id);
+                const vehicleBrandHtml = getVehicleBrandHtml(id);
+                const line = vehicle.trip && vehicle.trip.routeId ? vehicle.trip.routeId : 'Inconnu';
+                const directionId = vehicle.trip ? vehicle.trip.directionId : undefined;
+                activeVehicleIds.add(id);
+
+                const statusMap = {
+                    0: '❌ Hors service commercial',
+                    1: ' En service - Portes ouvertes',
+                    2: ' En service'
+                };
+                const status = statusMap[vehicle.currentStatus] || 'Inconnu';
+
+                const stopIdun = vehicle.stopId || 'Inconnu';
+                let stopId = stopIdun.replace("0:", "");
+                const latitude = vehicle.position.latitude;
+                const longitude = vehicle.position.longitude;
+
+                if (isNaN(latitude) || isNaN(longitude)) {
+                    return; 
+                }
+
+                const speed = vehicle.position.speed ? (vehicle.position.speed).toFixed(0) + ' km/h' : 'Arrêté';
+                const bearing = vehicle.position.bearing || 'Inconnu';
+                const tripId = vehicle.trip && vehicle.trip.tripId ? vehicle.trip.tripId : 'Inconnu';
+
+                const lastStopId = tripUpdates[tripId] ? tripUpdates[tripId].lastStopId : 'Inconnu';
+                const lastStopNameun = stopNameMap[lastStopId] || 'Destination inconnue';
+                let lastStopName = lastStopNameun.replace("0:", "");
+                
+                const nextStops = tripUpdates[tripId]?.nextStops || [];
+                let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
+                const now = Math.floor(Date.now() / 1000);
+
+                let filteredStops = [];
+                if (currentStopIndex !== -1) {
+                    filteredStops = nextStops.slice(currentStopIndex).filter(stop => {
+                        return stop.delay === null || stop.delay >= -60;
+                    });
+                } else {
+                    filteredStops = nextStops.filter(stop => stop.delay === null || stop.delay > 0);
+                }
+
+                let stopsHeaderText = t("loading");
+                if (currentStopIndex !== -1 && filteredStops.length > 0) {
+                    const firstStopDelay = filteredStops[0].delay || 0;
+                    const minutes = Math.max(0, Math.ceil(firstStopDelay / 60));
+                    
+                    stopsHeaderText = t("nextstops");
+                    
+                    if (filteredStops.length === 1) {
+                        stopsHeaderText = minutes === 0 ? t("imminentdeparture") : `${t("departurein")} ${minutes} ${t("min")}`;
+                    } else if (minutes > 3) {
+                        stopsHeaderText = `${t("departurein")} ${minutes} ${t("minutes")}`;
+                    }
+                }
+                
+                let stopsListHTML = '';
+                if (filteredStops.length > 0) {
+                    stopsListHTML = filteredStops.map(stop => {
+                        const timeLeft = stop.delay;
+                        const timeLeftText = timeLeft !== null 
+                            ? timeLeft <= 0 ? t("imminent") : `${Math.ceil(timeLeft / 60)} min`
+                            : '';
+                        
+                        const stopName = stopNameMap[stop.stopId] || stop.stopId;
+                        
+                        tempElement.textContent = stopName;
+                        
+                        return `
+                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                            <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
+                                <div class="stop-name-wrapper" style="position: relative; display: inline-block; padding-right: 10px;">
+                                    <div class="stop-name" style="position: relative; display: inline-block;">${stopName}</div>
+                                </div>
+                            </div>
+                            <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
+                                <div class="time-display" 
+                                    data-time-left="${timeLeftText}" 
+                                    data-departure-time="${stop.departureTime || stop.arrivalTime || "Inconnu"}">
+                                    ${timeLeftText}
+                                </div>
+                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <g class="rss-waves">
+                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
+                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                    </g>
+                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
+                                </svg>
+                            </div>
+                        </li>`;
+                    }).join('');
+                }
+
+                const nextStopsHTML = `
+                    <div style="position: relative; max-height: 120px;">
+                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px;">
+                            ${stopsListHTML}
+                        </ul>
+                    </div>
+                `;
+
+                if (!window.toggleTimeDisplay) {
+                    window.isAnimating = false;
+                    window.showTimeLeft = true;
+                    
+                    window.toggleTimeDisplay = function() {
+                        if (window.isAnimating) return;
+                        
+                        window.isAnimating = true;
+                        
+                        const timeDisplays = document.querySelectorAll('.time-display');
+                        const indicators = document.querySelectorAll('.time-indicator');
+                        
+                        timeDisplays.forEach(display => {
+                            display.classList.add('fade-out');
+                        });
+                        
+                        indicators.forEach(indicator => {
+                            indicator.classList.add('animate');
+                            
+                            setTimeout(() => {
+                                indicator.classList.remove('animate');
+                            }, 600);
+                        });
+                        
+                        setTimeout(() => {
+                            window.showTimeLeft = !window.showTimeLeft;
+                            
+                            timeDisplays.forEach(display => {
+                                const timeLeft = display.getAttribute('data-time-left');
+                                const departureTime = display.getAttribute('data-departure-time');
+                                display.textContent = window.showTimeLeft ? timeLeft : departureTime;
+                            });
+                            
+                            timeDisplays.forEach(display => {
+                                display.classList.remove('fade-out');
+                            });
+                            
+                            setTimeout(() => {
+                                window.isAnimating = false;
+                            }, 350);
+                        }, 350);
+                    };
+
+                    if (window.timeToggleInterval) {
+                        clearInterval(window.timeToggleInterval);
+                    }
+                    window.timeToggleInterval = setInterval(window.toggleTimeDisplay, 4000);
+                }
+
+                const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
+
+                const arrivalDelay = delayInfo ? delayInfo.arrivalDelay : 0; 
+                const scheduledArrival = delayInfo ? delayInfo.scheduledArrival : null; 
+
+                                
+                function getTextColorForBackground(bgColor) {
+                    const color = bgColor.replace('#', '');
+                    const r = parseInt(color.substring(0, 2), 16);
+                    const g = parseInt(color.substring(2, 4), 16);
+                    const b = parseInt(color.substring(4, 6), 16);
+                    const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+                    return brightness > 150 ? '#000000' : '#FFFFFF';
+                }
+
+                const backgroundColor = lineColors[line] || '#000000';
+                const textColor = getTextColorForBackground(backgroundColor);
+
+                let arrivalTime = 'Inconnu';
+                if (scheduledArrival) {
+                    const arrivalDate = new Date(scheduledArrival * 1000);
+                    arrivalTime = arrivalDate.toLocaleTimeString();
+                }
+
+                let delayMessage = 'À l\'heure';
+                if (arrivalDelay > 0) {
+                    delayMessage = `En retard de ${arrivalDelay} secondes`;
+                } else if (arrivalDelay < 0) {
+                    delayMessage = `En avance de ${Math.abs(arrivalDelay)} secondes`;
+                }
+
+                let remainingTimeMessage = t("endstop");
+                if (nextStops.length > 1) {
+                    const penultimateStop = nextStops[nextStops.length - 2]; // avant der arrêt
+                    const scheduledArrivalPenultimate = penultimateStop.departureTime;
+
+                    if (scheduledArrivalPenultimate && scheduledArrivalPenultimate.includes(":")) {
+                        const [hours, minutes] = scheduledArrivalPenultimate.split(':').map(num => parseInt(num, 10));
+
+                        const now = new Date();
+                        const scheduledArrivalDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
+
+                        const currentTime = new Date();
+                        const timeRemaining = Math.max(scheduledArrivalDate - currentTime, 0);
+                        const minutesRemaining = Math.floor(timeRemaining / 60000);
+                        const secondsRemaining = Math.floor((timeRemaining % 60000) / 1000);
+
+                        remainingTimeMessage = ` ${minutesRemaining} ${t("minutes")}.`;
+                    } else {
+                        remainingTimeMessage = ' ' + t("unknownarrival");
+                    }
+                }
+                
+                const popupContent = `
+                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+                        
+                <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
+                    <!-- Texte principal -->
+                    <div style="z-index: 2; text-align: left; width: 100%;">
+                        <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
+                        <strong style="margin: 0; font-size: 14px;">➜ ${lastStopName}</strong>
+                <div>
+                    <div style="position: relative; display: flex; align-items: center; ">
+                        <div style="
+                            position: relative;
+                            flex: 1;
+                            overflow: hidden;
+                            border-radius: 10px;
+                        ">
+                            <!-- Contenu défilant horizontalement -->
+                            <div class="options" style="
+                                display: flex;
+                                gap: 10px;
+                                padding: 0px;
+                                overflow-x: auto; 
+                                white-space: nowrap;
+                                scrollbar-width: thin; 
+                                scrollbar-color: #888 #f1f1f1;
+                                color: #ffffff;
+                            " class="custom-scrollbar">
+                                <!-- Numéro de parc -->
+                                <span style="
+                                    padding: 6px 10px; 
+                                    background: #00000077; 
+                                    font-weight: normal; 
+                                    white-space: nowrap; 
+                                    -webkit-backdrop-filter: blur(8px); 
+                                    border-radius: 10px; 
+                                    display: inline-flex; 
+                                    align-items: center; 
+                                    gap: 6px;
+                                    height: 20px;
+                                ">
+
+                                <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
+                                <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${vehicle.vehicle.label || t("unknownparc")}</span>
+
+                                    
+                                </span>
+                                
+                                <!-- Badges des options du véhicule -->
+                                ${vehicleOptionsBadges}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+                    <!-- Texte en arrière-plan -->
+                    <div style="
+                        position: absolute;
+                        right: 10px;
+                        top: 0;
+                        bottom: 0;
+                        z-index: 1;
+                        opacity: 0.1;
+                        font-size: 100px;
+                        color: ${textColor};
+                        display: flex;
+                        align-items: center;
+                        justify-content: flex-end;
+                        white-space: nowrap;
+                    ">
+                        ${t("line")} ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
+                    </div>
+                </div>
+
+                <div style="margin-right: 10px; margin-top: 10px; text-align: right;">
+                ${vehicleBrandHtml}
+                </div>
+
+
+
+                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+                <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
+                    <ul>
+                    <div id="nextStopsContent" class="next-stops-content">
+                          ${nextStopsHTML}
+                    </div>   
+                </div>
+                </div>
+                `;
+                
+                if (markers[id]) {
+        animateMarker(markers[id], [latitude, longitude]);
+        
+        if (!markers[id].id) {
+            markers[id].id = id;
+        }
+        
+        if (markers[id].line !== line) {
+            const oldLine = markers[id].line;
+            markers[id].line = line;
+            
+            const color = lineColors[line] || '#000000';
+            if (markers[id]._icon) {
+                const markerIcon = markers[id]._icon.querySelector('.marker-icon');
+                if (markerIcon) {
+                    markerIcon.style.transition = 'background-color 0.5s ease';
+                    markerIcon.style.backgroundColor = color;
+                }
+                
+                const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
+                if (arrowElement) {
+                    arrowElement.style.transition = 'stroke 0.5s ease';
+                    arrowElement.setAttribute('stroke', color);
+                }
+            }
+            
+            if (markers[id].isPopupOpen()) {
+                const menubtm = document.getElementById('menubtm');
+                const filtre = document.getElementById('filtre');
+                if (menubtm) {
+                    lastActiveColor = color;
+                    
+                    menubtm.style.backgroundColor = `${color}9c`;
+                    filtre.style.backgroundColor = `${color}9c`;
+
+                    
+                    const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+                    let textColor = '#FFFFFF';
+                    if (rgb) {
+                        const r = parseInt(rgb[1], 16);
+                        const g = parseInt(rgb[2], 16);
+                        const b = parseInt(rgb[3], 16);
+                        const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+                        textColor = brightness > 150 ? '#000000' : '#FFFFFF';
+                    }
+                    
+                    const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+                    const styleSheet = document.createElement('style');
+                    styleSheet.id = styleId;
+                    styleSheet.classList.add('menu-color-style');
+                    
+                    styleSheet.textContent = `
+                        #menubtm * {
+                            color: ${textColor};
+                            transition: color 0.5s ease;
+                        }
+
+                        #filtre * {
+                            color: ${textColor};
+                            transition: color 0.5s ease;
+                        }
+                    `;
+                    
+                    document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
+                    document.head.appendChild(styleSheet);
+                    markers[id].styleId = styleId;
+                }
+            }
+        }
+        
+        if (markers[id]._icon) {
+            const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
+            
+            if (arrowElement) {
+                const targetRotation = bearing - 90;
+                arrowElement.style.transition = 'transform 0.5s ease';
+                arrowElement.style.transform = `rotate(${targetRotation}deg)`;
+                arrowElement._currentRotation = targetRotation;
+            }
+        }
+
+        updateLinesDisplay();
+
+        const existingPopup = markers[id].getPopup();
+        const currentContent = existingPopup ? existingPopup.getContent() : '';
+
+        if (existingPopup && currentContent === popupContent) {
+            return;
+        }
+
+        markers[id].setPopupContent(popupContent);
+
+        if (markers[id].isPopupOpen()) {
+            const popup = markers[id]._popup;
+            if (popup && popup._contentNode) {
+                const popupElement = popup._contentNode.parentElement;
+                if (popupElement) {
+                    popupElement.classList.remove('hide'); 
+                    popupElement.classList.add('show'); 
+                    markers[id].openPopup();
+                }
+            }
+        }
+
+        if (selectedLine && markers[id].line !== selectedLine) {
+            if (map.hasLayer(markers[id])) {
+                map.removeLayer(markers[id]);
+            }
+        } else {
+            if (!map.hasLayer(markers[id])) {
+                map.addLayer(markers[id]);
+            }
+        }
+    } else {
+        const marker = createColoredMarker(latitude, longitude, line, bearing);
+        updateLinesDisplay();
+        markers[id] = marker;
+        markers[id].line = line;
+        markers[id].id = id;
+
+        if (!selectedLine || selectedLine === line) {
+            marker.addTo(map);
+        }
+        
+        marker.bindPopup(popupContent);
+
+        marker.on('popupopen', function (e) {
+            if (e.popup && e.popup._contentNode) {
+                const popupElement = e.popup._contentNode.parentElement;
+                if (popupElement) {
+                    popupElement.classList.remove('hide'); 
+                    popupElement.classList.add('show');  
+                }
+            }
+        });
+
+        marker.on('popupclose', function (e) {
+            if (e.popup && e.popup._contentNode) {
+                const popupElement = e.popup._contentNode.parentElement;
+                if (popupElement) {
+                    popupElement.classList.remove('show');
+                    popupElement.classList.add('hide');
+
+                    setTimeout(() => {
+                        if (e.popup) {
+                            e.popup.remove(); 
+                        }
+                    }, 200); 
+                }
+            }
+        });
+    }}
+});
+
+                Object.keys(markers).forEach(id => {
+            if (!activeVehicleIds.has(id)) {
+                map.removeLayer(markers[id]); 
+                delete markers[id]; 
+            }
+        });
+
+				
+        let isMenuVisible = true;
+
 const favoriteLines = new Set(JSON.parse(localStorage.getItem('favoriteLines') || '[]'));
 
 const ANIMATION_CONFIG = {
@@ -4368,1907 +4898,6 @@ animationStyle.textContent = `
     }
 `;
 document.head.appendChild(animationStyle);
-
-
-function updateMenu() {
-
-const menu = document.getElementById('menu');
-menu.innerHTML = '';
-
-const logoContainer = document.createElement('div');
-logoContainer.style.textAlign = 'center';
-logoContainer.style.marginBottom = '7px';
-
-const logo = document.createElement('img');
-logo.src = 'src/whitelogo.png'; 
-logo.alt = 'Logo de My Bus Finder';
-logo.style.maxWidth = '200px';
-logo.style.display = 'block';
-logo.style.margin = '0 auto';
-logo.style.cursor = 'pointer';
-logo.onclick = () => {
-    showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
-    musique();
-};
-
-
-logoContainer.appendChild(logo);
-menu.appendChild(logoContainer);
-
-const now = new Date();
-const currentHour = now.getHours();
-const currentMinutes = now.getMinutes();
-const totalMinutes = currentHour * 60 + currentMinutes;
-
-let transportState = `${t("normal")}`;
-if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
-    transportState = `${t("presquesature")}`; 
-} else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
-    transportState = `${t("sature")}`;
-}
-
-const transportStateContainer = document.createElement('div');
-transportStateContainer.style.cssText = `
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 8px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-    cursor: pointer;
-`;
-
-const filterTipContainer = document.createElement('div');
-filterTipContainer.style.cssText = `
-display: flex;
-flex-wrap: wrap;
-align-items: center;
-margin-bottom: 8px;
-padding: 12px;
-background: rgba(255, 255, 255, 0.1);
-border-radius: 12px;
-backdrop-filter: blur(5px);
-box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-cursor: pointer;
-position: relative;
-`;
-
-if (localStorage.getItem('hideFilterTip') !== 'true') {
-document.body.appendChild(filterTipContainer);
-}
-
-const filterTipIcon = document.createElement('div');
-filterTipIcon.innerHTML = `
-<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M4 6 Q14 2, 24 6" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
-<path d="M4 14 Q14 10, 24 14" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
-<path d="M4 22 Q14 18, 24 22" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
-
-<circle cx="4" cy="6" r="2" fill="white"/>
-<circle cx="24" cy="6" r="2" fill="white"/>
-
-<circle cx="4" cy="14" r="2" fill="white"/>
-<circle cx="24" cy="14" r="2" fill="white"/>
-
-<circle cx="4" cy="22" r="2" fill="white"/>
-<circle cx="24" cy="22" r="2" fill="white"/>
-</svg>
-`;
-filterTipIcon.style.marginRight = '12px';
-
-const filterTipContent = document.createElement('div');
-filterTipContent.style.color = 'white';
-
-const filterTipTitle = document.createElement('div');
-filterTipTitle.textContent = t("presentfilterbyline");
-filterTipTitle.style.fontSize = '16px';
-
-const filterTipDescription = document.createElement('div');
-filterTipDescription.textContent = t("filterbylinedesc");
-filterTipDescription.style.fontSize = '12px';
-filterTipDescription.style.opacity = '0.7';
-filterTipDescription.style.cssText = `
-font-size: 12px;
-opacity: 0.7;
-word-wrap: break-word;
-overflow-wrap: break-word;
-white-space: normal;
-`;
-
-const closeButton = document.createElement('div');
-closeButton.innerHTML = '&times;';
-closeButton.style.cssText = `
-top: 5px;
-right: 10px;
-font-size: 18px;
-color: white;
-cursor: pointer;
-`;
-
-closeButton.addEventListener('click', () => {
-filterTipContainer.style.display = 'none';
-localStorage.setItem('hideFilterTip', 'true'); 
-});
-
-filterTipContent.appendChild(filterTipTitle);
-filterTipContent.appendChild(filterTipDescription);
-
-filterTipContainer.appendChild(filterTipIcon);
-filterTipContainer.appendChild(filterTipContent);
-
-
-const firstMenuElement = menu.firstChild;
-menu.insertBefore(filterTipContainer, firstMenuElement.nextSibling);
-
-
-let isStandardView = localStorage.getItem('isStandardView') === 'true';
-
-function toggleMapView() {
-isStandardView = !isStandardView;
-
-localStorage.setItem('isStandardView', isStandardView);
-
-const menubottom1 = document.getElementById('menubtm');
-    const menu = document.getElementById('menu');
-    menu.classList.add('hidden');
-    window.isMenuShowed = false;
-    menu.addEventListener('animationend', function onAnimationEnd(event) {
-        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-            menu.style.display = 'none';
-        }
-    });
-    isMenuVisible = false;
-    menubottom1.style.display = 'flex';
-    setTimeout(() => {
-        menubottom1.classList.remove('slide-upb');
-        menubottom1.classList.add('slide-downb');
-        if (selectedLine) {
-    const filtre = document.getElementById('filtre');
-    filtre.classList.remove('slide-upc');
-    filtre.classList.add('slide-downc');
-    filtre.style.display = 'flex';
-    }
-    }, 10);
-
-
-applyMapView();
-
-}
-
-function applyMapView() {
-const currentDate = new Date();
-const latitude = map.getCenter().lat;  
-const longitude = map.getCenter().lng;  
-
-const sunTimes = SunCalc.getTimes(currentDate, latitude, longitude);
-const sunrise = sunTimes.sunrise;
-const sunset = sunTimes.sunset;
-
-const isNightMode = currentDate >= sunset || currentDate <= sunrise;
-
-map.eachLayer(function(layer) {
-    if (layer instanceof L.TileLayer) {
-        map.removeLayer(layer);
-    }
-});
-
-if (!isStandardView) {
-const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    minZoom: 12,
-    maxZoom: 19,
-}).addTo(map);
-
-if (isNightMode) {
-    const mapPane = map.getPanes().tilePane;
-    mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
-} else {
-    const mapPane = map.getPanes().tilePane;
-    mapPane.style.filter = 'none';
-}
-} else {
-const mapPane = map.getPanes().tilePane;
-mapPane.style.filter = 'none';
-
-L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
-    minZoom: 12,
-    maxZoom: 19,
-    format: 'image/jpeg',
-    style: 'normal'
-}).addTo(map);
-}
-}
-
-
-let startY;
-let endY;
-let startX;
-let endX;
-const menubtm = document.getElementById('menubtm');
-let touchStartX = null;
-let touchStartTime = null;
-let isEdgeTouch = false;
-const edgeThreshold = 10;
-const minSwipeDistance = 20; 
-
-menubtm.addEventListener('touchstart', (e) => {
-const touchStartY = e.touches[0].clientY;
-const menuRect = menubtm.getBoundingClientRect();
-
-startX = e.touches[0].clientX;
-
-if (touchStartY >= menuRect.bottom - 50) {
-    startY = touchStartY;
-} else {
-    startY = null;
-}
-});
-
-menubtm.addEventListener('touchmove', (e) => {
-if (startY !== null) {
-    endY = e.touches[0].clientY;
-}
-
-endX = e.touches[0].clientX;
-});
-
-menubtm.addEventListener('touchend', () => {
-if (startX !== null && endX !== null && startY !== null && endY !== null) {
-    if (!isBottomSheetOpen && !isMenuShowed) {
-    const horizontalSwipeDistance = startX - endX;
-    const verticalSwipeDistance = startY - endY;
-    const minSwipeDistance = 50;
-    
-    if (Math.abs(horizontalSwipeDistance) > Math.abs(verticalSwipeDistance)) {
-        if (horizontalSwipeDistance > minSwipeDistance) {
-            showMenu();
-        }
-    } else {
-        if (verticalSwipeDistance > minSwipeDistance) {
-            showBottomSheet();
-        }
-    }
-}
-}
-
-startX = null;
-endX = null;
-startY = null;
-endY = null;
-});
-
-function isTouchNearRightEdge(x) {
-return window.innerWidth - x <= edgeThreshold;
-}
-
-document.addEventListener('touchstart', function(e) {
-const touchX = e.touches[0].clientX;
-
-if (isTouchNearRightEdge(touchX)) {
-    touchStartX = touchX;
-    touchStartTime = Date.now();
-    isEdgeTouch = true;
-}
-}, { passive: true }); 
-
-document.addEventListener('touchmove', function(e) {
-if (isEdgeTouch) {
-    const currentX = e.touches[0].clientX;
-}
-}, { passive: true });
-
-document.addEventListener('touchend', function(e) {
-if (isEdgeTouch && touchStartX !== null) {
-    const touchEndX = e.changedTouches[0].clientX;
-    const swipeDistance = touchStartX - touchEndX;
-    const touchDuration = Date.now() - touchStartTime;
-    if (!isBottomSheetOpen) {
-        if (swipeDistance > minSwipeDistance && touchDuration < 300) {
-            showMenu();
-        }
-    }   
-    
-    isEdgeTouch = false;
-    touchStartX = null;
-    touchStartTime = null;
-}
-});
-
-
-
-function createBottomSheet() {
-const SNAP_POINTS = {
-    CLOSED: 100,  // 100% of height (fully closed)
-    PEEK: 60,    // 60% of height (partially open)
-    OPEN: 0      // 0% (fully open)
-    // By Becab Solutions - BottomSheetDisplay.js
-};
-const buildVersion = window.BUILD_VERSION || "unknown";
-const bottomSheet = document.createElement('div');
-bottomSheet.id = 'bottomSheet';
-bottomSheet.style.cssText = `
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    border-top-left-radius: 20px;
-    border-top-right-radius: 20px;
-    backdrop-filter: blur(20px);
-    box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.2);
-    transform: translateY(100%);
-    transition: transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1);
-    z-index: 1000;
-    max-height: 80vh;
-    overflow-y: auto;
-    padding-bottom: 20px;
-    touch-action: pan-y;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-`;
-
-const dragHandle = document.createElement('div');
-dragHandle.style.cssText = `
-    width: 40px;
-    height: 5px;
-    background-color: rgba(255, 255, 255, 0.3);
-    border-radius: 3px;
-    margin: 10px auto;
-    cursor: grab;
-`;
-bottomSheet.appendChild(dragHandle)
-
-const now = new Date();
-const currentHour = now.getHours();
-const currentMinutes = now.getMinutes();
-const totalMinutes = currentHour * 60 + currentMinutes;
-
-let transportState = `${t("normal")}`;
-if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
-    transportState = `${t("presquesature")}`; 
-} else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
-    transportState = `${t("sature")}`;
-}
-
-function getTransportGreeting() {
-    const now = new Date();
-    const currentHour = now.getHours();
-
-    const greetings = {
-        morning: [
-            t("greetings-morning1"),
-            t("greetings-morning2"),
-            t("greetings-morning3"),
-            t("greetings-morning4"),
-            t("greetings-morning5"),
-            t("greetings-morning6"),
-        ],
-        midday: [
-            t("greetings-midday1"),
-            t("greetings-midday2"),
-            t("greetings-midday3"),
-            t("greetings-midday4"),
-            t("greetings-midday5"),
-            t("greetings-midday6"),
-        ],
-        afternoon: [
-            t("greetings-afternoon1"),
-            t("greetings-afternoon2"),
-            t("greetings-afternoon3"),
-            t("greetings-afternoon4"),
-            t("greetings-afternoon5"),
-            t("greetings-afternoon6"),
-        ],
-        evening: [
-            t("greetings-evening1"),
-            t("greetings-evening2"),
-            t("greetings-evening3"),
-            t("greetings-evening4"),
-            t("greetings-evening5"),
-            t("greetings-evening6"),
-        ],
-        night: [
-            t("greetings-night1"),
-            t("greetings-night2"),
-            t("greetings-night3"),
-            t("greetings-night4"),
-            t("greetings-night5"),
-            t("greetings-night6"),
-        ]
-    };
-
-    if (currentHour >= 5 && currentHour < 10) return greetings.morning[Math.floor(Math.random() * greetings.morning.length)];
-    if (currentHour >= 10 && currentHour < 14) return greetings.midday[Math.floor(Math.random() * greetings.midday.length)];
-    if (currentHour >= 14 && currentHour < 18) return greetings.afternoon[Math.floor(Math.random() * greetings.afternoon.length)];
-    if (currentHour >= 18 && currentHour < 23) return greetings.evening[Math.floor(Math.random() * greetings.evening.length)];
-    return greetings.night[Math.floor(Math.random() * greetings.night.length)];
-}
-
-
-
-const transportStateContainer = document.createElement('div');
-transportStateContainer.style.cssText = `
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 15px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
-    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-    cursor: pointer;
-`;
-
-const transportImage = document.createElement('img');
-transportImage.alt = t("transportstate");
-transportImage.style.width = '50px';
-transportImage.style.height = '36px';
-transportImage.style.marginRight = '10px';
-
-if (transportState === `${t("normal")}`) {
-    transportImage.src = 'src/1of3body.png';
-    transportStateContainer.onclick = () => {
-        toastBottomRight.success(t("statenormal"));
-    };
-} else if (transportState === `${t("presquesature")}`) {
-    transportImage.src = 'src/2of3body.png';
-    transportStateContainer.onclick = () => {
-        toastBottomRight.warning(t("statemiddle"));
-    };
-} else if (transportState === `${t("sature")}`) {
-    transportImage.src = 'src/3of3body.png';
-    transportStateContainer.onclick = () => {
-        toastBottomRight.error(t("statecrowded"));
-    };
-}
-
-transportStateContainer.onmouseover = () => {
-    transportStateContainer.style.transform = 'scale(0.98,0.98)';
-    transportStateContainer.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-};
-transportStateContainer.onmouseout = () => {
-    transportStateContainer.style.transform = 'scale(1,1)';
-    transportStateContainer.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-};
-
-const transportStateTextContainer = document.createElement('div');
-transportStateTextContainer.style.textAlign = 'left';
-
-const transportStateLabel = document.createElement('div');
-transportStateLabel.textContent = t("transportstate");
-transportStateLabel.style.fontSize = '14px';
-transportStateLabel.style.marginTop = '7px';
-transportStateLabel.style.color = '#fff';
-
-const transportStateText = document.createElement('div');
-transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
-transportStateText.style.fontSize = '22px';
-transportStateText.style.fontWeight = 'normal';
-transportStateText.style.color = '#fff';
-
-
-
-transportStateTextContainer.appendChild(transportStateLabel);
-transportStateTextContainer.appendChild(transportStateText);
-
-transportStateContainer.appendChild(transportImage);
-transportStateContainer.appendChild(transportStateTextContainer);
-
-
-const actu = createStyledButton(
-    'Actualités', 
-    'Dernières informations sur les transports en commun.', 
-    `
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M9.23163 8.61762C7.26389 9.06284 6.28001 9.28545 6.04594 10.0382C5.81186 10.7909 6.4826 11.5753 7.82408 13.1439L8.17113 13.5498C8.55234 13.9955 8.74294 14.2184 8.82869 14.4942C8.91444 14.7699 8.88562 15.0673 8.82799 15.662L8.77552 16.2035C8.5727 18.2965 8.4713 19.343 9.08412 19.8082C9.69694 20.2734 10.6181 19.8492 12.4605 19.0009L12.9372 18.7815C13.4607 18.5404 13.7225 18.4199 14 18.4199C14.2775 18.4199 14.5393 18.5404 15.0628 18.7815L15.5395 19.0009C17.3819 19.8492 18.3031 20.2734 18.9159 19.8082C19.5287 19.343 19.4273 18.2965 19.2245 16.2035M20.1759 13.1439C21.5174 11.5753 22.1881 10.7909 21.9541 10.0382C21.72 9.28545 20.7361 9.06284 18.7684 8.61762L18.2593 8.50244C17.7001 8.37592 17.4205 8.31266 17.196 8.14225C16.9716 7.97183 16.8276 7.71355 16.5396 7.19699L16.2775 6.7267C15.2641 4.9089 14.7575 4 14 4C13.2425 4 12.7359 4.9089 11.7225 6.7267" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M2.08887 16C3.20445 15.121 4.68639 14.7971 6.08887 15.1257" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M2.08887 10.5C3.08887 10 3.37862 10.0605 4.08887 10" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M2 5.60867L2.20816 5.48676C4.41383 4.19506 6.75032 3.84687 8.95304 4.48161L9.16092 4.54152" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-    `,
-    () => showUpdatePopup("alerts.html")
-);
-
-
-const locationButton = createStyledButton(
-    t("position"), 
-    t("positiondesc"), 
-    `
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"></circle>
-        <circle cx="12" cy="12" r="3"></circle>
-    </svg>
-    `,
-    locateUser
-);
-
-const satelliteButton = createStyledButton(
-    t("satellite"), 
-    t("satellitedesc"), 
-    `
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3.6 9l1.5 1.5M9 3.6L10.5 5M21 3l-9 9M18.4 15l1.5 1.5M15 18.4l1.5 1.5M3 21l9-9"/>
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M14.5 9.5L19 5"/>
-        <path d="M5 19l4.5-4.5"/>
-    </svg>
-    `,
-    toggleMapView
-);
-
-const histovecButton = createStyledButton(
-    t("histovec"), 
-    t("histovecdesc"), 
-    `
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M12 8V12L14.5 14.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M5.60423 5.60423L5.0739 5.0739V5.0739L5.60423 5.60423ZM4.33785 6.87061L3.58786 6.87438C3.58992 7.28564 3.92281 7.61853 4.33408 7.6206L4.33785 6.87061ZM6.87963 7.63339C7.29384 7.63547 7.63131 7.30138 7.63339 6.88717C7.63547 6.47296 7.30138 6.13549 6.88717 6.13341L6.87963 7.63339ZM5.07505 4.32129C5.07296 3.90708 4.7355 3.57298 4.32129 3.57506C3.90708 3.57715 3.57298 3.91462 3.57507 4.32882L5.07505 4.32129ZM3.75 12C3.75 11.5858 3.41421 11.25 3 11.25C2.58579 11.25 2.25 11.5858 2.25 12H3.75ZM16.8755 20.4452C17.2341 20.2378 17.3566 19.779 17.1492 19.4204C16.9418 19.0619 16.483 18.9393 16.1245 19.1468L16.8755 20.4452ZM19.1468 16.1245C18.9393 16.483 19.0619 16.9418 19.4204 17.1492C19.779 17.3566 20.2378 17.2341 20.4452 16.8755L19.1468 16.1245ZM5.14033 5.07126C4.84598 5.36269 4.84361 5.83756 5.13505 6.13191C5.42648 6.42626 5.90134 6.42862 6.19569 6.13719L5.14033 5.07126ZM18.8623 5.13786C15.0421 1.31766 8.86882 1.27898 5.0739 5.0739L6.13456 6.13456C9.33366 2.93545 14.5572 2.95404 17.8017 6.19852L18.8623 5.13786ZM5.0739 5.0739L3.80752 6.34028L4.86818 7.40094L6.13456 6.13456L5.0739 5.0739ZM4.33408 7.6206L6.87963 7.63339L6.88717 6.13341L4.34162 6.12062L4.33408 7.6206ZM5.08784 6.86684L5.07505 4.32129L3.57507 4.32882L3.58786 6.87438L5.08784 6.86684ZM12 3.75C16.5563 3.75 20.25 7.44365 20.25 12H21.75C21.75 6.61522 17.3848 2.25 12 2.25V3.75ZM12 20.25C7.44365 20.25 3.75 16.5563 3.75 12H2.25C2.25 17.3848 6.61522 21.75 12 21.75V20.25ZM16.1245 19.1468C14.9118 19.8483 13.5039 20.25 12 20.25V21.75C13.7747 21.75 15.4407 21.2752 16.8755 20.4452L16.1245 19.1468ZM20.25 12C20.25 13.5039 19.8483 14.9118 19.1468 16.1245L20.4452 16.8755C21.2752 15.4407 21.75 13.7747 21.75 12H20.25ZM6.19569 6.13719C7.68707 4.66059 9.73646 3.75 12 3.75V2.25C9.32542 2.25 6.90113 3.32791 5.14033 5.07126L6.19569 6.13719Z" fill="#ffffff"></path> </g></svg>
-    `,
-    () => showUpdatePopup("histovec.html")
-);
-
-const togglesun = createStyledButtonBeta(
-    t("spottingmode"), 
-    '', 
-    `
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <circle cx="12" cy="13" r="3" stroke="#ffffff" stroke-width="1.5"></circle> <path d="M3.0001 12.9999C3.0001 10.191 2.99995 8.78673 3.67407 7.77783C3.96591 7.34107 4.34091 6.96607 4.77767 6.67423C5.78656 6.00011 7.19103 6.00011 9.99995 6.00011H14C16.8089 6.00011 18.2133 6.00011 19.2222 6.67423C19.659 6.96607 20.034 7.34107 20.3258 7.77783C21 8.78673 21.0001 10.191 21.0001 12.9999C21.0001 15.8088 21.0001 17.2133 20.326 18.2222C20.0341 18.6589 19.6591 19.0339 19.2224 19.3258C18.2135 19.9999 16.809 19.9999 14.0001 19.9999H10.0001C7.19117 19.9999 5.78671 19.9999 4.77782 19.3258C4.34106 19.0339 3.96605 18.6589 3.67422 18.2222C3.44239 17.8752 3.29028 17.4815 3.19049 16.9999" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M18 10H17.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M14.5 3.5H9.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-    `,
-    toggleSunOrientation
-);
-
-
-
-
-const about = createStyledButton(
-    t("about"), 
-    `MBF 3Xperience build ${buildVersion}`, 
-    `
-    <svg width="24" height="24" viewBox="0 0 52 52" fill="#ffffff" stroke="currentColor" stroke-width="2" data-name="Layer 1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" stroke="#ffffff"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"><path d="M26,52A26,26,0,0,1,22.88.19,25.78,25.78,0,0,1,34.73,1.5a2,2,0,1,1-1.35,3.77,22,22,0,0,0-21,38,22,22,0,0,0,35.41-20,2,2,0,1,1,4-.48A26,26,0,0,1,26,52Z"></path><path d="M26,43.86a2,2,0,0,1-2-2V22.66a2,2,0,1,1,4,0v19.2A2,2,0,0,1,26,43.86Z"></path><circle cx="26" cy="15.71" r="2.57"></circle></g></svg>
-    `,
-    () => showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html")
-);
-
-
-bottomSheet.appendChild(dragHandle);
-const greetingText = document.createElement('div');
-greetingText.style.cssText = `
-    text-align: center;
-    font-size: 27px;
-    color: white;
-    margin: 22px 20px 0 15px;
-    text-align: right;
-    justify-content: right;
-`;
-const createStyledBox = (text, elements) => {
-    const box = document.createElement('div');
-    
-    const title = document.createElement('div');
-    title.textContent = text;
-    title.style.cssText = `
-        font-size: 20px;
-        color: white;
-        margin-top: 17px;
-        margin-right: 15px;
-        text-align: right;
-        justify-content: right;
-    `;
-    
-    box.appendChild(title);
-    elements.forEach(el => box.appendChild(el));
-    
-    box.style.cssText = `
-        margin: 10px;
-        border-radius: 15px;
-    `;
-    return box;
-};
-
-greetingText.textContent = getTransportGreeting();
-bottomSheet.appendChild(greetingText);
-
-const sedeplacerBox = createStyledBox(t("tomove"), [transportStateContainer, locationButton, satelliteButton]);
-bottomSheet.appendChild(sedeplacerBox);
-
-const allerplusloinBox = createStyledBox(t("gofurther"), [histovecButton, togglesun, about]);
-bottomSheet.appendChild(allerplusloinBox);
-
-let startY, initialY, isDragging = false;
-
-function startDrag(e) {
-if (e.type.includes('touch')) {
-    e.preventDefault();
-}
-isDragging = true;
-startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-initialY = startY;
-
-const transform = window.getComputedStyle(bottomSheet).transform;
-const matrix = new DOMMatrix(transform);
-currentTranslateY = matrix.m42;
-
-bottomSheet.style.transition = 'none';
-}
-
-function drag(e) {
-if (!isDragging) return;
-e.preventDefault();
-
-const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-const deltaY = currentY - startY;
-const newTranslateY = Math.max(0, currentTranslateY + deltaY);
-
-const maxTranslate = bottomSheet.offsetHeight;
-const boundedTranslateY = Math.min(maxTranslate, newTranslateY);
-
-bottomSheet.style.transform = `translateY(${boundedTranslateY}px)`;
-}
-
-function stopDrag(e) {
-if (!isDragging) return;
-isDragging = false;
-
-const finalY = e.type.includes('mouse') ? e.clientY : e.changedTouches[0].clientY;
-const deltaY = finalY - initialY;
-const currentTranslate = getTranslateY(bottomSheet);
-const sheetHeight = bottomSheet.offsetHeight;
-
-bottomSheet.style.transition = 'transform 0.3s ease-out';
-
-const percentageMoved = (currentTranslate / sheetHeight) * 100;
-
-if (deltaY > 0) { 
-    if (percentageMoved > 50) {
-        closeBottomSheet();
-    } else if (percentageMoved > 30) {
-        bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
-    } else {
-        bottomSheet.style.transform = 'translateY(0)';
-    }
-} else { 
-    if (percentageMoved < 30) {
-        bottomSheet.style.transform = 'translateY(0)';
-    } else if (percentageMoved < 70) {
-        bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
-    } else {
-        closeBottomSheet();
-    }
-}
-}
-
-
-// Event listeners
-bottomSheet.addEventListener('mousedown', startDrag);
-document.addEventListener('mousemove', drag);
-document.addEventListener('mouseup', stopDrag);
-
-bottomSheet.addEventListener('touchstart', startDrag, { passive: false });
-document.addEventListener('touchmove', drag, { passive: false });
-document.addEventListener('touchend', stopDrag);
-function getTranslateY(element) {
-const style = window.getComputedStyle(element);
-const matrix = new DOMMatrix(style.transform);
-return matrix.m42;
-}
-
-document.body.appendChild(bottomSheet);
-return bottomSheet;
-}
-
-function createStyledButtonBeta(title, description, svgContent, onClickHandler) {
-const button = document.createElement('div');
-button.className = 'alerts-button';
-button.style.cssText = `
-    display: flex;
-    align-items: center;
-    margin: 15px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
-    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-    cursor: pointer;
-`;
-
-const icon = document.createElement('div');
-icon.className = 'alerts-icon';
-icon.innerHTML = svgContent;
-icon.style.color = 'white';
-icon.style.marginRight = '10px';
-
-const content = document.createElement('div');
-content.className = 'alerts-content';
-content.style.color = 'white';
-content.style.display = 'flex';
-content.style.alignItems = 'center';
-
-const titleWrapper = document.createElement('div');
-titleWrapper.style.display = 'flex';
-titleWrapper.style.alignItems = 'center';
-
-const titleElement = document.createElement('div');
-titleElement.className = 'alerts-title';
-titleElement.textContent = title;
-titleElement.style.fontSize = '18px';
-titleElement.style.marginRight = '10px';
-
-const betaTag = document.createElement('div');
-betaTag.textContent = 'beta';
-betaTag.style.cssText = `
-    background-color: green;
-    color: white;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 12px;
-    text-transform: uppercase;
-    font-weight: bold;
-`;
-
-titleWrapper.appendChild(titleElement);
-titleWrapper.appendChild(betaTag);
-
-const descriptionElement = document.createElement('div');
-descriptionElement.className = 'alerts-description';
-descriptionElement.textContent = description;
-descriptionElement.style.fontSize = '14px';
-descriptionElement.style.opacity = '0.7';
-
-content.appendChild(titleWrapper);
-content.appendChild(descriptionElement);
-
-button.appendChild(icon);
-button.appendChild(content);
-
-const handleAction = () => {
-    onClickHandler();
-    setTimeout(() => {
-        closeBottomSheet();
-    }, 50);
-};
-
-let touchStartY = 0;
-let touchMoved = false;
-const touchThreshold = 5;
-
-const handleButtonAction = () => {
-    onClickHandler();
-    setTimeout(() => {
-        closeBottomSheet();
-    }, 50);
-};
-
-if ('ontouchstart' in window) {
-    button.addEventListener('touchstart', (e) => {
-        touchStartY = e.touches[0].clientY;
-        touchMoved = false;
-        button.style.transform = 'scale(0.98,0.98)';
-        button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-    }, { passive: true });
-
-    button.addEventListener('touchmove', (e) => {
-        const touchCurrentY = e.touches[0].clientY;
-        if (Math.abs(touchCurrentY - touchStartY) > touchThreshold) {
-            touchMoved = true;
-            button.style.transform = 'scale(1,1)';
-            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-        }
-    }, { passive: true });
-
-    button.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        button.style.transform = 'scale(1,1)';
-        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-        
-        if (!touchMoved) {
-            handleButtonAction();
-            setTimeout(() => {
-                closeBottomSheet();
-            }, 50);
-        }
-    });
-
-    button.addEventListener('touchcancel', () => {
-        button.style.transform = 'scale(1,1)';
-        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-    });
-} else {
-    button.addEventListener('click', () => {
-        handleButtonAction();
-        setTimeout(() => {
-            closeBottomSheet();
-        }, 50);
-    });
-}
-
-button.onmouseover = () => {
-    button.style.transform = 'scale(0.98,0.98)';
-    button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-};
-
-button.onmouseout = () => {
-    button.style.transform = 'scale(1,1)';
-    button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-};
-
-return button;
-}
-
-function createStyledButton(title, description, svgContent, onClickHandler) {
-const button = document.createElement('div');
-button.className = 'alerts-button';
-button.style.cssText = `
-    display: flex;
-    align-items: center;
-    margin: 15px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
-    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-    cursor: pointer;
-`;
-
-const icon = document.createElement('div');
-icon.className = 'alerts-icon';
-icon.innerHTML = svgContent;
-icon.style.color = 'white';
-icon.style.marginRight = '10px';
-
-const content = document.createElement('div');
-content.className = 'alerts-content';
-content.style.color = 'white';
-
-const titleElement = document.createElement('div');
-titleElement.className = 'alerts-title';
-titleElement.textContent = title;
-titleElement.style.fontSize = '18px';
-
-const descriptionElement = document.createElement('div');
-descriptionElement.className = 'alerts-description';
-descriptionElement.textContent = description;
-descriptionElement.style.fontSize = '14px';
-descriptionElement.style.opacity = '0.7';
-
-content.appendChild(titleElement);
-content.appendChild(descriptionElement);
-
-button.appendChild(icon);
-button.appendChild(content);
-
-const handleAction = () => {
-    onClickHandler();
-    setTimeout(() => {
-        closeBottomSheet();
-    }, 50);
-
-};
-
-let touchStartY = 0;
-let touchMoved = false;
-const touchThreshold = 5;
-
-const handleButtonAction = () => {
-    onClickHandler();
-    setTimeout(() => {
-        closeBottomSheet();
-    }, 50);
-};
-
-if ('ontouchstart' in window) {
-    button.addEventListener('touchstart', (e) => {
-        touchStartY = e.touches[0].clientY;
-        touchMoved = false;
-        button.style.transform = 'scale(0.98,0.98)';
-        button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-    }, { passive: true });
-
-    button.addEventListener('touchmove', (e) => {
-        const touchCurrentY = e.touches[0].clientY;
-        if (Math.abs(touchCurrentY - touchStartY) > touchThreshold) {
-            touchMoved = true;
-            button.style.transform = 'scale(1,1)';
-            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-        }
-    }, { passive: true });
-
-    button.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        button.style.transform = 'scale(1,1)';
-        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-        
-        if (!touchMoved) {
-            handleButtonAction();
-            setTimeout(() => {
-                closeBottomSheet();
-            }, 50);
-        }
-    });
-
-    button.addEventListener('touchcancel', () => {
-        button.style.transform = 'scale(1,1)';
-        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-    });
-} else {
-    button.addEventListener('click', () => {
-        handleButtonAction();
-        setTimeout(() => {
-            closeBottomSheet();
-        }, 50);
-    });
-}
-
-button.onmouseover = () => {
-    button.style.transform = 'scale(0.98,0.98)';
-    button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-};
-
-button.onmouseout = () => {
-    button.style.transform = 'scale(1,1)';
-    button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-};
-
-return button;
-}
-
-window.isMenuShowed = false;
-
-function showBottomSheet() {
-showLanguageSwitcher();
-const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
-const menu = document.getElementById('menu');
-safeVibrate(50);
-// Hide menu
-menu.classList.add('hidden');
-window.isMenuShowed = false;
-menu.addEventListener('animationend', function onAnimationEnd(event) {
-    if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-        menu.style.display = 'none';
-    }
-});
-isMenuVisible = false;
-
-const menubotom = document.getElementById('menubottom');
-
-menubottom1.classList.remove('slide-downb');
-menubottom1.classList.add('slide-upb');
-if (selectedLine) {
-    const filtre = document.getElementById('filtre');
-    filtre.classList.add('slide-upc');
-    filtre.classList.remove('slide-downc');
-    filtre.addEventListener('animationend', () => {
-        filtre.style.display = 'none';
-    });
-}
-
-menubottom1.addEventListener('transitionend', () => {
-if (menubottom1.classList.contains('slide-up')) {
-menubottom1.style.display = 'none';
-}
-}, { once: true });
-
-// Show bottom sheet with animation
-bottomSheet.style.opacity = '1';
-bottomSheet.style.transform = 'translateY(100%)';
-
-bottomSheet.style.display = 'block';
-
-// Trigger reflow
-bottomSheet.offsetHeight;
-
-// Animate in
-bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0,.74,.28,.99), opacity 0.3s ease-out';
-bottomSheet.style.transform = 'translateY(0)';
-
-// Set state to open
-window.isBottomSheetOpen = true;
-
-}
-
-function closeBottomSheet() {
-hideLanguageSwitcher();
-const bottomSheet = document.getElementById('bottomSheet');
-
-safeVibrate(50);
-
-if (bottomSheet) {
-    bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
-    
-    bottomSheet.style.transform = 'translateY(100%)';
-    bottomSheet.style.opacity = '0';
-    
-    bottomSheet.addEventListener('transitionend', function onTransitionEnd(e) {
-        if (e.propertyName === 'transform') {
-            bottomSheet.style.display = 'none';
-            bottomSheet.removeEventListener('transitionend', onTransitionEnd);
-        }
-    });
-    menubottom1.style.display = 'flex';
-    setTimeout(() => {
-        menubottom1.classList.remove('slide-upb');
-        menubottom1.classList.add('slide-downb');
-        if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.remove('slide-upc');
-        filtre.classList.add('slide-downc');
-        filtre.style.display = 'flex';
-        
-        }
-    }, 10);
-
-
-    setTimeout(() => {
-        if (bottomSheet.style.display !== 'none') {
-            bottomSheet.style.display = 'none';
-        }
-        setTimeout(() => {
-            window.isBottomSheetOpen = false;
-        }, 200);
-    }, 500);
-}
-}
-
-document.getElementById('bottomsheetappear').addEventListener('click', function() {
-showBottomSheet();
-});
-
-function getNextStopInfo(vehicleId) {
-const vehicle = markers[vehicleId];
-if (!vehicle) return null;
-
-const currentStopId = vehicle.stopId ? vehicle.stopId.replace("0:", "") : null;
-
-for (const [tripId, tripData] of Object.entries(tripUpdates)) {
-    if (!tripData.nextStops || !tripData.nextStops.length) continue;
-    
-    const currentStopIndex = tripData.nextStops.findIndex(stop => 
-        stop.stopId.replace("0:", "") === currentStopId
-    );
-    
-    if (currentStopIndex !== -1 && tripData.nextStops[currentStopIndex + 1]) {
-        const nextStop = tripData.nextStops[currentStopIndex + 1];
-        return {
-            name: stopNameMap[nextStop.stopId] || nextStop.stopId,
-            delay: nextStop.delay,
-            departureTime: nextStop.departureTime
-        };
-    }
-}
-return null;
-}
-
-
-const busesByLineAndDestination = {};
-
-Object.keys(markers).forEach(id => {
-const vehicle = markers[id];
-const line = vehicle.line;
-
-let destination = "Inconnue";
-const popupContent = vehicle.getPopup().getContent();
-
-const patterns = [
-    /<strong[^>]*>➜\s*(.*?)<\/strong>/,
-    />➜\s*(.*?)</,
-    /Ligne \d+<\/p>\s*<strong[^>]*>➜\s*(.*?)<\/strong>/
-];
-
-for (const pattern of patterns) {
-    const match = popupContent.match(pattern);
-    if (match && match[1]) {
-        destination = match[1].trim();
-        if (destination.toLowerCase() !== 'Destination inconnue') {
-            break;
-        }
-    }
-}
-
-if (!busesByLineAndDestination[line]) {
-    busesByLineAndDestination[line] = {};
-}
-
-if (!busesByLineAndDestination[line][destination]) {
-    busesByLineAndDestination[line][destination] = [];
-}
-
-busesByLineAndDestination[line][destination].push({
-    parkNumber: vehicle.id,
-    vehicle
-});
-});
-
-const sortedLines = Object.keys(busesByLineAndDestination)
-    .sort((a, b) => {
-        const aIsFavorite = favoriteLines.has(a);
-        const bIsFavorite = favoriteLines.has(b);
-        
-        if (aIsFavorite && !bIsFavorite) return -1;
-        if (!aIsFavorite && bIsFavorite) return 1;
-        
-        return isNaN(a) ? (isNaN(b) ? a.localeCompare(b) : 1) : (isNaN(b) ? -1 : parseInt(a) - parseInt(b));
-    });
-
-
-function hexToRgb(hex) {
-hex = hex.replace(/^#/, '');
-
-if (hex.length === 3) {
-    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-}
-
-const r = parseInt(hex.substring(0, 2), 16);
-const g = parseInt(hex.substring(2, 4), 16);
-const b = parseInt(hex.substring(4, 6), 16);
-
-return { r, g, b };
-}
-
-
-function calculateLuminance(r, g, b) {
-return (r * 0.299 + g * 0.587 + b * 0.114);
-}
-
-
-function getTextColor(backgroundColor) {
-try {
-    let hexColor = backgroundColor;
-    
-    if (!hexColor.startsWith('#')) {
-        hexColor = '#' + hexColor;
-    }
-    
-    const { r, g, b } = hexToRgb(hexColor);
-    
-    const luminance = calculateLuminance(r, g, b);
-    
-    const threshold = 150;
-            
-    return luminance > threshold ? '#000000' : '#ffffff';
-} catch (e) {
-    return '#ffffff';
-}
-}
-
-
-sortedLines.forEach(line => {
-    const lineNameText = lineName[line] || t("unknown_line");
-    const lineColor = lineColors[line] || '#000000';
-    const textColor = getTextColor(lineColor);
-
-
-    const lineSection = document.createElement('div');
-    lineSection.dataset.line = line;
-    lineSection.style.backgroundColor = lineColor;
-    lineSection.classList.add('linesection');
-    lineSection.style.marginBottom = '10px';
-    lineSection.style.padding = '10px';
-    lineSection.style.borderRadius = '8px';
-    lineSection.style.position = 'relative';
-
-    lineSection.onmouseover = () => {
-    lineSection.style.transform = 'scale(0.98,0.98)';
-    lineSection.style.opacity = '0.9';
-    lineSection.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
-    };  
-    lineSection.onmouseout = () => {
-        lineSection.style.transform = 'scale(1,1)';
-        lineSection.style.opacity = '0.9';
-        lineSection.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-    };
-
-    const favoriteButton = document.createElement('button');
-    favoriteButton.style.position = 'absolute';
-    favoriteButton.style.right = '5px';
-    favoriteButton.style.top = '5px';
-    favoriteButton.style.background = 'none';
-    favoriteButton.style.border = 'none';
-    favoriteButton.style.color = textColor;
-    favoriteButton.style.fontSize = '20px';
-    favoriteButton.style.cursor = 'pointer';
-    favoriteButton.innerHTML = favoriteLines.has(line) ? '★' : '☆';
-    favoriteButton.onclick = async (e) => {
-        e.stopPropagation();
-        const lineSection = e.target.closest('.linesection');
-        const isFavorite = favoriteLines.has(line);
-        await animateFavoriteTransition(e.target, lineSection, line, isFavorite);
-    };
-
-    const lineTitle = document.createElement('div');
-    lineTitle.textContent = `${t("line")} ${lineNameText}`;
-    lineTitle.style.fontSize = '23px';
-    lineTitle.style.fontWeight = 'normal';
-    lineTitle.style.color = textColor;
-    lineTitle.style.paddingRight = '30px';
-    lineTitle.style.paddingLeft = '10px';
-
-
-    lineSection.appendChild(lineTitle);
-    lineSection.appendChild(favoriteButton);
-
-    Object.keys(busesByLineAndDestination[line])
-.sort()
-.forEach(destination => {
-    const destinationSection = document.createElement('div');
-    destinationSection.style.marginTop = '5px';
-    destinationSection.style.paddingLeft = '10px';
-
-    const destinationTitle = document.createElement('div');
-    destinationTitle.textContent = `➜ ${destination}`;
-    destinationTitle.style.fontSize = '16px';
-    destinationTitle.style.fontWeight = 'normal';
-    destinationTitle.style.color = textColor;
-    destinationSection.appendChild(destinationTitle);
-
-    busesByLineAndDestination[line][destination].forEach(bus => {
-        const busItem = document.createElement('div');
-        const marker = bus.vehicle;
-        const popupContent = marker.getPopup().getContent();
-        
-        let nextStopInfo = '';
-        let terminusInfo = '';
-        
-        const stopNameContainers = popupContent.match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/g);
-        const timeDisplays = popupContent.match(/<div class="time-display"[^>]*data-time-left="([^"]*)"[^>]*data-departure-time="([^"]*)"[^>]*>([\s\S]*?)<\/div>/g);
-        
-        if (stopNameContainers && stopNameContainers.length > 0 && timeDisplays && timeDisplays.length > 0) {
-            const firstStopNameMatch = stopNameContainers[0].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
-            const firstTimeMatch = timeDisplays[0].match(/data-time-left="([^"]*)"/);
-            
-            if (firstStopNameMatch && firstStopNameMatch[1] && firstTimeMatch && firstTimeMatch[1]) {
-                const stopName = firstStopNameMatch[1].trim();
-                const timeInfo = firstTimeMatch[1].trim();
-                if (stopName && timeInfo) {
-                    nextStopInfo = `| ${stopName}`;
-                }
-            }
-            
-            if (stopNameContainers.length > 1 && timeDisplays.length > 1) {
-                const lastIndex = stopNameContainers.length - 1;
-                const lastStopNameMatch = stopNameContainers[lastIndex].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
-                const lastTimeMatch = timeDisplays[lastIndex].match(/data-time-left="([^"]*)"/);
-                
-                if (lastStopNameMatch && lastStopNameMatch[1] && lastTimeMatch && lastTimeMatch[1]) {
-                    const terminusName = lastStopNameMatch[1].trim();
-                    const terminusTime = lastTimeMatch[1].trim();
-                    if (terminusName && terminusTime) {
-                        terminusInfo = `${t("arrivalat")} ${destination} ${terminusTime !== t("imminent") ? t("in") + ' ' + terminusTime : t("imminent")}.`;
-                    }
-                }
-            }
-        }
-        
-        if (!nextStopInfo || !terminusInfo) {
-            const stopsHeaderMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
-            if (stopsHeaderMatch && stopsHeaderMatch[1]) {
-                const headerText = stopsHeaderMatch[1].trim();
-                if (headerText.includes('imminent')) {
-                    nextStopInfo = '| ' + t("imminentdeparture") + '.';
-                } else if (headerText.includes('min')) {
-                    const minMatch = headerText.match(/dans (\d+) min/);
-                    if (minMatch && minMatch[1]) {
-                        nextStopInfo = `| ${t("departurein")} ${minMatch[1]} ${t("min")}.`;
-                    }
-                }
-            }
-            
-            if (!terminusInfo) {
-                terminusInfo = `${t("indirectionof")} ${destination}.`;
-            }
-        }
-            const mainText = document.createElement('div');
-                const labelMatch = popupContent.match(/<span style="display: inline-block[^>]*>([^<]+)<\/span>/);
-                const vehicleLabel = labelMatch ? labelMatch[1].trim() : "Véhicule inconnu";
-
-                const displayLabel = vehicleLabel.replace(/Véhicule inconnu\./, "inconnu");
-
-                mainText.textContent = `${t("bus")} ${displayLabel} ${nextStopInfo}`;
-                mainText.style.fontSize = '1.2em';  
-                mainText.style.fontWeight = '500';  
-                mainText.style.color = textColor;
-                
-                const arrivalText = document.createElement('div');
-                arrivalText.textContent = terminusInfo;
-                arrivalText.style.fontSize = '0.9em'; 
-                arrivalText.style.opacity = '0.8';  
-                arrivalText.style.textAlign = 'right';
-                arrivalText.style.color = textColor;
-
-                busItem.textContent = '';
-                busItem.appendChild(mainText);
-                busItem.appendChild(arrivalText);
-                
-                busItem.style.cursor = 'pointer';
-                busItem.classList.add('menu-item');
-                busItem.style.fontFamily = 'League Spartan';
-                busItem.style.color = textColor;
-                busItem.style.padding = '5px 10px';
-                busItem.style.marginBottom = '5px';
-                busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
-                busItem.style.border = '1px solid rgba(0, 0, 0, 0.2)'; 
-                busItem.style.borderRadius = '8px';
-                busItem.style.overflow = 'hidden';
-                busItem.style.maxWidth = '300px';
-                lineSection.onclick = () => {
-                    safeVibrate([50, 30, 50], true);
-                    const lineId = line;
-                    selectedLine = lineId;
-                    filterByLine(lineId);
-                    menu.classList.add('hidden');
-                    window.isMenuShowed = false;
-                    menu.addEventListener('animationend', function onAnimationEnd(event) {
-                        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-                            menu.style.display = 'none';
-                        }
-                    });
-                    isMenuVisible = false;
-                    const filtre = document.getElementById('filtre');
-                    menubottom1.style.display = 'flex';
-                    setTimeout(() => {
-                        menubottom1.classList.remove('slide-upb');
-                        menubottom1.classList.add('slide-downb');
-                        if (selectedLine) {
-                            filtre.classList.remove('slide-upc');
-                            filtre.classList.add('slide-downc');
-                            filtre.style.display = 'flex';
-                        }
-                    }, 10);
-                };
-
-                busItem.onclick = (event) => {
-                    safeVibrate([50, 300, 50, 30, 50], true);
-                    map.setView(bus.vehicle.getLatLng(), 15);
-                    bus.vehicle.openPopup();
-                    menu.classList.add('hidden');
-                    window.isMenuShowed = false;
-                    menu.addEventListener('animationend', function onAnimationEnd(event) {
-                        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-                            menu.style.display = 'none';
-                        }
-                    });
-                    isMenuVisible = false;
-                    if (selectedLine) {
-                        resetMapView();
-                    }
-                    event.stopPropagation();
-                };
-
-                destinationSection.appendChild(busItem);
-            });
-
-            lineSection.appendChild(destinationSection);
-        });
-
-    menu.appendChild(lineSection);
-});
-}
-
-
-
-async function fetchVehiclePositions() {
-
-    if (!gtfsInitialized) {
-        console.log("fetchVehiclePositions: GTFS pas encore initialisé, attente...");
-        return; 
-    }
-        if (!window.timeAnimationStyleAdded) {
-        const timeAnimationStyle = `
-        <style id="time-animation-styles">
-            .time-display {
-                transition: opacity 0.3s ease-out;
-            }
-            
-            .time-display.fade-out {
-                opacity: 0;
-            }
-            
-            @keyframes radiateWaves {
-                0% { transform: scale(0.7); opacity: 0.5; }
-                50% { transform: scale(1.2); opacity: 1; }
-                100% { transform: scale(1); opacity: 0.7; }
-            }
-            
-            .time-indicator .rss-waves {
-                transform-origin: 5px 19px; 
-            }
-            
-            .time-indicator.animate .rss-waves {
-                animation: radiateWaves 0.6s ease-out;
-            }
-            
-            @keyframes scrollText {
-                0% { transform: translateX(0); }
-                10% { transform: translateX(0); }
-                60% { transform: translateX(calc(-100% + 70px)); }
-                90% { transform: translateX(calc(-100% + 70px)); }
-                100% { transform: translateX(0); }
-            }
-            
-            .stop-name-container:hover .stop-name-wrapper[style*="animation"] {
-                animation-play-state: running !important;
-            }
-        </style>
-        `;
-        document.head.insertAdjacentHTML('beforeend', timeAnimationStyle);
-        window.timeAnimationStyleAdded = true;
-    }
-    try {
-        const response = await fetch('proxy-cors/proxy_vehpos.php');
-        const buffer = await response.arrayBuffer();
-        const data = await decodeProtobuf(buffer);
-
-        const activeVehicleIds = new Set();
-
-                const tempElement = document.createElement('div');
-        tempElement.style.font = getComputedStyle(document.body).font;
-        tempElement.style.visibility = 'hidden';
-        tempElement.style.position = 'absolute';
-        tempElement.style.whiteSpace = 'nowrap';
-        document.body.appendChild(tempElement);
-        
-
-
-            data.entity.forEach(entity => {
-                const vehicle = entity.vehicle;
-                if (vehicle) {
-
-                const id = vehicle.vehicle.id;
-                const vehicleOptionsBadges = getVehicleOptionsBadges(id);
-                const vehicleBrandHtml = getVehicleBrandHtml(id);
-                const line = vehicle.trip && vehicle.trip.routeId ? vehicle.trip.routeId : 'Inconnu';
-                const directionId = vehicle.trip ? vehicle.trip.directionId : undefined;
-                activeVehicleIds.add(id);
-
-                const statusMap = {
-                    0: '❌ Hors service commercial',
-                    1: ' En service - Portes ouvertes',
-                    2: ' En service'
-                };
-                const status = statusMap[vehicle.currentStatus] || 'Inconnu';
-
-                const stopIdun = vehicle.stopId || 'Inconnu';
-                let stopId = stopIdun.replace("0:", "");
-                const latitude = vehicle.position.latitude;
-                const longitude = vehicle.position.longitude;
-
-                if (isNaN(latitude) || isNaN(longitude)) {
-                    return; 
-                }
-
-                const speed = vehicle.position.speed ? (vehicle.position.speed).toFixed(0) + ' km/h' : 'Arrêté';
-                const bearing = vehicle.position.bearing || 'Inconnu';
-                const tripId = vehicle.trip && vehicle.trip.tripId ? vehicle.trip.tripId : 'Inconnu';
-
-                const lastStopId = tripUpdates[tripId] ? tripUpdates[tripId].lastStopId : 'Inconnu';
-                const lastStopNameun = stopNameMap[lastStopId] || 'Destination inconnue';
-                let lastStopName = lastStopNameun.replace("0:", "");
-                
-                const nextStops = tripUpdates[tripId]?.nextStops || [];
-                let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
-                const now = Math.floor(Date.now() / 1000);
-
-                let filteredStops = [];
-                if (currentStopIndex !== -1) {
-                    filteredStops = nextStops.slice(currentStopIndex).filter(stop => {
-                        return stop.delay === null || stop.delay >= -60;
-                    });
-                } else {
-                    filteredStops = nextStops.filter(stop => stop.delay === null || stop.delay > 0);
-                }
-
-                let stopsHeaderText = t("loading");
-                if (currentStopIndex !== -1 && filteredStops.length > 0) {
-                    const firstStopDelay = filteredStops[0].delay || 0;
-                    const minutes = Math.max(0, Math.ceil(firstStopDelay / 60));
-                    
-                    stopsHeaderText = t("nextstops");
-                    
-                    if (filteredStops.length === 1) {
-                        stopsHeaderText = minutes === 0 ? t("imminentdeparture") : `${t("departurein")} ${minutes} ${t("min")}`;
-                    } else if (minutes > 3) {
-                        stopsHeaderText = `${t("departurein")} ${minutes} ${t("minutes")}`;
-                    }
-                }
-                
-                let stopsListHTML = '';
-                if (filteredStops.length > 0) {
-                    stopsListHTML = filteredStops.map(stop => {
-                        const timeLeft = stop.delay;
-                        const timeLeftText = timeLeft !== null 
-                            ? timeLeft <= 0 ? t("imminent") : `${Math.ceil(timeLeft / 60)} min`
-                            : '';
-                        
-                        const stopName = stopNameMap[stop.stopId] || stop.stopId;
-                        
-                        tempElement.textContent = stopName;
-                        
-                        return `
-                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                            <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
-                                <div class="stop-name-wrapper" style="position: relative; display: inline-block; padding-right: 10px;">
-                                    <div class="stop-name" style="position: relative; display: inline-block;">${stopName}</div>
-                                </div>
-                            </div>
-                            <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
-                                <div class="time-display" 
-                                    data-time-left="${timeLeftText}" 
-                                    data-departure-time="${stop.departureTime || stop.arrivalTime || "Inconnu"}">
-                                    ${timeLeftText}
-                                </div>
-                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <g class="rss-waves">
-                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
-                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
-                                    </g>
-                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
-                                </svg>
-                            </div>
-                        </li>`;
-                    }).join('');
-                }
-
-                const nextStopsHTML = `
-                    <div style="position: relative; max-height: 120px;">
-                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px;">
-                            ${stopsListHTML}
-                        </ul>
-                    </div>
-                `;
-
-                if (!window.toggleTimeDisplay) {
-                    window.isAnimating = false;
-                    window.showTimeLeft = true;
-                    
-                    window.toggleTimeDisplay = function() {
-                        if (window.isAnimating) return;
-                        
-                        window.isAnimating = true;
-                        
-                        const timeDisplays = document.querySelectorAll('.time-display');
-                        const indicators = document.querySelectorAll('.time-indicator');
-                        
-                        timeDisplays.forEach(display => {
-                            display.classList.add('fade-out');
-                        });
-                        
-                        indicators.forEach(indicator => {
-                            indicator.classList.add('animate');
-                            
-                            setTimeout(() => {
-                                indicator.classList.remove('animate');
-                            }, 600);
-                        });
-                        
-                        setTimeout(() => {
-                            window.showTimeLeft = !window.showTimeLeft;
-                            
-                            timeDisplays.forEach(display => {
-                                const timeLeft = display.getAttribute('data-time-left');
-                                const departureTime = display.getAttribute('data-departure-time');
-                                display.textContent = window.showTimeLeft ? timeLeft : departureTime;
-                            });
-                            
-                            timeDisplays.forEach(display => {
-                                display.classList.remove('fade-out');
-                            });
-                            
-                            setTimeout(() => {
-                                window.isAnimating = false;
-                            }, 350);
-                        }, 350);
-                    };
-
-                    if (window.timeToggleInterval) {
-                        clearInterval(window.timeToggleInterval);
-                    }
-                    window.timeToggleInterval = setInterval(window.toggleTimeDisplay, 4000);
-                }
-
-                const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
-
-                const arrivalDelay = delayInfo ? delayInfo.arrivalDelay : 0; 
-                const scheduledArrival = delayInfo ? delayInfo.scheduledArrival : null; 
-
-                                
-                function getTextColorForBackground(bgColor) {
-                    const color = bgColor.replace('#', '');
-                    const r = parseInt(color.substring(0, 2), 16);
-                    const g = parseInt(color.substring(2, 4), 16);
-                    const b = parseInt(color.substring(4, 6), 16);
-                    const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
-                    return brightness > 150 ? '#000000' : '#FFFFFF';
-                }
-
-                const backgroundColor = lineColors[line] || '#000000';
-                const textColor = getTextColorForBackground(backgroundColor);
-
-                let arrivalTime = 'Inconnu';
-                if (scheduledArrival) {
-                    const arrivalDate = new Date(scheduledArrival * 1000);
-                    arrivalTime = arrivalDate.toLocaleTimeString();
-                }
-
-                let delayMessage = 'À l\'heure';
-                if (arrivalDelay > 0) {
-                    delayMessage = `En retard de ${arrivalDelay} secondes`;
-                } else if (arrivalDelay < 0) {
-                    delayMessage = `En avance de ${Math.abs(arrivalDelay)} secondes`;
-                }
-
-                let remainingTimeMessage = t("endstop");
-                if (nextStops.length > 1) {
-                    const penultimateStop = nextStops[nextStops.length - 2]; // avant der arrêt
-                    const scheduledArrivalPenultimate = penultimateStop.departureTime;
-
-                    if (scheduledArrivalPenultimate && scheduledArrivalPenultimate.includes(":")) {
-                        const [hours, minutes] = scheduledArrivalPenultimate.split(':').map(num => parseInt(num, 10));
-
-                        const now = new Date();
-                        const scheduledArrivalDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
-
-                        const currentTime = new Date();
-                        const timeRemaining = Math.max(scheduledArrivalDate - currentTime, 0);
-                        const minutesRemaining = Math.floor(timeRemaining / 60000);
-                        const secondsRemaining = Math.floor((timeRemaining % 60000) / 1000);
-
-                        remainingTimeMessage = ` ${minutesRemaining} ${t("minutes")}.`;
-                    } else {
-                        remainingTimeMessage = ' ' + t("unknownarrival");
-                    }
-                }
-                
-                const popupContent = `
-                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-                        
-                <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
-                    <!-- Texte principal -->
-                    <div style="z-index: 2; text-align: left; width: 100%;">
-                        <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
-                        <strong style="margin: 0; font-size: 14px;">➜ ${lastStopName}</strong>
-                <div>
-                    <div style="position: relative; display: flex; align-items: center; ">
-                        <div style="
-                            position: relative;
-                            flex: 1;
-                            overflow: hidden;
-                            border-radius: 10px;
-                        ">
-                            <!-- Contenu défilant horizontalement -->
-                            <div class="options" style="
-                                display: flex;
-                                gap: 10px;
-                                padding: 0px;
-                                overflow-x: auto; 
-                                white-space: nowrap;
-                                scrollbar-width: thin; 
-                                scrollbar-color: #888 #f1f1f1;
-                                color: #ffffff;
-                            " class="custom-scrollbar">
-                                <!-- Numéro de parc -->
-                                <span style="
-                                    padding: 6px 10px; 
-                                    background: #00000077; 
-                                    font-weight: normal; 
-                                    white-space: nowrap; 
-                                    -webkit-backdrop-filter: blur(8px); 
-                                    border-radius: 10px; 
-                                    display: inline-flex; 
-                                    align-items: center; 
-                                    gap: 6px;
-                                    height: 20px;
-                                ">
-
-                                <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-                                <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${vehicle.vehicle.label || t("unknownparc")}</span>
-
-                                    
-                                </span>
-                                
-                                <!-- Badges des options du véhicule -->
-                                ${vehicleOptionsBadges}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-
-                    <!-- Texte en arrière-plan -->
-                    <div style="
-                        position: absolute;
-                        right: 10px;
-                        top: 0;
-                        bottom: 0;
-                        z-index: 1;
-                        opacity: 0.1;
-                        font-size: 100px;
-                        color: ${textColor};
-                        display: flex;
-                        align-items: center;
-                        justify-content: flex-end;
-                        white-space: nowrap;
-                    ">
-                        ${t("line")} ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
-                    </div>
-                </div>
-
-                <div style="margin-right: 10px; margin-top: 10px; text-align: right;">
-                ${vehicleBrandHtml}
-                </div>
-
-
-
-                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
-                <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
-                    <ul>
-                    <div id="nextStopsContent" class="next-stops-content">
-                          ${nextStopsHTML}
-                    </div>   
-                </div>
-                </div>
-                `;
-                
-                if (markers[id]) {
-        animateMarker(markers[id], [latitude, longitude]);
-        
-        if (!markers[id].id) {
-            markers[id].id = id;
-        }
-        
-        if (markers[id].line !== line) {
-            const oldLine = markers[id].line;
-            markers[id].line = line;
-            
-            const color = lineColors[line] || '#000000';
-            if (markers[id]._icon) {
-                const markerIcon = markers[id]._icon.querySelector('.marker-icon');
-                if (markerIcon) {
-                    markerIcon.style.transition = 'background-color 0.5s ease';
-                    markerIcon.style.backgroundColor = color;
-                }
-                
-                const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
-                if (arrowElement) {
-                    arrowElement.style.transition = 'stroke 0.5s ease';
-                    arrowElement.setAttribute('stroke', color);
-                }
-            }
-            
-            if (markers[id].isPopupOpen()) {
-                const menubtm = document.getElementById('menubtm');
-                const filtre = document.getElementById('filtre');
-                if (menubtm) {
-                    lastActiveColor = color;
-                    
-                    menubtm.style.backgroundColor = `${color}9c`;
-                    filtre.style.backgroundColor = `${color}9c`;
-
-                    
-                    const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-                    let textColor = '#FFFFFF';
-                    if (rgb) {
-                        const r = parseInt(rgb[1], 16);
-                        const g = parseInt(rgb[2], 16);
-                        const b = parseInt(rgb[3], 16);
-                        const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
-                        textColor = brightness > 150 ? '#000000' : '#FFFFFF';
-                    }
-                    
-                    const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
-                    const styleSheet = document.createElement('style');
-                    styleSheet.id = styleId;
-                    styleSheet.classList.add('menu-color-style');
-                    
-                    styleSheet.textContent = `
-                        #menubtm * {
-                            color: ${textColor};
-                            transition: color 0.5s ease;
-                        }
-
-                        #filtre * {
-                            color: ${textColor};
-                            transition: color 0.5s ease;
-                        }
-                    `;
-                    
-                    document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
-                    document.head.appendChild(styleSheet);
-                    markers[id].styleId = styleId;
-                }
-            }
-        }
-        
-        if (markers[id]._icon) {
-            const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
-            
-            if (arrowElement) {
-                const targetRotation = bearing - 90;
-                arrowElement.style.transition = 'transform 0.5s ease';
-                arrowElement.style.transform = `rotate(${targetRotation}deg)`;
-                arrowElement._currentRotation = targetRotation;
-            }
-        }
-
-        updateLinesDisplay();
-
-        const existingPopup = markers[id].getPopup();
-        const currentContent = existingPopup ? existingPopup.getContent() : '';
-
-        if (existingPopup && currentContent === popupContent) {
-            return;
-        }
-
-        markers[id].setPopupContent(popupContent);
-
-        if (markers[id].isPopupOpen()) {
-            const popup = markers[id]._popup;
-            if (popup && popup._contentNode) {
-                const popupElement = popup._contentNode.parentElement;
-                if (popupElement) {
-                    popupElement.classList.remove('hide'); 
-                    popupElement.classList.add('show'); 
-                    markers[id].openPopup();
-                }
-            }
-        }
-
-        if (selectedLine && markers[id].line !== selectedLine) {
-            if (map.hasLayer(markers[id])) {
-                map.removeLayer(markers[id]);
-            }
-        } else {
-            if (!map.hasLayer(markers[id])) {
-                map.addLayer(markers[id]);
-            }
-        }
-    } else {
-        const marker = createColoredMarker(latitude, longitude, line, bearing);
-        updateLinesDisplay();
-        markers[id] = marker;
-        markers[id].line = line;
-        markers[id].id = id;
-
-        if (!selectedLine || selectedLine === line) {
-            marker.addTo(map);
-        }
-        
-        marker.bindPopup(popupContent);
-
-        marker.on('popupopen', function (e) {
-            if (e.popup && e.popup._contentNode) {
-                const popupElement = e.popup._contentNode.parentElement;
-                if (popupElement) {
-                    popupElement.classList.remove('hide'); 
-                    popupElement.classList.add('show');  
-                }
-            }
-        });
-
-        marker.on('popupclose', function (e) {
-            if (e.popup && e.popup._contentNode) {
-                const popupElement = e.popup._contentNode.parentElement;
-                if (popupElement) {
-                    popupElement.classList.remove('show');
-                    popupElement.classList.add('hide');
-
-                    setTimeout(() => {
-                        if (e.popup) {
-                            e.popup.remove(); 
-                        }
-                    }, 200); 
-                }
-            }
-        });
-    }}
-});
-
-                Object.keys(markers).forEach(id => {
-            if (!activeVehicleIds.has(id)) {
-                map.removeLayer(markers[id]); 
-                delete markers[id]; 
-            }
-        });
-
-				
-        let isMenuVisible = true;
-
 
 
 
