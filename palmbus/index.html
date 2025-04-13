@@ -3089,13 +3089,27 @@ async function loadGeoJsonLines() {
                 opacity: 0.7,
                 fillOpacity: 0.6
             });
+        },
+        onEachFeature: function(feature, layer) {
+            if (feature.properties) {
+                const stopId = feature.properties.stop_id || '';
+                const stopName = feature.properties.stop_name || stopNameMap[stopId] || `Arrêt ${stopId}`;
+                
+                layer.on('click', () => {
+                    showStopInfo(stopId, stopName);
+                });
+            }
         }
     }).addTo(map);
     
     busStops.eachLayer(function(layer) {
-        layer.on('click', onBusStopClick);
+        if (layer.feature && layer.feature.properties) {
+            layer.busLine = layer.feature.properties.route_id || null;
+            busStopLayers.push(layer);
+        }
     });
-    
+    initBusStopClickHandlers();
+
 }
 
 
