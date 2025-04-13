@@ -3075,6 +3075,9 @@ async function loadGeoJsonLines() {
         }
     }).addTo(map);
 
+    let selectedStopId = null;
+    let busStopInfoSheet = null;
+
     const busStops = L.geoJSON(geoJsonData, {
         filter: function(feature) {
             return feature.geometry && feature.geometry.type === 'Point';
@@ -3088,9 +3091,33 @@ async function loadGeoJsonLines() {
                 opacity: 0.7,
                 fillOpacity: 0.6
             });
+        },
+        onEachFeature: function(feature, layer) {
+            if (feature.properties) {
+                layer.busLine = feature.properties.route_id || null;
+                busStopLayers.push(layer);
+                
+                layer.on('click', function(e) {
+                    L.DomEvent.stopPropagation(e);
+                    
+                    const stopId = feature.properties.stop_id;
+                    const stopName = feature.properties.stop_name || stopNameMap[stopId] || "Arrêt " + stopId;
+                    
+                    selectedStopId = stopId;
+                    
+                    showBusStopInfo(stopId, stopName);
+                });
+                
+                const stopName = feature.properties.stop_name || stopNameMap[feature.properties.stop_id] || "Arrêt";
+                layer.bindTooltip(stopName, {
+                    permanent: false,
+                    direction: 'top',
+                    className: 'bus-stop-tooltip'
+                });
+            }
         }
     }).addTo(map);
-    
+
     busStops.eachLayer(function(layer) {
         if (layer.feature && layer.feature.properties) {
             layer.busLine = layer.feature.properties.route_id || null;
@@ -3100,6 +3127,483 @@ async function loadGeoJsonLines() {
     
 }
 
+    async function getUpcomingArrivals(stopId) {
+        if (!tripUpdates) {
+            try {
+                await fetchTripUpdates();
+            } catch (error) {
+                console.error("Failed to fetch trip updates", error);
+                return [];
+            }
+        }
+        
+        const arrivals = [];
+        const now = Date.now() / 1000; // Current time in seconds
+        
+        // Process all trip updates
+        Object.entries(tripUpdates).forEach(([tripId, tripUpdate]) => {
+            // Check if this trip has our stop
+            const stopUpdates = tripUpdate.stopUpdates || [];
+            
+            for (const stopUpdate of stopUpdates) {
+                if (stopUpdate.stopId === stopId || stopUpdate.stopId === "0:" + stopId) {
+                    // Get the route_id from the trip ID (assuming format like "route_id:service_id:trip_sequence")
+                    let routeId = tripId.split(':')[0];
+                    
+                    // Get arrival time
+                    const arrivalTime = stopUpdate.departureTime || stopUpdate.arrivalTime;
+                    if (arrivalTime === "inconnue") continue;
+                    
+                    // Parse time
+                    const timeParts = arrivalTime.split(':');
+                    if (timeParts.length !== 2) continue;
+                    
+                    const hours = parseInt(timeParts[0]);
+                    const minutes = parseInt(timeParts[1]);
+                    
+                    // Calculate minutes until arrival
+                    const arrivalDate = new Date();
+                    arrivalDate.setHours(hours);
+                    arrivalDate.setMinutes(minutes);
+                    arrivalDate.setSeconds(0);
+                    
+                    const minutesUntil = Math.round((arrivalDate.getTime() / 1000 - now) / 60);
+                    
+                    // Only include future arrivals that are within the next 2 hours
+                    if (minutesUntil >= 0 && minutesUntil <= 120) {
+                        arrivals.push({
+                            routeId: routeId,
+                            routeName: lineName[routeId] || routeId,
+                            routeColor: lineColors[routeId] || "#3388ff",
+                            time: arrivalTime,
+                            minutesUntil: minutesUntil,
+                            delay: stopUpdate.delay || 0,
+                            destination: getDestination(tripId)
+                        });
+                    }
+                }
+            }
+        });
+        
+        // Sort by arrival time
+        arrivals.sort((a, b) => a.minutesUntil - b.minutesUntil);
+        
+        return arrivals;
+    }
+
+    // Get destination name for a trip
+    function getDestination(tripId) {
+        if (tripUpdates && tripUpdates[tripId] && tripUpdates[tripId].lastStopId) {
+            const lastStopId = tripUpdates[tripId].lastStopId;
+            return stopNameMap[lastStopId] || "Destination";
+        }
+        return "Destination";
+    }
+
+    // Function to show the bottom sheet with bus stop information
+    function showBusStopInfo(stopId, stopName) {
+        // Create bottom sheet if it doesn't exist
+        if (!busStopInfoSheet) {
+            busStopInfoSheet = createBusStopInfoSheet();
+        }
+        
+        // Update content with loading state
+        updateBusStopInfoContent(stopId, stopName, null);
+        
+        // Open the sheet
+        openBusStopInfoSheet();
+        
+        // Fetch and display real-time arrivals
+        getUpcomingArrivals(stopId).then(arrivals => {
+            updateBusStopInfoContent(stopId, stopName, arrivals);
+        }).catch(error => {
+            console.error("Error fetching arrivals:", error);
+            updateBusStopInfoContent(stopId, stopName, []);
+        });
+    }
+
+    // Create the bus stop info bottom sheet
+    function createBusStopInfoSheet() {
+        const bottomSheet = document.createElement('div');
+        bottomSheet.id = 'busStopInfoSheet';
+        bottomSheet.style.cssText = `
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.2);
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1);
+            z-index: 1100;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding-bottom: 20px;
+            touch-action: pan-y;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+        `;
+
+        const dragHandle = document.createElement('div');
+        dragHandle.style.cssText = `
+            width: 40px;
+            height: 5px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+            margin: 10px auto;
+            cursor: grab;
+        `;
+        bottomSheet.appendChild(dragHandle);
+
+        const content = document.createElement('div');
+        content.id = 'busStopInfoContent';
+        content.style.cssText = `
+            padding: 0 15px 15px 15px;
+        `;
+        bottomSheet.appendChild(content);
+
+        // Add drag functionality
+        let startY, initialY, isDragging = false;
+        let currentTranslateY = 0;
+        
+        function startDrag(e) {
+            if (e.type.includes('touch')) {
+                e.preventDefault();
+            }
+            isDragging = true;
+            startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+            initialY = startY;
+            
+            const transform = window.getComputedStyle(bottomSheet).transform;
+            const matrix = new DOMMatrix(transform);
+            currentTranslateY = matrix.m42;
+            
+            bottomSheet.style.transition = 'none';
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            
+            const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+            const deltaY = currentY - startY;
+            const newTranslateY = Math.max(0, currentTranslateY + deltaY);
+            
+            const maxTranslate = bottomSheet.offsetHeight;
+            const boundedTranslateY = Math.min(maxTranslate, newTranslateY);
+            
+            bottomSheet.style.transform = `translateY(${boundedTranslateY}px)`;
+        }
+
+        function stopDrag(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            const finalY = e.type.includes('mouse') ? e.clientY : e.changedTouches[0].clientY;
+            const deltaY = finalY - initialY;
+            const currentTranslate = getTranslateY(bottomSheet);
+            const sheetHeight = bottomSheet.offsetHeight;
+            
+            bottomSheet.style.transition = 'transform 0.3s ease-out';
+            
+            const percentageMoved = (currentTranslate / sheetHeight) * 100;
+            
+            if (deltaY > 0) { // Dragging down
+                if (percentageMoved > 50) {
+                    closeBusStopInfoSheet();
+                } else {
+                    bottomSheet.style.transform = 'translateY(0)';
+                }
+            } else { // Dragging up
+                bottomSheet.style.transform = 'translateY(0)';
+            }
+        }
+        
+        function getTranslateY(element) {
+            const style = window.getComputedStyle(element);
+            const matrix = new DOMMatrix(style.transform);
+            return matrix.m42;
+        }
+
+        // Event listeners
+        bottomSheet.addEventListener('mousedown', startDrag);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', stopDrag);
+
+        bottomSheet.addEventListener('touchstart', startDrag, { passive: false });
+        document.addEventListener('touchmove', drag, { passive: false });
+        document.addEventListener('touchend', stopDrag);
+
+        // Close button
+        const closeButton = document.createElement('button');
+        closeButton.innerHTML = '×';
+        closeButton.style.cssText = `
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #333;
+            padding: 5px 10px;
+        `;
+        closeButton.addEventListener('click', closeBusStopInfoSheet);
+        bottomSheet.appendChild(closeButton);
+
+        document.body.appendChild(bottomSheet);
+        return bottomSheet;
+    }
+
+    // Update the content of the bus stop info sheet
+    function updateBusStopInfoContent(stopId, stopName, arrivals) {
+        const content = document.getElementById('busStopInfoContent');
+        if (!content) return;
+        
+        // Create header
+        content.innerHTML = `
+            <h2 style="margin-top: 5px; font-size: 20px; font-weight: 500; color: #333;">
+                ${stopName}
+            </h2>
+            <div id="arrivalsContainer"></div>
+        `;
+        
+        const arrivalsContainer = document.getElementById('arrivalsContainer');
+        
+        if (arrivals === null) {
+            // Loading state
+            arrivalsContainer.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <div style="display: inline-block; width: 30px; height: 30px; border: 3px solid rgba(0, 0, 0, 0.2); border-radius: 50%; border-top-color: #3388ff; animation: spin 1s ease-in-out infinite;"></div>
+                    <p style="margin-top: 10px; color: #666;">Chargement des prochains passages...</p>
+                </div>
+                <style>
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+                </style>
+            `;
+            return;
+        }
+        
+        if (arrivals.length === 0) {
+            arrivalsContainer.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <p style="color: #666;">Aucun passage prévu dans les 2 prochaines heures.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Group arrivals by route
+        const arrivals_by_route = {};
+        arrivals.forEach(arrival => {
+            if (!arrivals_by_route[arrival.routeId]) {
+                arrivals_by_route[arrival.routeId] = [];
+            }
+            arrivals_by_route[arrival.routeId].push(arrival);
+        });
+        
+        // Create HTML for each route
+        Object.keys(arrivals_by_route).forEach(routeId => {
+            const routeArrivals = arrivals_by_route[routeId];
+            const routeColor = routeArrivals[0].routeColor;
+            const routeName = routeArrivals[0].routeName;
+            
+            const routeElement = document.createElement('div');
+            routeElement.style.cssText = `
+                padding: 10px 0;
+                border-bottom: 1px solid #eee;
+            `;
+            
+            let routeHtml = `
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <div style="
+                        background-color: ${routeColor};
+                        color: white;
+                        font-weight: bold;
+                        padding: 5px 10px;
+                        border-radius: 4px;
+                        margin-right: 10px;
+                        min-width: 30px;
+                        text-align: center;
+                    ">${routeName}</div>
+                    <div style="font-weight: 500;">${routeArrivals[0].destination}</div>
+                </div>
+                <div style="display: flex; flex-wrap: wrap;">
+            `;
+            
+            // Add upcoming arrivals time badges
+            routeArrivals.slice(0, 4).forEach(arrival => {
+                let timeDisplay;
+                let colorClass;
+                
+                if (arrival.minutesUntil <= 0) {
+                    timeDisplay = "Maintenant";
+                    colorClass = "now";
+                } else if (arrival.minutesUntil < 60) {
+                    timeDisplay = `${arrival.minutesUntil} min`;
+                    colorClass = "";
+                } else {
+                    // For times more than an hour away, show the actual time
+                    timeDisplay = arrival.time;
+                    colorClass = "later";
+                }
+                
+                // Add delay indicator if significant
+                let delayIndicator = "";
+                if (arrival.delay && Math.abs(arrival.delay) >= 60) {
+                    const delayMinutes = Math.floor(Math.abs(arrival.delay) / 60);
+                    if (arrival.delay > 0) {
+                        delayIndicator = `<span style="color: #d32f2f; font-size: 12px;"> +${delayMinutes} min</span>`;
+                    } else {
+                        delayIndicator = `<span style="color: #388e3c; font-size: 12px;"> -${delayMinutes} min</span>`;
+                    }
+                }
+                
+                routeHtml += `
+                    <div style="
+                        background-color: ${colorClass === "now" ? "#388e3c" : colorClass === "later" ? "#9e9e9e" : "#2196f3"};
+                        color: white;
+                        padding: 6px 12px;
+                        border-radius: 16px;
+                        margin-right: 10px;
+                        margin-bottom: 8px;
+                        font-weight: 500;
+                        font-size: 14px;
+                    ">${timeDisplay}${delayIndicator}</div>
+                `;
+            });
+            
+            routeHtml += `</div>`;
+            routeElement.innerHTML = routeHtml;
+            arrivalsContainer.appendChild(routeElement);
+        });
+        
+        // Add refresh button at the bottom
+        const refreshButton = document.createElement('button');
+        refreshButton.innerHTML = 'Actualiser';
+        refreshButton.style.cssText = `
+            display: block;
+            margin: 20px auto 0;
+            padding: 8px 20px;
+            background-color: #f0f0f0;
+            border: none;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #333;
+            cursor: pointer;
+        `;
+        refreshButton.addEventListener('click', function() {
+            if (selectedStopId) {
+                const stopName = stopNameMap[selectedStopId] || "Arrêt " + selectedStopId;
+                updateBusStopInfoContent(selectedStopId, stopName, null);
+                getUpcomingArrivals(selectedStopId).then(arrivals => {
+                    updateBusStopInfoContent(selectedStopId, stopName, arrivals);
+                });
+            }
+        });
+        arrivalsContainer.appendChild(refreshButton);
+        
+        // Add update time
+        const updateTimeElement = document.createElement('div');
+        updateTimeElement.style.cssText = `
+            text-align: center;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #999;
+        `;
+        const now = new Date();
+        updateTimeElement.textContent = `Dernière mise à jour : ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        arrivalsContainer.appendChild(updateTimeElement);
+    }
+
+    // Open the bus stop info sheet
+    function openBusStopInfoSheet() {
+        if (!busStopInfoSheet) return;
+        
+        busStopInfoSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1)';
+        busStopInfoSheet.style.transform = 'translateY(0)';
+        
+        // If another bottom sheet is open, close it
+        const otherBottomSheet = document.getElementById('bottomSheet');
+        if (otherBottomSheet && otherBottomSheet.style.transform !== 'translateY(100%)') {
+            otherBottomSheet.style.transform = 'translateY(100%)';
+        }
+    }
+
+    // Close the bus stop info sheet
+    function closeBusStopInfoSheet() {
+        if (!busStopInfoSheet) return;
+        
+        busStopInfoSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1)';
+        busStopInfoSheet.style.transform = 'translateY(100%)';
+        selectedStopId = null;
+    }
+
+    // Add a style for the bus stop tooltip
+    const style = document.createElement('style');
+    style.textContent = `
+        .bus-stop-tooltip {
+            background-color: rgba(0, 0, 0, 0.7);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-size: 12px;
+            padding: 5px 8px;
+        }
+        .bus-stop-tooltip::before {
+            border-top-color: rgba(0, 0, 0, 0.7);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Auto-refresh data when sheet is open
+    let refreshInterval = null;
+
+    function startAutoRefresh() {
+        if (refreshInterval) return;
+        
+        refreshInterval = setInterval(() => {
+            if (selectedStopId && busStopInfoSheet && busStopInfoSheet.style.transform === 'translateY(0)') {
+                const stopName = stopNameMap[selectedStopId] || "Arrêt " + selectedStopId;
+                getUpcomingArrivals(selectedStopId).then(arrivals => {
+                    updateBusStopInfoContent(selectedStopId, stopName, arrivals);
+                });
+            }
+        }, 30000); // Refresh every 30 seconds
+    }
+
+    function stopAutoRefresh() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+            refreshInterval = null;
+        }
+    }
+
+    // Start and stop auto-refresh based on sheet visibility
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                const sheet = mutation.target;
+                if (sheet.style.transform === 'translateY(0)') {
+                    startAutoRefresh();
+                } else {
+                    stopAutoRefresh();
+                }
+            }
+        });
+    });
+
+    if (busStopInfoSheet) {
+        observer.observe(busStopInfoSheet, { attributes: true });
+    }
+
+    map.on('click', function() {
+        closeBusStopInfoSheet();
+    });
 
 
 function filterByLine(lineId) {
