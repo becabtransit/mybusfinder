@@ -3093,28 +3093,14 @@ async function loadGeoJsonLines() {
     
     busStops.eachLayer(function(layer) {
         if (layer.feature && layer.feature.properties) {
-            layer.busLine = layer.feature.properties.route_id || null;
-            busStopLayers.push(layer);
-        }
-    });
-        
-    busStopLayers.forEach(function(layer) {
-        layer.on('click', function(e) {
-            const feature = e.target.feature;
-            if (feature && feature.properties) {
-                const stopId = feature.properties.id;
-                const stopName = feature.properties.name || 'Arrêt inconnu';
+            layer.on('click', function(e) {
+                const properties = this.feature.properties;
+                const stopId = properties.id;
+                const stopName = properties.name || 'Arrêt inconnu';
                 
-                openBusStopBottomSheet(stopId, stopName);
-            }
-        });
-        
-        if (layer.feature && layer.feature.properties) {
-            const stopName = layer.feature.properties.name || 'Arrêt inconnu';
-            layer.bindPopup(`<b>${stopName}</b><br>${t("clickforschedules")}`, {
-                closeButton: false,
-                autoClose: true,
-                className: 'stop-popup'
+                showBusStopSchedule(stopId, stopName);
+                
+                L.DomEvent.stopPropagation(e);
             });
         }
     });
@@ -6393,26 +6379,242 @@ const menubottom1 = document.getElementById('menubtm');
     }
 }
 
-// Système d'affichage des horaires de bus pour les arrêts
-let busStopBottomSheet;
-let activeStopId = null;
-let stopScheduleData = {};
+// Fonction pour afficher les prochains passages à un arrêt de bus
+function showBusStopSchedule(stopId, stopName) {
+    // Créer et afficher la bottom sheet
+    const bottomSheet = createBusStopBottomSheet(stopId, stopName);
+    openBusStopBottomSheet(bottomSheet);
+    
+    // Récupérer les prochains passages pour cet arrêt
+    fetchNextArrivals(stopId, bottomSheet);
+}
 
-// Fonction pour créer la bottom sheet pour les arrêts de bus
-function createBusStopBottomSheet() {
+// Fonction pour récupérer les prochains passages de bus
+function fetchNextArrivals(stopId, bottomSheet) {
+    const contentContainer = bottomSheet.querySelector('#busStopScheduleContent');
+    if (!contentContainer) return;
+    
+    // Afficher un message de chargement
+    contentContainer.innerHTML = `
+        <div class="loading-container" style="text-align: center; padding: 20px;">
+            <p>${t("loading")}</p>
+        </div>
+    `;
+    
+    // Trouver les bus qui desservent cet arrêt
+    const upcomingArrivals = [];
+    const busLinesByStop = new Map();
+    
+    // Parcourir tous les véhicules actifs
+    for (const markerId in markers) {
+        const marker = markers[markerId];
+        if (!marker || !marker.feature || !marker.feature.properties) continue;
+        
+        const tripId = marker.feature.properties.trip && marker.feature.properties.trip.tripId;
+        if (!tripId) continue;
+        
+        const tripUpdate = tripUpdates[tripId];
+        if (!tripUpdate || !tripUpdate.nextStops) continue;
+        
+        // Vérifier si cet arrêt est dans les prochains arrêts de ce bus
+        const stopIndex = tripUpdate.nextStops.findIndex(stop => 
+            stop.stopId === stopId || stop.stopId.replace("0:", "") === stopId
+        );
+        
+        if (stopIndex !== -1) {
+            const stopInfo = tripUpdate.nextStops[stopIndex];
+            const routeId = marker.feature.properties.trip.routeId;
+            const directionId = marker.feature.properties.trip.directionId;
+            const vehicle = marker.feature.properties.vehicle;
+            
+            // Calculer le temps d'arrivée
+            const delay = stopInfo.delay || 0;
+            let arrivalTime;
+            
+            if (stopInfo.arrivalTime) {
+                const [hours, minutes] = stopInfo.arrivalTime.split(':').map(num => parseInt(num, 10));
+                const now = new Date();
+                arrivalTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
+                
+                // Ajuster pour le délai
+                arrivalTime.setSeconds(arrivalTime.getSeconds() + delay);
+            } else {
+                arrivalTime = new Date(Date.now() + (delay * 1000));
+            }
+            
+            // Calculer les minutes restantes
+            const minutesLeft = Math.max(0, Math.floor((arrivalTime - Date.now()) / 60000));
+            
+            // Destination finale
+            const lastStopId = tripUpdate.lastStopId;
+            const destination = stopNameMap[lastStopId] || t("unknowndestination");
+            
+            // Ajouter cette arrivée à la liste
+            upcomingArrivals.push({
+                routeId,
+                directionId,
+                vehicle,
+                arrivalTime,
+                minutesLeft,
+                destination,
+                vehicleId: markerId,
+                tripId
+            });
+            
+            // Ajouter cette ligne à la liste des lignes pour cet arrêt
+            if (!busLinesByStop.has(routeId)) {
+                busLinesByStop.set(routeId, []);
+            }
+            busLinesByStop.get(routeId).push({
+                arrivalTime,
+                minutesLeft,
+                destination,
+                vehicleId: markerId,
+                tripId
+            });
+        }
+    }
+    
+    // Trier les arrivées par temps d'arrivée
+    upcomingArrivals.sort((a, b) => a.arrivalTime - b.arrivalTime);
+    
+    // Afficher le contenu
+    if (busLinesByStop.size === 0) {
+        contentContainer.innerHTML = `
+            <div class="no-arrivals" style="text-align: center; padding: 20px;">
+                <p>${t("noarrivalsfound")}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let contentHTML = '';
+    
+    // Pour chaque ligne de bus
+    busLinesByStop.forEach((arrivals, routeId) => {
+        // Trier les arrivées pour cette ligne
+        arrivals.sort((a, b) => a.arrivalTime - b.arrivalTime);
+        
+        const backgroundColor = lineColors[routeId] || '#000000';
+        const textColor = getTextColorForBackground(backgroundColor);
+        const lineName = window.lineName?.[routeId] || t("line") + ' ' + routeId;
+        
+        contentHTML += `
+            <div class="bus-line-container" style="
+                margin-bottom: 15px; 
+                padding: 12px; 
+                border-radius: 12px; 
+                background-color: ${backgroundColor}9c;
+                color: ${textColor};
+                box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                backdrop-filter: blur(8px);
+            ">
+                <div class="line-header" style="
+                    display: flex; 
+                    justify-content: space-between; 
+                    align-items: center;
+                    margin-bottom: 8px;
+                ">
+                    <div class="line-name" style="font-size: 20px; font-weight: bold;">
+                        ${lineName}
+                    </div>
+                    <div class="line-info" style="font-size: 14px;">
+                        ${arrivals.length} ${t("arrivals")}
+                    </div>
+                </div>
+        `;
+        
+        // Pour chaque arrivée de cette ligne
+        arrivals.slice(0, 3).forEach(arrival => {
+            const timeDisplay = arrival.minutesLeft <= 0 
+                ? t("imminent")
+                : `${arrival.minutesLeft} ${arrival.minutesLeft === 1 ? t("minute") : t("minutes")}`;
+            
+            contentHTML += `
+                <div class="arrival-item" style="
+                    display: flex; 
+                    justify-content: space-between; 
+                    align-items: center;
+                    padding: 8px 0;
+                    border-top: 1px solid ${textColor}25;
+                " data-vehicle-id="${arrival.vehicleId}">
+                    <div class="arrival-info">
+                        <div class="destination" style="font-weight: bold;">${arrival.destination}</div>
+                        <div class="vehicle-info" style="font-size: 12px; opacity: 0.8;">
+                            ${arrival.vehicle?.label || t("unknownvehicle")}
+                        </div>
+                    </div>
+                    <div class="arrival-time" style="
+                        font-size: 18px; 
+                        font-weight: bold;
+                        ${arrival.minutesLeft <= 2 ? 'color: #ff6b6b;' : ''}
+                    ">
+                        ${timeDisplay}
+                    </div>
+                </div>
+            `;
+        });
+        
+        // Si plus de 3 arrivées, ajouter un lien pour voir toutes les arrivées
+        if (arrivals.length > 3) {
+            contentHTML += `
+                <div class="show-more" style="
+                    text-align: center; 
+                    padding-top: 8px;
+                    cursor: pointer;
+                    text-decoration: underline;
+                    opacity: 0.8;
+                " onclick="showAllArrivals('${routeId}', '${stopId}')">
+                    + ${arrivals.length - 3} ${t("more")}
+                </div>
+            `;
+        }
+        
+        contentHTML += `</div>`;
+    });
+    
+    contentContainer.innerHTML = contentHTML;
+    
+    // Ajouter des événements pour suivre un véhicule lorsqu'on clique sur une arrivée
+    const arrivalItems = contentContainer.querySelectorAll('.arrival-item');
+    arrivalItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const vehicleId = this.getAttribute('data-vehicle-id');
+            if (vehicleId && markers[vehicleId]) {
+                // Centrer la carte sur le véhicule et ouvrir son popup
+                map.flyTo(markers[vehicleId].getLatLng(), 16);
+                markers[vehicleId].openPopup();
+                // Fermer la bottom sheet
+                closeBusStopBottomSheet();
+            }
+        });
+    });
+}
+
+// Fonction pour afficher toutes les arrivées d'une ligne à un arrêt
+function showAllArrivals(routeId, stopId) {
+    // Cette fonction pourrait ouvrir une nouvelle fenêtre modale avec toutes les arrivées
+    console.log(`Showing all arrivals for route ${routeId} at stop ${stopId}`);
+    // Implémentation à compléter
+}
+
+// Créer la bottom sheet pour un arrêt de bus
+function createBusStopBottomSheet(stopId, stopName) {
     const SNAP_POINTS = {
         CLOSED: 100,  // 100% of height (fully closed)
         PEEK: 60,     // 60% of height (partially open)
         OPEN: 0       // 0% (fully open)
     };
     
-    if (busStopBottomSheet) {
-        document.body.removeChild(busStopBottomSheet);
+    // Supprimer l'ancienne bottom sheet si elle existe
+    const existingSheet = document.getElementById('busStopBottomSheet');
+    if (existingSheet) {
+        existingSheet.remove();
     }
     
-    busStopBottomSheet = document.createElement('div');
-    busStopBottomSheet.id = 'busStopBottomSheet';
-    busStopBottomSheet.style.cssText = `
+    const bottomSheet = document.createElement('div');
+    bottomSheet.id = 'busStopBottomSheet';
+    bottomSheet.style.cssText = `
         position: fixed;
         bottom: 0;
         left: 0;
@@ -6424,15 +6626,17 @@ function createBusStopBottomSheet() {
         box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.2);
         transform: translateY(100%);
         transition: transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1);
-        z-index: 1001;
+        z-index: 1000;
         max-height: 80vh;
         overflow-y: auto;
         padding-bottom: 20px;
         touch-action: pan-y;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
+        color: #333;
     `;
-
+    
+    // Poignée de glissement
     const dragHandle = document.createElement('div');
     dragHandle.style.cssText = `
         width: 40px;
@@ -6442,16 +6646,145 @@ function createBusStopBottomSheet() {
         margin: 10px auto;
         cursor: grab;
     `;
-    busStopBottomSheet.appendChild(dragHandle);
-
-    const content = document.createElement('div');
-    content.id = 'busStopContent';
-    content.style.cssText = `
-        padding: 0 15px 15px 15px;
+    bottomSheet.appendChild(dragHandle);
+    
+    // En-tête
+    const header = document.createElement('div');
+    header.style.cssText = `
+        padding: 0 20px 10px 20px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     `;
-    busStopBottomSheet.appendChild(content);
-
-    // Gestionnaires d'événements de glissement pour la bottomsheet
+    
+    const stopNameElement = document.createElement('h2');
+    stopNameElement.textContent = stopName;
+    stopNameElement.style.cssText = `
+        margin: 0;
+        font-size: 24px;
+        font-weight: bold;
+    `;
+    
+    const stopIdElement = document.createElement('div');
+    stopIdElement.textContent = `ID: ${stopId}`;
+    stopIdElement.style.cssText = `
+        font-size: 14px;
+        color: #666;
+        margin-top: 5px;
+    `;
+    
+    header.appendChild(stopNameElement);
+    header.appendChild(stopIdElement);
+    bottomSheet.appendChild(header);
+    
+    // Section des prochains passages
+    const scheduleSection = document.createElement('div');
+    scheduleSection.style.cssText = `
+        padding: 15px 20px;
+    `;
+    
+    const sectionTitle = document.createElement('h3');
+    sectionTitle.textContent = t("nextarrivals");
+    sectionTitle.style.cssText = `
+        margin: 0 0 15px 0;
+        font-size: 18px;
+        font-weight: bold;
+    `;
+    
+    const scheduleContent = document.createElement('div');
+    scheduleContent.id = 'busStopScheduleContent';
+    scheduleContent.style.cssText = `
+        margin-bottom: 20px;
+    `;
+    
+    scheduleSection.appendChild(sectionTitle);
+    scheduleSection.appendChild(scheduleContent);
+    bottomSheet.appendChild(scheduleSection);
+    
+    // Actions en bas de la feuille
+    const actionsSection = document.createElement('div');
+    actionsSection.style.cssText = `
+        display: flex;
+        justify-content: space-around;
+        padding: 0 20px 10px 20px;
+    `;
+    
+    // Bouton pour centrer la carte sur l'arrêt
+    const centerButton = document.createElement('button');
+    centerButton.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        <span>${t("center")}</span>
+    `;
+    centerButton.style.cssText = `
+        background: none;
+        border: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: #1a73e8;
+        font-size: 14px;
+        cursor: pointer;
+    `;
+    centerButton.onclick = function() {
+        const stopLayer = findStopLayerById(stopId);
+        if (stopLayer) {
+            map.flyTo(stopLayer.getLatLng(), 16);
+        }
+    };
+    
+    // Bouton pour actualiser les données
+    const refreshButton = document.createElement('button');
+    refreshButton.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6"></path>
+            <path d="M1 20v-6h6"></path>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+            <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+        </svg>
+        <span>${t("refresh")}</span>
+    `;
+    refreshButton.style.cssText = `
+        background: none;
+        border: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: #1a73e8;
+        font-size: 14px;
+        cursor: pointer;
+    `;
+    refreshButton.onclick = function() {
+        fetchNextArrivals(stopId, bottomSheet);
+    };
+    
+    // Bouton pour fermer la feuille
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        <span>${t("close")}</span>
+    `;
+    closeButton.style.cssText = `
+        background: none;
+        border: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: #1a73e8;
+        font-size: 14px;
+        cursor: pointer;
+    `;
+    closeButton.onclick = closeBusStopBottomSheet;
+    
+    actionsSection.appendChild(centerButton);
+    actionsSection.appendChild(refreshButton);
+    actionsSection.appendChild(closeButton);
+    bottomSheet.appendChild(actionsSection);
+    
+    // Gestion du glissement
     let startY, initialY, isDragging = false, currentTranslateY = 0;
     
     function startDrag(e) {
@@ -6462,11 +6795,11 @@ function createBusStopBottomSheet() {
         startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
         initialY = startY;
         
-        const transform = window.getComputedStyle(busStopBottomSheet).transform;
+        const transform = window.getComputedStyle(bottomSheet).transform;
         const matrix = new DOMMatrix(transform);
         currentTranslateY = matrix.m42;
         
-        busStopBottomSheet.style.transition = 'none';
+        bottomSheet.style.transition = 'none';
     }
 
     function drag(e) {
@@ -6477,10 +6810,10 @@ function createBusStopBottomSheet() {
         const deltaY = currentY - startY;
         const newTranslateY = Math.max(0, currentTranslateY + deltaY);
         
-        const maxTranslate = busStopBottomSheet.offsetHeight;
+        const maxTranslate = bottomSheet.offsetHeight;
         const boundedTranslateY = Math.min(maxTranslate, newTranslateY);
         
-        busStopBottomSheet.style.transform = `translateY(${boundedTranslateY}px)`;
+        bottomSheet.style.transform = `translateY(${boundedTranslateY}px)`;
     }
 
     function stopDrag(e) {
@@ -6489,10 +6822,10 @@ function createBusStopBottomSheet() {
         
         const finalY = e.type.includes('mouse') ? e.clientY : e.changedTouches[0].clientY;
         const deltaY = finalY - initialY;
-        const currentTranslate = getTranslateY(busStopBottomSheet);
-        const sheetHeight = busStopBottomSheet.offsetHeight;
+        const currentTranslate = getTranslateY(bottomSheet);
+        const sheetHeight = bottomSheet.offsetHeight;
         
-        busStopBottomSheet.style.transition = 'transform 0.3s ease-out';
+        bottomSheet.style.transition = 'transform 0.3s ease-out';
         
         const percentageMoved = (currentTranslate / sheetHeight) * 100;
         
@@ -6500,15 +6833,15 @@ function createBusStopBottomSheet() {
             if (percentageMoved > 50) {
                 closeBusStopBottomSheet();
             } else if (percentageMoved > 30) {
-                busStopBottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
+                bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
             } else {
-                busStopBottomSheet.style.transform = 'translateY(0)';
+                bottomSheet.style.transform = 'translateY(0)';
             }
         } else { // Glissement vers le haut
             if (percentageMoved < 30) {
-                busStopBottomSheet.style.transform = 'translateY(0)';
+                bottomSheet.style.transform = 'translateY(0)';
             } else if (percentageMoved < 70) {
-                busStopBottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
+                bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
             } else {
                 closeBusStopBottomSheet();
             }
@@ -6520,342 +6853,55 @@ function createBusStopBottomSheet() {
         const matrix = new DOMMatrix(style.transform);
         return matrix.m42;
     }
-
-    // Ajout des écouteurs d'événements
-    busStopBottomSheet.addEventListener('mousedown', startDrag);
+    
+    // Ajouter les gestionnaires d'événements
+    bottomSheet.addEventListener('mousedown', startDrag);
     document.addEventListener('mousemove', drag);
     document.addEventListener('mouseup', stopDrag);
 
-    busStopBottomSheet.addEventListener('touchstart', startDrag, { passive: false });
+    bottomSheet.addEventListener('touchstart', startDrag, { passive: false });
     document.addEventListener('touchmove', drag, { passive: false });
     document.addEventListener('touchend', stopDrag);
-
-    document.body.appendChild(busStopBottomSheet);
-    return busStopBottomSheet;
+    
+    document.body.appendChild(bottomSheet);
+    return bottomSheet;
 }
 
-// Ouvrir la bottom sheet des horaires de bus
-function openBusStopBottomSheet(stopId, stopName) {
-    if (!busStopBottomSheet) {
-        createBusStopBottomSheet();
-    }
-    
-    activeStopId = stopId;
-    updateBusStopContent(stopId, stopName);
-    
-    // Animation d'ouverture
-    setTimeout(() => {
-        busStopBottomSheet.style.transform = 'translateY(0)';
-    }, 50);
+// Fonction pour ouvrir la bottom sheet
+function openBusStopBottomSheet(bottomSheet) {
+    bottomSheet.style.transform = 'translateY(0)';
 }
 
-// Fermer la bottom sheet des horaires de bus
+// Fonction pour fermer la bottom sheet
 function closeBusStopBottomSheet() {
-    if (busStopBottomSheet) {
-        busStopBottomSheet.style.transform = 'translateY(100%)';
-        activeStopId = null;
+    const bottomSheet = document.getElementById('busStopBottomSheet');
+    if (bottomSheet) {
+        bottomSheet.style.transform = 'translateY(100%)';
+        setTimeout(() => {
+            bottomSheet.remove();
+        }, 400);
     }
 }
 
-// Mettre à jour le contenu de la bottom sheet avec les horaires
-function updateBusStopContent(stopId, stopName) {
-    const content = document.getElementById('busStopContent');
+// Fonction utilitaire pour trouver un arrêt par ID
+function findStopLayerById(stopId) {
+    let foundLayer = null;
     
-    // Loader pendant le chargement des données
-    content.innerHTML = `
-        <div class="stop-header">
-            <h2 style="margin: 0; font-size: 22px; color: #333;">${stopName}</h2>
-            <p style="margin: 5px 0 15px; color: #666; font-size: 14px;">${t("loading")}</p>
-        </div>
-        <div style="display: flex; justify-content: center; padding: 20px;">
-            <div class="loading-spinner" style="
-                width: 40px;
-                height: 40px;
-                border: 4px solid rgba(0, 0, 0, 0.1);
-                border-radius: 50%;
-                border-top-color: #3388ff;
-                animation: spin 1s ease-in-out infinite;
-            "></div>
-        </div>
-        <style>
-            @keyframes spin {
-                to { transform: rotate(360deg); }
-            }
-        </style>
-    `;
-    
-    // Récupérer les données des passages pour cet arrêt
-    fetchStopSchedule(stopId).then(scheduleData => {
-        if (activeStopId !== stopId) return; // Vérifier si l'arrêt est toujours actif
-        
-        // Mettre à jour le contenu avec les données
-        renderStopScheduleData(stopId, stopName, scheduleData);
-    }).catch(error => {
-        console.error("Erreur lors de la récupération des horaires:", error);
-        content.innerHTML = `
-            <div class="stop-header">
-                <h2 style="margin: 0; font-size: 22px; color: #333;">${stopName}</h2>
-                <p style="margin: 5px 0 15px; color: #666; font-size: 14px;">${t("stationid")}: ${stopId}</p>
-            </div>
-            <div style="text-align: center; padding: 20px; color: #666;">
-                ${t("errorloadingschedule")}
-            </div>
-        `;
+    // Recherche parmi les couches GeoJSON
+    map.eachLayer(layer => {
+        if (layer.feature && 
+            layer.feature.properties && 
+            (layer.feature.properties.id === stopId || 
+             layer.feature.properties.id === '0:' + stopId || 
+             stopId === '0:' + layer.feature.properties.id)) {
+            foundLayer = layer;
+        }
     });
+    
+    return foundLayer;
 }
 
-// Récupérer les données des passages en temps réel pour un arrêt
-async function fetchStopSchedule(stopId) {
-    // Si nous avons déjà des données en cache, les retourner
-    if (stopScheduleData[stopId]) {
-        return stopScheduleData[stopId];
-    }
-    
-    // Simuler une requête API (à remplacer par votre vraie requête)
-    try {
-        // Rechercher dans tripUpdates les passages pour cet arrêt
-        const scheduleData = [];
-        
-        // Pour chaque trip update vérifie si l'arrêt est dans les nextStops
-        Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
-            if (tripData && tripData.nextStops) {
-                const stopUpdates = tripData.nextStops.filter(stop => 
-                    stop.stopId === stopId || stop.stopId === `0:${stopId}`
-                );
-                
-                if (stopUpdates.length > 0) {
-                    const routeId = tripData.routeId || 'Inconnu';
-                    const lastStopName = stopNameMap[tripData.lastStopId] || t("unknownDestination");
-                    
-                    stopUpdates.forEach(stopUpdate => {
-                        scheduleData.push({
-                            routeId: routeId,
-                            lineName: lineName[routeId] || routeId,
-                            tripId: tripId,
-                            destinationName: lastStopName,
-                            departureTime: stopUpdate.departureTime || stopUpdate.arrivalTime,
-                            delay: stopUpdate.delay,
-                            realtime: stopUpdate.delay !== null
-                        });
-                    });
-                }
-            }
-        });
-        
-        // Trier par heure d'arrivée
-        scheduleData.sort((a, b) => {
-            const timeA = a.departureTime ? convertTimeStringToMinutes(a.departureTime) : Infinity;
-            const timeB = b.departureTime ? convertTimeStringToMinutes(b.departureTime) : Infinity;
-            return timeA - timeB;
-        });
-        
-        // Simulons des données pour la démo si aucune donnée temps réel n'est disponible
-        if (scheduleData.length === 0) {
-            // Créer des horaires fictifs pour la démo
-            const lines = Object.keys(lineColors).slice(0, 3); // Prendre les 3 premières lignes
-            
-            lines.forEach((line, index) => {
-                const now = new Date();
-                const minutes = now.getMinutes();
-                const hours = now.getHours();
-                
-                // Ajouter plusieurs passages
-                [5 + index * 3, 15 + index * 4, 35 + index * 2].forEach(timeOffset => {
-                    const departureMinutes = (minutes + timeOffset) % 60;
-                    const departureHours = hours + Math.floor((minutes + timeOffset) / 60);
-                    const departureTime = `${departureHours.toString().padStart(2, '0')}:${departureMinutes.toString().padStart(2, '0')}`;
-                    
-                    scheduleData.push({
-                        routeId: line,
-                        lineName: lineName[line] || line,
-                        tripId: `demo-${line}-${timeOffset}`,
-                        destinationName: `Destination ${index + 1}`,
-                        departureTime: departureTime,
-                        delay: null,
-                        realtime: false
-                    });
-                });
-            });
-            
-            // Trier à nouveau
-            scheduleData.sort((a, b) => {
-                const timeA = a.departureTime ? convertTimeStringToMinutes(a.departureTime) : Infinity;
-                const timeB = b.departureTime ? convertTimeStringToMinutes(b.departureTime) : Infinity;
-                return timeA - timeB;
-            });
-        }
-        
-        // Mettre en cache
-        stopScheduleData[stopId] = scheduleData;
-        return scheduleData;
-    } catch (error) {
-        console.error("Erreur lors de la récupération des horaires pour l'arrêt", stopId, error);
-        throw error;
-    }
-}
-
-// Convertir une heure au format "HH:MM" en minutes depuis minuit
-function convertTimeStringToMinutes(timeString) {
-    if (!timeString || !timeString.includes(':')) return Infinity;
-    
-    const [hours, minutes] = timeString.split(':').map(n => parseInt(n, 10));
-    return hours * 60 + minutes;
-}
-
-// Calculer le temps restant en minutes
-function calculateTimeRemaining(departureTime) {
-    if (!departureTime || !departureTime.includes(':')) return null;
-    
-    const [hours, minutes] = departureTime.split(':').map(n => parseInt(n, 10));
-    const departureDate = new Date();
-    departureDate.setHours(hours, minutes, 0, 0);
-    
-    const now = new Date();
-    const diffMs = departureDate - now;
-    const diffMinutes = Math.floor(diffMs / 60000);
-    
-    return diffMinutes < 0 ? null : diffMinutes;
-}
-
-// Formatter le temps d'attente
-function formatWaitTime(minutes, delay = 0) {
-    if (minutes === null) return ''; 
-    
-    // Ajouter le délai (en secondes converti en minutes)
-    const adjustedMinutes = minutes + Math.floor(delay / 60);
-    
-    if (adjustedMinutes <= 0) return t("imminent");
-    if (adjustedMinutes === 1) return '1 min';
-    return `${adjustedMinutes} min`;
-}
-
-// Afficher les données des passages dans la bottom sheet
-function renderStopScheduleData(stopId, stopName, scheduleData) {
-    const content = document.getElementById('busStopContent');
-    
-    let html = `
-        <div class="stop-header">
-            <h2 style="margin: 0; font-size: 22px; color: #333;">${stopName}</h2>
-            <p style="margin: 5px 0 15px; color: #666; font-size: 14px;">${t("stationid")}: ${stopId}</p>
-        </div>
-    `;
-    
-    if (scheduleData.length === 0) {
-        html += `
-            <div style="text-align: center; padding: 20px; color: #666;">
-                ${t("noschedulesavailable")}
-            </div>
-        `;
-    } else {
-        // Regrouper par ligne
-        const lineGroups = {};
-        scheduleData.forEach(schedule => {
-            if (!lineGroups[schedule.routeId]) {
-                lineGroups[schedule.routeId] = [];
-            }
-            lineGroups[schedule.routeId].push(schedule);
-        });
-        
-        // Afficher les horaires par ligne
-        Object.entries(lineGroups).forEach(([routeId, schedules]) => {
-            const lineColor = lineColors[routeId] || '#3388ff';
-            const textColor = getTextColorForBackground(lineColor);
-            
-            html += `
-                <div class="line-schedule" style="margin-bottom: 15px;">
-                    <div class="line-header" style="
-                        display: flex;
-                        align-items: center;
-                        margin-bottom: 10px;
-                        padding: 8px 12px;
-                        background-color: ${lineColor};
-                        color: ${textColor};
-                        border-radius: 8px;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    ">
-                        <div class="line-badge" style="
-                            width: 36px;
-                            height: 36px;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            background-color: ${textColor};
-                            color: ${lineColor};
-                            border-radius: 50%;
-                            font-weight: bold;
-                            margin-right: 12px;
-                        ">${schedules[0].lineName}</div>
-                        <div class="line-info">
-                            <div class="line-name" style="font-weight: bold; font-size: 16px;">
-                                ${t("line")} ${schedules[0].lineName}
-                            </div>
-                            <div class="line-destination" style="font-size: 14px;">
-                                ➜ ${schedules[0].destinationName}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="departures-list">
-            `;
-            
-            // Afficher les 3 premiers passages pour cette ligne
-            schedules.slice(0, 3).forEach(schedule => {
-                const timeRemaining = calculateTimeRemaining(schedule.departureTime);
-                const waitTime = formatWaitTime(timeRemaining, schedule.delay);
-                
-                html += `
-                    <div class="departure-item" style="
-                        display: flex;
-                        justify-content: space-between;
-                        padding: 10px 15px;
-                        border-bottom: 1px solid #f0f0f0;
-                        align-items: center;
-                    ">
-                        <div class="departure-time" style="font-size: 16px; color: #333;">
-                            ${schedule.departureTime}
-                        </div>
-                        <div class="wait-time" style="
-                            font-weight: bold;
-                            color: ${waitTime === t("imminent") ? '#E53935' : '#333'};
-                            ${waitTime === t("imminent") ? 'animation: pulse 1.5s infinite;' : ''}
-                        ">${waitTime}</div>
-                    </div>
-                `;
-            });
-            
-            html += `
-                    </div>
-                </div>
-            `;
-        });
-        
-        html += `
-            <style>
-                @keyframes pulse {
-                    0% { opacity: 1; }
-                    50% { opacity: 0.5; }
-                    100% { opacity: 1; }
-                }
-            </style>
-        `;
-    }
-    
-    content.innerHTML = html;
-    
-    // Mettre à jour les horaires toutes les 30 secondes
-    if (window.stopScheduleInterval) {
-        clearInterval(window.stopScheduleInterval);
-    }
-    
-    window.stopScheduleInterval = setInterval(() => {
-        if (activeStopId === stopId) {
-            renderStopScheduleData(stopId, stopName, scheduleData);
-        } else {
-            clearInterval(window.stopScheduleInterval);
-        }
-    }, 30000);
-}
-
-// Fonction utilitaire pour déterminer la couleur du texte en fonction de la couleur d'arrière-plan
+// Fonction utilitaire pour déterminer la couleur du texte en fonction de la couleur de fond
 function getTextColorForBackground(bgColor) {
     const color = bgColor.replace('#', '');
     const r = parseInt(color.substring(0, 2), 16);
@@ -6864,6 +6910,51 @@ function getTextColorForBackground(bgColor) {
     const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
     return brightness > 150 ? '#000000' : '#FFFFFF';
 }
+
+// Ajouter la gestion des événements aux arrêts de bus
+function setupBusStopClickHandlers() {
+    // Pour les arrêts GeoJSON
+    map.eachLayer(function(layer) {
+        if (layer.feature && 
+            layer.feature.properties && 
+            layer.feature.geometry && 
+            layer.feature.geometry.type === 'Point' &&
+            !layer._events?.click) {
+            
+            // Ajouter un gestionnaire de clic à chaque arrêt
+            layer.on('click', function(e) {
+                const properties = this.feature.properties;
+                const stopId = properties.id;
+                const stopName = properties.name || 'Arrêt inconnu';
+                
+                // Afficher les prochains passages pour cet arrêt
+                showBusStopSchedule(stopId, stopName);
+                
+                // Empêcher la propagation du clic à la carte
+                L.DomEvent.stopPropagation(e);
+            });
+        }
+    });
+}
+
+// Intégrer cette fonction dans le chargement initial des données
+document.addEventListener('DOMContentLoaded', function() {
+    // Lorsque les arrêts de bus sont chargés depuis le GeoJSON
+    const originalLoadGeoJsonLines = window.loadGeoJsonLines;
+    
+    window.loadGeoJsonLines = async function() {
+        await originalLoadGeoJsonLines.apply(this, arguments);
+        
+        // Une fois les arrêts chargés, configurer les gestionnaires d'événements
+        setupBusStopClickHandlers();
+    };
+    
+    // Si les arrêts sont déjà chargés
+    if (window.geoJsonLines && window.geoJsonLines.length > 0) {
+        setupBusStopClickHandlers();
+    }
+});
+
 
 
 let lastTripUpdateTimestamp = 0;
