@@ -59,6 +59,7 @@ function processStop(stop, now) {
         delay: timeForDelay ? Math.floor(timeForDelay - now) : null
     };
 }
+
 function processTripUpdates(data) {
     const tripUpdates = {};
     const now = Date.now() / 1000;
@@ -96,10 +97,7 @@ function processTripUpdates(data) {
             stopUpdates: processedStops,
             lastStopId,
             nextStops: processedStops,
-            arrivalDelays,
-            routeId: trip.routeId || null,  
-            tripId: trip.tripId,
-            direction: trip.directionId
+            arrivalDelays
         };
     }
 
