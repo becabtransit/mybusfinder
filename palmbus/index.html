@@ -1434,6 +1434,16 @@ shape.bounce-down {
   animation: rainbowShadow 3s infinite linear;
 }
 
+.fade-out {
+    opacity: 0 !important;
+    transition: opacity 0.5s ease-out !important;
+}
+
+.fade-in {
+    opacity: 1 !important;
+    transition: opacity 0.5s ease-out !important;
+}
+
     </style>
 
 </head>
@@ -1697,6 +1707,9 @@ tarteaucitron.init({
 <script>
 
 
+
+
+
 document.addEventListener('DOMContentLoaded', function() {
     const menuItems = document.querySelectorAll('.menubottom-ul li a');
     
@@ -1709,6 +1722,53 @@ document.addEventListener('DOMContentLoaded', function() {
             safeVibrate(50);
         });
     });
+
+    const bottomLogo = document.getElementById('bottom-logo');
+    const gifPath = 'src/credits.gif'; 
+    const staticPath = 'src/credits.png'; 
+    
+    function checkFileExists(url) {
+        return new Promise((resolve) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('HEAD', url, true);
+            xhr.onload = function() {
+                resolve(xhr.status !== 404);
+            };
+            xhr.onerror = function() {
+                resolve(false);
+            };
+            xhr.send();
+        });
+    }
+    
+    async function handleLogoTransition() {
+        setTimeout(() => {
+            bottomLogo.classList.add('logoscrapp');
+        }, 200);
+        
+        const gifExists = await checkFileExists(gifPath);
+        
+        if (gifExists) {
+            bottomLogo.src = gifPath;
+            setTimeout(() => {
+                bottomLogo.classList.add('fade-out');
+                
+                setTimeout(() => {
+                    bottomLogo.src = staticPath;
+                    
+                    setTimeout(() => {
+                        bottomLogo.classList.remove('fade-out');
+                        bottomLogo.classList.add('fade-in');
+                    }, 100);
+                }, 500); 
+            }, 3000); // ajuster la duree du GIF si nécessaire
+        } else {
+            bottomLogo.src = staticPath;
+        }
+    }
+    
+    handleLogoTransition();
+
 });
 
 
