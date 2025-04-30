@@ -5237,74 +5237,7 @@ document.addEventListener('touchend', function(e) {
     }
 });
 
-function addStylesIfNeeded() {
-  if (!document.getElementById('bottomsheet-styles')) {
-    const styleElement = document.createElement('style');
-    styleElement.id = 'bottomsheet-styles';
-    styleElement.textContent = `
-      #app-container {
-        transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
-        will-change: transform;
-        height: 100%;
-        width: 100%;
-        position: relative;
-        z-index: 1;
-      }
-      
-      #overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(0, 0, 0, 0);
-        pointer-events: none;
-        z-index: 10;
-        transition: background-color 0.45s cubic-bezier(0.16, 1, 0.3, 1);
-        will-change: background-color;
-      }
-      
-      #overlay.active {
-        background-color: rgba(0, 0, 0, 0.5);
-        pointer-events: auto;
-      }
-      
-      #bottomSheet {
-        z-index: 20;
-      }
-    `;
-    document.head.appendChild(styleElement);
-    
-    if (!document.getElementById('overlay')) {
-      const overlay = document.createElement('div');
-      overlay.id = 'overlay';
-      document.body.appendChild(overlay);
-      
-      overlay.addEventListener('click', () => {
-        if (window.isBottomSheetOpen) {
-          closeBottomSheet();
-        }
-      });
-    }
-    
-    if (!document.getElementById('app-container')) {
-      const mainContent = document.body.innerHTML;
-      document.body.innerHTML = '';
-      
-      const appContainer = document.createElement('div');
-      appContainer.id = 'app-container';
-      appContainer.innerHTML = mainContent;
-      
-      document.body.appendChild(appContainer);
-      document.body.appendChild(document.getElementById('overlay'));
-      
-      const bottomSheet = document.getElementById('bottomSheet');
-      if (bottomSheet) {
-        document.body.appendChild(bottomSheet);
-      }
-    }
-  }
-}
+
 
 function createBottomSheet() {
     const SNAP_POINTS = {
@@ -5936,12 +5869,9 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
 window.isMenuShowed = false;
 
 function showBottomSheet() {
-    addStylesIfNeeded();
     showLanguageSwitcher();
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
-    const appContainer = document.getElementById('app-container');
-    const overlay = document.getElementById('overlay');
     safeVibrate(50);
     // Hide menu
     menu.classList.add('hidden');
@@ -5972,9 +5902,6 @@ function showBottomSheet() {
     }
     }, { once: true });
 
-    appContainer.style.transform = 'scale(0.93)';
-    overlay.classList.add('active');
-
     // Show bottom sheet with animation
     bottomSheet.style.opacity = '1';
     bottomSheet.style.transform = 'translateY(100%)';
@@ -5991,21 +5918,15 @@ function showBottomSheet() {
     // Set state to open
     window.isBottomSheetOpen = true;
 
-    
-
 }
 
 function closeBottomSheet() {
     hideLanguageSwitcher();
     const bottomSheet = document.getElementById('bottomSheet');
-    const appContainer = document.getElementById('app-container');
-    const overlay = document.getElementById('overlay');
 
     safeVibrate(50);
 
     if (bottomSheet) {
-        appContainer.style.transform = 'scale(1)';
-        overlay.classList.remove('active');
         bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
         
         bottomSheet.style.transform = 'translateY(100%)';
