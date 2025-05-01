@@ -2221,541 +2221,434 @@ function isServiceActive(serviceId, dateObj) {
 
 
 
-async function loadStopTimes(fileContent) {
+/**
+ * Chargement des données stop_times avec gestion extrêmement stricte de la mémoire
+ * @param {string} fileContent - Contenu du fichier CSV
+ * @param {Object} externalStore - Store externe où stocker les résultats (obligatoire)
+ * @param {function} onProgress - Callback de progression (facultatif)
+ * @param {number} chunkSize - Taille des morceaux pour traiter le fichier (défaut: 500Ko)
+ * @returns {Promise<number>} - Nombre total d'arrêts traités
+ */
+ async function loadStopTimes(fileContent, externalStore, onProgress = null, chunkSize = 500 * 1024) {
+    if (!fileContent) {
+        console.warn('Aucun contenu de fichier stop_times fourni');
+        return 0;
+    }
+    
+    if (!externalStore || typeof externalStore !== 'object') {
+        throw new Error('Un objet de stockage externe est obligatoire pour éviter les fuites mémoire');
+    }
+    
+    console.time('Chargement stop_times');
+    console.log('Début du chargement avec gestion stricte de la mémoire...');
+    
+    let totalEntries = 0;
+    let headerProcessed = false;
+    let indices = {};
+    
+    // Choix du délimiteur de ligne
+    const newlineChar = fileContent.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
+    
     try {
-        if (!fileContent) {
-            console.warn('Aucun contenu de fichier stop_times fourni');
-            return;
-        }
+        // Traitement par morceaux pour minimiser l'empreinte mémoire
+        let startIndex = 0;
+        let fileLength = fileContent.length;
         
-        console.time('Chargement stop_times');
-        console.log('Début du chargement des stop_times (fichier volumineux ~20Mo)...');
-        
-        let newlineChar = '\n';
-        if (fileContent.indexOf('\r\n') >= 0 && fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1)) {
-            newlineChar = '\r\n';
-        }
-        
-        const headerEndPos = fileContent.indexOf(newlineChar);
-        const headerLine = fileContent.substring(0, headerEndPos);
-        
-        const headers = parseCSVLine(headerLine);
-        
-        const stopTripIdIndex = headers.indexOf('trip_id');
-        const stopIdIndex = headers.indexOf('stop_id');
-        const arrivalTimeIndex = headers.indexOf('arrival_time');
-        const departureTimeIndex = headers.indexOf('departure_time');
-        const stopSequenceIndex = headers.indexOf('stop_sequence');
-        const pickupTypeIndex = headers.indexOf('pickup_type');
-        const dropOffTypeIndex = headers.indexOf('drop_off_type');
-        
-        if (stopTripIdIndex === -1 || stopIdIndex === -1 || arrivalTimeIndex === -1) {
-            console.error('Format de fichier stop_times.txt invalide, colonnes requises manquantes');
-            return;
-        }
-        
-        let tempStopTimes = new Map();
-        let entryCount = 0;
-        let warningCount = 0;
-        const MAX_WARNINGS = 5;
-        
-        const fileSize = fileContent.length;
-        const onePercentSize = fileSize / 20;
-        let lastProgressReport = 0;
-        let currentProgress = 0;
-        
-        let startPos = headerEndPos + newlineChar.length;
-        let endPos, line;
-        
-        while (startPos < fileContent.length) {
-            endPos = fileContent.indexOf(newlineChar, startPos);
+        while (startIndex < fileLength) {
+            // Déterminer la fin du morceau actuel
+            let endIndex = Math.min(startIndex + chunkSize, fileLength);
             
-            if (endPos === -1) {
-                line = fileContent.substring(startPos);
-                startPos = fileContent.length;
-            } else {
-                line = fileContent.substring(startPos, endPos);
-                startPos = endPos + newlineChar.length;
-            }
-            
-            if (!line.trim()) continue;
-            
-            currentProgress = startPos;
-            if (currentProgress - lastProgressReport > onePercentSize) {
-                const percentComplete = Math.floor((currentProgress / fileSize) * 100);
-                console.log(`Chargement en cours : ${percentComplete}% (${entryCount} arrêts)`);
-                lastProgressReport = currentProgress;
-                
-                await new Promise(resolve => setTimeout(resolve, 0));
-            }
-            
-            let values;
-            if (line.indexOf('"') === -1) {
-                values = line.split(',');
-            } else {
-                values = parseCSVLine(line);
-            }
-            
-            if (values.length <= Math.max(stopTripIdIndex, stopIdIndex, arrivalTimeIndex)) {
-                if (warningCount < MAX_WARNINGS) {
-                    warningCount++;
-                    console.warn(`Ligne ignorée - données incomplètes (${warningCount}/${MAX_WARNINGS} avertissements max)`);
-                }
-                continue;
-            }
-            
-            const tripId = values[stopTripIdIndex];
-            if (!tripId) continue;
-            
-            let tripStops = tempStopTimes.get(tripId);
-            if (!tripStops) {
-                tripStops = [];
-                tempStopTimes.set(tripId, tripStops);
-            }
-            
-            const stopEntry = {
-                stop_id: values[stopIdIndex],
-                stop_sequence: stopSequenceIndex !== -1 && values[stopSequenceIndex] ? 
-                    parseInt(values[stopSequenceIndex], 10) : 0
-            };
-            
-            if (values[arrivalTimeIndex]) {
-                const timeStr = values[arrivalTimeIndex];
-                const colonPos = timeStr.indexOf(':');
-                if (colonPos !== -1) {
-                    const hour = timeStr.substring(0, colonPos);
-                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-                    stopEntry.arrival_time = `${hour}h${minute}`;
+            // S'assurer de ne pas couper une ligne au milieu
+            if (endIndex < fileLength) {
+                let nextNewline = fileContent.indexOf(newlineChar, endIndex);
+                if (nextNewline !== -1) {
+                    endIndex = nextNewline + newlineChar.length;
                 } else {
-                    stopEntry.arrival_time = timeStr;
+                    endIndex = fileLength;
                 }
             }
             
-            if (departureTimeIndex !== -1 && values[departureTimeIndex] && 
-                values[departureTimeIndex] !== values[arrivalTimeIndex]) {
-                
-                const timeStr = values[departureTimeIndex];
-                const colonPos = timeStr.indexOf(':');
-                if (colonPos !== -1) {
-                    const hour = timeStr.substring(0, colonPos);
-                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-                    stopEntry.departure_time = `${hour}h${minute}`;
-                } else {
-                    stopEntry.departure_time = timeStr;
-                }
-            } else {
-                stopEntry.departure_time = stopEntry.arrival_time;
+            // Extraire le morceau actuel
+            const chunk = fileContent.substring(startIndex, endIndex);
+            
+            // Traiter le morceau
+            const entriesProcessed = await processChunk(
+                chunk, 
+                externalStore, 
+                headerProcessed, 
+                indices, 
+                startIndex === 0, // Premier morceau?
+                newlineChar
+            );
+            
+            if (!headerProcessed) {
+                headerProcessed = true;
             }
             
-            if (pickupTypeIndex !== -1 && values[pickupTypeIndex] && values[pickupTypeIndex] !== '0') {
-                stopEntry.pickup_type = parseInt(values[pickupTypeIndex], 10);
-            }
+            totalEntries += entriesProcessed;
             
-            if (dropOffTypeIndex !== -1 && values[dropOffTypeIndex] && values[dropOffTypeIndex] !== '0') {
-                stopEntry.drop_off_type = parseInt(values[dropOffTypeIndex], 10);
-            }
-            
-            tripStops.push(stopEntry);
-            entryCount++;
-            
-            if (entryCount % 100000 === 0) {
-                console.log(`Traitement intermédiaire: ${entryCount} arrêts traités...`);
-                await flushTempStopTimes(tempStopTimes);
-                tempStopTimes = new Map();
-                await new Promise(resolve => setTimeout(resolve, 0));
-            }
-        }
-    
-        console.log(`Traitement final: tri et finalisation de ${tempStopTimes.size} trajets...`);
-        await flushTempStopTimes(tempStopTimes);
-        tempStopTimes = null;
-        fileContent = null;
-        
-        console.timeEnd('Chargement stop_times');
-        console.log(`Stop times chargés: ${Object.keys(stopTimes).length} trajets, ${entryCount} arrêts au total`);
-        
-    } catch (error) {
-        console.error('Erreur lors du chargement des horaires', error);
-    } 
-}
-
-async function flushTempStopTimes(tempStopTimes) {
-    let count = 0;
-    const totalItems = tempStopTimes.size;
-    
-    for (const [tripId, stops] of tempStopTimes) {
-        stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
-        stopTimes[tripId] = stops;
-        
-        count++;
-        
-        if (count % 10000 === 0) {
-            console.log(`Flush progression: ${Math.round((count/totalItems)*100)}%`);
-            await new Promise(resolve => setTimeout(resolve, 0));
-        }
-    }
-    tempStopTimes.clear();
-}
-
-async function processBatch(batch) {
-    const tempMap = new Map();
-    
-    for (const item of batch) {
-        if (!tempMap.has(item.tripId)) {
-            tempMap.set(item.tripId, []);
-        }
-        
-        const stopEntry = {
-            stop_id: item.stopId,
-            stop_sequence: item.stopSequence || 0
-        };
-        
-        if (item.arrivalTime) {
-            const timeStr = item.arrivalTime;
-            const colonPos = timeStr.indexOf(':');
-            if (colonPos !== -1) {
-                const hour = timeStr.substring(0, colonPos);
-                const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-                stopEntry.arrival_time = `${hour}h${minute}`;
-            } else {
-                stopEntry.arrival_time = timeStr;
-            }
-        }
-        
-        if (item.departureTime && item.departureTime !== item.arrivalTime) {
-            const timeStr = item.departureTime;
-            const colonPos = timeStr.indexOf(':');
-            if (colonPos !== -1) {
-                const hour = timeStr.substring(0, colonPos);
-                const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-                stopEntry.departure_time = `${hour}h${minute}`;
-            } else {
-                stopEntry.departure_time = timeStr;
-            }
-        } else {
-            stopEntry.departure_time = stopEntry.arrival_time;
-        }
-        
-        if (item.pickupType && item.pickupType !== '0') {
-            stopEntry.pickup_type = parseInt(item.pickupType, 10);
-        }
-        
-        if (item.dropOffType && item.dropOffType !== '0') {
-            stopEntry.drop_off_type = parseInt(item.dropOffType, 10);
-        }
-        
-        tempMap.get(item.tripId).push(stopEntry);
-    }
-    
-    for (const [tripId, stops] of tempMap) {
-        stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
-        stopTimes[tripId] = stops;
-    }
-
-    tempMap.clear();
-    batch = null;
-}
-
-async function loadGtfsData() {
-    try {
-        let extractedFiles;
-        
-        const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
-        
-        if (needsUpdate) {
-            const result = await extractGTFSFiles();
-            extractedFiles = result.extractedFiles;
-            
-            await saveToCache(extractedFiles, result.metadata);
-            
-        } else {
-            extractedFiles = await getFromCache();
-            if (!extractedFiles) {
-                const result = await extractGTFSFiles();
-                extractedFiles = result.extractedFiles;
-                await saveToCache(extractedFiles, result.metadata);
-                toastBottomRight.success(t("downloadsuccess"));
-            } 
-        }
-        
-        routes = {};
-        trips = {};
-        stopTimes = {};
-        stops = {};
-        calendar = {};
-        calendarDates = {};
-        
-        const loadPromises = [];
-        
-        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
-        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
-        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
-        if (extractedFiles['calendar.txt']) loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
-        if (extractedFiles['calendar_dates.txt']) loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
-        
-        await Promise.all(loadPromises);
-        
-        if (extractedFiles['stop_times.txt']) {
-            await loadStopTimes(extractedFiles['stop_times.txt']);
-            extractedFiles['stop_times.txt'] = null;
-        }
-        
-        extractedFiles = null;
-        
-        return true;
-    } catch (error) {
-        console.error('Erreur lors du chargement des données GTFS', error);
-        toastBottomRight.error("errorfetchingdata");
-        throw error;
-    }
-}
-
-async function clearGTFSCache() {
-    try {
-        const db = await initDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.clear();
-
-            request.onsuccess = () => {
-                console.log('Cache GTFS effacé avec succès');
-                resolve();
-            };
-            request.onerror = () => reject(request.error);
-        });
-    } catch (error) {
-        console.error('Erreur lors de l\'effacement du cache:', error);
-        throw error;
-    }
-}
-
-function formatDate(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}${month}${day}`;
-}
-
-async function loadRoutes(fileContent) {
-    try {
-        if (!fileContent) {
-            console.warn('Aucun contenu de fichier routes fourni');
-            return;
-        }
-        
-        const lines = fileContent.split(/\r\n|\n/);
-        
-        const headers = parseCSVLine(lines[0]);
-        const routeIdIndex = headers.indexOf('route_id');
-        const shortNameIndex = headers.indexOf('route_short_name');
-        const longNameIndex = headers.indexOf('route_long_name');
-        const routeTypeIndex = headers.indexOf('route_type');
-        const routeColorIndex = headers.indexOf('route_color');
-        const routeTextColorIndex = headers.indexOf('route_text_color');
-        const agencyIdIndex = headers.indexOf('agency_id');
-        
-        if (routeIdIndex === -1) {
-            console.error('Format de fichier routes.txt invalide , colonne route_id manquante');
-            return;
-        }
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            
-            const values = parseCSVLine(line);
-            if (values.length <= routeIdIndex) {
-                console.warn('Ligne ignorée dans routes.txt, données incompletes', line);
-                return;
-            }
-            
-            const routeId = values[routeIdIndex];
-            if (routeId) {
-                routes[routeId] = {
-                    short_name: shortNameIndex !== -1 && values[shortNameIndex] ? values[shortNameIndex] : '',
-                    long_name: longNameIndex !== -1 && values[longNameIndex] ? values[longNameIndex] : '',
-                    route_type: routeTypeIndex !== -1 ? parseInt(values[routeTypeIndex] || '0', 10) : 0,
-                    route_color: routeColorIndex !== -1 && values[routeColorIndex] ? `#${values[routeColorIndex]}` : '#FFFFFF',
-                    route_text_color: routeTextColorIndex !== -1 && values[routeTextColorIndex] ? `#${values[routeTextColorIndex]}` : '#000000',
-                    agency_id: agencyIdIndex !== -1 ? values[agencyIdIndex] : null
-                };
-            }
-        });
-        
-        console.log(`Routes chargées ${Object.keys(routes).length} itinéraires`);
-        fileContent = null;
-    } catch (error) {
-        console.error('Erreur lors du chargement des itinéraires', error);
-    }
-}
-
-async function loadTrips(fileContent) {
-    try {
-        if (!fileContent) {
-            console.warn('Aucun contenu de fichier trips fourni');
-            return;
-        }
-        
-        const lines = fileContent.split(/\r\n|\n/);
-        
-        const headers = parseCSVLine(lines[0]);
-        const tripRouteIdIndex = headers.indexOf('route_id');
-        const tripIdIndex = headers.indexOf('trip_id');
-        const tripServiceIdIndex = headers.indexOf('service_id');
-        const tripHeadsignIndex = headers.indexOf('trip_headsign');
-        const directionIdIndex = headers.indexOf('direction_id');
-        const shapeIdIndex = headers.indexOf('shape_id');
-        
-        if (tripRouteIdIndex === -1 || tripIdIndex === -1) {
-            console.error('Format de fichier trips.txt invalide, colonnes requises manquantes');
-            return;
-        }
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            
-            const values = parseCSVLine(line);
-            if (values.length <= Math.max(tripRouteIdIndex, tripIdIndex)) {
-                console.warn('Ligne ignorée dans trips.txt, données incomplètes', line);
-                return;
-            }
-            
-            const routeId = values[tripRouteIdIndex];
-            const tripId = values[tripIdIndex];
-            
-            if (routeId && tripId) {
-                if (!trips[routeId]) {
-                    trips[routeId] = [];
-                }
-                
-                trips[routeId].push({
-                    trip_id: tripId,
-                    service_id: tripServiceIdIndex !== -1 ? values[tripServiceIdIndex] : null,
-                    trip_headsign: tripHeadsignIndex !== -1 ? values[tripHeadsignIndex] : null,
-                    direction_id: directionIdIndex !== -1 ? parseInt(values[directionIdIndex] || '0', 10) : null,
-                    shape_id: shapeIdIndex !== -1 ? values[shapeIdIndex] : null
+            // Progression
+            if (onProgress && typeof onProgress === 'function') {
+                onProgress({
+                    bytesProcessed: endIndex,
+                    totalBytes: fileLength,
+                    percentage: Math.floor((endIndex / fileLength) * 100),
+                    entriesProcessed: totalEntries
                 });
             }
-        });
+            
+            // Avancer au prochain morceau
+            startIndex = endIndex;
+            
+            // Laisser le temps au GC de faire son travail
+            await yieldToEventLoop();
+        }
         
-        console.log(`Trips charger ${Object.keys(trips).length} routes avec trajets`);
-        fileContent = null;
+        // Finaliser le traitement des données
+        await finalizeData(externalStore);
+        
+        console.timeEnd('Chargement stop_times');
+        console.log(`Stop times chargés: ${Object.keys(externalStore).length} trajets, ${totalEntries} arrêts au total`);
+        
+        return totalEntries;
     } catch (error) {
-        console.error('Erreur lors du chargement des trajets', error);
+        console.error('Erreur lors du chargement des horaires:', error);
+        throw error;
+    } finally {
+        // Forcer la libération des variables temporaires
+        indices = null;
     }
 }
 
-function parseCSVLine(csvLine) {
-    const result = [];
-    let currentValue = '';
-    let insideQuotes = false;
-
-    for (let i = 0; i < csvLine.length; i++) {
-        const char = csvLine[i];
+/**
+ * Traite un morceau du fichier CSV
+ */
+async function processChunk(chunk, store, headerAlreadyProcessed, indices, isFirstChunk, newlineChar) {
+    let entriesProcessed = 0;
+    let lines = chunk.split(newlineChar);
+    
+    // Si c'est le premier morceau, la première ligne est l'en-tête
+    if (isFirstChunk && !headerAlreadyProcessed) {
+        const headerLine = lines.shift();
+        const headers = parseCSVLine(headerLine);
         
-        if (char === '"') {
-            insideQuotes = !insideQuotes;
-        } else if (char === ',' && !insideQuotes) {
-            result.push(currentValue);
-            currentValue = '';
-        } else {
-            currentValue += char;
+        // Mettre à jour les indices (par référence)
+        indices.tripId = headers.indexOf('trip_id');
+        indices.stopId = headers.indexOf('stop_id');
+        indices.arrivalTime = headers.indexOf('arrival_time');
+        indices.departureTime = headers.indexOf('departure_time');
+        indices.stopSequence = headers.indexOf('stop_sequence');
+        indices.pickupType = headers.indexOf('pickup_type');
+        indices.dropOffType = headers.indexOf('drop_off_type');
+        
+        if (indices.tripId === -1 || indices.stopId === -1 || indices.arrivalTime === -1) {
+            throw new Error('Format de fichier stop_times.txt invalide, colonnes requises manquantes');
         }
     }
     
-    result.push(currentValue);
+    // Structure temporaire pour ce morceau
+    const tempData = new Map();
     
-    return result.map(value => {
-        if (value.startsWith('"') && value.endsWith('"')) {
-            return value.slice(1, -1);
+    // Traiter chaque ligne
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        
+        let values;
+        if (line.indexOf('"') === -1) {
+            values = line.split(',');
+        } else {
+            values = parseCSVLine(line);
         }
-        return value;
+        
+        // Vérifier que les colonnes requises sont présentes
+        if (values.length <= Math.max(indices.tripId, indices.stopId, indices.arrivalTime)) {
+            continue;
+        }
+        
+        const tripId = values[indices.tripId];
+        if (!tripId) continue;
+        
+        // Créer l'entrée pour cet arrêt
+        const stopEntry = createStopEntry(values, indices);
+        
+        // Ajouter à la structure temporaire
+        if (!tempData.has(tripId)) {
+            tempData.set(tripId, []);
+        }
+        tempData.get(tripId).push(stopEntry);
+        
+        entriesProcessed++;
+        
+        // Libérer la mémoire périodiquement
+        if (entriesProcessed % 10000 === 0) {
+            await flushTemporaryData(tempData, store);
+            await yieldToEventLoop();
+        }
+        
+        // Libérer la référence à la ligne
+        lines[i] = null;
+    }
+    
+    // Flush final pour ce morceau
+    if (tempData.size > 0) {
+        await flushTemporaryData(tempData, store);
+    }
+    
+    // Libérer la mémoire
+    lines = null;
+    
+    return entriesProcessed;
+}
+
+/**
+ * Crée une entrée d'arrêt à partir des valeurs CSV
+ */
+function createStopEntry(values, indices) {
+    const stopEntry = {
+        stop_id: values[indices.stopId],
+        stop_sequence: indices.stopSequence !== -1 && values[indices.stopSequence] ? 
+            parseInt(values[indices.stopSequence], 10) : 0
+    };
+    
+    // Traiter l'heure d'arrivée
+    if (values[indices.arrivalTime]) {
+        stopEntry.arrival_time = formatTimeString(values[indices.arrivalTime]);
+    }
+    
+    // Traiter l'heure de départ si différente
+    if (indices.departureTime !== -1 && values[indices.departureTime] && 
+        values[indices.departureTime] !== values[indices.arrivalTime]) {
+        stopEntry.departure_time = formatTimeString(values[indices.departureTime]);
+    } else {
+        stopEntry.departure_time = stopEntry.arrival_time;
+    }
+    
+    // Traiter les types d'arrêt optionnels
+    if (indices.pickupType !== -1 && values[indices.pickupType] && values[indices.pickupType] !== '0') {
+        stopEntry.pickup_type = parseInt(values[indices.pickupType], 10);
+    }
+    
+    if (indices.dropOffType !== -1 && values[indices.dropOffType] && values[indices.dropOffType] !== '0') {
+        stopEntry.drop_off_type = parseInt(values[indices.dropOffType], 10);
+    }
+    
+    return stopEntry;
+}
+
+/**
+ * Formate une chaîne d'heure au format hh:mm:ss en hh'h'mm
+ */
+function formatTimeString(timeStr) {
+    const colonPos = timeStr.indexOf(':');
+    if (colonPos !== -1) {
+        const hour = timeStr.substring(0, colonPos);
+        const minute = timeStr.substring(colonPos + 1, colonPos + 3);
+        return `${hour}h${minute}`;
+    }
+    return timeStr;
+}
+
+/**
+ * Transfère les données temporaires dans le store permanent
+ */
+async function flushTemporaryData(tempData, store) {
+    // Traitement par lots de 1000 pour éviter de bloquer le thread trop longtemps
+    const batches = [];
+    const batchSize = 1000;
+    const tripIds = Array.from(tempData.keys());
+    
+    for (let i = 0; i < tripIds.length; i += batchSize) {
+        batches.push(tripIds.slice(i, i + batchSize));
+    }
+    
+    for (const batch of batches) {
+        for (const tripId of batch) {
+            const stops = tempData.get(tripId);
+            
+            // Fusionner avec des arrêts existants
+            if (store[tripId]) {
+                store[tripId] = [...store[tripId], ...stops];
+            } else {
+                store[tripId] = stops;
+            }
+            
+            // Libérer la mémoire immédiatement
+            tempData.delete(tripId);
+        }
+        
+        // Céder périodiquement au thread principal
+        await yieldToEventLoop();
+    }
+    
+    // S'assurer que tout est bien libéré
+    tempData.clear();
+}
+
+/**
+ * Finalise les données en triant tous les arrêts par séquence
+ */
+async function finalizeData(store) {
+    const tripIds = Object.keys(store);
+    const batchSize = 1000;
+    
+    console.log(`Finalisation et tri de ${tripIds.length} trajets...`);
+    
+    for (let i = 0; i < tripIds.length; i += batchSize) {
+        const batchEnd = Math.min(i + batchSize, tripIds.length);
+        const currentBatch = tripIds.slice(i, batchEnd);
+        
+        for (const tripId of currentBatch) {
+            if (store[tripId] && Array.isArray(store[tripId])) {
+                // Trier par séquence d'arrêt
+                store[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
+            }
+        }
+        
+        console.log(`Tri des trajets: ${Math.round((batchEnd / tripIds.length) * 100)}% terminé`);
+        await yieldToEventLoop();
+    }
+}
+
+/**
+ * Permet au thread principal de traiter d'autres tâches
+ * et au garbage collector de libérer la mémoire
+ */
+async function yieldToEventLoop() {
+    return new Promise(resolve => {
+        // Utiliser setTimeout(0) pour céder au thread principal
+        setTimeout(() => {
+            // Forcer une collecte des déchets si disponible
+            if (typeof global !== 'undefined' && global.gc) {
+                global.gc();
+            }
+            resolve();
+        }, 0);
     });
 }
 
-async function loadCalendarDates(fileContent) {
+/**
+ * Fonction pour compatibilité avec le code existant
+ * @param {string} fileContent - Contenu du fichier
+ */
+async function loadStopTimesBackwardCompatible(fileContent) {
+    // Cette variable globale est supposée exister dans le code original
+    if (typeof stopTimes === 'undefined') {
+        global.stopTimes = {};
+    } else {
+        // Vider l'objet existant mais garder la référence
+        for (const key of Object.keys(stopTimes)) {
+            delete stopTimes[key];
+        }
+    }
+    
+    // Callback de progression
+    const progressCallback = (progress) => {
+        if (progress.percentage % 5 === 0) { // Rapporter tous les 5%
+            console.log(`Progression: ${progress.percentage}% (${progress.entriesProcessed} arrêts traités)`);
+        }
+    };
+    
     try {
-        if (!fileContent) {
-            console.warn('Aucun contenu de fichier calendar_dates fourni');
-            return;
-        }
+        // Utiliser la nouvelle fonction mais stocker dans l'objet global
+        return await loadStopTimes(fileContent, stopTimes, progressCallback);
+    } catch (error) {
+        console.error('Erreur fatale:', error);
+        return 0;
+    }
+}
+
+/**
+ * Exemple d'utilisation avec un chargement par streaming
+ * pour éviter de charger tout le fichier en mémoire
+ */
+async function loadStopTimesFromStream(readStream) {
+    return new Promise((resolve, reject) => {
+        // Créer un magasin de données
+        const dataStore = {};
         
-        const lines = fileContent.split(/\r\n|\n/);
+        // Accumulateur pour les morceaux de données
+        let buffer = '';
+        let totalProcessed = 0;
+        let headerProcessed = false;
+        let indices = {};
         
-        const headers = parseCSVLine(lines[0]);
-        const serviceIdIndex = headers.indexOf('service_id');
-        const dateIndex = headers.indexOf('date');
-        const exceptionTypeIndex = headers.indexOf('exception_type');
+        // Taille maximale du buffer avant traitement
+        const MAX_BUFFER_SIZE = 1 * 1024 * 1024; // 1Mo
         
-        if (serviceIdIndex === -1 || dateIndex === -1 || exceptionTypeIndex === -1) {
-            console.error('Format de fichier calendar_dates.txt invalide colonnes manquantes');
-            return;
-        }
-        
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
+        readStream.on('data', async (chunk) => {
+            // Ajouter le morceau au buffer
+            buffer += chunk.toString();
             
-            const values = parseCSVLine(line);
-            if (values.length <= Math.max(serviceIdIndex, dateIndex, exceptionTypeIndex)) {
-                console.warn('Ligne ignorée dans calendar_dates.txt - données incomplètes:', line);
-                return;
-            }
-            
-            const serviceId = values[serviceIdIndex];
-            const date = values[dateIndex]; 
-            const exceptionType = parseInt(values[exceptionTypeIndex], 10);
-            
-            if (serviceId && date && !isNaN(exceptionType)) {
-                if (!calendarDates[date]) {
-                    calendarDates[date] = { added: [], removed: [] };
-                }
+            // Si le buffer dépasse la taille maximale, le traiter
+            if (buffer.length > MAX_BUFFER_SIZE) {
+                // Arrêter temporairement la lecture pour éviter la surcharge
+                readStream.pause();
                 
-                if (exceptionType === 1) {  
-                    calendarDates[date].added.push(serviceId);
-                } else if (exceptionType === 2) {  
-                    calendarDates[date].removed.push(serviceId);
+                try {
+                    const processedEntries = await processBufferChunk(buffer, dataStore, headerProcessed, indices);
+                    totalProcessed += processedEntries;
+                    
+                    if (!headerProcessed) {
+                        headerProcessed = true;
+                    }
+                    
+                    // Vider le buffer
+                    buffer = '';
+                    
+                    // Reprendre la lecture
+                    readStream.resume();
+                } catch (error) {
+                    reject(error);
                 }
             }
         });
         
-        console.log(`Calendar dates chargé ${Object.keys(calendarDates).length} dates avec exceptions`);
-        fileContent = null;
-    } catch (error) {
-        console.error('Erreur lors du chargement des exceptions de calendrier', error);
-    }
+        readStream.on('end', async () => {
+            // Traiter le reste du buffer
+            if (buffer.length > 0) {
+                try {
+                    const processedEntries = await processBufferChunk(buffer, dataStore, headerProcessed, indices);
+                    totalProcessed += processedEntries;
+                } catch (error) {
+                    reject(error);
+                    return;
+                }
+            }
+            
+            // Finaliser les données
+            await finalizeData(dataStore);
+            
+            resolve({
+                dataStore,
+                totalProcessed
+            });
+        });
+        
+        readStream.on('error', (error) => {
+            reject(error);
+        });
+    });
 }
 
-function isServiceActive(serviceId, dateObj) {
-    const formattedDate = formatDate(dateObj);
+/**
+ * Traite un morceau de buffer en streaming
+ */
+async function processBufferChunk(buffer, store, headerProcessed, indices) {
+    const newlineChar = buffer.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
     
-    if (calendarDates[formattedDate]) {
-        if (calendarDates[formattedDate].added.includes(serviceId)) {
-            return true;
-        }
-        if (calendarDates[formattedDate].removed.includes(serviceId)) {
-            return false; 
-        }
-    }
+    // Trouver la dernière ligne complète
+    const lastNewline = buffer.lastIndexOf(newlineChar);
+    const processableBuffer = buffer.substring(0, lastNewline);
     
-    if (!calendar[serviceId]) {
-        console.warn(`Service id ${serviceId} non trouvé dans le calendrier`);
-        return false;
-    }
-    
-    const day = dateObj.getDay(); 
-    const dateNumber = parseInt(formattedDate, 10);
-    
-    const calendarEntry = calendar[serviceId];
-    const startDate = parseInt(calendarEntry.start_date, 10);
-    const endDate = parseInt(calendarEntry.end_date, 10);
-    
-    if (dateNumber < startDate || dateNumber > endDate) {
-        return false;
-    }
-    
-    const weekdayFields = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    return calendarEntry[weekdayFields[day]] === true;
+    return await processChunk(processableBuffer, store, headerProcessed, indices, !headerProcessed, newlineChar);
 }
+
+module.exports = {
+    loadStopTimes,
+    loadStopTimesBackwardCompatible,
+    loadStopTimesFromStream
+};
 
 async function loadStops(fileContent) {
     try {
@@ -2791,16 +2684,18 @@ async function loadStops(fileContent) {
             
             const stopId = values[stopsIdIndex];
             if (stopId) {
+
                 stops[stopId] = values[stopsNameIndex];
+                
             }
         });
         
         console.log(`Stops chargés ${Object.keys(stops).length} arrets`);
-        fileContent = null;
     } catch (error) {
         console.error('Erreur lors du chargement des arrêts', error);
     }
 }
+
 
 async function loadCalendar(fileContent) {
     try {
@@ -2866,11 +2761,11 @@ async function loadCalendar(fileContent) {
         });
         
         console.log(`Calendar chargé ${Object.keys(calendar).length} services`);
-        fileContent = null;
     } catch (error) {
         console.error('Erreur lors du chargement du calendrier', error);
     }
 }
+
 
 function getActiveServicesForDate(date) {
     const activeServices = [];
@@ -2883,6 +2778,7 @@ function getActiveServicesForDate(date) {
     
     return activeServices;
 }
+
 
 function getActiveTripsForRoute(routeId, date) {
     const activeServices = getActiveServicesForDate(date);
@@ -2904,22 +2800,13 @@ function getActiveTripsForRoute(routeId, date) {
 async function loadAllGTFSData(files) {
     console.log('Chargement des données GTFS...');
     
-    const promises = [];
+    if (files.calendar) await loadCalendar(files.calendar);
+    if (files.calendar_dates) await loadCalendarDates(files.calendar_dates);
+    if (files.routes) await loadRoutes(files.routes);
+    if (files.stops) await loadStops(files.stops);
+    if (files.trips) await loadTrips(files.trips);
+    if (files.stop_times) await loadStopTimes(files.stop_times);
     
-    if (files.calendar) promises.push(loadCalendar(files.calendar));
-    if (files.calendar_dates) promises.push(loadCalendarDates(files.calendar_dates));
-    if (files.routes) promises.push(loadRoutes(files.routes));
-    if (files.stops) promises.push(loadStops(files.stops));
-    if (files.trips) promises.push(loadTrips(files.trips));
-    
-    await Promise.all(promises);
-    
-    if (files.stop_times) {
-        await loadStopTimes(files.stop_times);
-        files.stop_times = null;
-    }
-    
-    global.gc && global.gc();
     console.log('Chargement des données GTFS terminé');
 }
 
@@ -2978,7 +2865,7 @@ function showStopsTimeline(vehicleId, tripId) {
     if (updatePositionInterval) {
         clearInterval(updatePositionInterval);
     }
-    updatePositionInterval = setInterval(updateStopsTimeline, 100000);
+    updatePositionInterval = setInterval(updateStopsTimeline, 10000);
 }
 
 function updateStopsTimeline() {
