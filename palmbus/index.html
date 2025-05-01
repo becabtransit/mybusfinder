@@ -2195,6 +2195,9 @@ function showLoadingScreen() {
 
 var audio = new Audio("src/sounds/musique.mp3"); 
 
+
+let globalStopSpinner = null;
+
 function showUpdatePopup(link) {
     const popup = document.getElementById('update-popup');
     const iframe = document.getElementById('webview-frame');
@@ -2225,23 +2228,95 @@ function showUpdatePopup(link) {
         color: #0078d7;
     `;
     
+    const loadingText = document.createElement('div');
+    loadingText.textContent = 'Chargement...';
+    loadingText.style.cssText = `
+        margin-top: 10px;
+        font-family: sans-serif;
+        color: #333;
+    `;
+    
     loadingContainer.appendChild(spinnerElement);
+    loadingContainer.appendChild(loadingText);
     
     const popupContent = document.querySelector('.popup-content');
     popupContent.style.position = 'relative';
     popupContent.appendChild(loadingContainer);
-    const stopSpinner = startWindowsSpinnerAnimation("iframe-win-spinner");
+    
+    if (globalStopSpinner) {
+        globalStopSpinner();
+    }
+    globalStopSpinner = startWindowsSpinnerAnimation("iframe-win-spinner");
     
     if (hasParams) {
         iframe.src = `${link}&${langParam}`;
     } else {
         iframe.src = `${link}?${langParam}`;
     }
-
+    
+    function setupNavigationMonitoring() {
+        try {
+            if (iframe.contentWindow) {
+                const originalPushState = iframe.contentWindow.history.pushState;
+                const originalReplaceState = iframe.contentWindow.history.replaceState;
+                
+                iframe.contentWindow.history.pushState = function() {
+                    loadingContainer.style.display = 'flex';
+                    const result = originalPushState.apply(this, arguments);
+                    return result;
+                };
+                
+                iframe.contentWindow.history.replaceState = function() {
+                    loadingContainer.style.display = 'flex';
+                    const result = originalReplaceState.apply(this, arguments);
+                    return result;
+                };
+                
+                iframe.contentWindow.addEventListener('hashchange', function() {
+                    loadingContainer.style.display = 'flex';
+                });
+            }
+        } catch (e) {
+            console.log("Impossible de monitorer les changements de navigation dans l'iframe");
+        }
+    }
+    
     iframe.onload = function() {
         loadingContainer.style.display = 'none';
-        stopSpinner(); 
+        // Masquer le spinner
+        if (globalStopSpinner) {
+            // Ne pas arreter l'animation car je peux en avoir besoin pour les navigations futures
+        }
+        
+        setupNavigationMonitoring();
+        
+        try {
+            iframe.contentDocument.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A' || e.target.closest('a')) {
+                    loadingContainer.style.display = 'flex';
+                }
+            });
+            
+            const forms = iframe.contentDocument.querySelectorAll('form');
+            forms.forEach(form => {
+                form.addEventListener('submit', function() {
+                    loadingContainer.style.display = 'flex';
+                });
+            });
+        } catch (e) {
+            console.log("Impossible d'accéder au contenu de l'iframe en raison des restrictions cross-origin");
+        }
     };
+    
+    const showSpinnerForIframe = () => {
+        loadingContainer.style.display = 'flex';
+    };
+    
+    try {
+        iframe.contentWindow.addEventListener('beforeunload', showSpinnerForIframe);
+    } catch (e) {
+        console.log("Impossible d'ajouter l'événement beforeunload en raison des restrictions cross-origin");
+    }
     
     popup.style.display = 'flex'; 
     const menubottom1 = document.getElementById('menubtm');
