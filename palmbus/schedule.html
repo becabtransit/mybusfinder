@@ -2456,11 +2456,7 @@ async function loadTrips(fileContent) {
     }
 }
 
-/**
- * Charge les données des horaires (stop_times.txt)
- * @param {string} fileContent - Contenu du fichier stop_times.txt
- */
-async function loadStopTimes(fileContent) {
+ async function loadStopTimes(fileContent) {
     try {
         if (!fileContent) {
             console.warn('Aucun contenu de fichier stop_times fourni');
@@ -2468,25 +2464,16 @@ async function loadStopTimes(fileContent) {
         }
         
         console.time('Chargement stop_times');
-        console.log('Début du chargement des stop_times - fichier volumineux, traitement en cours...');
+        console.log('Début du chargement des stop_times (fichier volumineux ~20Mo)...');
         
-        // Trouver la position du premier saut de ligne pour détecter le format (CR, LF, CRLF)
-        const firstNewlinePos = Math.min(
-            fileContent.indexOf('\r\n') !== -1 ? fileContent.indexOf('\r\n') : Infinity,
-            fileContent.indexOf('\n') !== -1 ? fileContent.indexOf('\n') : Infinity
-        );
-        
-        // Détecter le type de saut de ligne
-        let newlineChar;
-        if (fileContent.substring(firstNewlinePos, firstNewlinePos + 2) === '\r\n') {
+        let newlineChar = '\n';
+        if (fileContent.indexOf('\r\n') >= 0 && fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1)) {
             newlineChar = '\r\n';
-        } else {
-            newlineChar = '\n';
         }
         
-        // Extraire et analyser l'en-tête
         const headerEndPos = fileContent.indexOf(newlineChar);
         const headerLine = fileContent.substring(0, headerEndPos);
+        
         const headers = parseCSVLine(headerLine);
         
         const stopTripIdIndex = headers.indexOf('trip_id');
@@ -2497,19 +2484,23 @@ async function loadStopTimes(fileContent) {
         const pickupTypeIndex = headers.indexOf('pickup_type');
         const dropOffTypeIndex = headers.indexOf('drop_off_type');
         
-        // Vérifie que les colonnes requises sont présentes
         if (stopTripIdIndex === -1 || stopIdIndex === -1 || arrivalTimeIndex === -1) {
-            console.error('Format de fichier stop_times.txt invalide - colonnes requises manquantes');
+            console.error('Format de fichier stop_times.txt invalide, colonnes requises manquantes');
             return;
         }
         
-        // Préparer un tampon pour les données temporaires, regroupées par trip_id
         const tempStopTimes = new Map();
         let entryCount = 0;
         let warningCount = 0;
-        const MAX_WARNINGS = 10; // Limiter le nombre d'avertissements pour ne pas inonder la console
+        const MAX_WARNINGS = 5;
         
-        // Analyser le fichier par parties pour éviter de surcharger la mémoire
+        const fileSize = fileContent.length;
+        const onePercentSize = fileSize / 100;
+        let lastProgressReport = 0;
+        let currentProgress = 0;
+        
+        const tripIdSet = new Set();
+        
         let startPos = headerEndPos + newlineChar.length;
         let endPos, line;
         
@@ -2517,7 +2508,6 @@ async function loadStopTimes(fileContent) {
             endPos = fileContent.indexOf(newlineChar, startPos);
             
             if (endPos === -1) {
-                // Dernière ligne
                 line = fileContent.substring(startPos);
                 startPos = fileContent.length;
             } else {
@@ -2527,8 +2517,13 @@ async function loadStopTimes(fileContent) {
             
             if (!line.trim()) continue;
             
-            // Optimiser l'analyse des lignes en évitant parseCSVLine lorsque possible
-            // Si la ligne ne contient pas de guillemets, on peut faire un simple split
+            currentProgress = startPos;
+            if (currentProgress - lastProgressReport > onePercentSize) {
+                const percentComplete = Math.floor((currentProgress / fileSize) * 100);
+                console.log(`Progression: ${percentComplete}% (${entryCount} arrêts traités)`);
+                lastProgressReport = currentProgress;
+            }
+            
             let values;
             if (line.indexOf('"') === -1) {
                 values = line.split(',');
@@ -2538,7 +2533,8 @@ async function loadStopTimes(fileContent) {
             
             if (values.length <= Math.max(stopTripIdIndex, stopIdIndex, arrivalTimeIndex)) {
                 if (warningCount < MAX_WARNINGS) {
-                    console.warn(`Ligne ignorée dans stop_times.txt - données incomplètes (${++warningCount}/${MAX_WARNINGS})`);
+                    warningCount++;
+                    console.warn(`Ligne ignorée - données incomplètes (${warningCount}/${MAX_WARNINGS} avertissements max)`);
                 }
                 continue;
             }
@@ -2546,42 +2542,43 @@ async function loadStopTimes(fileContent) {
             const tripId = values[stopTripIdIndex];
             if (!tripId) continue;
             
-            if (!tempStopTimes.has(tripId)) {
-                tempStopTimes.set(tripId, []);
+            tripIdSet.add(tripId);
+            
+            let tripStops = tempStopTimes.get(tripId);
+            if (!tripStops) {
+                tripStops = [];
+                tempStopTimes.set(tripId, tripStops);
             }
             
             const stopEntry = {
                 stop_id: values[stopIdIndex],
-                stop_sequence: stopSequenceIndex !== -1 ? parseInt(values[stopSequenceIndex] || '0', 10) : 0
+                stop_sequence: stopSequenceIndex !== -1 && values[stopSequenceIndex] ? 
+                    parseInt(values[stopSequenceIndex], 10) : 0
             };
             
             if (values[arrivalTimeIndex]) {
-                const colonIndex = values[arrivalTimeIndex].indexOf(':');
-                if (colonIndex !== -1) {
-                    const secondColonIndex = values[arrivalTimeIndex].indexOf(':', colonIndex + 1);
-                    const hour = values[arrivalTimeIndex].substring(0, colonIndex);
-                    const minute = secondColonIndex !== -1 ? 
-                        values[arrivalTimeIndex].substring(colonIndex + 1, secondColonIndex) :
-                        values[arrivalTimeIndex].substring(colonIndex + 1);
+                const timeStr = values[arrivalTimeIndex];
+                const colonPos = timeStr.indexOf(':');
+                if (colonPos !== -1) {
+                    const hour = timeStr.substring(0, colonPos);
+                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
                     stopEntry.arrival_time = `${hour}h${minute}`;
                 } else {
-                    stopEntry.arrival_time = values[arrivalTimeIndex];
+                    stopEntry.arrival_time = timeStr;
                 }
             }
             
             if (departureTimeIndex !== -1 && values[departureTimeIndex] && 
                 values[departureTimeIndex] !== values[arrivalTimeIndex]) {
                 
-                const colonIndex = values[departureTimeIndex].indexOf(':');
-                if (colonIndex !== -1) {
-                    const secondColonIndex = values[departureTimeIndex].indexOf(':', colonIndex + 1);
-                    const hour = values[departureTimeIndex].substring(0, colonIndex);
-                    const minute = secondColonIndex !== -1 ? 
-                        values[departureTimeIndex].substring(colonIndex + 1, secondColonIndex) :
-                        values[departureTimeIndex].substring(colonIndex + 1);
+                const timeStr = values[departureTimeIndex];
+                const colonPos = timeStr.indexOf(':');
+                if (colonPos !== -1) {
+                    const hour = timeStr.substring(0, colonPos);
+                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
                     stopEntry.departure_time = `${hour}h${minute}`;
                 } else {
-                    stopEntry.departure_time = values[departureTimeIndex];
+                    stopEntry.departure_time = timeStr;
                 }
             } else {
                 stopEntry.departure_time = stopEntry.arrival_time;
@@ -2595,15 +2592,25 @@ async function loadStopTimes(fileContent) {
                 stopEntry.drop_off_type = parseInt(values[dropOffTypeIndex], 10);
             }
             
-            tempStopTimes.get(tripId).push(stopEntry);
+            tripStops.push(stopEntry);
             entryCount++;
             
-            if (entryCount % 500000 === 0) {
-                console.log(`Stop times en cours de chargement: ${entryCount} arrêts traités...`);
+            if (entryCount % 1000000 === 0) {
+                console.log(`Traitement interméd ${entryCount} arrêts traités..`);
+                for (const [batchTripId, stops] of tempStopTimes) {
+                    stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
+                    stopTimes[batchTripId] = stops;
+                    tripIdSet.delete(batchTripId);
+                }
+                tempStopTimes.clear();
+                
+                if (global.gc) {
+                    try { global.gc(); } catch (e) {}
+                }
             }
         }
-        
-        console.log(`Traitement terminé. Tri et optimisation de ${tempStopTimes.size} trajets...`);
+    
+        console.log(`Traitement en final tri et finalisation ${tempStopTimes.size} trajets..`);
         
         for (const [tripId, stops] of tempStopTimes) {
             stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
@@ -2611,14 +2618,21 @@ async function loadStopTimes(fileContent) {
         }
         
         tempStopTimes.clear();
+        tripIdSet.clear();
         
         console.timeEnd('Chargement stop_times');
-        console.log(`Stop times chargés: ${Object.keys(stopTimes).length} trajets avec ${entryCount} arrêts au total`);
+        console.log(`Stop times chargés ${Object.keys(stopTimes).length} trajets ${entryCount} arrêts au total`);
+        
+        if (global.gc) {
+            try { global.gc(); } catch (e) {}
+        }
     } catch (error) {
-        console.error('Erreur lors du chargement des horaires', error);
+        console.error('Erreur lors du chargement des horaires', error.message);
+        if (global.gc) {
+            try { global.gc(); } catch (e) {}
+        }
     }
 }
-
 
 async function loadStops(fileContent) {
     try {
