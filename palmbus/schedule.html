@@ -2014,7 +2014,7 @@ async function loadCalendarDates(fileContent) {
         const exceptionTypeIndex = headers.indexOf('exception_type');
         
         if (serviceIdIndex === -1 || dateIndex === -1 || exceptionTypeIndex === -1) {
-            console.error('Format de fichier calendar_dates.txt invalide - colonnes manquantes');
+            console.error('Format de fichier calendar_dates.txt invalide colonnes manquantes');
             return;
         }
         
@@ -2044,7 +2044,7 @@ async function loadCalendarDates(fileContent) {
             }
         });
         
-        console.log(`Calendar dates chargées: ${Object.keys(calendarDates).length} dates avec exceptions`);
+        console.log(`Calendar dates chargé ${Object.keys(calendarDates).length} dates avec exceptions`);
     } catch (error) {
         console.error('Erreur lors du chargement des exceptions de calendrier', error);
     }
@@ -2064,7 +2064,7 @@ function isServiceActive(serviceId, dateObj) {
     }
     
     if (!calendar[serviceId]) {
-        console.warn(`Service ID ${serviceId} non trouvé dans le calendrier`);
+        console.warn(`Service id ${serviceId} non trouvé dans le calendrier`);
         return false;
     }
     
@@ -2312,34 +2312,19 @@ async function loadStops(fileContent) {
             
             const stopId = values[stopsIdIndex];
             if (stopId) {
-                // Pour la compatibilité avec le code d'origine, on conserve le format simple
-                // mais on pourrait aussi stocker l'objet complet
+
                 stops[stopId] = values[stopsNameIndex];
                 
-                // Version plus complète si nécessaire
-                /*
-                stops[stopId] = {
-                    name: values[stopsNameIndex],
-                    lat: stopsLatIndex !== -1 ? parseFloat(values[stopsLatIndex]) : null,
-                    lon: stopsLonIndex !== -1 ? parseFloat(values[stopsLonIndex]) : null,
-                    code: stopsCodeIndex !== -1 ? values[stopsCodeIndex] : null,
-                    parent_station: parentStationIndex !== -1 ? values[parentStationIndex] : null,
-                    location_type: locationType !== -1 ? parseInt(values[locationType] || '0', 10) : 0
-                };
-                */
             }
         });
         
-        console.log(`Stops chargés: ${Object.keys(stops).length} arrêts`);
+        console.log(`Stops chargés ${Object.keys(stops).length} arrets`);
     } catch (error) {
         console.error('Erreur lors du chargement des arrêts', error);
     }
 }
 
-/**
- * Charge les données du calendrier (calendar.txt)
- * @param {string} fileContent - Contenu du fichier calendar.txt
- */
+
 async function loadCalendar(fileContent) {
     try {
         if (!fileContent) {
@@ -2361,12 +2346,11 @@ async function loadCalendar(fileContent) {
         const saturdayIndex = headers.indexOf('saturday');
         const sundayIndex = headers.indexOf('sunday');
         
-        // Vérifie que les colonnes requises sont présentes
         if (serviceIdIndex === -1 || startDateIndex === -1 || endDateIndex === -1 ||
             mondayIndex === -1 || tuesdayIndex === -1 || wednesdayIndex === -1 ||
             thursdayIndex === -1 || fridayIndex === -1 || saturdayIndex === -1 || 
             sundayIndex === -1) {
-            console.error('Format de fichier calendar.txt invalide - colonnes requises manquantes');
+            console.error('Format de fichier calendar.txt invalide colonnes requises manquantes');
             return;
         }
         
@@ -2377,7 +2361,7 @@ async function loadCalendar(fileContent) {
             if (values.length <= Math.max(serviceIdIndex, startDateIndex, endDateIndex, 
                                         mondayIndex, tuesdayIndex, wednesdayIndex, 
                                         thursdayIndex, fridayIndex, saturdayIndex, sundayIndex)) {
-                console.warn('Ligne ignorée dans calendar.txt - données incomplètes:', line);
+                console.warn('Ligne ignorée dans calendar.txt, données incomplètes:', line);
                 return;
             }
             
@@ -2404,17 +2388,13 @@ async function loadCalendar(fileContent) {
             }
         });
         
-        console.log(`Calendar chargé: ${Object.keys(calendar).length} services`);
+        console.log(`Calendar chargé ${Object.keys(calendar).length} services`);
     } catch (error) {
         console.error('Erreur lors du chargement du calendrier', error);
     }
 }
 
-/**
- * Fonction auxiliaire pour obtenir la liste des services actifs à une date donnée
- * @param {Date} date - Date à vérifier
- * @return {string[]} - Liste des IDs de service actifs
- */
+
 function getActiveServicesForDate(date) {
     const activeServices = [];
     
@@ -2427,12 +2407,7 @@ function getActiveServicesForDate(date) {
     return activeServices;
 }
 
-/**
- * Fonction auxiliaire pour obtenir tous les trajets actifs pour une route à une date donnée
- * @param {string} routeId - ID de la route
- * @param {Date} date - Date à vérifier
- * @return {Object[]} - Liste des trajets actifs
- */
+
 function getActiveTripsForRoute(routeId, date) {
     const activeServices = getActiveServicesForDate(date);
     const activeTrips = [];
@@ -2450,14 +2425,9 @@ function getActiveTripsForRoute(routeId, date) {
     return activeTrips;
 }
 
-/**
- * Charge l'ensemble des données GTFS à partir de fichiers
- * @param {Object} files - Objet contenant les contenus des fichiers
- */
 async function loadAllGTFSData(files) {
     console.log('Chargement des données GTFS...');
     
-    // Chargement des données dans l'ordre logique (dépendances)
     if (files.calendar) await loadCalendar(files.calendar);
     if (files.calendar_dates) await loadCalendarDates(files.calendar_dates);
     if (files.routes) await loadRoutes(files.routes);
@@ -2468,7 +2438,6 @@ async function loadAllGTFSData(files) {
     console.log('Chargement des données GTFS terminé');
 }
 
-// Fonction pour récupérer facilement les données chargées
 function getGTFSData() {
     return {
         routes,
@@ -2480,7 +2449,6 @@ function getGTFSData() {
     };
 }
 
-// Export des fonctions pour utilisation externe
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         loadCalendarDates,
