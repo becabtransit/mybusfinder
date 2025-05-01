@@ -1961,11 +1961,7 @@ async function clearGTFSCache() {
 }
 
 
-/**
- * Fonction utilitaire pour parser les lignes CSV en tenant compte des virgules dans les champs entre guillemets
- * @param {string} csvLine - Une ligne de données CSV
- * @return {string[]} - Les valeurs séparées
- */
+
 function parseCSVLine(csvLine) {
     const result = [];
     let currentValue = '';
@@ -1984,10 +1980,8 @@ function parseCSVLine(csvLine) {
         }
     }
     
-    // Ajouter la dernière valeur
     result.push(currentValue);
     
-    // Nettoyer les guillemets aux extrémités
     return result.map(value => {
         if (value.startsWith('"') && value.endsWith('"')) {
             return value.slice(1, -1);
@@ -1996,11 +1990,7 @@ function parseCSVLine(csvLine) {
     });
 }
 
-/**
- * Fonction utilitaire pour formater une date au format YYYYMMDD
- * @param {Date} date - Un objet Date
- * @return {string} - Date formatée
- */
+
 function formatDate(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -2008,10 +1998,7 @@ function formatDate(date) {
     return `${year}${month}${day}`;
 }
 
-/**
- * Charge les exceptions des calendriers (calendar_dates.txt)
- * @param {string} fileContent - Contenu du fichier calendar_dates.txt
- */
+
 async function loadCalendarDates(fileContent) {
     try {
         if (!fileContent) {
@@ -2019,22 +2006,18 @@ async function loadCalendarDates(fileContent) {
             return;
         }
         
-        // Séparation des lignes en tenant compte des séparateurs possibles
         const lines = fileContent.split(/\r\n|\n/);
         
-        // Analyse de l'en-tête pour trouver les indices des colonnes
         const headers = parseCSVLine(lines[0]);
         const serviceIdIndex = headers.indexOf('service_id');
         const dateIndex = headers.indexOf('date');
         const exceptionTypeIndex = headers.indexOf('exception_type');
         
-        // Vérification que les colonnes requises sont présentes
         if (serviceIdIndex === -1 || dateIndex === -1 || exceptionTypeIndex === -1) {
             console.error('Format de fichier calendar_dates.txt invalide - colonnes manquantes');
             return;
         }
         
-        // Traitement de chaque ligne
         lines.slice(1).forEach(line => {
             if (!line.trim()) return;
             
@@ -2053,9 +2036,9 @@ async function loadCalendarDates(fileContent) {
                     calendarDates[date] = { added: [], removed: [] };
                 }
                 
-                if (exceptionType === 1) {  // Service ajouté
+                if (exceptionType === 1) {  
                     calendarDates[date].added.push(serviceId);
-                } else if (exceptionType === 2) {  // Service supprimé
+                } else if (exceptionType === 2) {  
                     calendarDates[date].removed.push(serviceId);
                 }
             }
@@ -2067,52 +2050,40 @@ async function loadCalendarDates(fileContent) {
     }
 }
 
-/**
- * Vérifie si un service est actif à une date donnée
- * @param {string} serviceId - Identifiant du service
- * @param {Date} dateObj - Date à vérifier
- * @return {boolean} - true si le service est actif, false sinon
- */
+
 function isServiceActive(serviceId, dateObj) {
     const formattedDate = formatDate(dateObj);
     
-    // Vérifier d'abord les exceptions du calendrier
     if (calendarDates[formattedDate]) {
         if (calendarDates[formattedDate].added.includes(serviceId)) {
-            return true; // Service explicitement ajouté ce jour
+            return true;
         }
         if (calendarDates[formattedDate].removed.includes(serviceId)) {
-            return false; // Service explicitement supprimé ce jour
+            return false; 
         }
     }
     
-    // Si le service n'existe pas dans le calendrier régulier
     if (!calendar[serviceId]) {
         console.warn(`Service ID ${serviceId} non trouvé dans le calendrier`);
         return false;
     }
     
-    const day = dateObj.getDay(); // 0 = dimanche, 1 = lundi, etc.
+    const day = dateObj.getDay(); 
     const dateNumber = parseInt(formattedDate, 10);
     
     const calendarEntry = calendar[serviceId];
     const startDate = parseInt(calendarEntry.start_date, 10);
     const endDate = parseInt(calendarEntry.end_date, 10);
     
-    // Vérifier si la date est dans la plage du service
     if (dateNumber < startDate || dateNumber > endDate) {
         return false;
     }
     
-    // Vérifier le jour de la semaine
     const weekdayFields = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     return calendarEntry[weekdayFields[day]] === true;
 }
 
-/**
- * Charge les données des itinéraires (routes.txt)
- * @param {string} fileContent - Contenu du fichier routes.txt
- */
+
 async function loadRoutes(fileContent) {
     try {
         if (!fileContent) {
@@ -2131,9 +2102,8 @@ async function loadRoutes(fileContent) {
         const routeTextColorIndex = headers.indexOf('route_text_color');
         const agencyIdIndex = headers.indexOf('agency_id');
         
-        // Vérifie que l'ID de l'itinéraire est présent
         if (routeIdIndex === -1) {
-            console.error('Format de fichier routes.txt invalide - colonne route_id manquante');
+            console.error('Format de fichier routes.txt invalide , colonne route_id manquante');
             return;
         }
         
@@ -2142,7 +2112,7 @@ async function loadRoutes(fileContent) {
             
             const values = parseCSVLine(line);
             if (values.length <= routeIdIndex) {
-                console.warn('Ligne ignorée dans routes.txt - données incomplètes:', line);
+                console.warn('Ligne ignorée dans routes.txt, données incompletes', line);
                 return;
             }
             
@@ -2159,16 +2129,13 @@ async function loadRoutes(fileContent) {
             }
         });
         
-        console.log(`Routes chargées: ${Object.keys(routes).length} itinéraires`);
+        console.log(`Routes chargées ${Object.keys(routes).length} itinéraires`);
     } catch (error) {
         console.error('Erreur lors du chargement des itinéraires', error);
     }
 }
 
-/**
- * Charge les données des trajets (trips.txt)
- * @param {string} fileContent - Contenu du fichier trips.txt
- */
+
 async function loadTrips(fileContent) {
     try {
         if (!fileContent) {
@@ -2186,9 +2153,8 @@ async function loadTrips(fileContent) {
         const directionIdIndex = headers.indexOf('direction_id');
         const shapeIdIndex = headers.indexOf('shape_id');
         
-        // Vérifie que les colonnes requises sont présentes
         if (tripRouteIdIndex === -1 || tripIdIndex === -1) {
-            console.error('Format de fichier trips.txt invalide - colonnes requises manquantes');
+            console.error('Format de fichier trips.txt invalide, colonnes requises manquantes');
             return;
         }
         
@@ -2197,7 +2163,7 @@ async function loadTrips(fileContent) {
             
             const values = parseCSVLine(line);
             if (values.length <= Math.max(tripRouteIdIndex, tripIdIndex)) {
-                console.warn('Ligne ignorée dans trips.txt - données incomplètes:', line);
+                console.warn('Ligne ignorée dans trips.txt, données incomplètes', line);
                 return;
             }
             
@@ -2219,16 +2185,13 @@ async function loadTrips(fileContent) {
             }
         });
         
-        console.log(`Trips chargés: ${Object.keys(trips).length} routes avec trajets`);
+        console.log(`Trips charger ${Object.keys(trips).length} routes avec trajets`);
     } catch (error) {
         console.error('Erreur lors du chargement des trajets', error);
     }
 }
 
-/**
- * Charge les données des horaires (stop_times.txt)
- * @param {string} fileContent - Contenu du fichier stop_times.txt
- */
+
 async function loadStopTimes(fileContent) {
     try {
         if (!fileContent) {
@@ -2247,7 +2210,6 @@ async function loadStopTimes(fileContent) {
         const pickupTypeIndex = headers.indexOf('pickup_type');
         const dropOffTypeIndex = headers.indexOf('drop_off_type');
         
-        // Vérifie que les colonnes requises sont présentes
         if (stopTripIdIndex === -1 || stopIdIndex === -1 || arrivalTimeIndex === -1) {
             console.error('Format de fichier stop_times.txt invalide - colonnes requises manquantes');
             return;
@@ -2270,7 +2232,6 @@ async function loadStopTimes(fileContent) {
                     stopTimes[tripId] = [];
                 }
                 
-                // Formater l'heure d'arrivée (gérer les formats possibles)
                 let formattedTime = '';
                 if (values[arrivalTimeIndex]) {
                     const timeParts = values[arrivalTimeIndex].split(':');
@@ -2281,7 +2242,6 @@ async function loadStopTimes(fileContent) {
                     }
                 }
                 
-                // Formater l'heure de départ si disponible
                 let departureTime = '';
                 if (departureTimeIndex !== -1 && values[departureTimeIndex]) {
                     const timeParts = values[departureTimeIndex].split(':');
@@ -2305,7 +2265,6 @@ async function loadStopTimes(fileContent) {
             }
         });
         
-        // Trier les stop_times par séquence d'arrêt pour chaque trip_id
         for (const tripId in stopTimes) {
             if (stopTimes.hasOwnProperty(tripId)) {
                 stopTimes[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
@@ -2318,10 +2277,7 @@ async function loadStopTimes(fileContent) {
     }
 }
 
-/**
- * Charge les données des arrêts (stops.txt)
- * @param {string} fileContent - Contenu du fichier stops.txt
- */
+
 async function loadStops(fileContent) {
     try {
         if (!fileContent) {
@@ -2340,9 +2296,8 @@ async function loadStops(fileContent) {
         const parentStationIndex = headers.indexOf('parent_station');
         const locationType = headers.indexOf('location_type');
         
-        // Vérifie que les colonnes requises sont présentes
         if (stopsIdIndex === -1 || stopsNameIndex === -1) {
-            console.error('Format de fichier stops.txt invalide - colonnes requises manquantes');
+            console.error('Format de fichier stops.txt invalide colonnes requises manquantes..');
             return;
         }
         
@@ -2351,7 +2306,7 @@ async function loadStops(fileContent) {
             
             const values = parseCSVLine(line);
             if (values.length <= Math.max(stopsIdIndex, stopsNameIndex)) {
-                console.warn('Ligne ignorée dans stops.txt - données incomplètes:', line);
+                console.warn('Ligne ignorée dans stops.txt, données incomplètes:', line);
                 return;
             }
             
