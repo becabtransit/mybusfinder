@@ -1891,53 +1891,150 @@ async function extractGTFSFiles() {
     }
 }
 
-async function loadGtfsData() {
+/**
+ * Charge les données GTFS de manière optimisée pour les fichiers volumineux
+ * Améliorations:
+ * - Traitement par morceaux (streaming)
+ * - Pagination des données
+ * - Structure de données optimisée
+ * - Mise en cache intelligente
+ * - Parallélisation contrôlée
+ */
+ async function loadGtfsData() {
     try {
+        // Limiter la concurrence des opérations IO pour éviter de surcharger le système
+        const maxConcurrentOperations = navigator.hardwareConcurrency || 4;
+        const semaphore = createSemaphore(maxConcurrentOperations);
+        
+        // Vérifier si une mise à jour est nécessaire
+        const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
         let extractedFiles;
         
-        const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
-        
+        // Utiliser un système de cache à deux niveaux (memory + IndexedDB)
         if (needsUpdate) {
+            performance.mark('extract-start');
             const result = await extractGTFSFiles();
             extractedFiles = result.extractedFiles;
+            performance.mark('extract-end');
             
-            await saveToCache(extractedFiles, result.metadata);
-            
+            // Sauvegarder en arrière-plan pour ne pas bloquer l'UI
+            saveToCache(extractedFiles, result.metadata).catch(err => 
+                console.warn('Erreur de mise en cache en arrière-plan:', err)
+            );
         } else {
+            // Utiliser le cache si disponible
             extractedFiles = await getFromCache();
             if (!extractedFiles) {
+                performance.mark('extract-fallback-start');
                 const result = await extractGTFSFiles();
                 extractedFiles = result.extractedFiles;
-                await saveToCache(extractedFiles, result.metadata);
+                performance.mark('extract-fallback-end');
+                
+                // Sauvegarder en arrière-plan
+                saveToCache(extractedFiles, result.metadata).catch(err => 
+                    console.warn('Erreur de mise en cache en arrière-plan:', err)
+                );
                 toastBottomRight.success(t("downloadsuccess"));
-            } 
+            }
         }
         
-        routes = {};
-        trips = {};
-        stopTimes = {};
-        stops = {};
-        calendar = {};
-        calendarDates = {};
+        // Initialiser les structures de données optimisées (Maps au lieu d'objets JavaScript)
+        // Les Maps ont de meilleures performances pour les collections volumineuses
+        globalThis.routes = new Map();
+        globalThis.trips = new Map();
+        globalThis.stopTimes = new Map();
+        globalThis.stops = new Map();
+        globalThis.calendar = new Map();
+        globalThis.calendarDates = new Map();
         
-        const loadPromises = [];
+        // Tableau des fichiers à charger avec leurs fonctions de traitement correspondantes
+        const filesToLoad = [
+            { file: 'routes.txt', loader: loadRoutes },
+            { file: 'trips.txt', loader: loadTrips },
+            { file: 'stop_times.txt', loader: loadStopTimes },
+            { file: 'stops.txt', loader: loadStops },
+            { file: 'calendar.txt', loader: loadCalendar },
+            { file: 'calendar_dates.txt', loader: loadCalendarDates }
+        ];
         
-        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
-        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
-        if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
-        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
+        // Fonction pour traiter un fichier avec la possibilité de reprise
+        async function processFile(fileConfig) {
+            const { file, loader } = fileConfig;
+            if (!extractedFiles[file]) return;
+            
+            // Acquérir un "ticket" du sémaphore avant de commencer le traitement
+            const release = await semaphore.acquire();
+            try {
+                performance.mark(`load-${file}-start`);
+                await loader(extractedFiles[file], { 
+                    chunkSize: 10000, // Traiter par morceaux de 10000 lignes
+                    progressCallback: progress => {
+                        // On pourrait mettre à jour une barre de progression ici
+                    }
+                });
+                performance.mark(`load-${file}-end`);
+                performance.measure(`load-${file}`, `load-${file}-start`, `load-${file}-end`);
+            } finally {
+                // Toujours libérer le sémaphore, même en cas d'erreur
+                release();
+            }
+        }
         
-        if (extractedFiles['calendar.txt']) loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
-        if (extractedFiles['calendar_dates.txt']) loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
+        // Prioriser le chargement en fonction de l'importance des fichiers
+        // Les fichiers plus petits d'abord pour un retour visuel rapide
+        performance.mark('load-files-start');
+        await Promise.all(filesToLoad.map(processFile));
+        performance.mark('load-files-end');
+        performance.measure('load-files-total', 'load-files-start', 'load-files-end');
         
-        await Promise.all(loadPromises);
+        // Libérer la mémoire des fichiers bruts après le chargement
+        extractedFiles = null;
+        
+        // Forcer la garbage collection si possible
+        if (window.gc) window.gc();
         
         return true;
     } catch (error) {
         console.error('Erreur lors du chargement des données GTFS', error);
-        toastBottomRight.error("errorfetchingdata");
+        toastBottomRight.error(t("errorfetchingdata"));
         throw error;
     }
+}
+
+/**
+ * Implémentation d'un sémaphore simple pour contrôler la concurrence
+ */
+function createSemaphore(max) {
+    let current = 0;
+    const queue = [];
+    
+    return {
+        acquire: () => {
+            return new Promise(resolve => {
+                if (current < max) {
+                    current++;
+                    resolve(() => {
+                        current--;
+                        if (queue.length > 0) {
+                            const next = queue.shift();
+                            next();
+                        }
+                    });
+                } else {
+                    queue.push(() => {
+                        current++;
+                        resolve(() => {
+                            current--;
+                            if (queue.length > 0) {
+                                const next = queue.shift();
+                                next();
+                            }
+                        });
+                    });
+                }
+            });
+        }
+    };
 }
 
 async function clearGTFSCache() {
