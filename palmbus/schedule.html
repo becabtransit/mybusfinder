@@ -1405,70 +1405,18 @@ select:focus {
         let currentStopId = null;
         let currentDestinationId = null;
 
-        (function() {
-        const MESSAGE_TYPES = {
-            SHOW_LOADING: 'SHOW_LOADING',
-            HIDE_LOADING: 'HIDE_LOADING',
-            NAVIGATION_START: 'NAVIGATION_START',
-            NAVIGATION_END: 'NAVIGATION_END'
-        };
-        
-        function sendMessageToParent(type, data = {}) {
-            window.parent.postMessage({ type, ...data }, '*');
-        }
-        
-        document.addEventListener('click', function(e) {
-            const link = e.target.closest('a');
-            if (link && link.href && !link.target && 
-                link.href !== window.location.href && 
-                !link.href.startsWith('javascript:') && 
-                !link.href.startsWith('#')) {
-                sendMessageToParent(MESSAGE_TYPES.NAVIGATION_START);
+        function controlParentSpinner(show, message) {
+            try {
+                window.parent.postMessage({
+                    action: show ? 'showSpinner' : 'hideSpinner',
+                    message: message || (show ? '' : '')
+                }, 'https://mybusfinder.fr'); 
+            } catch (e) {
+                console.error("Impossible d'envoyer un message à la page parente", e);
             }
-        });
-        
-        document.addEventListener('submit', function() {
-            sendMessageToParent(MESSAGE_TYPES.NAVIGATION_START);
-        });
-        
-        const originalPushState = history.pushState;
-        history.pushState = function() {
-            sendMessageToParent(MESSAGE_TYPES.NAVIGATION_START);
-            const result = originalPushState.apply(this, arguments);
-            return result;
-        };
-        
-        const originalReplaceState = history.replaceState;
-        history.replaceState = function() {
-            sendMessageToParent(MESSAGE_TYPES.NAVIGATION_START);
-            const result = originalReplaceState.apply(this, arguments);
-            return result;
-        };
-        
-        window.addEventListener('hashchange', function() {
-            sendMessageToParent(MESSAGE_TYPES.NAVIGATION_START);
-        });
-        
-        window.addEventListener('beforeunload', function() {
-            sendMessageToParent(MESSAGE_TYPES.NAVIGATION_START);
-        });
-        
-        window.addEventListener('load', function() {
-            sendMessageToParent(MESSAGE_TYPES.NAVIGATION_END);
-        });
-        
-        window.showParentLoader = function() {
-            sendMessageToParent(MESSAGE_TYPES.SHOW_LOADING);
-        };
-        
-        window.hideParentLoader = function() {
-            sendMessageToParent(MESSAGE_TYPES.HIDE_LOADING);
-        };
-        
-        // Notifier que le script a été chargé
-        console.log('Script de communication cross-origin chargé');
-        sendMessageToParent('SCRIPT_LOADED');
-    })();
+        }
+
+        controlParentSpinner(true, '');
 
         async function getSetvar() {
             try {
@@ -1535,6 +1483,7 @@ function stopRealtimeUpdates() {
             
 
                 loadGtfsData().then(() => {
+                    controlParentSpinner(false);
                     showLines();
                 }).catch(error => {
                     console.error('Erreur lors du chargement des données:', error);
