@@ -1891,150 +1891,53 @@ async function extractGTFSFiles() {
     }
 }
 
-/**
- * Charge les données GTFS de manière optimisée pour les fichiers volumineux
- * Améliorations:
- * - Traitement par morceaux (streaming)
- * - Pagination des données
- * - Structure de données optimisée
- * - Mise en cache intelligente
- * - Parallélisation contrôlée
- */
- async function loadGtfsData() {
+async function loadGtfsData() {
     try {
-        // Limiter la concurrence des opérations IO pour éviter de surcharger le système
-        const maxConcurrentOperations = navigator.hardwareConcurrency || 4;
-        const semaphore = createSemaphore(maxConcurrentOperations);
-        
-        // Vérifier si une mise à jour est nécessaire
-        const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
         let extractedFiles;
         
-        // Utiliser un système de cache à deux niveaux (memory + IndexedDB)
+        const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
+        
         if (needsUpdate) {
-            performance.mark('extract-start');
             const result = await extractGTFSFiles();
             extractedFiles = result.extractedFiles;
-            performance.mark('extract-end');
             
-            // Sauvegarder en arrière-plan pour ne pas bloquer l'UI
-            saveToCache(extractedFiles, result.metadata).catch(err => 
-                console.warn('Erreur de mise en cache en arrière-plan:', err)
-            );
+            await saveToCache(extractedFiles, result.metadata);
+            
         } else {
-            // Utiliser le cache si disponible
             extractedFiles = await getFromCache();
             if (!extractedFiles) {
-                performance.mark('extract-fallback-start');
                 const result = await extractGTFSFiles();
                 extractedFiles = result.extractedFiles;
-                performance.mark('extract-fallback-end');
-                
-                // Sauvegarder en arrière-plan
-                saveToCache(extractedFiles, result.metadata).catch(err => 
-                    console.warn('Erreur de mise en cache en arrière-plan:', err)
-                );
+                await saveToCache(extractedFiles, result.metadata);
                 toastBottomRight.success(t("downloadsuccess"));
-            }
+            } 
         }
         
-        // Initialiser les structures de données optimisées (Maps au lieu d'objets JavaScript)
-        // Les Maps ont de meilleures performances pour les collections volumineuses
-        globalThis.routes = new Map();
-        globalThis.trips = new Map();
-        globalThis.stopTimes = new Map();
-        globalThis.stops = new Map();
-        globalThis.calendar = new Map();
-        globalThis.calendarDates = new Map();
+        routes = {};
+        trips = {};
+        stopTimes = {};
+        stops = {};
+        calendar = {};
+        calendarDates = {};
         
-        // Tableau des fichiers à charger avec leurs fonctions de traitement correspondantes
-        const filesToLoad = [
-            { file: 'routes.txt', loader: loadRoutes },
-            { file: 'trips.txt', loader: loadTrips },
-            { file: 'stop_times.txt', loader: loadStopTimes },
-            { file: 'stops.txt', loader: loadStops },
-            { file: 'calendar.txt', loader: loadCalendar },
-            { file: 'calendar_dates.txt', loader: loadCalendarDates }
-        ];
+        const loadPromises = [];
         
-        // Fonction pour traiter un fichier avec la possibilité de reprise
-        async function processFile(fileConfig) {
-            const { file, loader } = fileConfig;
-            if (!extractedFiles[file]) return;
-            
-            // Acquérir un "ticket" du sémaphore avant de commencer le traitement
-            const release = await semaphore.acquire();
-            try {
-                performance.mark(`load-${file}-start`);
-                await loader(extractedFiles[file], { 
-                    chunkSize: 10000, // Traiter par morceaux de 10000 lignes
-                    progressCallback: progress => {
-                        // On pourrait mettre à jour une barre de progression ici
-                    }
-                });
-                performance.mark(`load-${file}-end`);
-                performance.measure(`load-${file}`, `load-${file}-start`, `load-${file}-end`);
-            } finally {
-                // Toujours libérer le sémaphore, même en cas d'erreur
-                release();
-            }
-        }
+        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
+        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
+        if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
+        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
         
-        // Prioriser le chargement en fonction de l'importance des fichiers
-        // Les fichiers plus petits d'abord pour un retour visuel rapide
-        performance.mark('load-files-start');
-        await Promise.all(filesToLoad.map(processFile));
-        performance.mark('load-files-end');
-        performance.measure('load-files-total', 'load-files-start', 'load-files-end');
+        if (extractedFiles['calendar.txt']) loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
+        if (extractedFiles['calendar_dates.txt']) loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
         
-        // Libérer la mémoire des fichiers bruts après le chargement
-        extractedFiles = null;
-        
-        // Forcer la garbage collection si possible
-        if (window.gc) window.gc();
+        await Promise.all(loadPromises);
         
         return true;
     } catch (error) {
         console.error('Erreur lors du chargement des données GTFS', error);
-        toastBottomRight.error(t("errorfetchingdata"));
+        toastBottomRight.error("errorfetchingdata");
         throw error;
     }
-}
-
-/**
- * Implémentation d'un sémaphore simple pour contrôler la concurrence
- */
-function createSemaphore(max) {
-    let current = 0;
-    const queue = [];
-    
-    return {
-        acquire: () => {
-            return new Promise(resolve => {
-                if (current < max) {
-                    current++;
-                    resolve(() => {
-                        current--;
-                        if (queue.length > 0) {
-                            const next = queue.shift();
-                            next();
-                        }
-                    });
-                } else {
-                    queue.push(() => {
-                        current++;
-                        resolve(() => {
-                            current--;
-                            if (queue.length > 0) {
-                                const next = queue.shift();
-                                next();
-                            }
-                        });
-                    });
-                }
-            });
-        }
-    };
 }
 
 async function clearGTFSCache() {
@@ -2057,63 +1960,105 @@ async function clearGTFSCache() {
     }
 }
 
-async function loadCalendarDates(fileContent) {
+/**
+ * Charge les exceptions de calendrier à partir du contenu du fichier
+ * @param {string} fileContent Contenu du fichier calendar_dates.txt
+ * @returns {Promise<Object>} L'objet calendarDates
+ */
+ async function loadCalendarDates(fileContent) {
+    const calendarDates = {};
+    
     try {
-        if (!fileContent) {
-            return;
-        }
+        if (!fileContent) return calendarDates;
         
+        // Utilisation d'un lecteur de ligne plus efficace
         const lines = fileContent.split('\n');
-        
         const headers = lines[0].split(',');
+        
+        // Précalculer les index une seule fois
         const serviceIdIndex = headers.indexOf('service_id');
         const dateIndex = headers.indexOf('date');
         const exceptionTypeIndex = headers.indexOf('exception_type');
         
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[serviceIdIndex] && values[dateIndex]) {
-                const date = values[dateIndex]; 
-                const exceptionType = parseInt(values[exceptionTypeIndex], 10); 
-                
-                if (!calendarDates[date]) {
-                    calendarDates[date] = { added: [], removed: [] };
-                }
-                
-                if (exceptionType === 1) {
-                    calendarDates[date].added.push(values[serviceIdIndex]);
-                } else if (exceptionType === 2) {
-                    calendarDates[date].removed.push(values[serviceIdIndex]);
-                }
-            }
-        });
+        // Préallouer une taille pour le tableau pour éviter les redimensionnements
+        const linesLength = lines.length;
+        
+        // Traiter les lignes par lots pour éviter de bloquer le thread principal
+        const BATCH_SIZE = 10000;
+        
+        for (let i = 1; i < linesLength; i += BATCH_SIZE) {
+            const endIndex = Math.min(i + BATCH_SIZE, linesLength);
+            
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    for (let j = i; j < endIndex; j++) {
+                        const line = lines[j];
+                        if (!line.trim()) continue;
+                        
+                        // Utiliser split avec limite pour éviter le traitement excessif
+                        const values = line.split(',');
+                        
+                        const serviceId = values[serviceIdIndex];
+                        const date = values[dateIndex];
+                        
+                        if (!serviceId || !date) continue;
+                        
+                        const exceptionType = parseInt(values[exceptionTypeIndex], 10);
+                        
+                        // Utiliser l'initialisation à la demande
+                        if (!calendarDates[date]) {
+                            calendarDates[date] = { added: [], removed: [] };
+                        }
+                        
+                        // Pousser directement dans le tableau approprié
+                        if (exceptionType === 1) {
+                            calendarDates[date].added.push(serviceId);
+                        } else if (exceptionType === 2) {
+                            calendarDates[date].removed.push(serviceId);
+                        }
+                    }
+                    resolve();
+                }, 0);
+            });
+        }
         
     } catch (error) {
         console.error('Erreur lors du chargement des exceptions de calendrier', error);
     }
+    
+    return calendarDates;
 }
 
-function isServiceActive(serviceId, dateObj) {
-    const formattedDate = formatDate(dateObj); 
+/**
+ * Vérifie si un service est actif à une date donnée
+ * @param {string} serviceId ID du service
+ * @param {Date} dateObj Objet date
+ * @param {Object} calendarDates Données des exceptions de calendrier
+ * @param {Object} calendar Données du calendrier
+ * @returns {boolean} True si le service est actif
+ */
+function isServiceActive(serviceId, dateObj, calendarDates, calendar) {
+    const formattedDate = formatDate(dateObj);
     
-    if (calendarDates[formattedDate]) {
-        if (calendarDates[formattedDate].added.includes(serviceId)) {
+    // Vérifier les exceptions de calendrier
+    const dateExceptions = calendarDates[formattedDate];
+    if (dateExceptions) {
+        if (dateExceptions.added && dateExceptions.added.includes(serviceId)) {
             return true;
         }
-        if (calendarDates[formattedDate].removed.includes(serviceId)) {
+        if (dateExceptions.removed && dateExceptions.removed.includes(serviceId)) {
             return false;
         }
     }
     
-    if (!calendar[serviceId]) {
+    // Vérifier les entrées de calendrier
+    const calendarEntry = calendar[serviceId];
+    if (!calendarEntry) {
         return true;
     }
     
-    const day = dateObj.getDay(); 
+    // Convertir les dates en entiers pour une comparaison plus rapide
     const dateNumber = parseInt(formattedDate, 10);
-    
-    const calendarEntry = calendar[serviceId];
     const startDate = parseInt(calendarEntry.start_date, 10);
     const endDate = parseInt(calendarEntry.end_date, 10);
     
@@ -2121,153 +2066,296 @@ function isServiceActive(serviceId, dateObj) {
         return false;
     }
     
-    if (day === 0 && calendarEntry.sunday) return true;
-    if (day === 6 && calendarEntry.saturday) return true;
-    if (day >= 1 && day <= 5 && calendarEntry.weekdays) return true;
+    // Vérifier le jour de la semaine
+    const day = dateObj.getDay();
     
-    return false;
+    // Optimiser la vérification des jours
+    if (day === 0) return calendarEntry.sunday;
+    if (day === 6) return calendarEntry.saturday;
+    return calendarEntry.weekdays;
 }
 
+/**
+ * Formatte une date au format YYYYMMDD
+ * Optimisé pour performance
+ */
 function formatDate(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}${month}${day}`;
+    // Utiliser des opérations arithmétiques directes plutôt que des manipulations de chaînes
+    const y = date.getFullYear();
+    const m = date.getMonth() + 1;
+    const d = date.getDate();
+    
+    // Utiliser la concaténation de chaînes et des opérateurs ternaires pour le padding
+    return y + (m < 10 ? '0' : '') + m + (d < 10 ? '0' : '') + d;
 }
 
+/**
+ * Charge les routes à partir du contenu du fichier
+ * @param {string} fileContent Contenu du fichier routes.txt
+ * @returns {Promise<Object>} L'objet routes
+ */
 async function loadRoutes(fileContent) {
+    const routes = {};
+    
     try {
-        if (!fileContent) {
-            return;
-        }
+        if (!fileContent) return routes;
         
-        const lines = fileContent.split('\n');        
+        const lines = fileContent.split('\n');
         const headers = lines[0].split(',');
+        
+        // Précalculer les index
         const routeIdIndex = headers.indexOf('route_id');
         const shortNameIndex = headers.indexOf('route_short_name');
         const longNameIndex = headers.indexOf('route_long_name');
         const routeColorIndex = headers.indexOf('route_color');
         const routeTextColorIndex = headers.indexOf('route_text_color');
         
+        // Traiter les lignes par lots
+        const BATCH_SIZE = 1000; // Plus petit car généralement moins de routes
+        const linesLength = lines.length;
         
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[routeIdIndex]) {
-                routes[values[routeIdIndex]] = {
-                    short_name: values[shortNameIndex],
-                    long_name: values[longNameIndex],
-                    route_color: values[routeColorIndex] ? `#${values[routeColorIndex]}` : '#FFFFFF',
-                    route_text_color: values[routeTextColorIndex] ? `#${values[routeTextColorIndex]}` : '#000000',
-                };
-            }
-        });
-        
-    } catch (error) {
-        console.error('Erreur', error);
-    }
-}
-
-async function loadTrips(fileContent) {
-    try {
-        if (!fileContent) {
-            return;
+        for (let i = 1; i < linesLength; i += BATCH_SIZE) {
+            const endIndex = Math.min(i + BATCH_SIZE, linesLength);
+            
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    for (let j = i; j < endIndex; j++) {
+                        const line = lines[j];
+                        if (!line.trim()) continue;
+                        
+                        const values = line.split(',');
+                        const routeId = values[routeIdIndex];
+                        
+                        if (!routeId) continue;
+                        
+                        // Création d'objet optimisée
+                        routes[routeId] = {
+                            short_name: values[shortNameIndex] || '',
+                            long_name: values[longNameIndex] || '',
+                            route_color: values[routeColorIndex] ? `#${values[routeColorIndex]}` : '#FFFFFF',
+                            route_text_color: values[routeTextColorIndex] ? `#${values[routeTextColorIndex]}` : '#000000'
+                        };
+                    }
+                    resolve();
+                }, 0);
+            });
         }
         
-        const lines = fileContent.split('\n');
+    } catch (error) {
+        console.error('Erreur lors du chargement des routes', error);
+    }
+    
+    return routes;
+}
+
+/**
+ * Charge les trajets à partir du contenu du fichier
+ * @param {string} fileContent Contenu du fichier trips.txt
+ * @returns {Promise<Object>} L'objet trips
+ */
+async function loadTrips(fileContent) {
+    const trips = {};
+    
+    try {
+        if (!fileContent) return trips;
         
+        const lines = fileContent.split('\n');
         const headers = lines[0].split(',');
+        
         const tripRouteIdIndex = headers.indexOf('route_id');
         const tripIdIndex = headers.indexOf('trip_id');
         const tripServiceIdIndex = headers.indexOf('service_id');
-                
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[tripRouteIdIndex] && values[tripIdIndex]) {
-                if (!trips[values[tripRouteIdIndex]]) {
-                    trips[values[tripRouteIdIndex]] = [];
-                }
-                trips[values[tripRouteIdIndex]].push({
-                    trip_id: values[tripIdIndex],
-                    service_id: values[tripServiceIdIndex],
-                });
-            }
-        });
         
-    } catch (error) {
-        console.error('Erreur', error);
-    }
-}
-
-async function loadStopTimes(fileContent) {
-    try {
-        if (!fileContent) {
-            return;
+        // Les trips peuvent être très nombreux, traiter par lots plus grands
+        const BATCH_SIZE = 20000;
+        const linesLength = lines.length;
+        
+        for (let i = 1; i < linesLength; i += BATCH_SIZE) {
+            const endIndex = Math.min(i + BATCH_SIZE, linesLength);
+            
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    for (let j = i; j < endIndex; j++) {
+                        const line = lines[j];
+                        if (!line.trim()) continue;
+                        
+                        const values = line.split(',');
+                        const routeId = values[tripRouteIdIndex];
+                        const tripId = values[tripIdIndex];
+                        
+                        if (!routeId || !tripId) continue;
+                        
+                        // Initialiser le tableau seulement si nécessaire
+                        if (!trips[routeId]) {
+                            trips[routeId] = [];
+                        }
+                        
+                        // Ajouter l'entrée avec seulement les propriétés nécessaires
+                        trips[routeId].push({
+                            trip_id: tripId,
+                            service_id: values[tripServiceIdIndex]
+                        });
+                    }
+                    resolve();
+                }, 0);
+            });
         }
         
-        const lines = fileContent.split('\n');
+    } catch (error) {
+        console.error('Erreur lors du chargement des trajets', error);
+    }
+    
+    return trips;
+}
+
+/**
+ * Charge les horaires d'arrêts à partir du contenu du fichier
+ * @param {string} fileContent Contenu du fichier stop_times.txt
+ * @returns {Promise<Object>} L'objet stopTimes
+ */
+async function loadStopTimes(fileContent) {
+    const stopTimes = {};
+    
+    try {
+        if (!fileContent) return stopTimes;
         
+        const lines = fileContent.split('\n');
         const headers = lines[0].split(',');
+        
         const stopTripIdIndex = headers.indexOf('trip_id');
         const stopIdIndex = headers.indexOf('stop_id');
         const arrivalTimeIndex = headers.indexOf('arrival_time');
         
+        // stop_times est généralement le fichier le plus volumineux
+        const BATCH_SIZE = 50000;
+        const linesLength = lines.length;
         
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[stopTripIdIndex]) {
-                if (!stopTimes[values[stopTripIdIndex]]) {
-                    stopTimes[values[stopTripIdIndex]] = [];
-                }
-                stopTimes[values[stopTripIdIndex]].push({
-                    stop_id: values[stopIdIndex],
-                    arrival_time: values[arrivalTimeIndex].split(':').slice(0, 2).join('h'),
-                });
-            }
-        });
+        // Préparation du cache pour le formatage de l'heure d'arrivée
+        const timeFormatCache = new Map();
         
-    } catch (error) {
-        console.error('Erreur', error);
-    }
-}
-
-async function loadStops(fileContent) {
-    try {
-        if (!fileContent) {
-            return;
+        for (let i = 1; i < linesLength; i += BATCH_SIZE) {
+            const endIndex = Math.min(i + BATCH_SIZE, linesLength);
+            
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    for (let j = i; j < endIndex; j++) {
+                        const line = lines[j];
+                        if (!line.trim()) continue;
+                        
+                        const values = line.split(',');
+                        const tripId = values[stopTripIdIndex];
+                        
+                        if (!tripId) continue;
+                        
+                        // Initialiser le tableau à la demande
+                        if (!stopTimes[tripId]) {
+                            stopTimes[tripId] = [];
+                        }
+                        
+                        // Formater l'heure efficacement avec un cache
+                        let formattedTime;
+                        const arrivalTime = values[arrivalTimeIndex];
+                        
+                        if (timeFormatCache.has(arrivalTime)) {
+                            formattedTime = timeFormatCache.get(arrivalTime);
+                        } else {
+                            // Séparation manuelle au lieu de split + join
+                            const colonIndex = arrivalTime.indexOf(':');
+                            if (colonIndex !== -1) {
+                                const secondColonIndex = arrivalTime.indexOf(':', colonIndex + 1);
+                                if (secondColonIndex !== -1) {
+                                    formattedTime = arrivalTime.substring(0, secondColonIndex).replace(':', 'h');
+                                } else {
+                                    formattedTime = arrivalTime + 'h';
+                                }
+                            } else {
+                                formattedTime = arrivalTime;
+                            }
+                            timeFormatCache.set(arrivalTime, formattedTime);
+                        }
+                        
+                        // Ajouter l'entrée avec le minimum de propriétés
+                        stopTimes[tripId].push({
+                            stop_id: values[stopIdIndex],
+                            arrival_time: formattedTime
+                        });
+                    }
+                    resolve();
+                }, 0);
+            });
         }
         
-        const lines = fileContent.split('\n');
+    } catch (error) {
+        console.error('Erreur lors du chargement des horaires d\'arrêts', error);
+    }
+    
+    return stopTimes;
+}
+
+/**
+ * Charge les arrêts à partir du contenu du fichier
+ * @param {string} fileContent Contenu du fichier stops.txt
+ * @returns {Promise<Object>} L'objet stops
+ */
+async function loadStops(fileContent) {
+    const stops = {};
+    
+    try {
+        if (!fileContent) return stops;
         
+        const lines = fileContent.split('\n');
         const headers = lines[0].split(',');
+        
         const stopsIdIndex = headers.indexOf('stop_id');
         const stopsNameIndex = headers.indexOf('stop_name');
         
+        // Le fichier des arrêts est généralement de taille moyenne
+        const BATCH_SIZE = 5000;
+        const linesLength = lines.length;
         
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[stopsIdIndex]) {
-                stops[values[stopsIdIndex]] = values[stopsNameIndex];
-            }
-        });
-        
-    } catch (error) {
-        console.error('Erreur', error);
-    }
-}
-
-async function loadCalendar(fileContent) {
-    try {
-        if (!fileContent) {
-            return;
+        for (let i = 1; i < linesLength; i += BATCH_SIZE) {
+            const endIndex = Math.min(i + BATCH_SIZE, linesLength);
+            
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    for (let j = i; j < endIndex; j++) {
+                        const line = lines[j];
+                        if (!line.trim()) continue;
+                        
+                        const values = line.split(',');
+                        const stopId = values[stopsIdIndex];
+                        
+                        if (!stopId) continue;
+                        
+                        // Assignation directe au lieu de créer un objet intermédiaire
+                        stops[stopId] = values[stopsNameIndex] || '';
+                    }
+                    resolve();
+                }, 0);
+            });
         }
         
-        const lines = fileContent.split('\n');
+    } catch (error) {
+        console.error('Erreur lors du chargement des arrêts', error);
+    }
+    
+    return stops;
+}
+
+/**
+ * Charge le calendrier à partir du contenu du fichier
+ * @param {string} fileContent Contenu du fichier calendar.txt
+ * @returns {Promise<Object>} L'objet calendar
+ */
+async function loadCalendar(fileContent) {
+    const calendar = {};
+    
+    try {
+        if (!fileContent) return calendar;
         
+        const lines = fileContent.split('\n');
         const headers = lines[0].split(',');
+        
         const serviceIdIndex = headers.indexOf('service_id');
         const startDateIndex = headers.indexOf('start_date');
         const endDateIndex = headers.indexOf('end_date');
@@ -2279,31 +2367,70 @@ async function loadCalendar(fileContent) {
         const saturdayIndex = headers.indexOf('saturday');
         const sundayIndex = headers.indexOf('sunday');
         
-        lines.slice(1).forEach(line => {
-            if (!line.trim()) return;
-            const values = line.split(',');
-            if (values[serviceIdIndex]) {
-                const serviceId = values[serviceIdIndex];
-                
-                calendar[serviceId] = {
-                    weekdays: [
-                        parseInt(values[mondayIndex], 10),
-                        parseInt(values[tuesdayIndex], 10),
-                        parseInt(values[wednesdayIndex], 10),
-                        parseInt(values[thursdayIndex], 10),
-                        parseInt(values[fridayIndex], 10)
-                    ].includes(1),
-                    saturday: parseInt(values[saturdayIndex], 10) === 1,
-                    sunday: parseInt(values[sundayIndex], 10) === 1,
-                    start_date: values[startDateIndex],
-                    end_date: values[endDateIndex]
-                };
-            }
-        });
+        // Le fichier calendar est généralement petit
+        const BATCH_SIZE = 1000;
+        const linesLength = lines.length;
+        
+        for (let i = 1; i < linesLength; i += BATCH_SIZE) {
+            const endIndex = Math.min(i + BATCH_SIZE, linesLength);
+            
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    for (let j = i; j < endIndex; j++) {
+                        const line = lines[j];
+                        if (!line.trim()) continue;
+                        
+                        const values = line.split(',');
+                        const serviceId = values[serviceIdIndex];
+                        
+                        if (!serviceId) continue;
+                        
+                        // Optimisation: vérifier directement si au moins un jour de semaine est à 1
+                        const weekdays = 
+                            parseInt(values[mondayIndex], 10) === 1 ||
+                            parseInt(values[tuesdayIndex], 10) === 1 ||
+                            parseInt(values[wednesdayIndex], 10) === 1 ||
+                            parseInt(values[thursdayIndex], 10) === 1 ||
+                            parseInt(values[fridayIndex], 10) === 1;
+                        
+                        calendar[serviceId] = {
+                            weekdays,
+                            saturday: parseInt(values[saturdayIndex], 10) === 1,
+                            sunday: parseInt(values[sundayIndex], 10) === 1,
+                            start_date: values[startDateIndex],
+                            end_date: values[endDateIndex]
+                        };
+                    }
+                    resolve();
+                }, 0);
+            });
+        }
         
     } catch (error) {
         console.error('Erreur lors du chargement du calendrier', error);
     }
+    
+    return calendar;
+}
+
+// Fonction d'initialisation qui charge tous les fichiers nécessaires
+async function initGTFSData(fileContents) {
+    // Initialisez les objets globaux
+    const calendar = await loadCalendar(fileContents.calendar);
+    const calendarDates = await loadCalendarDates(fileContents.calendarDates);
+    const routes = await loadRoutes(fileContents.routes);
+    const trips = await loadTrips(fileContents.trips);
+    const stops = await loadStops(fileContents.stops);
+    const stopTimes = await loadStopTimes(fileContents.stopTimes);
+    
+    return {
+        calendar,
+        calendarDates,
+        routes,
+        trips,
+        stops,
+        stopTimes
+    };
 }
 
 let updatePositionInterval;
