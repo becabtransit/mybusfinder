@@ -2202,11 +2202,46 @@ function showUpdatePopup(link) {
     const hasParams = link.includes('?');
     const langParam = `lang=${currentLang}`;
     
+    const loadingContainer = document.createElement('div');
+    loadingContainer.id = 'iframe-loading-container';
+    loadingContainer.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: rgba(255, 255, 255, 0.8);
+        z-index: 10;
+    `;
+    
+    const spinnerElement = document.createElement('span');
+    spinnerElement.id = 'iframe-win-spinner';
+    spinnerElement.style.cssText = `
+        font-family: 'SegoeUIBoot';
+        font-size: 2rem;
+        color: #0078d7;
+    `;
+    
+    loadingContainer.appendChild(spinnerElement);
+    
+    const popupContent = document.querySelector('.popup-content');
+    popupContent.style.position = 'relative';
+    popupContent.appendChild(loadingContainer);
+    const stopSpinner = startWindowsSpinnerAnimation("iframe-win-spinner");
+    
     if (hasParams) {
         iframe.src = `${link}&${langParam}`;
     } else {
         iframe.src = `${link}?${langParam}`;
     }
+
+    iframe.onload = function() {
+        loadingContainer.style.display = 'none';
+        stopSpinner(); 
+    };
     
     popup.style.display = 'flex'; 
     const menubottom1 = document.getElementById('menubtm');
@@ -2232,6 +2267,31 @@ function showUpdatePopup(link) {
     }, { once: true });
 }
 
+function startWindowsSpinnerAnimation(elementId, interval = 30) {
+    const frames = [
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','',''
+  ];
+
+
+  const el = document.getElementById(elementId);
+  if (!el) {
+    return () => {};
+  }
+
+  let i = 0;
+  const timer = setInterval(() => {
+    el.textContent = frames[i];
+    i = (i + 1) % frames.length;
+  }, interval);
+  return () => clearInterval(timer);
+}
 
 function showUpdatePopupmusic(link) {
     const popup = document.getElementById('update-popup');
