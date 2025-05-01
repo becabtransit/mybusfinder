@@ -26,7 +26,7 @@
             margin: 0;
             padding: 0;
             font-family: 'League Spartan', sans-serif;
-            background-color: #f4f4f4; 
+            background-color: #000000; 
             color: #333; 
             transition: background-color 0.5s ease; 
         }
@@ -1361,57 +1361,56 @@ shape.bounce-down {
 }
 
 #map-container { 
-            position: relative; 
-            height: 100vh; 
-            width: 100%; 
-        }
-        #map { 
-            height: 100%; 
-            width: 100%; 
-        }
-        #sun-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 999;
-            opacity: 0;
-            transition: opacity 0.5s ease-in-out; 
-        }
-        .sun-line {
-            position: absolute;
-            stroke-width: 2;
-            fill: none;
-        }
-        .hour-circle {
-            position: absolute;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 18px;
-            opacity: 0.9;
-            color: white;
-            text-shadow: 1px 1px 2px black;
-            transform: translate(-50%, -50%);
-        }
-        #toggle-sun-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 1001;
-            padding: 10px;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
-            cursor: pointer;
-        }
+    height: 100%; 
+    width: 100%; 
+}
+#map { 
+    height: 100%; 
+    width: 100%; 
+}
+#sun-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out; 
+}
+.sun-line {
+    position: absolute;
+    stroke-width: 2;
+    fill: none;
+}
+.hour-circle {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    font-size: 18px;
+    opacity: 0.9;
+    color: white;
+    text-shadow: 1px 1px 2px black;
+    transform: translate(-50%, -50%);
+}
+#toggle-sun-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1001;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    cursor: pointer;
+}
 
-        .first-visit-tooltip {
+.first-visit-tooltip {
     position: absolute;
     bottom: 80px;
     left: 50%;
@@ -1517,6 +1516,11 @@ shape.bounce-down {
     padding: 0px 8px;
 }
 
+#map {
+    transition: all 0.4s cubic-bezier(0.32, 0.64, 0.45, 1);
+}
+
+
     </style>
 
 </head>
@@ -1574,7 +1578,6 @@ shape.bounce-down {
 	<amp-auto-ads type="adsense"
         data-ad-client="ca-pub-5815761294049475">
 </amp-auto-ads>
-
 
     <div id="map"></div>
     <svg id="sun-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -2448,6 +2451,8 @@ function showUpdatePopupmusic(link) {
     const currentLang = i18n.currentLang;
     const hasParams = link.includes('?');
     const langParam = `lang=${currentLang}`;
+    showLanguageSwitcher();
+
     
     if (hasParams) {
         iframe.src = `${link}&${langParam}`;
@@ -2541,6 +2546,10 @@ function closeUpdatePopup() {
     const popup = document.getElementById('update-popup');
     const popup1 = document.getElementById('time-popup');
     const iframe = document.getElementById('webview-frame');
+    const mapp = document.getElementById('map');
+    mapp.style.opacity = '1';
+    hideLanguageSwitcher();
+
     
     if (iframe.dataset.originalSrc) {
         const timestamp = new Date().getTime();
@@ -2612,6 +2621,7 @@ function hideLoadingScreen() {
                 loadingScreen.style.display = 'none';
                 if(!localStorage.getItem('premierLancement')) {
                     showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
+                    showLanguageSwitcher();
                     localStorage.setItem('premierLancement', 'true');
                 } 
             }, 300);
@@ -3873,18 +3883,18 @@ function createLanguageSwitcher(container) {
   switcherContainer.style.display = 'none';
   switcherContainer.className = 'language-switcher glass-effect';
   switcherContainer.style.position = 'absolute';
-  switcherContainer.style.top = '0px';
-  switcherContainer.style.right = '0px';
-  switcherContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.6)';
+  switcherContainer.style.bottom = '0px';
+  switcherContainer.style.left = '0px';
+  switcherContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
   switcherContainer.style.backdropFilter = 'blur(8px)';
   switcherContainer.style.WebkitBackdropFilter = 'blur(8px)';
-  switcherContainer.style.borderRadius = '0 0 0 12px';
+  switcherContainer.style.borderRadius = '0 12px 0 0';
   switcherContainer.style.boxShadow = '0 0 15px rgba(0, 0, 0, 0.4)';
-  switcherContainer.style.padding = '6px';
+  switcherContainer.style.padding = '4px';
   switcherContainer.style.zIndex = '10000000000';
   switcherContainer.style.fontFamily = 'League Spartan, sans-serif';
   switcherContainer.style.transition = 'all 0.4s cubic-bezier(0.32, 0.64, 0.45, 1)';
-  switcherContainer.style.transform = 'translateY(-100px)';
+  switcherContainer.style.transform = 'translateY(100px)';
   switcherContainer.style.opacity = '0';
   
   
@@ -3894,7 +3904,7 @@ function createLanguageSwitcher(container) {
   mainButton.style.alignItems = 'center';
   mainButton.style.justifyContent = 'space-between';
   mainButton.style.cursor = 'pointer';
-  mainButton.style.color = '#000000';
+  mainButton.style.color = '#ffffff';
   mainButton.style.padding = '8px 12px';
   mainButton.style.borderRadius = '8px';
   mainButton.style.transition = 'background-color 0.4s';
@@ -4057,7 +4067,7 @@ function createLanguageSwitcher(container) {
 
 
 function hideLanguageSwitcher() {
-  langSwitcher.element.style.transform = 'translateY(-100px)';
+  langSwitcher.element.style.transform = 'translateY(100px)';
   langSwitcher.element.style.opacity = '0';
   
   setTimeout(() => {
@@ -5228,6 +5238,8 @@ document.head.appendChild(animationStyle);
 function closeMenu() {
     const menu = document.getElementById('menu');
     const menubottom1 = document.getElementById('menubtm');
+    const mapp = document.getElementById('map');
+    mapp.style.opacity = '1';
     
     menu.classList.add('hidden');
     window.isMenuShowed = false;
@@ -5283,6 +5295,7 @@ function updateMenu() {
     logo.style.cursor = 'pointer';
     logo.onclick = () => {
         showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
+        
         musique();
     };
 
@@ -5481,7 +5494,7 @@ function createBottomSheet() {
         bottom: 0;
         left: 0;
         right: 0;
-        background-color: rgba(255, 255, 255, 0.7);
+        background-color: rgba(249, 249, 249, 0.7);
         border-top-left-radius: 20px;
         border-top-right-radius: 20px;
         backdrop-filter: blur(20px);
@@ -5811,6 +5824,7 @@ function stopDrag(e) {
             bottomSheet.style.transform = 'translateY(0)';
         } else if (percentageMoved < 70) {
             bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
+
         } else {
             closeBottomSheet();
         }
@@ -6096,9 +6110,15 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
 window.isMenuShowed = false;
 
 function showBottomSheet() {
-    showLanguageSwitcher();
+    const mapp = document.getElementById('map');
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
+
+    mapp.style.scale = '0.9';
+    mapp.style.opacity = '0.5';
+    mapp.style.borderRadius = '20px';
+    mapp.style.transform = 'translateY(-13px)';
+
     safeVibrate(50);
     // Hide menu
     menu.classList.add('hidden');
@@ -6148,8 +6168,13 @@ function showBottomSheet() {
 }
 
 function closeBottomSheet() {
-    hideLanguageSwitcher();
     const bottomSheet = document.getElementById('bottomSheet');
+
+    const mapp = document.getElementById('map');
+    mapp.style.scale = '1';
+    mapp.style.opacity = '1';
+    mapp.style.borderRadius = '0px';
+    mapp.style.transform = 'translateY(0px)';
 
     safeVibrate(50);
 
@@ -6563,6 +6588,8 @@ const menubottom1 = document.getElementById('menubtm');
 
         function showMenu() {
             window.isMenuShowed = true;
+            const mapp = document.getElementById('map');
+            mapp.style.opacity = '0.5';
             const menu = document.getElementById('menu');
             const menubotom = document.getElementById('menubottom');
             menu.classList.remove('hidden');
@@ -6595,6 +6622,8 @@ const menubottom1 = document.getElementById('menubtm');
         closeMap.onclick = () => {
             const menu = document.getElementById('menu');
             menu.classList.add('hidden');
+            const mapp = document.getElementById('map');
+            mapp.style.opacity = '1';
             window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
                 if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
