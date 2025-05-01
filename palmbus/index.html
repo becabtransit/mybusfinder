@@ -77,6 +77,30 @@
     position: relative;
 }
 
+.time-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none; 
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+	background-color: rgba(255, 255, 255, 0.5); 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+    overflow-y: hidden;
+}
+
+.time-content {
+    background: white;
+    width: 100%;
+    height: 100%;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    position: relative;
+}
+
 
 .timepopup {
     position: fixed;
@@ -394,7 +418,7 @@ visibility: hidden;
     }
 }
 
-.popup-content, .popup-content1, .popup1 {
+.popup-content, .popup-content1, .time-content, .popup1 {
     animation: zoomFadeIn 0.6s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
 }
 
@@ -1525,7 +1549,7 @@ shape.bounce-down {
                     class="title" data-i18n="menu">Menu</span></a>
             </li>
             <li>
-                <a onclick="showUpdatePopup('schedule.html');" id="clock"><span class="icon"><img src="src/horloge.png" style="width: 40px; height: 40px;"></img></span> <span
+                <a onclick="showUpdatePopupPourHoraires()" id="clock"><span class="icon"><img src="src/horloge.png" style="width: 40px; height: 40px;"></img></span> <span
                         class="title" data-i18n="schedule">Horaires</span></a>
             </li>
             <li>
@@ -1569,7 +1593,16 @@ shape.bounce-down {
         </div>
     </div>
                 
-
+    <div id="time-popup" class="time-popup">
+        <div class="time-content">
+            <button id="close-popup" class="close-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <iframe id="webview-frame1" src="" frameborder="0"></iframe>
+        </div>
+    </div>
 
 	
 	
@@ -2198,6 +2231,85 @@ var audio = new Audio("src/sounds/musique.mp3");
 
 
 let globalStopSpinner = null;
+let HorairesCharges = false;
+
+function showUpdatePopupPourHoraires() {
+    const popup = document.getElementById('time-popup');
+    const iframe = document.getElementById('webview-frame1');
+    const currentLang = i18n.currentLang;
+    const langParam = `lang=${currentLang}`;
+    
+    const loadingContainer = document.createElement('div');
+    loadingContainer.id = 'iframe-loading-container';
+    loadingContainer.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: rgba(255, 255, 255, 0);
+        z-index: 10;
+    `;
+    
+    const spinnerElement = document.createElement('span');
+    spinnerElement.id = 'iframe-win-spinner';
+    spinnerElement.style.cssText = `
+        font-family: 'SegoeUIBoot';
+        font-size: 2rem;
+        color: #0078d7;
+    `;
+    
+
+    
+    loadingContainer.appendChild(spinnerElement);
+    loadingContainer.style.display = 'none';
+
+    const popupContent = document.querySelector('.popup-content');
+    popupContent.style.position = 'relative';
+    popupContent.appendChild(loadingContainer);
+    
+    if (globalStopSpinner) {
+        globalStopSpinner();
+    }
+    globalStopSpinner = startWindowsSpinnerAnimation("iframe-win-spinner");
+    
+    if (!HorairesCharges) {
+        iframe.src = `schedule.html`;
+        HorairesCharges = true;
+    }
+    
+
+    
+    setupMessageListener(loadingContainer);
+    
+    popup.style.display = 'flex'; 
+    const menubottom1 = document.getElementById('menubtm');
+    const menu = document.getElementById('menu');
+    const menubotom = document.getElementById('menubottom');
+
+    menubottom1.classList.remove('slide-downb');
+    menubottom1.classList.add('slide-upb');
+    if (selectedLine) {
+        const filtre = document.getElementById('filtre');
+        filtre.classList.add('slide-upc');
+        filtre.classList.remove('slide-downc');
+        filtre.addEventListener('animationend', () => {
+            filtre.style.display = 'none';
+        });
+        resetMapView();            
+    }
+
+    menubottom1.addEventListener('transitionend', () => {
+        if (menubottom1.classList.contains('slide-up')) {
+            menubottom1.style.display = 'none';
+        }
+    }, { once: true });
+}
+
 
 function showUpdatePopup(link) {
     const popup = document.getElementById('update-popup');
