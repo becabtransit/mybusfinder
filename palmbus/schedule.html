@@ -1394,7 +1394,7 @@ select:focus {
     <script>
         let routes = {};
         let trips = {};
-        let stopTimes = {};
+        const stopTimes = {};
         let stops = {};
         let calendar = {};
         let calendarDates = {};
@@ -2221,223 +2221,249 @@ function isServiceActive(serviceId, dateObj) {
 
 
 
+// Variable globale pour maintenir la compatibilité avec le code existant
+
 /**
- * Chargement des données stop_times avec gestion extrêmement stricte de la mémoire
- * @param {string} fileContent - Contenu du fichier CSV
- * @param {Object} externalStore - Store externe où stocker les résultats (obligatoire)
- * @param {function} onProgress - Callback de progression (facultatif)
- * @param {number} chunkSize - Taille des morceaux pour traiter le fichier (défaut: 500Ko)
- * @returns {Promise<number>} - Nombre total d'arrêts traités
+ * Charge les données des horaires d'arrêts depuis un contenu de fichier
+ * Version ultra-robuste pour éviter toute fuite mémoire
  */
- async function loadStopTimes(fileContent, externalStore, onProgress = null, chunkSize = 500 * 1024) {
-    if (!fileContent) {
-        console.warn('Aucun contenu de fichier stop_times fourni');
-        return 0;
-    }
-    
-    if (!externalStore || typeof externalStore !== 'object') {
-        throw new Error('Un objet de stockage externe est obligatoire pour éviter les fuites mémoire');
-    }
-    
-    console.time('Chargement stop_times');
-    console.log('Début du chargement avec gestion stricte de la mémoire...');
-    
-    let totalEntries = 0;
-    let headerProcessed = false;
-    let indices = {};
-    
-    // Choix du délimiteur de ligne
-    const newlineChar = fileContent.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
-    
+async function loadStopTimes(fileContent) {
     try {
-        // Traitement par morceaux pour minimiser l'empreinte mémoire
-        let startIndex = 0;
-        let fileLength = fileContent.length;
+        if (!fileContent) {
+            console.warn('Aucun contenu de fichier stop_times fourni');
+            return;
+        }
         
-        while (startIndex < fileLength) {
-            // Déterminer la fin du morceau actuel
-            let endIndex = Math.min(startIndex + chunkSize, fileLength);
+        console.time('Chargement stop_times');
+        console.log('Début du chargement des stop_times (fichier volumineux ~20Mo)...');
+        
+        // Vider l'objet stopTimes au début pour éviter les accumulations
+        Object.keys(stopTimes).forEach(key => delete stopTimes[key]);
+        
+        // Déterminer le caractère de fin de ligne
+        const newlineChar = detectNewlineChar(fileContent);
+        
+        // Extraire et analyser la ligne d'en-tête
+        const headerEndPos = fileContent.indexOf(newlineChar);
+        const headerLine = fileContent.substring(0, headerEndPos);
+        const headers = parseCSVLine(headerLine);
+        
+        // Obtenir les index des colonnes importantes
+        const columnIndexes = getColumnIndexes(headers);
+        if (!columnIndexes.valid) {
+            console.error('Format de fichier stop_times.txt invalide, colonnes requises manquantes');
+            return;
+        }
+        
+        // Paramètres de traitement
+        const BATCH_SIZE = 25000;  // Traiter par petits lots
+        const CHUNK_SIZE = 1000000; // Taille des segments de fichier à traiter
+        let entryCount = 0;
+        let warningCount = 0;
+        const MAX_WARNINGS = 5;
+        
+        // Préparation du suivi de progression
+        const fileSize = fileContent.length;
+        let lastReportTime = Date.now();
+        
+        // Traiter le fichier par segments pour réduire l'utilisation de la mémoire
+        let startOffset = headerEndPos + newlineChar.length;
+        
+        while (startOffset < fileContent.length) {
+            // Calculer la fin du segment actuel
+            const endOffset = Math.min(startOffset + CHUNK_SIZE, fileContent.length);
             
-            // S'assurer de ne pas couper une ligne au milieu
-            if (endIndex < fileLength) {
-                let nextNewline = fileContent.indexOf(newlineChar, endIndex);
-                if (nextNewline !== -1) {
-                    endIndex = nextNewline + newlineChar.length;
+            // Extraire un segment du fichier
+            const chunk = fileContent.substring(startOffset, endOffset);
+            
+            // Trouver la dernière ligne complète dans ce segment
+            let chunkEndPos = chunk.lastIndexOf(newlineChar);
+            if (chunkEndPos === -1) chunkEndPos = chunk.length;
+            
+            // Segment de texte à traiter dans cette itération
+            const textToProcess = chunk.substring(0, chunkEndPos);
+            
+            // Mettre à jour le point de départ pour la prochaine itération
+            startOffset += chunkEndPos + newlineChar.length;
+            
+            // Traiter ce segment par lots
+            const tempMap = new Map();
+            let lineStartPos = 0;
+            let lineEndPos, line;
+            let currentBatchSize = 0;
+            
+            while (lineStartPos < textToProcess.length) {
+                // Extraire une ligne
+                lineEndPos = textToProcess.indexOf(newlineChar, lineStartPos);
+                
+                if (lineEndPos === -1) {
+                    line = textToProcess.substring(lineStartPos);
+                    lineStartPos = textToProcess.length;
                 } else {
-                    endIndex = fileLength;
+                    line = textToProcess.substring(lineStartPos, lineEndPos);
+                    lineStartPos = lineEndPos + newlineChar.length;
+                }
+                
+                if (!line.trim()) continue;
+                
+                // Parser la ligne CSV
+                let values;
+                try {
+                    if (line.indexOf('"') === -1) {
+                        values = line.split(',');
+                    } else {
+                        values = parseCSVLine(line);
+                    }
+                } catch (err) {
+                    if (warningCount < MAX_WARNINGS) {
+                        console.warn(`Erreur de parsing CSV: ${err.message}`);
+                        warningCount++;
+                    }
+                    continue;
+                }
+                
+                // Vérifier la validité de la ligne
+                if (values.length <= Math.max(
+                    columnIndexes.tripId, 
+                    columnIndexes.stopId, 
+                    columnIndexes.arrivalTime
+                )) {
+                    if (warningCount < MAX_WARNINGS) {
+                        console.warn(`Ligne ignorée - données incomplètes`);
+                        warningCount++;
+                    }
+                    continue;
+                }
+                
+                // Extraire trip_id
+                const tripId = values[columnIndexes.tripId];
+                if (!tripId) continue;
+                
+                // Récupérer ou créer le tableau pour ce trajet
+                let tripStops = tempMap.get(tripId);
+                if (!tripStops) {
+                    tripStops = [];
+                    tempMap.set(tripId, tripStops);
+                }
+                
+                // Créer l'entrée d'arrêt avec le strict minimum
+                const stopEntry = createStopEntry(values, columnIndexes);
+                
+                // Ajouter au lot temporaire
+                tripStops.push(stopEntry);
+                entryCount++;
+                currentBatchSize++;
+                
+                // Traiter par lots pour limiter l'utilisation mémoire
+                if (currentBatchSize >= BATCH_SIZE) {
+                    await processAndFlushBatch(tempMap, stopTimes);
+                    tempMap.clear();
+                    currentBatchSize = 0;
+                    
+                    // Laisser respirer le GC
+                    await yieldToEventLoop();
+                }
+                
+                // Rapporter la progression à intervalles réguliers
+                if (Date.now() - lastReportTime > 2000) {
+                    const percentComplete = Math.floor((startOffset / fileSize) * 100);
+                    console.log(`Chargement: ${percentComplete}% (${entryCount} arrêts traités)`);
+                    lastReportTime = Date.now();
+                    
+                    // Force GC
+                    await yieldToEventLoop();
                 }
             }
             
-            // Extraire le morceau actuel
-            const chunk = fileContent.substring(startIndex, endIndex);
-            
-            // Traiter le morceau
-            const entriesProcessed = await processChunk(
-                chunk, 
-                externalStore, 
-                headerProcessed, 
-                indices, 
-                startIndex === 0, // Premier morceau?
-                newlineChar
-            );
-            
-            if (!headerProcessed) {
-                headerProcessed = true;
+            // Traiter les données restantes dans ce segment
+            if (tempMap.size > 0) {
+                await processAndFlushBatch(tempMap, stopTimes);
+                tempMap.clear();
             }
             
-            totalEntries += entriesProcessed;
+            // Force GC entre les segments
+            await forceGarbageCollection();
             
-            // Progression
-            if (onProgress && typeof onProgress === 'function') {
-                onProgress({
-                    bytesProcessed: endIndex,
-                    totalBytes: fileLength,
-                    percentage: Math.floor((endIndex / fileLength) * 100),
-                    entriesProcessed: totalEntries
-                });
-            }
-            
-            // Avancer au prochain morceau
-            startIndex = endIndex;
-            
-            // Laisser le temps au GC de faire son travail
-            await yieldToEventLoop();
+            console.log(`Segment traité: ${Math.floor((startOffset / fileSize) * 100)}% du fichier`);
         }
         
-        // Finaliser le traitement des données
-        await finalizeData(externalStore);
-        
         console.timeEnd('Chargement stop_times');
-        console.log(`Stop times chargés: ${Object.keys(externalStore).length} trajets, ${totalEntries} arrêts au total`);
+        console.log(`Stop times chargés: ${Object.keys(stopTimes).length} trajets, ${entryCount} arrêts au total`);
         
-        return totalEntries;
     } catch (error) {
-        console.error('Erreur lors du chargement des horaires:', error);
-        throw error;
-    } finally {
-        // Forcer la libération des variables temporaires
-        indices = null;
+        console.error('Erreur lors du chargement des horaires', error);
+        console.error('Stack trace:', error.stack);
     }
 }
 
 /**
- * Traite un morceau du fichier CSV
+ * Detecte le caractère de fin de ligne dans le contenu
  */
-async function processChunk(chunk, store, headerAlreadyProcessed, indices, isFirstChunk, newlineChar) {
-    let entriesProcessed = 0;
-    let lines = chunk.split(newlineChar);
-    
-    // Si c'est le premier morceau, la première ligne est l'en-tête
-    if (isFirstChunk && !headerAlreadyProcessed) {
-        const headerLine = lines.shift();
-        const headers = parseCSVLine(headerLine);
-        
-        // Mettre à jour les indices (par référence)
-        indices.tripId = headers.indexOf('trip_id');
-        indices.stopId = headers.indexOf('stop_id');
-        indices.arrivalTime = headers.indexOf('arrival_time');
-        indices.departureTime = headers.indexOf('departure_time');
-        indices.stopSequence = headers.indexOf('stop_sequence');
-        indices.pickupType = headers.indexOf('pickup_type');
-        indices.dropOffType = headers.indexOf('drop_off_type');
-        
-        if (indices.tripId === -1 || indices.stopId === -1 || indices.arrivalTime === -1) {
-            throw new Error('Format de fichier stop_times.txt invalide, colonnes requises manquantes');
-        }
+function detectNewlineChar(content) {
+    if (content.indexOf('\r\n') >= 0 && content.indexOf('\r\n') < content.indexOf('\n', 1)) {
+        return '\r\n';
     }
+    return '\n';
+}
+
+/**
+ * Extrait les index des colonnes importantes de l'en-tête
+ */
+function getColumnIndexes(headers) {
+    const result = {
+        tripId: headers.indexOf('trip_id'),
+        stopId: headers.indexOf('stop_id'),
+        arrivalTime: headers.indexOf('arrival_time'),
+        departureTime: headers.indexOf('departure_time'),
+        stopSequence: headers.indexOf('stop_sequence'),
+        pickupType: headers.indexOf('pickup_type'),
+        dropOffType: headers.indexOf('drop_off_type'),
+        valid: false
+    };
     
-    // Structure temporaire pour ce morceau
-    const tempData = new Map();
+    // Vérifier que les colonnes essentielles sont présentes
+    result.valid = (result.tripId !== -1 && result.stopId !== -1 && result.arrivalTime !== -1);
     
-    // Traiter chaque ligne
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line.trim()) continue;
-        
-        let values;
-        if (line.indexOf('"') === -1) {
-            values = line.split(',');
-        } else {
-            values = parseCSVLine(line);
-        }
-        
-        // Vérifier que les colonnes requises sont présentes
-        if (values.length <= Math.max(indices.tripId, indices.stopId, indices.arrivalTime)) {
-            continue;
-        }
-        
-        const tripId = values[indices.tripId];
-        if (!tripId) continue;
-        
-        // Créer l'entrée pour cet arrêt
-        const stopEntry = createStopEntry(values, indices);
-        
-        // Ajouter à la structure temporaire
-        if (!tempData.has(tripId)) {
-            tempData.set(tripId, []);
-        }
-        tempData.get(tripId).push(stopEntry);
-        
-        entriesProcessed++;
-        
-        // Libérer la mémoire périodiquement
-        if (entriesProcessed % 10000 === 0) {
-            await flushTemporaryData(tempData, store);
-            await yieldToEventLoop();
-        }
-        
-        // Libérer la référence à la ligne
-        lines[i] = null;
-    }
-    
-    // Flush final pour ce morceau
-    if (tempData.size > 0) {
-        await flushTemporaryData(tempData, store);
-    }
-    
-    // Libérer la mémoire
-    lines = null;
-    
-    return entriesProcessed;
+    return result;
 }
 
 /**
  * Crée une entrée d'arrêt à partir des valeurs CSV
  */
-function createStopEntry(values, indices) {
+function createStopEntry(values, indexes) {
     const stopEntry = {
-        stop_id: values[indices.stopId],
-        stop_sequence: indices.stopSequence !== -1 && values[indices.stopSequence] ? 
-            parseInt(values[indices.stopSequence], 10) : 0
+        stop_id: values[indexes.stopId],
+        stop_sequence: indexes.stopSequence !== -1 && values[indexes.stopSequence] ? 
+            parseInt(values[indexes.stopSequence], 10) : 0
     };
     
-    // Traiter l'heure d'arrivée
-    if (values[indices.arrivalTime]) {
-        stopEntry.arrival_time = formatTimeString(values[indices.arrivalTime]);
+    // Traiter le temps d'arrivée
+    if (values[indexes.arrivalTime]) {
+        stopEntry.arrival_time = formatTimeString(values[indexes.arrivalTime]);
     }
     
-    // Traiter l'heure de départ si différente
-    if (indices.departureTime !== -1 && values[indices.departureTime] && 
-        values[indices.departureTime] !== values[indices.arrivalTime]) {
-        stopEntry.departure_time = formatTimeString(values[indices.departureTime]);
+    // Traiter le temps de départ s'il est différent
+    if (indexes.departureTime !== -1 && values[indexes.departureTime] && 
+        values[indexes.departureTime] !== values[indexes.arrivalTime]) {
+        stopEntry.departure_time = formatTimeString(values[indexes.departureTime]);
     } else {
         stopEntry.departure_time = stopEntry.arrival_time;
     }
     
-    // Traiter les types d'arrêt optionnels
-    if (indices.pickupType !== -1 && values[indices.pickupType] && values[indices.pickupType] !== '0') {
-        stopEntry.pickup_type = parseInt(values[indices.pickupType], 10);
+    // Ajouter les types optionnels uniquement s'ils sont différents de la valeur par défaut
+    if (indexes.pickupType !== -1 && values[indexes.pickupType] && values[indexes.pickupType] !== '0') {
+        stopEntry.pickup_type = parseInt(values[indexes.pickupType], 10);
     }
     
-    if (indices.dropOffType !== -1 && values[indices.dropOffType] && values[indices.dropOffType] !== '0') {
-        stopEntry.drop_off_type = parseInt(values[indices.dropOffType], 10);
+    if (indexes.dropOffType !== -1 && values[indexes.dropOffType] && values[indexes.dropOffType] !== '0') {
+        stopEntry.drop_off_type = parseInt(values[indexes.dropOffType], 10);
     }
     
     return stopEntry;
 }
 
 /**
- * Formate une chaîne d'heure au format hh:mm:ss en hh'h'mm
+ * Formatte une chaîne d'heure du format HH:MM:SS au format HHhMM
  */
 function formatTimeString(timeStr) {
     const colonPos = timeStr.indexOf(':');
@@ -2450,205 +2476,126 @@ function formatTimeString(timeStr) {
 }
 
 /**
- * Transfère les données temporaires dans le store permanent
+ * Traite et vide un lot de données vers le stockage final
  */
-async function flushTemporaryData(tempData, store) {
-    // Traitement par lots de 1000 pour éviter de bloquer le thread trop longtemps
-    const batches = [];
-    const batchSize = 1000;
-    const tripIds = Array.from(tempData.keys());
-    
-    for (let i = 0; i < tripIds.length; i += batchSize) {
-        batches.push(tripIds.slice(i, i + batchSize));
-    }
-    
-    for (const batch of batches) {
-        for (const tripId of batch) {
-            const stops = tempData.get(tripId);
-            
-            // Fusionner avec des arrêts existants
-            if (store[tripId]) {
-                store[tripId] = [...store[tripId], ...stops];
-            } else {
-                store[tripId] = stops;
-            }
-            
-            // Libérer la mémoire immédiatement
-            tempData.delete(tripId);
-        }
+async function processAndFlushBatch(tempMap, targetStore) {
+    for (const [tripId, stops] of tempMap) {
+        // Tri par séquence d'arrêt
+        stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
         
-        // Céder périodiquement au thread principal
-        await yieldToEventLoop();
-    }
-    
-    // S'assurer que tout est bien libéré
-    tempData.clear();
-}
-
-/**
- * Finalise les données en triant tous les arrêts par séquence
- */
-async function finalizeData(store) {
-    const tripIds = Object.keys(store);
-    const batchSize = 1000;
-    
-    console.log(`Finalisation et tri de ${tripIds.length} trajets...`);
-    
-    for (let i = 0; i < tripIds.length; i += batchSize) {
-        const batchEnd = Math.min(i + batchSize, tripIds.length);
-        const currentBatch = tripIds.slice(i, batchEnd);
-        
-        for (const tripId of currentBatch) {
-            if (store[tripId] && Array.isArray(store[tripId])) {
-                // Trier par séquence d'arrêt
-                store[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
-            }
-        }
-        
-        console.log(`Tri des trajets: ${Math.round((batchEnd / tripIds.length) * 100)}% terminé`);
-        await yieldToEventLoop();
+        // Stocker dans l'objet cible
+        targetStore[tripId] = stops;
     }
 }
 
 /**
- * Permet au thread principal de traiter d'autres tâches
- * et au garbage collector de libérer la mémoire
+ * Permet au moteur JavaScript de traiter la boucle d'événements
+ * et potentiellement exécuter le garbage collector
  */
 async function yieldToEventLoop() {
-    return new Promise(resolve => {
-        // Utiliser setTimeout(0) pour céder au thread principal
-        setTimeout(() => {
-            // Forcer une collecte des déchets si disponible
-            if (typeof global !== 'undefined' && global.gc) {
-                global.gc();
-            }
-            resolve();
-        }, 0);
-    });
+    return new Promise(resolve => setTimeout(resolve, 0));
 }
 
 /**
- * Fonction pour compatibilité avec le code existant
- * @param {string} fileContent - Contenu du fichier
+ * Tente de forcer le garbage collector en créant puis en libérant
+ * une grande quantité de mémoire
  */
-async function loadStopTimesBackwardCompatible(fileContent) {
-    // Cette variable globale est supposée exister dans le code original
-    if (typeof stopTimes === 'undefined') {
-        global.stopTimes = {};
-    } else {
-        // Vider l'objet existant mais garder la référence
-        for (const key of Object.keys(stopTimes)) {
-            delete stopTimes[key];
-        }
-    }
-    
-    // Callback de progression
-    const progressCallback = (progress) => {
-        if (progress.percentage % 5 === 0) { // Rapporter tous les 5%
-            console.log(`Progression: ${progress.percentage}% (${progress.entriesProcessed} arrêts traités)`);
-        }
-    };
-    
+async function forceGarbageCollection() {
     try {
-        // Utiliser la nouvelle fonction mais stocker dans l'objet global
-        return await loadStopTimes(fileContent, stopTimes, progressCallback);
-    } catch (error) {
-        console.error('Erreur fatale:', error);
-        return 0;
+        // Stocker les références actuelles
+        const oldReferences = [];
+        for (let i = 0; i < 10; i++) {
+            oldReferences.push(new Array(1000000).fill(0));
+            await yieldToEventLoop();
+        }
+        
+        // Supprimer les références
+        oldReferences.length = 0;
+        await yieldToEventLoop();
+        
+        // Créer de nouvelles références
+        const newReferences = [];
+        for (let i = 0; i < 10; i++) {
+            newReferences.push(new Array(1000000).fill(0));
+            await yieldToEventLoop();
+        }
+        
+        // Supprimer les nouvelles références
+        newReferences.length = 0;
+        
+        // Attendre plusieurs cycles
+        for (let i = 0; i < 5; i++) {
+            await yieldToEventLoop();
+        }
+    } catch (e) {
+        // Ignorer les erreurs de mémoire, c'est le but
+        console.log('Tentative de libération forcée de la mémoire');
     }
 }
 
 /**
- * Exemple d'utilisation avec un chargement par streaming
- * pour éviter de charger tout le fichier en mémoire
+ * Version compatible avec la fonction processBatch originale
  */
-async function loadStopTimesFromStream(readStream) {
-    return new Promise((resolve, reject) => {
-        // Créer un magasin de données
-        const dataStore = {};
-        
-        // Accumulateur pour les morceaux de données
-        let buffer = '';
-        let totalProcessed = 0;
-        let headerProcessed = false;
-        let indices = {};
-        
-        // Taille maximale du buffer avant traitement
-        const MAX_BUFFER_SIZE = 1 * 1024 * 1024; // 1Mo
-        
-        readStream.on('data', async (chunk) => {
-            // Ajouter le morceau au buffer
-            buffer += chunk.toString();
-            
-            // Si le buffer dépasse la taille maximale, le traiter
-            if (buffer.length > MAX_BUFFER_SIZE) {
-                // Arrêter temporairement la lecture pour éviter la surcharge
-                readStream.pause();
-                
-                try {
-                    const processedEntries = await processBufferChunk(buffer, dataStore, headerProcessed, indices);
-                    totalProcessed += processedEntries;
-                    
-                    if (!headerProcessed) {
-                        headerProcessed = true;
-                    }
-                    
-                    // Vider le buffer
-                    buffer = '';
-                    
-                    // Reprendre la lecture
-                    readStream.resume();
-                } catch (error) {
-                    reject(error);
-                }
-            }
-        });
-        
-        readStream.on('end', async () => {
-            // Traiter le reste du buffer
-            if (buffer.length > 0) {
-                try {
-                    const processedEntries = await processBufferChunk(buffer, dataStore, headerProcessed, indices);
-                    totalProcessed += processedEntries;
-                } catch (error) {
-                    reject(error);
-                    return;
-                }
-            }
-            
-            // Finaliser les données
-            await finalizeData(dataStore);
-            
-            resolve({
-                dataStore,
-                totalProcessed
-            });
-        });
-        
-        readStream.on('error', (error) => {
-            reject(error);
-        });
-    });
-}
-
-/**
- * Traite un morceau de buffer en streaming
- */
-async function processBufferChunk(buffer, store, headerProcessed, indices) {
-    const newlineChar = buffer.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
+async function processBatch(batch, tempStopTimes) {
+    // Vérifier si tempStopTimes est un objet ou une Map
+    const isMap = tempStopTimes instanceof Map;
     
-    // Trouver la dernière ligne complète
-    const lastNewline = buffer.lastIndexOf(newlineChar);
-    const processableBuffer = buffer.substring(0, lastNewline);
+    for (const item of batch) {
+        const tripId = item.tripId;
+        if (!tripId) continue;
+        
+        // Récupérer ou créer le tableau pour ce trajet
+        let tripStops;
+        if (isMap) {
+            tripStops = tempStopTimes.get(tripId);
+            if (!tripStops) {
+                tripStops = [];
+                tempStopTimes.set(tripId, tripStops);
+            }
+        } else {
+            if (!tempStopTimes[tripId]) {
+                tempStopTimes[tripId] = [];
+            }
+            tripStops = tempStopTimes[tripId];
+        }
+        
+        // Créer l'entrée d'arrêt
+        const stopEntry = {
+            stop_id: item.stopId,
+            stop_sequence: item.stopSequence || 0
+        };
+        
+        // Traiter le temps d'arrivée
+        if (item.arrivalTime) {
+            stopEntry.arrival_time = formatTimeString(item.arrivalTime);
+        }
+        
+        // Traiter le temps de départ
+        if (item.departureTime && item.departureTime !== item.arrivalTime) {
+            stopEntry.departure_time = formatTimeString(item.departureTime);
+        } else {
+            stopEntry.departure_time = stopEntry.arrival_time;
+        }
+        
+        // Traiter les types optionnels
+        if (item.pickupType && item.pickupType !== '0') {
+            stopEntry.pickup_type = parseInt(item.pickupType, 10);
+        }
+        
+        if (item.dropOffType && item.dropOffType !== '0') {
+            stopEntry.drop_off_type = parseInt(item.dropOffType, 10);
+        }
+        
+        // Ajouter au tableau
+        tripStops.push(stopEntry);
+    }
     
-    return await processChunk(processableBuffer, store, headerProcessed, indices, !headerProcessed, newlineChar);
+    // Pour une Map, transférer les données vers l'objet cible
+    if (isMap) {
+        await processAndFlushBatch(tempStopTimes, stopTimes);
+        tempStopTimes.clear();
+    }
 }
-
-module.exports = {
-    loadStopTimes,
-    loadStopTimesBackwardCompatible,
-    loadStopTimesFromStream
-};
 
 async function loadStops(fileContent) {
     try {
@@ -2805,7 +2752,7 @@ async function loadAllGTFSData(files) {
     if (files.routes) await loadRoutes(files.routes);
     if (files.stops) await loadStops(files.stops);
     if (files.trips) await loadTrips(files.trips);
-    if (files.stop_times) await loadStopTimesBackwardCompatible(files.stop_times);
+    if (files.stop_times) await loadStopTimes(files.stop_times);
     
     console.log('Chargement des données GTFS terminé');
 }
