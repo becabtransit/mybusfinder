@@ -1960,19 +1960,16 @@ async function clearGTFSCache() {
     }
 }
 
-/**
- * Système optimisé de traitement de données GTFS
- * Optimisé pour la performance et la robustesse
- */
 
 /**
- * Parse une ligne CSV en respectant les guillemets
- * @param {string} line - Ligne CSV à parser
- * @returns {string[]} - Tableau des valeurs
+ * Parse une ligne CSV et renvoie un tableau de valeurs
+ * Gère correctement les valeurs entre guillemets avec des virgules à l'intérieur
+ * @param {string} line - Ligne CSV à analyser
+ * @return {string[]} Tableau de valeurs
  */
 function parseCSVLine(line) {
-    const result = [];
-    let current = '';
+    const values = [];
+    let currentValue = '';
     let inQuotes = false;
     
     for (let i = 0; i < line.length; i++) {
@@ -1981,76 +1978,59 @@ function parseCSVLine(line) {
         if (char === '"' && (i === 0 || line[i-1] !== '\\')) {
             inQuotes = !inQuotes;
         } else if (char === ',' && !inQuotes) {
-            result.push(current);
-            current = '';
+            values.push(currentValue.trim());
+            currentValue = '';
         } else {
-            current += char;
+            currentValue += char;
         }
     }
     
-    result.push(current); // Ajouter le dernier élément
+    values.push(currentValue.trim());
+    return values;
+}
+
+/**
+ * Analyse un fichier CSV et retourne un tableau d'objets avec les propriétés nommées selon les en-têtes
+ * @param {string} fileContent - Contenu du fichier CSV
+ * @return {Object[]} Tableau d'objets
+ */
+function parseCSV(fileContent) {
+    if (!fileContent || typeof fileContent !== 'string') {
+        return [];
+    }
+    
+    const lines = fileContent.trim().split('\n');
+    if (lines.length <= 1) {
+        return [];
+    }
+    
+    const headers = parseCSVLine(lines[0]);
+    const result = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        
+        const values = parseCSVLine(lines[i]);
+        const obj = {};
+        
+        for (let j = 0; j < headers.length; j++) {
+            if (j < values.length) {
+                obj[headers[j]] = values[j];
+            } else {
+                obj[headers[j]] = '';
+            }
+        }
+        
+        result.push(obj);
+    }
+    
     return result;
 }
 
 /**
- * Extrait les valeurs d'un ligne en fonction des index d'en-tête
- * @param {string} line - Ligne CSV
- * @param {Object} headerIndices - Dictionnaire {nomColonne: index}
- * @returns {Object} - Objet avec les valeurs extraites
- */
-function extractValues(line, headerIndices) {
-    const values = parseCSVLine(line);
-    const result = {};
-    
-    for (const [key, index] of Object.entries(headerIndices)) {
-        if (index !== -1 && index < values.length) {
-            result[key] = values[index].trim();
-        } else {
-            result[key] = '';
-        }
-    }
-    
-    return result;
-}
-
-/**
- * Construit un dictionnaire d'index à partir d'une ligne d'en-tête
- * @param {string} headerLine - Ligne d'en-tête CSV
- * @param {string[]} requiredColumns - Colonnes requises
- * @param {string[]} optionalColumns - Colonnes optionnelles
- * @returns {Object|null} - Dictionnaire d'index ou null si colonnes requises manquantes
- */
-function buildHeaderIndices(headerLine, requiredColumns, optionalColumns = []) {
-    const headers = parseCSVLine(headerLine);
-    const indices = {};
-    
-    // Initialiser tous les index à -1 (non trouvé)
-    [...requiredColumns, ...optionalColumns].forEach(col => {
-        indices[col] = -1;
-    });
-    
-    // Trouver les index
-    headers.forEach((header, index) => {
-        const headerTrimmed = header.trim();
-        if (requiredColumns.includes(headerTrimmed) || optionalColumns.includes(headerTrimmed)) {
-            indices[headerTrimmed] = index;
-        }
-    });
-    
-    // Vérifier que toutes les colonnes requises sont présentes
-    const missingColumns = requiredColumns.filter(col => indices[col] === -1);
-    if (missingColumns.length > 0) {
-        console.error(`Colonnes requises manquantes: ${missingColumns.join(', ')}`);
-        return null;
-    }
-    
-    return indices;
-}
-
-/**
- * Formate une date au format YYYYMMDD
+ * Formate une date en YYYYMMDD
  * @param {Date} date - Objet Date à formater
- * @returns {string} - Date formatée
+ * @return {string} Date au format YYYYMMDD
  */
 function formatDate(date) {
     const year = date.getFullYear();
@@ -2060,363 +2040,44 @@ function formatDate(date) {
 }
 
 /**
- * Charge les exceptions de calendrier
+ * Charge et traite les données calendar_dates.txt
  * @param {string} fileContent - Contenu du fichier calendar_dates.txt
- * @returns {Promise<void>}
  */
 async function loadCalendarDates(fileContent) {
     try {
-        if (!fileContent || fileContent.trim() === '') {
-            console.warn('Fichier calendar_dates vide ou non fourni');
-            return;
-        }
+        const data = parseCSV(fileContent);
         
-        const lines = fileContent.trim().split('\n');
-        if (lines.length < 2) {
-            console.warn('Fichier calendar_dates sans données');
-            return;
-        }
-        
-        const headerIndices = buildHeaderIndices(
-            lines[0], 
-            ['service_id', 'date', 'exception_type']
-        );
-        
-        if (!headerIndices) return;
-        
-        // Traitement optimisé des lignes
-        const dataLines = lines.slice(1).filter(line => line.trim());
-        for (const line of dataLines) {
-            const { service_id, date, exception_type } = extractValues(line, headerIndices);
+        data.forEach(row => {
+            const { service_id, date, exception_type } = row;
             
-            if (!service_id || !date) continue;
-            
-            const exType = parseInt(exception_type, 10);
-            if (exType !== 1 && exType !== 2) continue;
+            if (!service_id || !date) return;
             
             if (!calendarDates[date]) {
                 calendarDates[date] = { added: [], removed: [] };
             }
             
-            if (exType === 1) {
+            const exceptionType = parseInt(exception_type, 10);
+            if (exceptionType === 1) {
                 calendarDates[date].added.push(service_id);
-            } else {
+            } else if (exceptionType === 2) {
                 calendarDates[date].removed.push(service_id);
             }
-        }
-        
-        console.log(`Chargement réussi de ${Object.keys(calendarDates).length} dates d'exception`);
-    } catch (error) {
-        console.error('Erreur lors du chargement des exceptions de calendrier:', error);
-    }
-}
-
-/**
- * Charge les données du calendrier standard
- * @param {string} fileContent - Contenu du fichier calendar.txt
- * @returns {Promise<void>}
- */
-async function loadCalendar(fileContent) {
-    try {
-        if (!fileContent || fileContent.trim() === '') {
-            console.warn('Fichier calendar vide ou non fourni');
-            return;
-        }
-        
-        const lines = fileContent.trim().split('\n');
-        if (lines.length < 2) {
-            console.warn('Fichier calendar sans données');
-            return;
-        }
-        
-        const headerIndices = buildHeaderIndices(
-            lines[0], 
-            ['service_id', 'start_date', 'end_date', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-        );
-        
-        if (!headerIndices) return;
-        
-        const dataLines = lines.slice(1).filter(line => line.trim());
-        for (const line of dataLines) {
-            const values = extractValues(line, headerIndices);
-            
-            if (!values.service_id) continue;
-            
-            calendar[values.service_id] = {
-                weekdays: [
-                    parseInt(values.monday, 10) === 1,
-                    parseInt(values.tuesday, 10) === 1,
-                    parseInt(values.wednesday, 10) === 1,
-                    parseInt(values.thursday, 10) === 1,
-                    parseInt(values.friday, 10) === 1
-                ],
-                saturday: parseInt(values.saturday, 10) === 1,
-                sunday: parseInt(values.sunday, 10) === 1,
-                start_date: values.start_date,
-                end_date: values.end_date
-            };
-        }
-        
-        console.log(`Chargement réussi de ${Object.keys(calendar).length} services de calendrier`);
-    } catch (error) {
-        console.error('Erreur lors du chargement du calendrier:', error);
-    }
-}
-
-/**
- * Charge les données des routes
- * @param {string} fileContent - Contenu du fichier routes.txt
- * @returns {Promise<void>}
- */
-async function loadRoutes(fileContent) {
-    try {
-        if (!fileContent || fileContent.trim() === '') {
-            console.warn('Fichier routes vide ou non fourni');
-            return;
-        }
-        
-        const lines = fileContent.trim().split('\n');
-        if (lines.length < 2) {
-            console.warn('Fichier routes sans données');
-            return;
-        }
-        
-        const headerIndices = buildHeaderIndices(
-            lines[0], 
-            ['route_id'], 
-            ['route_short_name', 'route_long_name', 'route_color', 'route_text_color']
-        );
-        
-        if (!headerIndices) return;
-        
-        const dataLines = lines.slice(1).filter(line => line.trim());
-        for (const line of dataLines) {
-            const values = extractValues(line, headerIndices);
-            
-            if (!values.route_id) continue;
-            
-            routes[values.route_id] = {
-                short_name: values.route_short_name || '',
-                long_name: values.route_long_name || '',
-                route_color: values.route_color ? `#${values.route_color}` : '#FFFFFF',
-                route_text_color: values.route_text_color ? `#${values.route_text_color}` : '#000000',
-            };
-        }
-        
-        console.log(`Chargement réussi de ${Object.keys(routes).length} routes`);
-    } catch (error) {
-        console.error('Erreur lors du chargement des routes:', error);
-    }
-}
-
-/**
- * Charge les données des trajets
- * @param {string} fileContent - Contenu du fichier trips.txt
- * @returns {Promise<void>}
- */
-async function loadTrips(fileContent) {
-    try {
-        if (!fileContent || fileContent.trim() === '') {
-            console.warn('Fichier trips vide ou non fourni');
-            return;
-        }
-        
-        const lines = fileContent.trim().split('\n');
-        if (lines.length < 2) {
-            console.warn('Fichier trips sans données');
-            return;
-        }
-        
-        const headerIndices = buildHeaderIndices(
-            lines[0], 
-            ['route_id', 'trip_id', 'service_id']
-        );
-        
-        if (!headerIndices) return;
-        
-        // Préallouer les tableaux de voyages par route pour optimiser
-        const dataLines = lines.slice(1).filter(line => line.trim());
-        const routeIds = new Set();
-        
-        for (const line of dataLines) {
-            const values = extractValues(line, headerIndices);
-            if (values.route_id) {
-                routeIds.add(values.route_id);
-            }
-        }
-        
-        routeIds.forEach(routeId => {
-            trips[routeId] = [];
         });
-        
-        // Maintenant traiter les données
-        for (const line of dataLines) {
-            const values = extractValues(line, headerIndices);
-            
-            if (!values.route_id || !values.trip_id) continue;
-            
-            trips[values.route_id].push({
-                trip_id: values.trip_id,
-                service_id: values.service_id || '',
-            });
-        }
-        
-        console.log(`Chargement réussi des trajets pour ${Object.keys(trips).length} routes`);
     } catch (error) {
-        console.error('Erreur lors du chargement des trajets:', error);
+        console.error('Erreur lors du chargement des exceptions de calendrier', error);
     }
-}
-
-/**
- * Charge les heures d'arrêt
- * @param {string} fileContent - Contenu du fichier stop_times.txt
- * @returns {Promise<void>}
- */
-async function loadStopTimes(fileContent) {
-    try {
-        if (!fileContent || fileContent.trim() === '') {
-            console.warn('Fichier stop_times vide ou non fourni');
-            return;
-        }
-        
-        const lines = fileContent.trim().split('\n');
-        if (lines.length < 2) {
-            console.warn('Fichier stop_times sans données');
-            return;
-        }
-        
-        const headerIndices = buildHeaderIndices(
-            lines[0], 
-            ['trip_id'], 
-            ['stop_id', 'arrival_time', 'departure_time', 'stop_sequence']
-        );
-        
-        if (!headerIndices) return;
-        
-        let count = 0;
-        const dataLines = lines.slice(1).filter(line => line.trim());
-        for (const line of dataLines) {
-            const values = extractValues(line, headerIndices);
-            
-            if (!values.trip_id) continue;
-            
-            // S'assurer que la valeur d'arrivée est toujours une chaîne, même en cas d'erreur
-            const arrivalTime = (values.arrival_time && values.arrival_time.toString) ? 
-                formatTime(values.arrival_time) : 
-                (values.departure_time && values.departure_time.toString) ?
-                    formatTime(values.departure_time) : 
-                    '';
-            
-            if (!stopTimes[values.trip_id]) {
-                stopTimes[values.trip_id] = [];
-            }
-            
-            stopTimes[values.trip_id].push({
-                stop_id: values.stop_id || '',
-                arrival_time: arrivalTime || '', // Garantit une chaîne vide si null
-                stop_sequence: parseInt(values.stop_sequence, 10) || 0
-            });
-            
-            count++;
-        }
-        
-        // Trier les arrêts par séquence pour chaque voyage
-        for (const tripId in stopTimes) {
-            stopTimes[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
-        }
-        
-        console.log(`Chargement réussi de ${count} horaires d'arrêt pour ${Object.keys(stopTimes).length} trajets`);
-    } catch (error) {
-        console.error('Erreur lors du chargement des horaires d\'arrêt:', error);
-    }
-}
-
-/**
- * Formatage standard du temps d'arrivée
- * @param {string} timeStr - Chaîne de temps (HH:MM:SS)
- * @returns {string} - Temps formaté (HHhMM)
- */
-function formatTime(timeStr) {
-    if (!timeStr || typeof timeStr !== 'string') return '';
-    const parts = timeStr.split(':');
-    if (parts.length < 2) return timeStr;
-    return `${parts[0]}h${parts[1]}`;
-}
-
-/**
- * Charge les données des arrêts
- * @param {string} fileContent - Contenu du fichier stops.txt
- * @returns {Promise<void>}
- */
-async function loadStops(fileContent) {
-    try {
-        if (!fileContent || fileContent.trim() === '') {
-            console.warn('Fichier stops vide ou non fourni');
-            return;
-        }
-        
-        const lines = fileContent.trim().split('\n');
-        if (lines.length < 2) {
-            console.warn('Fichier stops sans données');
-            return;
-        }
-        
-        const headerIndices = buildHeaderIndices(
-            lines[0], 
-            ['stop_id', 'stop_name'],
-            ['stop_lat', 'stop_lon']
-        );
-        
-        if (!headerIndices) return;
-        
-        const dataLines = lines.slice(1).filter(line => line.trim());
-        for (const line of dataLines) {
-            const values = extractValues(line, headerIndices);
-            
-            if (!values.stop_id) continue;
-            
-            // Conserver la compatibilité avec le code existant qui utilise stops comme chaînes
-            stops[values.stop_id] = values.stop_name || '';
-            
-
-            stops[values.stop_id] = {
-                name: values.stop_name || '',
-                lat: parseFloatSafe(values.stop_lat),
-                lon: parseFloatSafe(values.stop_lon)
-            };
-        }
-        
-        console.log(`Chargement réussi de ${Object.keys(stops).length} arrêts`);
-    } catch (error) {
-        console.error('Erreur lors du chargement des arrêts:', error);
-    }
-}
-
-/**
- * Parse un float de façon sécurisée
- * @param {string} val - Valeur à parser
- * @returns {number|null} - Valeur numérique ou null
- */
-function parseFloatSafe(val) {
-    if (!val) return null;
-    const parsed = parseFloat(val);
-    return isNaN(parsed) ? null : parsed;
 }
 
 /**
  * Vérifie si un service est actif à une date donnée
  * @param {string} serviceId - ID du service
  * @param {Date} dateObj - Date à vérifier
- * @returns {boolean} - True si le service est actif
+ * @return {boolean} true si le service est actif, false sinon
  */
 function isServiceActive(serviceId, dateObj) {
-    if (!serviceId || !dateObj || !(dateObj instanceof Date)) {
-        return false;
-    }
-    
     const formattedDate = formatDate(dateObj);
     
-    // Vérifier les exceptions de calendrier d'abord
+    // Vérifier les exceptions du calendrier
     if (calendarDates[formattedDate]) {
         if (calendarDates[formattedDate].added.includes(serviceId)) {
             return true;
@@ -2426,154 +2087,303 @@ function isServiceActive(serviceId, dateObj) {
         }
     }
     
-    // Si le service n'existe pas dans le calendrier standard
+    // Si le service n'existe pas dans le calendrier, considérer comme actif
     if (!calendar[serviceId]) {
-        return false; // Par défaut, considérer inactif si pas défini
+        return true;
     }
     
-    const calendarEntry = calendar[serviceId];
-    
-    // Vérifier si la date est dans la plage du service
+    const dayOfWeek = dateObj.getDay(); // 0 = dimanche, 1 = lundi, etc.
     const dateNumber = parseInt(formattedDate, 10);
+    
+    const calendarEntry = calendar[serviceId];
     const startDate = parseInt(calendarEntry.start_date, 10);
     const endDate = parseInt(calendarEntry.end_date, 10);
     
+    // Vérifier si la date est dans la plage du service
     if (dateNumber < startDate || dateNumber > endDate) {
         return false;
     }
     
     // Vérifier le jour de la semaine
-    const day = dateObj.getDay(); // 0 = dimanche, 6 = samedi
-    
-    if (day === 0 && calendarEntry.sunday) return true;
-    if (day === 6 && calendarEntry.saturday) return true;
-    if (day >= 1 && day <= 5 && calendarEntry.weekdays[day-1]) return true;
+    if (dayOfWeek === 0 && calendarEntry.sunday) return true;
+    if (dayOfWeek === 6 && calendarEntry.saturday) return true;
+    if (dayOfWeek >= 1 && dayOfWeek <= 5 && calendarEntry.weekdays) return true;
     
     return false;
 }
 
 /**
- * Obtient toutes les routes actives pour une date donnée
- * @param {Date} dateObj - Date à vérifier 
- * @returns {Object[]} - Liste des routes actives avec leurs informations
+ * Charge et traite les données routes.txt
+ * @param {string} fileContent - Contenu du fichier routes.txt
  */
-function getActiveRoutes(dateObj) {
-    const activeRoutes = [];
-    
-    for (const routeId in routes) {
-        // Vérifier si des trajets pour cette route sont actifs
-        const routeTrips = trips[routeId] || [];
-        const hasActiveTrips = routeTrips.some(trip => isServiceActive(trip.service_id, dateObj));
+async function loadRoutes(fileContent) {
+    try {
+        const data = parseCSV(fileContent);
         
-        if (hasActiveTrips) {
-            activeRoutes.push({
-                id: routeId,
-                ...routes[routeId]
+        data.forEach(row => {
+            const { 
+                route_id, 
+                route_short_name, 
+                route_long_name, 
+                route_color, 
+                route_text_color 
+            } = row;
+            
+            if (!route_id) return;
+            
+            routes[route_id] = {
+                short_name: route_short_name || '',
+                long_name: route_long_name || '',
+                route_color: route_color ? `#${route_color}` : '#FFFFFF',
+                route_text_color: route_text_color ? `#${route_text_color}` : '#000000',
+            };
+        });
+    } catch (error) {
+        console.error('Erreur lors du chargement des routes', error);
+    }
+}
+
+/**
+ * Charge et traite les données trips.txt
+ * @param {string} fileContent - Contenu du fichier trips.txt
+ */
+async function loadTrips(fileContent) {
+    try {
+        const data = parseCSV(fileContent);
+        
+        data.forEach(row => {
+            const { route_id, trip_id, service_id, trip_headsign, direction_id } = row;
+            
+            if (!route_id || !trip_id) return;
+            
+            if (!trips[route_id]) {
+                trips[route_id] = [];
+            }
+            
+            trips[route_id].push({
+                trip_id,
+                service_id,
+                trip_headsign: trip_headsign || '',
+                direction_id: direction_id ? parseInt(direction_id, 10) : null
             });
+        });
+    } catch (error) {
+        console.error('Erreur lors du chargement des trajets', error);
+    }
+}
+
+/**
+ * Charge et traite les données stop_times.txt
+ * @param {string} fileContent - Contenu du fichier stop_times.txt
+ */
+async function loadStopTimes(fileContent) {
+    try {
+        const data = parseCSV(fileContent);
+        
+        data.forEach(row => {
+            const { 
+                trip_id, 
+                stop_id, 
+                arrival_time, 
+                departure_time, 
+                stop_sequence,
+                pickup_type,
+                drop_off_type
+            } = row;
+            
+            if (!trip_id || !stop_id) return;
+            
+            if (!stopTimes[trip_id]) {
+                stopTimes[trip_id] = [];
+            }
+            
+            // Formater l'heure d'arrivée
+            let formattedTime = '';
+            if (arrival_time) {
+                formattedTime = arrival_time.split(':').slice(0, 2).join('h');
+            }
+            
+            stopTimes[trip_id].push({
+                stop_id,
+                arrival_time: formattedTime,
+                departure_time: departure_time || arrival_time,
+                stop_sequence: stop_sequence ? parseInt(stop_sequence, 10) : 0,
+                pickup_type: pickup_type ? parseInt(pickup_type, 10) : 0,
+                drop_off_type: drop_off_type ? parseInt(drop_off_type, 10) : 0
+            });
+        });
+        
+        // Trier les arrêts par séquence pour chaque trajet
+        for (const trip_id in stopTimes) {
+            stopTimes[trip_id].sort((a, b) => a.stop_sequence - b.stop_sequence);
         }
+    } catch (error) {
+        console.error('Erreur lors du chargement des horaires d\'arrêt', error);
+    }
+}
+
+/**
+ * Charge et traite les données stops.txt
+ * @param {string} fileContent - Contenu du fichier stops.txt
+ */
+async function loadStops(fileContent) {
+    try {
+        const data = parseCSV(fileContent);
+        
+        data.forEach(row => {
+            const { 
+                stop_id, 
+                stop_name, 
+                stop_lat, 
+                stop_lon, 
+                parent_station,
+                location_type,
+                wheelchair_boarding,
+                stop_code
+            } = row;
+            
+            if (!stop_id) return;
+            
+            stops[stop_id] = {
+                name: stop_name || '',
+                lat: stop_lat ? parseFloat(stop_lat) : null,
+                lon: stop_lon ? parseFloat(stop_lon) : null,
+                parent_station: parent_station || null,
+                location_type: location_type ? parseInt(location_type, 10) : 0,
+                wheelchair_boarding: wheelchair_boarding ? parseInt(wheelchair_boarding, 10) : 0,
+                stop_code: stop_code || ''
+            };
+        });
+    } catch (error) {
+        console.error('Erreur lors du chargement des arrêts', error);
+    }
+}
+
+/**
+ * Charge et traite les données calendar.txt
+ * @param {string} fileContent - Contenu du fichier calendar.txt
+ */
+async function loadCalendar(fileContent) {
+    try {
+        const data = parseCSV(fileContent);
+        
+        data.forEach(row => {
+            const { 
+                service_id, 
+                monday, 
+                tuesday, 
+                wednesday, 
+                thursday, 
+                friday, 
+                saturday, 
+                sunday,
+                start_date,
+                end_date
+            } = row;
+            
+            if (!service_id) return;
+            
+            const weekdaysActive = [
+                parseInt(monday || '0', 10),
+                parseInt(tuesday || '0', 10),
+                parseInt(wednesday || '0', 10),
+                parseInt(thursday || '0', 10),
+                parseInt(friday || '0', 10)
+            ].includes(1);
+            
+            calendar[service_id] = {
+                weekdays: weekdaysActive,
+                saturday: parseInt(saturday || '0', 10) === 1,
+                sunday: parseInt(sunday || '0', 10) === 1,
+                start_date: start_date || '',
+                end_date: end_date || ''
+            };
+        });
+    } catch (error) {
+        console.error('Erreur lors du chargement du calendrier', error);
+    }
+}
+
+/**
+ * Charge toutes les données GTFS à partir des fichiers
+ * @param {Object} files - Objets contenant le contenu des fichiers GTFS
+ */
+async function loadGTFSData(files) {
+    try {
+        // Ordre de chargement optimal pour les dépendances
+        if (files.calendar) await loadCalendar(files.calendar);
+        if (files.calendar_dates) await loadCalendarDates(files.calendar_dates);
+        if (files.stops) await loadStops(files.stops);
+        if (files.routes) await loadRoutes(files.routes);
+        if (files.trips) await loadTrips(files.trips);
+        if (files.stop_times) await loadStopTimes(files.stop_times);
+        
+        console.log('Chargement des données GTFS terminé');
+    } catch (error) {
+        console.error('Erreur lors du chargement des données GTFS', error);
+    }
+}
+
+/**
+ * Récupère tous les trajets actifs pour une date donnée
+ * @param {Date} date - Date à vérifier
+ * @return {Object} Trajets actifs par route
+ */
+function getActiveTrips(date) {
+    const activeTrips = {};
+    
+    for (const routeId in trips) {
+        activeTrips[routeId] = trips[routeId].filter(trip => 
+            isServiceActive(trip.service_id, date)
+        );
     }
     
-    return activeRoutes;
+    return activeTrips;
 }
 
 /**
- * Obtient tous les trajets actifs pour une route à une date donnée
- * @param {string} routeId - ID de la route
- * @param {Date} dateObj - Date à vérifier
- * @returns {Object[]} - Liste des trajets actifs
- */
-function getActiveTripsForRoute(routeId, dateObj) {
-    // Protection contre undefined
-    if (!routeId) return [];
-    
-    const routeTrips = trips[routeId] || [];
-    return routeTrips
-        .filter(trip => isServiceActive(trip.service_id, dateObj))
-        .map(trip => ({
-            trip_id: String(trip.trip_id || ''),
-            service_id: String(trip.service_id || '')
-        }));
-}
-
-/**
- * Obtient les horaires pour un trajet donné
+ * Récupère tous les arrêts pour un trajet donné
  * @param {string} tripId - ID du trajet
- * @returns {Object[]} - Liste des arrêts avec leurs horaires
+ * @return {Array} Liste des arrêts avec leurs horaires
  */
-function getStopTimesForTrip(tripId) {
-    // Vérifier si tripId est défini
-    if (!tripId) return [];
+function getTripStops(tripId) {
+    if (!stopTimes[tripId]) return [];
     
-    // Utiliser un tableau vide si pas de données pour ce trip
-    const tripStopTimes = stopTimes[tripId] || [];
-    
-    return tripStopTimes.map(stopTime => {
-        // Convertir toutes les valeurs en chaînes pour éviter les erreurs toString()
+    return stopTimes[tripId].map(stopTime => {
+        const stopInfo = stops[stopTime.stop_id] || { name: 'Arrêt inconnu' };
         return {
-            stop_id: String(stopTime.stop_id || ''),
-            arrival_time: String(stopTime.arrival_time || ''),
-            stop_sequence: Number(stopTime.stop_sequence || 0),
-            stop_name: String(stops[stopTime.stop_id] || 'Arrêt inconnu')
+            ...stopTime,
+            stop_name: stopInfo.name,
+            stop_lat: stopInfo.lat,
+            stop_lon: stopInfo.lon
         };
     });
 }
 
 /**
- * Protection anti-erreur pour l'utilisation des stopTimes
- * Garantit que toutes les données de stopTimes peuvent être utilisées en toute sécurité
+ * Recherche des arrêts par nom
+ * @param {string} query - Texte de recherche
+ * @return {Array} Liste des arrêts correspondants
  */
-function sanitizeAllStopTimes() {
-    for (const tripId in stopTimes) {
-        if (!Array.isArray(stopTimes[tripId])) {
-            stopTimes[tripId] = [];
-            continue;
+function searchStops(query) {
+    if (!query || query.length < 2) return [];
+    
+    const searchLower = query.toLowerCase();
+    const results = [];
+    
+    for (const stopId in stops) {
+        const stop = stops[stopId];
+        if (stop.name && stop.name.toLowerCase().includes(searchLower)) {
+            results.push({
+                stop_id: stopId,
+                ...stop
+            });
         }
-        
-        // Sanitizer chaque élément du tableau
-        stopTimes[tripId] = stopTimes[tripId].map(item => {
-            if (!item) return {
-                stop_id: '',
-                arrival_time: '',
-                stop_sequence: 0
-            };
-            
-            return {
-                stop_id: String(item.stop_id || ''),
-                arrival_time: String(item.arrival_time || ''),
-                stop_sequence: Number(item.stop_sequence || 0)
-            };
-        });
     }
-    console.log('Données de stopTimes sanitizées pour éviter les erreurs toString()');
+    
+    return results;
 }
 
-/**
- * Initialise toutes les données GTFS à partir de fichiers
- * @param {Object} files - Dictionnaire {nomFichier: contenu}
- * @returns {Promise<void>}
- */
-async function initGTFSData(files) {
-    try {
-        // Ordre de chargement important
-        await loadCalendar(files.calendar);
-        await loadCalendarDates(files.calendar_dates);
-        await loadRoutes(files.routes);
-        await loadTrips(files.trips);
-        await loadStops(files.stops);
-        await loadStopTimes(files.stop_times);
-        
-        // Sanitize les données pour éviter les erreurs toString()
-        sanitizeAllStopTimes();
-        
-        console.log('Chargement complet des données GTFS');
-    } catch (error) {
-        console.error('Erreur lors de l\'initialisation des données GTFS:', error);
-    }
-}
-
-// Toutes les fonctions et données sont accessibles globalement
-// Pas d'export nécessaire si vous utilisez un environnement sans modules
-// Les variables et fonctions sont déjà dans le scope global
 
 let updatePositionInterval;
 let currentVehicleId;
@@ -2929,7 +2739,7 @@ function displayRealtimeDataInFavorite(arrivals, container) {
             Array.from(destinations).forEach(destinationId => {
                 const destinationItem = document.createElement('div');
                 destinationItem.className = 'destination-item';
-                destinationItem.textContent = stops[destinationId];
+                destinationItem.textContent = stops[destinationId].replace(/"/g, '');
                 destinationItem.onclick = () => showStops(routeId, destinationId);
                 destinationItem.style.backgroundColor = `${routes[routeId].route_color}`;
                 destinationItem.style.color = `${routes[routeId].route_text_color}`;
@@ -2965,7 +2775,7 @@ function displayRealtimeDataInFavorite(arrivals, container) {
     Array.from(destinations).forEach(destinationId => {
         const option = document.createElement('option');
         option.value = destinationId;
-        option.textContent = stops[destinationId];
+        option.textContent = stops[destinationId].replace(/"/g, '');
         destinationSelect.appendChild(option);
     });
     
@@ -3001,7 +2811,7 @@ function updateStopsForDestination(routeId, destinationId) {
     Array.from(stopSet).forEach(stopId => {
         const stopItem = document.createElement('div');
         stopItem.className = 'stop-item';
-        stopItem.textContent = stops[stopId];
+        stopItem.textContent = stops[stopId].replace(/"/g, '');
         stopItem.onclick = () => showSchedule(routeId, stopId, destinationId);
         stopItem.style.backgroundColor = `${routes[routeId].route_color}`;
         stopItem.style.color = `${routes[routeId].route_text_color}`;
