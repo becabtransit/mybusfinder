@@ -2195,14 +2195,18 @@ function showLoadingScreen() {
 
 var audio = new Audio("src/sounds/musique.mp3"); 
 
-let globalStopSpinner = null;
+function controlParentSpinner(show, message) {
+    try {
+        window.parent.postMessage({
+            action: show ? 'showSpinner' : 'hideSpinner',
+            message: message || (show ? '' : '')
+        }, 'https://mybusfinder.fr'); 
+    } catch (e) {
+        console.error("Impossible d'envoyer un message à la page parente", e);
+    }
+}
 
-const MESSAGE_TYPES = {
-  SHOW_LOADING: 'SHOW_LOADING',
-  HIDE_LOADING: 'HIDE_LOADING',
-  NAVIGATION_START: 'NAVIGATION_START',
-  NAVIGATION_END: 'NAVIGATION_END'
-};
+let globalStopSpinner = null;
 
 function showUpdatePopup(link) {
     const popup = document.getElementById('update-popup');
@@ -2220,6 +2224,7 @@ function showUpdatePopup(link) {
         width: 100%;
         height: 100%;
         display: flex;
+        flex-direction: column;
         justify-content: center;
         align-items: center;
         background-color: rgba(255, 255, 255, 0.8);
@@ -2233,15 +2238,24 @@ function showUpdatePopup(link) {
         font-size: 2rem;
         color: #0078d7;
     `;
-
+    
+    const loadingText = document.createElement('div');
+    loadingText.textContent = 'Chargement...';
+    loadingText.style.cssText = `
+        margin-top: 10px;
+        font-family: sans-serif;
+        color: #333;
+    `;
+    
     loadingContainer.appendChild(spinnerElement);
+    loadingContainer.appendChild(loadingText);
     
     const popupContent = document.querySelector('.popup-content');
     popupContent.style.position = 'relative';
     popupContent.appendChild(loadingContainer);
     
     if (globalStopSpinner) {
-        globalStopSpinner(); 
+        globalStopSpinner();
     }
     globalStopSpinner = startWindowsSpinnerAnimation("iframe-win-spinner");
     
@@ -2251,67 +2265,11 @@ function showUpdatePopup(link) {
         iframe.src = `${link}?${langParam}`;
     }
     
-    function setupNavigationMonitoring() {
-        try {
-            if (iframe.contentWindow) {
-                const originalPushState = iframe.contentWindow.history.pushState;
-                const originalReplaceState = iframe.contentWindow.history.replaceState;
-                
-                iframe.contentWindow.history.pushState = function() {
-                    loadingContainer.style.display = 'flex';
-                    const result = originalPushState.apply(this, arguments);
-                    return result;
-                };
-                
-                iframe.contentWindow.history.replaceState = function() {
-                    loadingContainer.style.display = 'flex';
-                    const result = originalReplaceState.apply(this, arguments);
-                    return result;
-                };
-                
-                iframe.contentWindow.addEventListener('hashchange', function() {
-                    loadingContainer.style.display = 'flex';
-                });
-            }
-        } catch (e) {
-            console.log("impossible de monitorer les changements de navigation dans l'iframe");
-        }
-    }
-    
     iframe.onload = function() {
         loadingContainer.style.display = 'none';
-        if (globalStopSpinner) {
-        }
-        
-        setupNavigationMonitoring();
-        
-        try {
-            iframe.contentDocument.addEventListener('click', function(e) {
-                if (e.target.tagName === 'A' || e.target.closest('a')) {
-                    loadingContainer.style.display = 'flex';
-                }
-            });
-            
-            const forms = iframe.contentDocument.querySelectorAll('form');
-            forms.forEach(form => {
-                form.addEventListener('submit', function() {
-                    loadingContainer.style.display = 'flex';
-                });
-            });
-        } catch (e) {
-            console.log("Impossible d'accéder au contenu de l'iframe en raison des restrictions cross-origin");
-        }
     };
     
-    const showSpinnerForIframe = () => {
-        loadingContainer.style.display = 'flex';
-    };
-    
-    try {
-        iframe.contentWindow.addEventListener('beforeunload', showSpinnerForIframe);
-    } catch (e) {
-        console.log("Impossible d'ajouter l'événement beforeunload en raison des restrictions cross-origin");
-    }
+    setupMessageListener(loadingContainer);
     
     popup.style.display = 'flex'; 
     const menubottom1 = document.getElementById('menubtm');
@@ -2337,7 +2295,31 @@ function showUpdatePopup(link) {
     }, { once: true });
 }
 
-function startWindowsSpinnerAnimation(elementId, interval = 25) {
+function setupMessageListener(loadingContainer) {
+    window.addEventListener('message', function(event) {
+
+        try {
+            const data = event.data;
+            
+            if (data && typeof data === 'object') {
+                if (data.action === 'showSpinner') {
+                    loadingContainer.style.display = 'flex';
+                    if (data.message) {
+                        const loadingText = loadingContainer.querySelector('div');
+                        if (loadingText) loadingText.textContent = data.message;
+                    }
+                } 
+                else if (data.action === 'hideSpinner') {
+                    loadingContainer.style.display = 'none';
+                }
+            }
+        } catch (e) {
+            console.error("Erreur lors du traitement du message:", e);
+        }
+    });
+}
+
+function startWindowsSpinnerAnimation(elementId, interval = 30) {
     const frames = [
     '','','','','','','','','','','','','','','','',
     '','','','','','','','','','','','','','','','',
