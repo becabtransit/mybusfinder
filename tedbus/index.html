@@ -26,7 +26,7 @@
             margin: 0;
             padding: 0;
             font-family: 'League Spartan', sans-serif;
-            background-color: #f4f4f4; 
+            background-color: #000000; 
             color: #333; 
             transition: background-color 0.5s ease; 
         }
@@ -34,6 +34,14 @@
         @font-face {
             font-family: 'League Spartan';
             src: url('src/fonts/leaguespartan.ttf') format('truetype');
+        }
+
+        @font-face {
+            font-family: 'SegoeUIBoot';
+            src: url('src/fonts/SegoeUIBoot.woff2') format('woff2'),
+                url('src/fonts/SegoeUIBoot.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
         }
 
         #map {
@@ -62,6 +70,30 @@
 }
 
 .popup-content {
+    background: white;
+    width: 100%;
+    height: 100%;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    position: relative;
+}
+
+.time-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none; 
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+	background-color: rgba(255, 255, 255, 0.5); 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+    overflow-y: hidden;
+}
+
+.time-content {
     background: white;
     width: 100%;
     height: 100%;
@@ -386,7 +418,7 @@ visibility: hidden;
     }
 }
 
-.popup-content, .popup-content1, .popup1 {
+.popup-content, .popup-content1, .time-content, .popup1 {
     animation: zoomFadeIn 0.6s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
 }
 
@@ -1020,17 +1052,9 @@ shape.bounce-down {
     animation: fadeColors 1s ease-in; 
 }
 
-#webview-frame {
+#webview-frame, #webview-frame1 {
     width: 100%;
     height: 100%;
-}
-
-.vehicle-thumbnail {
-    width: 95.5%;
-    margin-left: auto;
-    border-radius: 5px;
-    background-color: rgba(255, 255, 255, 0.2);
-    padding: 2px;
 }
 
 .vehicle-model {
@@ -1038,6 +1062,52 @@ shape.bounce-down {
     align-items: right;
     justify-content: flex-end;
     flex-direction: column;
+}
+
+.light-beam {
+    position: absolute;
+    width: 100px;
+    height: 300px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
+    transform-origin: top right;
+    transform: rotate(-45deg);
+    margin-top: -29%;
+}
+
+.beam1 {
+    width: 90px;
+    opacity: 0.9;
+}
+
+.beam2 {
+    width: 70px;
+    right: 60px;
+    opacity: 0.7;
+}
+
+.beam3 {
+    width: 40px;
+    right: 120px;
+    opacity: 0.5;
+}
+
+.title {
+    color: white;
+    font-size: 24px;
+    font-weight: 300;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.shine {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 70%);
+    transform: rotate(45deg);
+    pointer-events: none;
+    opacity: 0.5;
 }
 
 .stops-timeline-menu {
@@ -1291,57 +1361,56 @@ shape.bounce-down {
 }
 
 #map-container { 
-            position: relative; 
-            height: 100vh; 
-            width: 100%; 
-        }
-        #map { 
-            height: 100%; 
-            width: 100%; 
-        }
-        #sun-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 999;
-            opacity: 0;
-            transition: opacity 0.5s ease-in-out; 
-        }
-        .sun-line {
-            position: absolute;
-            stroke-width: 2;
-            fill: none;
-        }
-        .hour-circle {
-            position: absolute;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 18px;
-            opacity: 0.9;
-            color: white;
-            text-shadow: 1px 1px 2px black;
-            transform: translate(-50%, -50%);
-        }
-        #toggle-sun-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 1001;
-            padding: 10px;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
-            cursor: pointer;
-        }
+    height: 100%; 
+    width: 100%; 
+}
+#map { 
+    height: 100%; 
+    width: 100%; 
+}
+#sun-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out; 
+}
+.sun-line {
+    position: absolute;
+    stroke-width: 2;
+    fill: none;
+}
+.hour-circle {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    font-size: 18px;
+    opacity: 0.9;
+    color: white;
+    text-shadow: 1px 1px 2px black;
+    transform: translate(-50%, -50%);
+}
+#toggle-sun-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1001;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    cursor: pointer;
+}
 
-        .first-visit-tooltip {
+.first-visit-tooltip {
     position: absolute;
     bottom: 80px;
     left: 50%;
@@ -1434,6 +1503,24 @@ shape.bounce-down {
   animation: rainbowShadow 3s infinite linear;
 }
 
+.vehicle-thumbnail {
+    background: #0000006b; 
+    font-weight: normal; 
+    white-space: nowrap; 
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 10px; 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 6px;
+    padding: 0px 8px;
+}
+
+#map {
+    transition: all 0.4s cubic-bezier(0.32, 0.64, 0.45, 1);
+}
+
+
     </style>
 
 </head>
@@ -1466,7 +1553,7 @@ shape.bounce-down {
                     class="title" data-i18n="menu">Menu</span></a>
             </li>
             <li>
-                <a onclick="showUpdatePopup('schedule.html');" id="clock"><span class="icon"><img src="src/horloge.png" style="width: 40px; height: 40px;"></img></span> <span
+                <a onclick="showUpdatePopupPourHoraires()" id="clock"><span class="icon"><img src="src/horloge.png" style="width: 40px; height: 40px;"></img></span> <span
                         class="title" data-i18n="schedule">Horaires</span></a>
             </li>
             <li>
@@ -1492,7 +1579,6 @@ shape.bounce-down {
         data-ad-client="ca-pub-5815761294049475">
 </amp-auto-ads>
 
-
     <div id="map"></div>
     <svg id="sun-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
 
@@ -1510,7 +1596,16 @@ shape.bounce-down {
         </div>
     </div>
                 
-
+    <div id="time-popup" class="time-popup">
+        <div class="time-content">
+            <button id="close-popup1" class="close-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <iframe id="webview-frame1" src="" frameborder="0"></iframe>
+        </div>
+    </div>
 
 	
 	
@@ -1823,6 +1918,7 @@ async function setColors() {
         document.getElementById("menubtm").style.backgroundColor = `${data.colorbkg}9c`;
         document.getElementById("menu").style.backgroundColor = `${data.colorbkg}9c`;
         document.getElementById("filtre").style.backgroundColor = `${data.colorbkg}9c`;
+        window.colorbkg = data.colorbkg;
 
     }
 }
@@ -2136,18 +2232,64 @@ function showLoadingScreen() {
 
 var audio = new Audio("src/sounds/musique.mp3"); 
 
-function showUpdatePopup(link) {
-    const popup = document.getElementById('update-popup');
-    const iframe = document.getElementById('webview-frame');
+
+
+let globalStopSpinner = null;
+let HorairesCharges = false;
+
+function showUpdatePopupPourHoraires() {
+    const popup = document.getElementById('time-popup');
+    const iframe = document.getElementById('webview-frame1');
     const currentLang = i18n.currentLang;
-    const hasParams = link.includes('?');
     const langParam = `lang=${currentLang}`;
     
-    if (hasParams) {
-        iframe.src = `${link}&${langParam}`;
-    } else {
-        iframe.src = `${link}?${langParam}`;
+    const loadingContainer = document.createElement('div');
+    loadingContainer.id = 'iframe-loading-container1';
+    loadingContainer.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: rgba(255, 255, 255, 0);
+        z-index: 10;
+    `;
+
+    
+    const spinnerElement = document.createElement('span');
+    spinnerElement.id = 'iframe-win-spinner1';
+    spinnerElement.style.cssText = `
+        font-family: 'SegoeUIBoot';
+        font-size: 4rem;
+        color: ${window.colorbkg};
+    `;
+    
+
+    
+    loadingContainer.appendChild(spinnerElement);
+    loadingContainer.style.display = 'none';
+
+    const popupContent = document.querySelector('.time-content');
+    popupContent.style.position = 'relative';
+    popupContent.appendChild(loadingContainer);
+    
+    if (globalStopSpinner) {
+        globalStopSpinner();
     }
+    globalStopSpinner = startWindowsSpinnerAnimation("iframe-win-spinner1");
+    
+    if (!HorairesCharges) {
+        iframe.src = `schedule.html`;
+        HorairesCharges = true;
+    }
+    
+
+    
+    setupMessageListener(loadingContainer);
     
     popup.style.display = 'flex'; 
     const menubottom1 = document.getElementById('menubtm');
@@ -2174,12 +2316,143 @@ function showUpdatePopup(link) {
 }
 
 
+function showUpdatePopup(link) {
+    const popup = document.getElementById('update-popup');
+    const iframe = document.getElementById('webview-frame');
+    const currentLang = i18n.currentLang;
+    const hasParams = link.includes('?');
+    const langParam = `lang=${currentLang}`;
+    
+    const loadingContainer = document.createElement('div');
+    loadingContainer.id = 'iframe-loading-container';
+    loadingContainer.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: rgba(255, 255, 255, 0);
+        z-index: 10;
+    `;
+    
+    const spinnerElement = document.createElement('span');
+    spinnerElement.id = 'iframe-win-spinner';
+    spinnerElement.style.cssText = `
+        font-family: 'SegoeUIBoot';
+        font-size: 2rem;
+        color: ${window.colorbkg};
+    `;
+    
+
+    
+    loadingContainer.appendChild(spinnerElement);
+    loadingContainer.style.display = 'none';
+
+    const popupContent = document.querySelector('.popup-content');
+    popupContent.style.position = 'relative';
+    popupContent.appendChild(loadingContainer);
+    
+    if (globalStopSpinner) {
+        globalStopSpinner();
+    }
+    globalStopSpinner = startWindowsSpinnerAnimation("iframe-win-spinner");
+    
+    if (hasParams) {
+        iframe.src = `${link}&${langParam}`;
+    } else {
+        iframe.src = `${link}?${langParam}`;
+    }
+    
+
+    
+    setupMessageListener(loadingContainer);
+    
+    popup.style.display = 'flex'; 
+    const menubottom1 = document.getElementById('menubtm');
+    const menu = document.getElementById('menu');
+    const menubotom = document.getElementById('menubottom');
+
+    menubottom1.classList.remove('slide-downb');
+    menubottom1.classList.add('slide-upb');
+    if (selectedLine) {
+        const filtre = document.getElementById('filtre');
+        filtre.classList.add('slide-upc');
+        filtre.classList.remove('slide-downc');
+        filtre.addEventListener('animationend', () => {
+            filtre.style.display = 'none';
+        });
+        resetMapView();            
+    }
+
+    menubottom1.addEventListener('transitionend', () => {
+        if (menubottom1.classList.contains('slide-up')) {
+            menubottom1.style.display = 'none';
+        }
+    }, { once: true });
+}
+
+function setupMessageListener(loadingContainer) {
+    window.addEventListener('message', function(event) {
+
+        try {
+            const data = event.data;
+            
+            if (data && typeof data === 'object') {
+                if (data.action === 'showSpinner') {
+                    loadingContainer.style.display = 'flex';
+                    if (data.message) {
+                        const loadingText = loadingContainer.querySelector('div');
+                        if (loadingText) loadingText.textContent = data.message;
+                    }
+                } 
+                else if (data.action === 'hideSpinner') {
+                    loadingContainer.style.display = 'none';
+                }
+            }
+        } catch (e) {
+            console.error("Erreur lors du traitement du message:", e);
+        }
+    });
+}
+
+function startWindowsSpinnerAnimation(elementId, interval = 30) {
+    const frames = [
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','',''
+  ];
+
+
+  const el = document.getElementById(elementId);
+  if (!el) {
+    return () => {};
+  }
+
+  let i = 0;
+  const timer = setInterval(() => {
+    el.textContent = frames[i];
+    i = (i + 1) % frames.length;
+  }, interval);
+  return () => clearInterval(timer);
+}
+
 function showUpdatePopupmusic(link) {
     const popup = document.getElementById('update-popup');
     const iframe = document.getElementById('webview-frame');
     const currentLang = i18n.currentLang;
     const hasParams = link.includes('?');
     const langParam = `lang=${currentLang}`;
+    showLanguageSwitcher();
+
     
     if (hasParams) {
         iframe.src = `${link}&${langParam}`;
@@ -2271,18 +2544,38 @@ window.addEventListener('message', function(event) {
 
 function closeUpdatePopup() {
     const popup = document.getElementById('update-popup');
+    const popup1 = document.getElementById('time-popup');
     const iframe = document.getElementById('webview-frame');
-    iframe.src = ""; 
+    const mapp = document.getElementById('map');
+    mapp.style.opacity = '1';
+    hideLanguageSwitcher();
+
+    
+    if (iframe.dataset.originalSrc) {
+        const timestamp = new Date().getTime();
+        iframe.src = iframe.dataset.originalSrc + (iframe.dataset.originalSrc.includes('?') ? '&' : '?') + 'cache=' + timestamp;
+    } else {
+        if (iframe.src && iframe.src !== "") {
+            iframe.dataset.originalSrc = iframe.src;
+            const timestamp = new Date().getTime();
+            iframe.src = iframe.src + (iframe.src.includes('?') ? '&' : '?') + 'cache=' + timestamp;
+        } else {
+            iframe.src = "";
+        }
+    }
+    
     popup.style.display = 'none'; 
+    popup1.style.display = 'none'; 
+
     
     const menubottom1 = document.getElementById('menubtm');
     const menu = document.getElementById('menu');
     menu.classList.add('hidden');
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
-    if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-        menu.style.display = 'none';
-    }
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+            menu.style.display = 'none';
+        }
     });
     isMenuVisible = false; 
     menubottom1.style.display = 'flex';
@@ -2307,6 +2600,8 @@ function musique() {
 
 
 document.getElementById('close-popup').addEventListener('click', closeUpdatePopup);
+document.getElementById('close-popup1').addEventListener('click', closeUpdatePopup);
+
 
 
 
@@ -2326,6 +2621,7 @@ function hideLoadingScreen() {
                 loadingScreen.style.display = 'none';
                 if(!localStorage.getItem('premierLancement')) {
                     showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
+                    showLanguageSwitcher();
                     localStorage.setItem('premierLancement', 'true');
                 } 
             }, 300);
@@ -3404,7 +3700,8 @@ function getVehicleOptionsBadges(parkNumber) {
             background: #00000077; 
             font-weight: normal; 
             white-space: nowrap; 
-            -webkit-backdrop-filter: blur(8px); 
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             border-radius: 10px; 
             display: inline-flex; 
             align-items: center; 
@@ -3586,18 +3883,18 @@ function createLanguageSwitcher(container) {
   switcherContainer.style.display = 'none';
   switcherContainer.className = 'language-switcher glass-effect';
   switcherContainer.style.position = 'absolute';
-  switcherContainer.style.top = '0px';
-  switcherContainer.style.right = '0px';
+  switcherContainer.style.bottom = '0px';
+  switcherContainer.style.left = '0px';
   switcherContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
   switcherContainer.style.backdropFilter = 'blur(8px)';
   switcherContainer.style.WebkitBackdropFilter = 'blur(8px)';
-  switcherContainer.style.borderRadius = '0 0 0 12px';
+  switcherContainer.style.borderRadius = '0 12px 0 0';
   switcherContainer.style.boxShadow = '0 0 15px rgba(0, 0, 0, 0.4)';
-  switcherContainer.style.padding = '6px';
+  switcherContainer.style.padding = '4px';
   switcherContainer.style.zIndex = '10000000000';
   switcherContainer.style.fontFamily = 'League Spartan, sans-serif';
   switcherContainer.style.transition = 'all 0.4s cubic-bezier(0.32, 0.64, 0.45, 1)';
-  switcherContainer.style.transform = 'translateY(-100px)';
+  switcherContainer.style.transform = 'translateY(100px)';
   switcherContainer.style.opacity = '0';
   
   
@@ -3770,7 +4067,7 @@ function createLanguageSwitcher(container) {
 
 
 function hideLanguageSwitcher() {
-  langSwitcher.element.style.transform = 'translateY(-100px)';
+  langSwitcher.element.style.transform = 'translateY(100px)';
   langSwitcher.element.style.opacity = '0';
   
   setTimeout(() => {
@@ -3788,6 +4085,30 @@ function showLanguageSwitcher() {
 }
 
 
+function startWindowsSpinnerAnimation(elementId, interval = 30) {
+  const frames = [
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','',''
+  ];
+
+  const el = document.getElementById(elementId);
+  if (!el) {
+    return () => {};
+  }
+
+  let i = 0;
+  const timer = setInterval(() => {
+    el.textContent = frames[i];
+    i = (i + 1) % frames.length;
+  }, interval);
+  return () => clearInterval(timer);
+}
 
 
 async function fetchVehiclePositions() {
@@ -3796,6 +4117,8 @@ async function fetchVehiclePositions() {
         console.log("fetchVehiclePositions: GTFS pas encore initialisé, attente...");
         return; 
     }
+
+
         if (!window.timeAnimationStyleAdded) {
         const timeAnimationStyle = `
         <style id="time-animation-styles">
@@ -3901,17 +4224,25 @@ async function fetchVehiclePositions() {
                     filteredStops = nextStops.filter(stop => stop.delay === null || stop.delay > 0);
                 }
 
-                let stopsHeaderText = t("loading");
-                if (currentStopIndex !== -1 && filteredStops.length > 0) {
+                const stopSpinner = startWindowsSpinnerAnimation("win-spinner");
+                setTimeout(() => {
+                    stopSpinner();
+                }, 8000);
+
+                if (currentStopIndex === -1 || filteredStops.length === 0) {
+                    stopsHeaderText = `<span id="win-spinner" style="font-family: 'SegoeUIBoot'; font-size: 0.8rem; margin-right: 5px;"></span>  Chargement en cours.`
+                } else {
                     const firstStopDelay = filteredStops[0].delay || 0;
                     const minutes = Math.max(0, Math.ceil(firstStopDelay / 60));
-                    
-                    stopsHeaderText = t("nextstops");
-                    
+
                     if (filteredStops.length === 1) {
-                        stopsHeaderText = minutes === 0 ? t("imminentdeparture") : `${t("departurein")} ${minutes} ${t("min")}`;
+                        stopsHeaderText = minutes === 0
+                            ? t("imminentdeparture")
+                            : `${t("departurein")} ${minutes} ${t("min")}`;
                     } else if (minutes > 3) {
                         stopsHeaderText = `${t("departurein")} ${minutes} ${t("minutes")}`;
+                    } else {
+                        stopsHeaderText = t("nextstops");
                     }
                 }
                 
@@ -4066,6 +4397,10 @@ async function fetchVehiclePositions() {
                     <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
                         
                 <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
+                <div class="light-beam beam1"></div>
+                <div class="light-beam beam2"></div>
+                <div class="light-beam beam3"></div>
+
                     <!-- Texte principal -->
                     <div style="z-index: 2; text-align: left; width: 100%;">
                         <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
@@ -4095,7 +4430,8 @@ async function fetchVehiclePositions() {
                                     background: #00000077; 
                                     font-weight: normal; 
                                     white-space: nowrap; 
-                                    -webkit-backdrop-filter: blur(8px); 
+                                    backdrop-filter: blur(8px);
+                                    -webkit-backdrop-filter: blur(8px);
                                     border-radius: 10px; 
                                     display: inline-flex; 
                                     align-items: center; 
@@ -4114,8 +4450,11 @@ async function fetchVehiclePositions() {
                             </div>
                         </div>
                     </div>
+                        <div style=" margin-top: 10px; text-align: right;">
+                            ${vehicleBrandHtml}
+                        </div>
+                    </div>
                 </div>
-            </div>
 
 
                     <!-- Texte en arrière-plan -->
@@ -4123,7 +4462,6 @@ async function fetchVehiclePositions() {
                         position: absolute;
                         right: 10px;
                         top: 0;
-                        bottom: 0;
                         z-index: 1;
                         opacity: 0.1;
                         font-size: 100px;
@@ -4137,9 +4475,7 @@ async function fetchVehiclePositions() {
                     </div>
                 </div>
 
-                <div style="margin-right: 10px; margin-top: 10px; text-align: right;">
-                ${vehicleBrandHtml}
-                </div>
+
 
 
 
@@ -4899,12 +5235,52 @@ animationStyle.textContent = `
 `;
 document.head.appendChild(animationStyle);
 
-
+function closeMenu() {
+    const menu = document.getElementById('menu');
+    const menubottom1 = document.getElementById('menubtm');
+    const mapp = document.getElementById('map');
+    mapp.style.opacity = '1';
+    
+    menu.classList.add('hidden');
+    window.isMenuShowed = false;
+    menu.addEventListener('animationend', function onAnimationEnd(event) {
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+            menu.style.display = 'none';
+        }
+    });
+    isMenuVisible = false;
+    const filtre = document.getElementById('filtre');
+    menubottom1.style.display = 'flex';
+    setTimeout(() => {
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
+        if (selectedLine) {
+            filtre.classList.remove('slide-upc');
+            filtre.classList.add('slide-downc');
+            filtre.style.display = 'flex';
+        }
+    }, 10);
+}
 
 function updateMenu() {
 
     const menu = document.getElementById('menu');
     menu.innerHTML = '';
+
+    const closeButton = document.createElement('div');
+    closeButton.innerHTML = '&times;';
+    closeButton.style.cssText = `
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 24px;
+        color: white;
+        cursor: pointer;
+        z-index: 1000;
+        padding: 5px;
+    `;
+    closeButton.onclick = closeMenu;
+    menu.appendChild(closeButton);
 
     const logoContainer = document.createElement('div');
     logoContainer.style.textAlign = 'center';
@@ -4919,6 +5295,7 @@ function updateMenu() {
     logo.style.cursor = 'pointer';
     logo.onclick = () => {
         showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
+        
         musique();
     };
 
@@ -4926,114 +5303,6 @@ function updateMenu() {
     logoContainer.appendChild(logo);
     menu.appendChild(logoContainer);
 
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinutes = now.getMinutes();
-    const totalMinutes = currentHour * 60 + currentMinutes;
-
-    let transportState = `${t("normal")}`;
-    if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
-        transportState = `${t("presquesature")}`; 
-    } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
-        transportState = `${t("sature")}`;
-    }
-
-    const transportStateContainer = document.createElement('div');
-    transportStateContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 8px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        backdrop-filter: blur(5px);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-        cursor: pointer;
-    `;
-
-    const filterTipContainer = document.createElement('div');
-filterTipContainer.style.cssText = `
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    margin-bottom: 8px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    cursor: pointer;
-    position: relative;
-`;
-
-if (localStorage.getItem('hideFilterTip') !== 'true') {
-    document.body.appendChild(filterTipContainer);
-}
-
-const filterTipIcon = document.createElement('div');
-filterTipIcon.innerHTML = `
-<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M4 6 Q14 2, 24 6" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <path d="M4 14 Q14 10, 24 14" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <path d="M4 22 Q14 18, 24 22" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
-    
-    <circle cx="4" cy="6" r="2" fill="white"/>
-    <circle cx="24" cy="6" r="2" fill="white"/>
-    
-    <circle cx="4" cy="14" r="2" fill="white"/>
-    <circle cx="24" cy="14" r="2" fill="white"/>
-    
-    <circle cx="4" cy="22" r="2" fill="white"/>
-    <circle cx="24" cy="22" r="2" fill="white"/>
-</svg>
-`;
-filterTipIcon.style.marginRight = '12px';
-
-const filterTipContent = document.createElement('div');
-filterTipContent.style.color = 'white';
-
-const filterTipTitle = document.createElement('div');
-filterTipTitle.textContent = t("presentfilterbyline");
-filterTipTitle.style.fontSize = '16px';
-
-const filterTipDescription = document.createElement('div');
-filterTipDescription.textContent = t("filterbylinedesc");
-filterTipDescription.style.fontSize = '12px';
-filterTipDescription.style.opacity = '0.7';
-filterTipDescription.style.cssText = `
-    font-size: 12px;
-    opacity: 0.7;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    white-space: normal;
-`;
-
-const closeButton = document.createElement('div');
-closeButton.innerHTML = '&times;';
-closeButton.style.cssText = `
-    top: 5px;
-    right: 10px;
-    font-size: 18px;
-    color: white;
-    cursor: pointer;
-`;
-
-closeButton.addEventListener('click', () => {
-    filterTipContainer.style.display = 'none';
-    localStorage.setItem('hideFilterTip', 'true'); 
-});
-
-filterTipContent.appendChild(filterTipTitle);
-filterTipContent.appendChild(filterTipDescription);
-
-filterTipContainer.appendChild(filterTipIcon);
-filterTipContainer.appendChild(filterTipContent);
-
-
-const firstMenuElement = menu.firstChild;
-menu.insertBefore(filterTipContainer, firstMenuElement.nextSibling);
 
 
 let isStandardView = localStorage.getItem('isStandardView') === 'true';
@@ -5225,7 +5494,7 @@ function createBottomSheet() {
         bottom: 0;
         left: 0;
         right: 0;
-        background-color: rgba(0, 0, 0, 0.7);
+        background-color: rgba(249, 249, 249, 0.7);
         border-top-left-radius: 20px;
         border-top-right-radius: 20px;
         backdrop-filter: blur(20px);
@@ -5245,7 +5514,7 @@ function createBottomSheet() {
     dragHandle.style.cssText = `
         width: 40px;
         height: 5px;
-        background-color: rgba(255, 255, 255, 0.3);
+        background-color: gray;
         border-radius: 3px;
         margin: 10px auto;
         cursor: grab;
@@ -5374,13 +5643,13 @@ function createBottomSheet() {
     transportStateLabel.textContent = t("transportstate");
     transportStateLabel.style.fontSize = '14px';
     transportStateLabel.style.marginTop = '7px';
-    transportStateLabel.style.color = '#fff';
+    transportStateLabel.style.color = '#000';
 
     const transportStateText = document.createElement('div');
     transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
     transportStateText.style.fontSize = '22px';
     transportStateText.style.fontWeight = 'normal';
-    transportStateText.style.color = '#fff';
+    transportStateText.style.color = '#000';
 
 
 
@@ -5431,7 +5700,6 @@ function createBottomSheet() {
         t("histovec"), 
         t("histovecdesc"), 
         `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M12 8V12L14.5 14.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M5.60423 5.60423L5.0739 5.0739V5.0739L5.60423 5.60423ZM4.33785 6.87061L3.58786 6.87438C3.58992 7.28564 3.92281 7.61853 4.33408 7.6206L4.33785 6.87061ZM6.87963 7.63339C7.29384 7.63547 7.63131 7.30138 7.63339 6.88717C7.63547 6.47296 7.30138 6.13549 6.88717 6.13341L6.87963 7.63339ZM5.07505 4.32129C5.07296 3.90708 4.7355 3.57298 4.32129 3.57506C3.90708 3.57715 3.57298 3.91462 3.57507 4.32882L5.07505 4.32129ZM3.75 12C3.75 11.5858 3.41421 11.25 3 11.25C2.58579 11.25 2.25 11.5858 2.25 12H3.75ZM16.8755 20.4452C17.2341 20.2378 17.3566 19.779 17.1492 19.4204C16.9418 19.0619 16.483 18.9393 16.1245 19.1468L16.8755 20.4452ZM19.1468 16.1245C18.9393 16.483 19.0619 16.9418 19.4204 17.1492C19.779 17.3566 20.2378 17.2341 20.4452 16.8755L19.1468 16.1245ZM5.14033 5.07126C4.84598 5.36269 4.84361 5.83756 5.13505 6.13191C5.42648 6.42626 5.90134 6.42862 6.19569 6.13719L5.14033 5.07126ZM18.8623 5.13786C15.0421 1.31766 8.86882 1.27898 5.0739 5.0739L6.13456 6.13456C9.33366 2.93545 14.5572 2.95404 17.8017 6.19852L18.8623 5.13786ZM5.0739 5.0739L3.80752 6.34028L4.86818 7.40094L6.13456 6.13456L5.0739 5.0739ZM4.33408 7.6206L6.87963 7.63339L6.88717 6.13341L4.34162 6.12062L4.33408 7.6206ZM5.08784 6.86684L5.07505 4.32129L3.57507 4.32882L3.58786 6.87438L5.08784 6.86684ZM12 3.75C16.5563 3.75 20.25 7.44365 20.25 12H21.75C21.75 6.61522 17.3848 2.25 12 2.25V3.75ZM12 20.25C7.44365 20.25 3.75 16.5563 3.75 12H2.25C2.25 17.3848 6.61522 21.75 12 21.75V20.25ZM16.1245 19.1468C14.9118 19.8483 13.5039 20.25 12 20.25V21.75C13.7747 21.75 15.4407 21.2752 16.8755 20.4452L16.1245 19.1468ZM20.25 12C20.25 13.5039 19.8483 14.9118 19.1468 16.1245L20.4452 16.8755C21.2752 15.4407 21.75 13.7747 21.75 12H20.25ZM6.19569 6.13719C7.68707 4.66059 9.73646 3.75 12 3.75V2.25C9.32542 2.25 6.90113 3.32791 5.14033 5.07126L6.19569 6.13719Z" fill="#ffffff"></path> </g></svg>
         `,
         () => showUpdatePopup("histovec.html")
     );
@@ -5440,7 +5708,6 @@ function createBottomSheet() {
         t("spottingmode"), 
         '', 
         `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <circle cx="12" cy="13" r="3" stroke="#ffffff" stroke-width="1.5"></circle> <path d="M3.0001 12.9999C3.0001 10.191 2.99995 8.78673 3.67407 7.77783C3.96591 7.34107 4.34091 6.96607 4.77767 6.67423C5.78656 6.00011 7.19103 6.00011 9.99995 6.00011H14C16.8089 6.00011 18.2133 6.00011 19.2222 6.67423C19.659 6.96607 20.034 7.34107 20.3258 7.77783C21 8.78673 21.0001 10.191 21.0001 12.9999C21.0001 15.8088 21.0001 17.2133 20.326 18.2222C20.0341 18.6589 19.6591 19.0339 19.2224 19.3258C18.2135 19.9999 16.809 19.9999 14.0001 19.9999H10.0001C7.19117 19.9999 5.78671 19.9999 4.77782 19.3258C4.34106 19.0339 3.96605 18.6589 3.67422 18.2222C3.44239 17.8752 3.29028 17.4815 3.19049 16.9999" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M18 10H17.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M14.5 3.5H9.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
         `,
         toggleSunOrientation
     );
@@ -5452,7 +5719,6 @@ function createBottomSheet() {
         t("about"), 
         `MBF 3Xperience build ${buildVersion}`, 
         `
-        <svg width="24" height="24" viewBox="0 0 52 52" fill="#ffffff" stroke="currentColor" stroke-width="2" data-name="Layer 1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" stroke="#ffffff"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"><path d="M26,52A26,26,0,0,1,22.88.19,25.78,25.78,0,0,1,34.73,1.5a2,2,0,1,1-1.35,3.77,22,22,0,0,0-21,38,22,22,0,0,0,35.41-20,2,2,0,1,1,4-.48A26,26,0,0,1,26,52Z"></path><path d="M26,43.86a2,2,0,0,1-2-2V22.66a2,2,0,1,1,4,0v19.2A2,2,0,0,1,26,43.86Z"></path><circle cx="26" cy="15.71" r="2.57"></circle></g></svg>
         `,
         () => showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html")
     );
@@ -5463,7 +5729,7 @@ function createBottomSheet() {
     greetingText.style.cssText = `
         text-align: center;
         font-size: 27px;
-        color: white;
+        color: black;
         margin: 22px 20px 0 15px;
         text-align: right;
         justify-content: right;
@@ -5475,7 +5741,7 @@ function createBottomSheet() {
         title.textContent = text;
         title.style.cssText = `
             font-size: 20px;
-            color: white;
+            color: black;
             margin-top: 17px;
             margin-right: 15px;
             text-align: right;
@@ -5558,6 +5824,7 @@ function stopDrag(e) {
             bottomSheet.style.transform = 'translateY(0)';
         } else if (percentageMoved < 70) {
             bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
+
         } else {
             closeBottomSheet();
         }
@@ -5602,12 +5869,12 @@ function createStyledButtonBeta(title, description, svgContent, onClickHandler) 
     const icon = document.createElement('div');
     icon.className = 'alerts-icon';
     icon.innerHTML = svgContent;
-    icon.style.color = 'white';
+    icon.style.color = 'black';
     icon.style.marginRight = '10px';
 
     const content = document.createElement('div');
     content.className = 'alerts-content';
-    content.style.color = 'white';
+    content.style.color = 'black';
     content.style.display = 'flex';
     content.style.alignItems = 'center';
 
@@ -5625,7 +5892,7 @@ function createStyledButtonBeta(title, description, svgContent, onClickHandler) 
     betaTag.textContent = 'beta';
     betaTag.style.cssText = `
         background-color: green;
-        color: white;
+        color: black;
         padding: 2px 6px;
         border-radius: 4px;
         font-size: 12px;
@@ -5741,12 +6008,12 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
     const icon = document.createElement('div');
     icon.className = 'alerts-icon';
     icon.innerHTML = svgContent;
-    icon.style.color = 'white';
+    icon.style.color = 'black';
     icon.style.marginRight = '10px';
 
     const content = document.createElement('div');
     content.className = 'alerts-content';
-    content.style.color = 'white';
+    content.style.color = 'black';
 
     const titleElement = document.createElement('div');
     titleElement.className = 'alerts-title';
@@ -5843,9 +6110,15 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
 window.isMenuShowed = false;
 
 function showBottomSheet() {
-    showLanguageSwitcher();
+    const mapp = document.getElementById('map');
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
+
+    mapp.style.scale = '0.9';
+    mapp.style.opacity = '0.5';
+    mapp.style.borderRadius = '20px';
+    mapp.style.transform = 'translateY(-13px)';
+
     safeVibrate(50);
     // Hide menu
     menu.classList.add('hidden');
@@ -5895,8 +6168,13 @@ function showBottomSheet() {
 }
 
 function closeBottomSheet() {
-    hideLanguageSwitcher();
     const bottomSheet = document.getElementById('bottomSheet');
+
+    const mapp = document.getElementById('map');
+    mapp.style.scale = '1';
+    mapp.style.opacity = '1';
+    mapp.style.borderRadius = '0px';
+    mapp.style.transform = 'translateY(0px)';
 
     safeVibrate(50);
 
@@ -6310,6 +6588,8 @@ const menubottom1 = document.getElementById('menubtm');
 
         function showMenu() {
             window.isMenuShowed = true;
+            const mapp = document.getElementById('map');
+            mapp.style.opacity = '0.5';
             const menu = document.getElementById('menu');
             const menubotom = document.getElementById('menubottom');
             menu.classList.remove('hidden');
@@ -6342,6 +6622,8 @@ const menubottom1 = document.getElementById('menubtm');
         closeMap.onclick = () => {
             const menu = document.getElementById('menu');
             menu.classList.add('hidden');
+            const mapp = document.getElementById('map');
+            mapp.style.opacity = '1';
             window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
                 if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 

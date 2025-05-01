@@ -358,7 +358,19 @@ html {
         </div>
     </div>
 
-    <script>
+    <script>        
+    function controlParentSpinner(show, message) {
+        try {
+            window.parent.postMessage({
+                action: show ? 'showSpinner' : 'hideSpinner',
+                message: message || (show ? '' : '')
+            }, '*'); 
+        } catch (e) {
+            console.error("Impossible d'envoyer un message à la page parente", e);
+        }
+    }
+
+    controlParentSpinner(true, '');
 
         const busList = document.getElementById("bus-list");
         const busListContainer = document.getElementById("bus-list-container");
@@ -786,6 +798,7 @@ async function updateLastKnownLines() {
 }
 
 async function showBusDetails(bus) {
+
     lastScrollPosition = window.scrollY;
     
     busListContainer.style.opacity = '0';
@@ -972,6 +985,8 @@ backBtn.addEventListener('click', async () => {
         document.addEventListener('DOMContentLoaded', () => {
             initMonthSelectors();
             fetchBuses();
+            controlParentSpinner(false);
+
         });
 
         window.addEventListener('beforeunload', () => {
