@@ -2425,7 +2425,20 @@ window.addEventListener('message', function(event) {
 function closeUpdatePopup() {
     const popup = document.getElementById('update-popup');
     const iframe = document.getElementById('webview-frame');
-    iframe.src = ""; 
+    
+    if (iframe.dataset.originalSrc) {
+        const timestamp = new Date().getTime();
+        iframe.src = iframe.dataset.originalSrc + (iframe.dataset.originalSrc.includes('?') ? '&' : '?') + 'cache=' + timestamp;
+    } else {
+        if (iframe.src && iframe.src !== "") {
+            iframe.dataset.originalSrc = iframe.src;
+            const timestamp = new Date().getTime();
+            iframe.src = iframe.src + (iframe.src.includes('?') ? '&' : '?') + 'cache=' + timestamp;
+        } else {
+            iframe.src = "";
+        }
+    }
+    
     popup.style.display = 'none'; 
     
     const menubottom1 = document.getElementById('menubtm');
@@ -2433,9 +2446,9 @@ function closeUpdatePopup() {
     menu.classList.add('hidden');
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
-    if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-        menu.style.display = 'none';
-    }
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+            menu.style.display = 'none';
+        }
     });
     isMenuVisible = false; 
     menubottom1.style.display = 'flex';
