@@ -2446,7 +2446,6 @@ async function loadStopTimes(fileContent) {
         console.time('Chargement stop_times');
         console.log('Début du chargement des stop_times (fichier volumineux ~20Mo)...');
         
-        // Détection du type de saut de ligne
         let newlineChar = '\n';
         if (fileContent.indexOf('\r\n') >= 0 && fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1)) {
             newlineChar = '\r\n';
@@ -2484,8 +2483,7 @@ async function loadStopTimes(fileContent) {
         let lastProgressReport = 0;
         let currentProgress = 0;
         
-        // Traitement par blocs pour éviter les problèmes de mémoire
-        const BATCH_SIZE = 100000; // Traiter 100k lignes à la fois
+        const BATCH_SIZE = 100000; 
         let currentBatch = [];
         let batchCount = 0;
         
@@ -2508,10 +2506,8 @@ async function loadStopTimes(fileContent) {
             currentProgress = startPos;
             if (currentProgress - lastProgressReport > onePercentSize) {
                 const percentComplete = Math.floor((currentProgress / fileSize) * 100);
-                console.log(`Chargement en cours : ${percentComplete}% (${entryCount} arrêts)`);
                 lastProgressReport = currentProgress;
                 
-                // Pause pour permettre à l'UI de se mettre à jour et éviter le blocage
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
             
@@ -2525,7 +2521,6 @@ async function loadStopTimes(fileContent) {
             if (values.length <= Math.max(stopTripIdIndex, stopIdIndex, arrivalTimeIndex)) {
                 if (warningCount < MAX_WARNINGS) {
                     warningCount++;
-                    console.warn(`Ligne ignorée - données incomplètes (${warningCount}/${MAX_WARNINGS} avertissements max)`);
                 }
                 continue;
             }
@@ -2546,41 +2541,33 @@ async function loadStopTimes(fileContent) {
             
             entryCount++;
             
-            // Traitement par lots pour réduire l'empreinte mémoire
             if (currentBatch.length >= BATCH_SIZE) {
                 await processBatch(currentBatch, tempStopTimes);
                 currentBatch = [];
                 batchCount++;
                 
-                // Pause pour permettre au garbage collector de faire son travail
                 await new Promise(resolve => setTimeout(resolve, 0));
                 
-                console.log(`Lot ${batchCount} traité, ${entryCount} arrêts au total`);
             }
         }
         
-        // Traiter le dernier lot s'il reste des données
         if (currentBatch.length > 0) {
             await processBatch(currentBatch, tempStopTimes);
             currentBatch = [];
         }
         
-        console.log(`Finalisation et tri des données pour ${Object.keys(tempStopTimes).length} trajets...`);
         
-        // Convertir et trier les données finales
         for (const tripId in tempStopTimes) {
             const stops = tempStopTimes[tripId];
             stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
             stopTimes[tripId] = stops;
         }
         
-        // Libérer la mémoire
         for (const key in tempStopTimes) {
             delete tempStopTimes[key];
         }
         
         console.timeEnd('Chargement stop_times');
-        console.log(`Stop times chargés: ${Object.keys(stopTimes).length} trajets, ${entryCount} arrêts au total`);
         
         return stopTimes;
 
