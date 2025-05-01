@@ -2222,7 +2222,7 @@ function isServiceActive(serviceId, dateObj) {
 
 
 async function loadStopTimes(fileContent) {
-    const localStopTimes = {};  // Stockage temporaire local
+    const localStopTimes = {}; 
     
     try {
         if (!fileContent) {
@@ -2383,13 +2383,11 @@ async function loadStopTimes(fileContent) {
         tempStopTimes.clear();
         tripIdSet.clear();
         
-        // Copier dans la variable globale et vider les références temporaires
         Object.assign(stopTimes, localStopTimes);
         
         console.timeEnd('Chargement stop_times');
         console.log(`Stop times chargés ${Object.keys(localStopTimes).length} trajets ${entryCount} arrêts au total`);
         
-        // Libération immédiate de la mémoire
         fileContent = null;
         await forceGarbageCollection();
 
@@ -2398,42 +2396,33 @@ async function loadStopTimes(fileContent) {
     }
 }
 
-// Fonction pour forcer le garbage collector à s'exécuter
 async function forceGarbageCollection() {
     if (typeof global !== 'undefined' && global.gc) {
-        // Node.js avec --expose-gc flag
-        console.log('Exécution forcée du garbage collector...');
+        // node.js --expose-gc flag
         global.gc();
         return true;
     } else if (typeof window !== 'undefined' && window.performance && window.performance.memory) {
-        // Chrome/V8 environnement
-        console.log('Tentative de libération mémoire dans environnement navigateur...');
+        console.log('Tentative de libération mémoire dans enviro navigateur...');
         
-        // Taille de lot pour allocation temporaire
-        const allocationSize = 1024 * 1024 * 5; // 5 MB
+        const allocationSize = 1024 * 1024 * 10; 
         const allocations = [];
         
         try {
-            // Allouer de la mémoire pour forcer le GC
             for (let i = 0; i < 10; i++) {
                 allocations.push(new ArrayBuffer(allocationSize));
-                // Pause pour permettre au GC de fonctionner
                 await new Promise(resolve => setTimeout(resolve, 1));
             }
         } catch (e) {
             console.log('Mémoire temporaire allouée pour forcer le GC');
         }
         
-        // Vider les allocations temporaires
         while (allocations.length) {
             allocations.pop();
         }
         
-        // Remettre allocations à null pour s'assurer qu'ils sont collectés
         allocations.length = 0;
     }
     
-    // Exécuter des micro-tâches pour aider le GC
     for (let i = 0; i < 5; i++) {
         await new Promise(resolve => setTimeout(resolve, 10));
     }
@@ -2442,7 +2431,6 @@ async function forceGarbageCollection() {
     return false;
 }
 
-// Version modifiée de processBatch qui libère la mémoire
 async function processBatch(batch, tempStopTimes) {
     try {
         for (const item of batch) {
@@ -2492,18 +2480,15 @@ async function processBatch(batch, tempStopTimes) {
             tempStopTimes[item.tripId].push(stopEntry);
         }
         
-        // Vider la référence au batch
         batch.length = 0;
         
     } catch (error) {
         console.error('Erreur durant le traitement du batch', error);
     }
     
-    // Renvoyer null pour permettre au garbage collector de récupérer le batch original
     return null;
 }
 
-// Fonction pour vider les données temporaires dans le stockage final
 async function flushTempStopTimes(tempStopTimes, stopTimes, flushCallback) {
     let count = 0;
     const totalItems = tempStopTimes.size;
@@ -2519,9 +2504,8 @@ async function flushTempStopTimes(tempStopTimes, stopTimes, flushCallback) {
         
         count++;
         
-        // Permettre au GC de fonctionner périodiquement pendant le flush
         if (count % 10000 === 0) {
-            console.log(`Flush progression: ${Math.round((count/totalItems)*100)}%`);
+            console.log(`Flush progression ${Math.round((count/totalItems)*100)}%`);
             await new Promise(resolve => setTimeout(resolve, 0));
         }
     }
