@@ -1965,7 +1965,6 @@ async function clearGTFSCache() {
  * Optimisé pour la performance et la robustesse
  */
 
-
 /**
  * Parse une ligne CSV en respectant les guillemets
  * @param {string} line - Ligne CSV à parser
@@ -2379,14 +2378,12 @@ async function loadStops(fileContent) {
             // Conserver la compatibilité avec le code existant qui utilise stops comme chaînes
             stops[values.stop_id] = values.stop_name || '';
             
-            // Vous pouvez décommenter ce bloc si vous voulez utiliser la version étendue plus tard
-            /* 
+
             stops[values.stop_id] = {
                 name: values.stop_name || '',
                 lat: parseFloatSafe(values.stop_lat),
                 lon: parseFloatSafe(values.stop_lon)
             };
-            */
         }
         
         console.log(`Chargement réussi de ${Object.keys(stops).length} arrêts`);
@@ -2486,8 +2483,16 @@ function getActiveRoutes(dateObj) {
  * @returns {Object[]} - Liste des trajets actifs
  */
 function getActiveTripsForRoute(routeId, dateObj) {
+    // Protection contre undefined
+    if (!routeId) return [];
+    
     const routeTrips = trips[routeId] || [];
-    return routeTrips.filter(trip => isServiceActive(trip.service_id, dateObj));
+    return routeTrips
+        .filter(trip => isServiceActive(trip.service_id, dateObj))
+        .map(trip => ({
+            trip_id: String(trip.trip_id || ''),
+            service_id: String(trip.service_id || '')
+        }));
 }
 
 /**
@@ -2496,12 +2501,50 @@ function getActiveTripsForRoute(routeId, dateObj) {
  * @returns {Object[]} - Liste des arrêts avec leurs horaires
  */
 function getStopTimesForTrip(tripId) {
+    // Vérifier si tripId est défini
+    if (!tripId) return [];
+    
+    // Utiliser un tableau vide si pas de données pour ce trip
     const tripStopTimes = stopTimes[tripId] || [];
     
-    return tripStopTimes.map(stopTime => ({
-        ...stopTime,
-        stop_name: stops[stopTime.stop_id] || 'Arrêt inconnu'
-    }));
+    return tripStopTimes.map(stopTime => {
+        // Convertir toutes les valeurs en chaînes pour éviter les erreurs toString()
+        return {
+            stop_id: String(stopTime.stop_id || ''),
+            arrival_time: String(stopTime.arrival_time || ''),
+            stop_sequence: Number(stopTime.stop_sequence || 0),
+            stop_name: String(stops[stopTime.stop_id] || 'Arrêt inconnu')
+        };
+    });
+}
+
+/**
+ * Protection anti-erreur pour l'utilisation des stopTimes
+ * Garantit que toutes les données de stopTimes peuvent être utilisées en toute sécurité
+ */
+function sanitizeAllStopTimes() {
+    for (const tripId in stopTimes) {
+        if (!Array.isArray(stopTimes[tripId])) {
+            stopTimes[tripId] = [];
+            continue;
+        }
+        
+        // Sanitizer chaque élément du tableau
+        stopTimes[tripId] = stopTimes[tripId].map(item => {
+            if (!item) return {
+                stop_id: '',
+                arrival_time: '',
+                stop_sequence: 0
+            };
+            
+            return {
+                stop_id: String(item.stop_id || ''),
+                arrival_time: String(item.arrival_time || ''),
+                stop_sequence: Number(item.stop_sequence || 0)
+            };
+        });
+    }
+    console.log('Données de stopTimes sanitizées pour éviter les erreurs toString()');
 }
 
 /**
@@ -2518,6 +2561,9 @@ async function initGTFSData(files) {
         await loadTrips(files.trips);
         await loadStops(files.stops);
         await loadStopTimes(files.stop_times);
+        
+        // Sanitize les données pour éviter les erreurs toString()
+        sanitizeAllStopTimes();
         
         console.log('Chargement complet des données GTFS');
     } catch (error) {
