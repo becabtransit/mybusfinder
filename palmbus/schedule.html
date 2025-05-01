@@ -1966,6 +1966,7 @@ async function clearGTFSCache() {
  */
 
 
+
 /**
  * Parse une ligne CSV en respectant les guillemets
  * @param {string} line - Ligne CSV à parser
@@ -2301,10 +2302,12 @@ async function loadStopTimes(fileContent) {
             
             if (!values.trip_id) continue;
             
-            // Format plus compact pour les temps d'arrivée
-            const arrivalTime = values.arrival_time ? 
+            // S'assurer que la valeur d'arrivée est toujours une chaîne, même en cas d'erreur
+            const arrivalTime = (values.arrival_time && values.arrival_time.toString) ? 
                 formatTime(values.arrival_time) : 
-                formatTime(values.departure_time);
+                (values.departure_time && values.departure_time.toString) ?
+                    formatTime(values.departure_time) : 
+                    '';
             
             if (!stopTimes[values.trip_id]) {
                 stopTimes[values.trip_id] = [];
@@ -2312,7 +2315,7 @@ async function loadStopTimes(fileContent) {
             
             stopTimes[values.trip_id].push({
                 stop_id: values.stop_id || '',
-                arrival_time: arrivalTime,
+                arrival_time: arrivalTime || '', // Garantit une chaîne vide si null
                 stop_sequence: parseInt(values.stop_sequence, 10) || 0
             });
             
@@ -2336,7 +2339,7 @@ async function loadStopTimes(fileContent) {
  * @returns {string} - Temps formaté (HHhMM)
  */
 function formatTime(timeStr) {
-    if (!timeStr) return '';
+    if (!timeStr || typeof timeStr !== 'string') return '';
     const parts = timeStr.split(':');
     if (parts.length < 2) return timeStr;
     return `${parts[0]}h${parts[1]}`;
