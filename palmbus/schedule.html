@@ -1965,7 +1965,6 @@ async function clearGTFSCache() {
  * Optimisé pour la performance et la robustesse
  */
 
-
 /**
  * Parse une ligne CSV en respectant les guillemets
  * @param {string} line - Ligne CSV à parser
@@ -2374,11 +2373,17 @@ async function loadStops(fileContent) {
             
             if (!values.stop_id) continue;
             
+            // Conserver la compatibilité avec le code existant qui utilise stops comme chaînes
+            stops[values.stop_id] = values.stop_name || '';
+            
+            // Vous pouvez décommenter ce bloc si vous voulez utiliser la version étendue plus tard
+            /* 
             stops[values.stop_id] = {
                 name: values.stop_name || '',
                 lat: parseFloatSafe(values.stop_lat),
                 lon: parseFloatSafe(values.stop_lon)
             };
+            */
         }
         
         console.log(`Chargement réussi de ${Object.keys(stops).length} arrêts`);
@@ -2492,7 +2497,7 @@ function getStopTimesForTrip(tripId) {
     
     return tripStopTimes.map(stopTime => ({
         ...stopTime,
-        stop_name: stops[stopTime.stop_id]?.name || 'Arrêt inconnu'
+        stop_name: stops[stopTime.stop_id] || 'Arrêt inconnu'
     }));
 }
 
@@ -2517,6 +2522,9 @@ async function initGTFSData(files) {
     }
 }
 
+// Toutes les fonctions et données sont accessibles globalement
+// Pas d'export nécessaire si vous utilisez un environnement sans modules
+// Les variables et fonctions sont déjà dans le scope global
 
 let updatePositionInterval;
 let currentVehicleId;
