@@ -1706,56 +1706,6 @@ function getRealtimeArrival(tripId, stopId) {
     return new Date(stopUpdate.arrival);
 }
 
-function setupIOSOptimizations() {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    
-    if (isIOS) {
-        console.log('Optimisations iOS activées');
-        
-        // Ajouter une classe spéciale au body pour les ajustements CSS
-        document.body.classList.add('ios-device');
-        
-        // Ajuster les timeouts pour être plus patients sur iOS
-        window.APP_CONFIG = window.APP_CONFIG || {};
-        window.APP_CONFIG.LONG_TIMEOUT = 60000; // 60 secondes pour les opérations longues sur iOS
-        window.APP_CONFIG.DEFAULT_TIMEOUT = 30000; // 30 secondes par défaut
-        
-        // Intercepter et gérer les erreurs de mémoire
-        window.addEventListener('error', function(e) {
-            if (e && e.message && (
-                e.message.includes('memory') || 
-                e.message.includes('allocation') ||
-                e.message.includes('crashed') ||
-                e.message.includes('out of memory')
-            )) {
-                console.error('Erreur mémoire détectée', e);
-                // Tenter de récupérer en libérant la mémoire
-                forceGarbageCollection();
-                
-                // Informer l'utilisateur
-                if (typeof toastBottomRight !== 'undefined') {
-                    toastBottomRight.warning(t("memorylimitation"), { 
-                        autoClose: 5000,
-                        onClose: () => {
-                            // Suggérer un rechargement de l'application
-                            if (confirm(t("wouldyouliketoreload"))) {
-                                window.location.reload();
-                            }
-                        }
-                    });
-                }
-                
-                return true; // Empêcher la propagation de l'erreur
-            }
-            
-            return false; // Laisser les autres erreurs se propager normalement
-        });
-    }
-}
-
-// Appeler cette fonction au démarrage
-document.addEventListener('DOMContentLoaded', setupIOSOptimizations);
-
 let DB_NAME;
 let STORE_NAME;
 const DB_VERSION = 4;
@@ -1957,27 +1907,19 @@ async function extractGTFSFiles() {
 
 async function loadGtfsData() {
     try {
-        // Détecter si nous sommes sur iOS
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        console.log(`Environnement détecté: ${isIOS ? 'iOS' : 'Desktop/Android'}`);
-        
-        // Vérifier si une mise à jour est nécessaire
-        const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
         let extractedFiles;
         
+        const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
+        
         if (needsUpdate) {
-            console.log('Mise à jour des données GTFS nécessaire...');
             const result = await extractGTFSFiles();
             extractedFiles = result.extractedFiles;
             
-            // Sauvegarder les nouveaux fichiers extraits
             await saveToCache(extractedFiles, result.metadata);
             
         } else {
-            console.log('Utilisation des données GTFS en cache...');
             extractedFiles = await getFromCache();
             if (!extractedFiles) {
-                console.log('Cache invalide, extraction des fichiers GTFS...');
                 const result = await extractGTFSFiles();
                 extractedFiles = result.extractedFiles;
                 await saveToCache(extractedFiles, result.metadata);
@@ -1985,12 +1927,6 @@ async function loadGtfsData() {
             } 
         }
         
-        // Pour iOS, afficher un message de chargement plus long
-        if (isIOS) {
-            toastBottomRight.info(t("loadingdatapleasewait"), { autoClose: 10000 });
-        }
-        
-        // Réinitialiser les structures de données globales
         routes = {};
         trips = {};
         stopTimes = {};
@@ -1998,111 +1934,22 @@ async function loadGtfsData() {
         calendar = {};
         calendarDates = {};
         
-        // Sur iOS, charger les fichiers un par un au lieu de tous en parallèle
-        console.log('Chargement des fichiers GTFS de base...');
+        const loadPromises = [];
         
-        if (isIOS) {
-            // Chargement séquentiel pour iOS
-            if (extractedFiles['routes.txt']) {
-                await loadRoutes(extractedFiles['routes.txt']);
-                extractedFiles['routes.txt'] = null; // Libérer immédiatement
-                await forceGarbageCollection();
-            }
-            
-            if (extractedFiles['stops.txt']) {
-                await loadStops(extractedFiles['stops.txt']);
-                extractedFiles['stops.txt'] = null; // Libérer immédiatement
-                await forceGarbageCollection();
-            }
-            
-            if (extractedFiles['calendar.txt']) {
-                await loadCalendar(extractedFiles['calendar.txt']);
-                extractedFiles['calendar.txt'] = null; // Libérer immédiatement
-                await forceGarbageCollection();
-            }
-            
-            if (extractedFiles['calendar_dates.txt']) {
-                await loadCalendarDates(extractedFiles['calendar_dates.txt']);
-                extractedFiles['calendar_dates.txt'] = null; // Libérer immédiatement
-                await forceGarbageCollection();
-            }
-            
-            if (extractedFiles['trips.txt']) {
-                await loadTrips(extractedFiles['trips.txt']);
-                extractedFiles['trips.txt'] = null; // Libérer immédiatement
-                await forceGarbageCollection();
-            }
-        } else {
-            // Chargement en parallèle pour autres plateformes
-            const lightweightPromises = [];
-            
-            if (extractedFiles['routes.txt']) 
-                lightweightPromises.push(loadRoutes(extractedFiles['routes.txt']));
-            
-            if (extractedFiles['trips.txt']) 
-                lightweightPromises.push(loadTrips(extractedFiles['trips.txt']));
-            
-            if (extractedFiles['stops.txt']) 
-                lightweightPromises.push(loadStops(extractedFiles['stops.txt']));
-            
-            if (extractedFiles['calendar.txt']) 
-                lightweightPromises.push(loadCalendar(extractedFiles['calendar.txt']));
-            
-            if (extractedFiles['calendar_dates.txt']) 
-                lightweightPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
-            
-            // Attendre que tous les fichiers légers soient chargés
-            await Promise.all(lightweightPromises);
-            
-            // Libérer référence aux fichiers
-            for (const key of ['routes.txt', 'trips.txt', 'stops.txt', 'calendar.txt', 'calendar_dates.txt']) {
-                if (extractedFiles[key]) extractedFiles[key] = null;
-            }
-            
-            await forceGarbageCollection();
-        }
+        if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
+        if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
+        if (extractedFiles['stop_times.txt']) loadPromises.push(loadStopTimes(extractedFiles['stop_times.txt']));
+        if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
         
-        // Charger le fichier stop_times (le plus volumineux) séparément
-        if (extractedFiles['stop_times.txt']) {
-            console.log('Chargement du fichier stop_times (volumineux)...');
-            
-            // Si sur iOS, mettre à jour l'UI pour indiquer que le chargement prendra du temps
-            if (isIOS) {
-                toastBottomRight.info(t("loadinglargedatapleasewait"), { autoClose: 30000 });
-            }
-            
-            // Obtenir directement le résultat de loadStopTimes et l'assigner à stopTimes
-            const loadedStopTimes = await loadStopTimes(extractedFiles['stop_times.txt']);
-            
-            // Assigner les résultats à l'objet global
-            Object.assign(stopTimes, loadedStopTimes);
-            
-            // Éliminer la référence au contenu du fichier volumineux
-            extractedFiles['stop_times.txt'] = null;
-            
-            // Forcer la libération de mémoire
-            await forceGarbageCollection();
-        }
+        if (extractedFiles['calendar.txt']) loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
+        if (extractedFiles['calendar_dates.txt']) loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
         
-        console.log('Chargement GTFS terminé avec succès');
-        
-        // Libérer les références aux fichiers extraits
-        for (const key in extractedFiles) {
-            extractedFiles[key] = null;
-        }
-        extractedFiles = null;
-        
-        // Forcer une dernière collecte
-        await forceGarbageCollection();
+        await Promise.all(loadPromises);
         
         return true;
     } catch (error) {
         console.error('Erreur lors du chargement des données GTFS', error);
-        toastBottomRight.error(t("errorfetchingdata"));
-        
-        // Tenter de récupérer de l'erreur en libérant la mémoire
-        await forceGarbageCollection();
-        
+        toastBottomRight.error("errorfetchingdata");
         throw error;
     }
 }
@@ -2252,47 +2099,32 @@ async function loadTrips(fileContent) {
 
 
 
-/**
- * Version simplifiée et plus efficace de formatTimeString
- * @param {string} timeStr - La chaîne de temps à formater
- * @returns {string} - La chaîne formatée
- */
- function formatTimeSimple(timeStr) {
-    const colonPos = timeStr.indexOf(':');
-    if (colonPos === -1) return timeStr;
-    
-    const hour = timeStr.substr(0, colonPos);
-    const minute = timeStr.substr(colonPos + 1, 2);
-    return `${hour}h${minute}`;
-}
-
-/**
- * Fonction utilitaire simplifiée pour analyser une ligne CSV
- * @param {string} line - La ligne CSV à analyser
- * @returns {string[]} - Tableau des valeurs extraites
- */
-function parseCSVLine(line) {
+function parseCSVLine(csvLine) {
     const result = [];
-    let currentField = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-        const char = line[i];
+    let currentValue = '';
+    let insideQuotes = false;
+
+    for (let i = 0; i < csvLine.length; i++) {
+        const char = csvLine[i];
         
         if (char === '"') {
-            inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-            result.push(currentField);
-            currentField = '';
+            insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+            result.push(currentValue);
+            currentValue = '';
         } else {
-            currentField += char;
+            currentValue += char;
         }
     }
     
-    // Ajouter le dernier champ
-    result.push(currentField);
+    result.push(currentValue);
     
-    return result;
+    return result.map(value => {
+        if (value.startsWith('"') && value.endsWith('"')) {
+            return value.slice(1, -1);
+        }
+        return value;
+    });
 }
 
 function formatDate(date) {
@@ -2389,270 +2221,214 @@ function isServiceActive(serviceId, dateObj) {
 
 
 
-/**
- * Charge et traite les données d'horaires de transport public depuis un fichier CSV
- * Optimisé spécifiquement pour les appareils iOS avec limitations mémoire strictes
- * @param {string} fileContent - Contenu du fichier stop_times.txt
- * @returns {Object} - Object contenant les horaires
- */
- async function loadStopTimes(fileContent) {
-    // Objet pour stocker les résultats finaux
-    const localStopTimes = {};
+async function loadStopTimes(fileContent) {
+    const localStopTimes = {}; 
     
     try {
         if (!fileContent) {
             console.warn('Aucun contenu de fichier stop_times fourni');
-            return localStopTimes;
+            return;
         }
         
         console.time('Chargement stop_times');
         console.log('Début du chargement des stop_times (fichier volumineux ~20Mo)...');
         
-        // Détection du caractère de fin de ligne
-        const newlineChar = fileContent.indexOf('\r\n') >= 0 && 
-                           fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1) ? '\r\n' : '\n';
-        
-        // Traitement de l'en-tête
-        const headerEndPos = fileContent.indexOf(newlineChar);
-        if (headerEndPos === -1) {
-            console.error('Format de fichier invalide: en-tête introuvable');
-            return localStopTimes;
+        let newlineChar = '\n';
+        if (fileContent.indexOf('\r\n') >= 0 && fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1)) {
+            newlineChar = '\r\n';
         }
         
+        const headerEndPos = fileContent.indexOf(newlineChar);
         const headerLine = fileContent.substring(0, headerEndPos);
+        
         const headers = parseCSVLine(headerLine);
         
-        // Récupération des indices de colonne
-        const indices = {
-            tripId: headers.indexOf('trip_id'),
-            stopId: headers.indexOf('stop_id'),
-            arrivalTime: headers.indexOf('arrival_time'),
-            departureTime: headers.indexOf('departure_time'),
-            stopSequence: headers.indexOf('stop_sequence'),
-            pickupType: headers.indexOf('pickup_type'),
-            dropOffType: headers.indexOf('drop_off_type')
-        };
+        const stopTripIdIndex = headers.indexOf('trip_id');
+        const stopIdIndex = headers.indexOf('stop_id');
+        const arrivalTimeIndex = headers.indexOf('arrival_time');
+        const departureTimeIndex = headers.indexOf('departure_time');
+        const stopSequenceIndex = headers.indexOf('stop_sequence');
+        const pickupTypeIndex = headers.indexOf('pickup_type');
+        const dropOffTypeIndex = headers.indexOf('drop_off_type');
         
-        // Vérification des colonnes requises
-        if (indices.tripId === -1 || indices.stopId === -1 || indices.arrivalTime === -1) {
+        if (stopTripIdIndex === -1 || stopIdIndex === -1 || arrivalTimeIndex === -1) {
             console.error('Format de fichier stop_times.txt invalide, colonnes requises manquantes');
-            return localStopTimes;
+            return;
         }
         
-        // Paramètres pour le traitement par lots
-        const IOS_BATCH_SIZE = 10000; // Taille de lot plus petite pour iOS
-        const CHUNK_SIZE = 500000; // Taille des chunks du fichier pour le traitement progressif
+        const tempStopTimes = new Map();
+        let entryCount = 0;
+        let warningCount = 0;
+        const MAX_WARNINGS = 5;
         
-        // Variables pour le traitement
-        let processedCount = 0;
-        let tripCount = 0;
+        const fileSize = fileContent.length;
+        const onePercentSize = fileSize / 60;
+        let lastProgressReport = 0;
+        let currentProgress = 0;
         
-        // Traiter le fichier par morceaux pour éviter les dépassements mémoire sur iOS
-        let startOffset = headerEndPos + newlineChar.length;
+        const tripIdSet = new Set();
         
-        while (startOffset < fileContent.length) {
-            // Déterminer la fin du chunk actuel
-            let endOffset = startOffset + CHUNK_SIZE;
-            if (endOffset >= fileContent.length) {
-                endOffset = fileContent.length;
+        let startPos = headerEndPos + newlineChar.length;
+        let endPos, line;
+        
+        while (startPos < fileContent.length) {
+            endPos = fileContent.indexOf(newlineChar, startPos);
+            
+            if (endPos === -1) {
+                line = fileContent.substring(startPos);
+                startPos = fileContent.length;
             } else {
-                // Ajuster à la fin d'une ligne
-                const nextNewline = fileContent.indexOf(newlineChar, endOffset);
-                endOffset = nextNewline !== -1 ? nextNewline : fileContent.length;
+                line = fileContent.substring(startPos, endPos);
+                startPos = endPos + newlineChar.length;
             }
             
-            // Extraire le chunk
-            const chunk = fileContent.substring(startOffset, endOffset);
+            if (!line.trim()) continue;
             
-            // Traiter le chunk
-            console.log(`Traitement chunk ${Math.round(startOffset/fileContent.length*100)}% à ${Math.round(endOffset/fileContent.length*100)}%`);
-            
-            const chunkResults = await processChunk(chunk, newlineChar, indices, IOS_BATCH_SIZE);
-            
-            // Fusionner les résultats
-            for (const tripId in chunkResults) {
-                localStopTimes[tripId] = chunkResults[tripId];
-                tripCount++;
+            currentProgress = startPos;
+            if (currentProgress - lastProgressReport > onePercentSize) {
+                const percentComplete = Math.floor((currentProgress / fileSize) * 100);
+                console.log(`Chargement en cours : ${percentComplete}% (${entryCount} arrêts)`);
+                lastProgressReport = currentProgress;
             }
             
-            processedCount += chunkResults._processedLines || 0;
+            let values;
+            if (line.indexOf('"') === -1) {
+                values = line.split(',');
+            } else {
+                values = parseCSVLine(line);
+            }
             
-            // Libérer la mémoire après chaque chunk
-            await forceGarbageCollection();
+            if (values.length <= Math.max(stopTripIdIndex, stopIdIndex, arrivalTimeIndex)) {
+                if (warningCount < MAX_WARNINGS) {
+                    warningCount++;
+                    console.warn(`Ligne ignorée - données incomplètes (${warningCount}/${MAX_WARNINGS} avertissements max)`);
+                }
+                continue;
+            }
             
-            // Passer au chunk suivant
-            startOffset = endOffset + newlineChar.length;
+            const tripId = values[stopTripIdIndex];
+            if (!tripId) continue;
             
-            // Pause pour permettre au navigateur de respirer
-            await new Promise(resolve => setTimeout(resolve, 50));
+            tripIdSet.add(tripId);
+            
+            let tripStops = tempStopTimes.get(tripId);
+            if (!tripStops) {
+                tripStops = [];
+                tempStopTimes.set(tripId, tripStops);
+            }
+            
+            const stopEntry = {
+                stop_id: values[stopIdIndex],
+                stop_sequence: stopSequenceIndex !== -1 && values[stopSequenceIndex] ? 
+                    parseInt(values[stopSequenceIndex], 10) : 0
+            };
+            
+            if (values[arrivalTimeIndex]) {
+                const timeStr = values[arrivalTimeIndex];
+                const colonPos = timeStr.indexOf(':');
+                if (colonPos !== -1) {
+                    const hour = timeStr.substring(0, colonPos);
+                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
+                    stopEntry.arrival_time = `${hour}h${minute}`;
+                } else {
+                    stopEntry.arrival_time = timeStr;
+                }
+            }
+            
+            if (departureTimeIndex !== -1 && values[departureTimeIndex] && 
+                values[departureTimeIndex] !== values[arrivalTimeIndex]) {
+                
+                const timeStr = values[departureTimeIndex];
+                const colonPos = timeStr.indexOf(':');
+                if (colonPos !== -1) {
+                    const hour = timeStr.substring(0, colonPos);
+                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
+                    stopEntry.departure_time = `${hour}h${minute}`;
+                } else {
+                    stopEntry.departure_time = timeStr;
+                }
+            } else {
+                stopEntry.departure_time = stopEntry.arrival_time;
+            }
+            
+            if (pickupTypeIndex !== -1 && values[pickupTypeIndex] && values[pickupTypeIndex] !== '0') {
+                stopEntry.pickup_type = parseInt(values[pickupTypeIndex], 10);
+            }
+            
+            if (dropOffTypeIndex !== -1 && values[dropOffTypeIndex] && values[dropOffTypeIndex] !== '0') {
+                stopEntry.drop_off_type = parseInt(values[dropOffTypeIndex], 10);
+            }
+            
+            tripStops.push(stopEntry);
+            entryCount++;
+            
+            if (entryCount % 1000000 === 0) {
+                console.log(`Traitement interméd ${entryCount} arrêts traités..`);
+                for (const [batchTripId, stops] of tempStopTimes) {
+                    stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
+                    localStopTimes[batchTripId] = stops;
+                    tripIdSet.delete(batchTripId);
+                }
+                tempStopTimes.clear();
+            }
+        }
+    
+        console.log(`Traitement en final tri et finalisation ${tempStopTimes.size} trajets..`);
+        
+        for (const [tripId, stops] of tempStopTimes) {
+            stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
+            localStopTimes[tripId] = stops;
         }
         
-        // Finaliser les résultats
+        tempStopTimes.clear();
+        tripIdSet.clear();
+        
+        Object.assign(stopTimes, localStopTimes);
+        
         console.timeEnd('Chargement stop_times');
-        console.log(`Stop times chargés: ${tripCount} trajets, ${processedCount} arrêts au total`);
+        console.log(`Stop times chargés ${Object.keys(localStopTimes).length} trajets ${entryCount} arrêts au total`);
         
-        // Libérer explicitement la mémoire
         fileContent = null;
-        
         await forceGarbageCollection();
-        
-        return localStopTimes;
 
     } catch (error) {
-        console.error('Erreur lors du chargement des horaires', error);
-        // Tenter de libérer de la mémoire même en cas d'erreur
-        fileContent = null;
-        await forceGarbageCollection();
-        return localStopTimes;
+        console.error('Erreur lors du chargement des horaires', error.message);
     }
-}
-
-/**
- * Traite un chunk du fichier CSV
- * @param {string} chunk - Le morceau de texte à traiter
- * @param {string} newlineChar - Le caractère de fin de ligne
- * @param {Object} indices - Les indices des colonnes
- * @param {number} batchSize - La taille des lots
- * @returns {Object} - Résultats du traitement du chunk
- */
- async function processChunk(chunk, newlineChar, indices, batchSize) {
-    const results = {};
-    let processedLines = 0;
-    let batchCounter = 0;
-    
-    const lines = chunk.split(newlineChar);
-    const linesLength = lines.length;
-    
-    // Stocker les arrêts par trip_id
-    const tempTrips = {};
-    
-    for (let i = 0; i < linesLength; i++) {
-        const line = lines[i];
-        if (!line.trim()) continue;
-        
-        // Analyser la ligne CSV
-        const values = line.indexOf('"') === -1 ? line.split(',') : parseCSVLine(line);
-        
-        // Vérifier la validité des données
-        if (values.length <= Math.max(indices.tripId, indices.stopId, indices.arrivalTime)) {
-            continue;
-        }
-        
-        const tripId = values[indices.tripId];
-        if (!tripId) continue;
-        
-        // Créer ou récupérer la liste d'arrêts pour ce trip
-        if (!tempTrips[tripId]) {
-            tempTrips[tripId] = [];
-        }
-        
-        // Créer une entrée pour cet arrêt
-        const stopEntry = {
-            stop_id: values[indices.stopId],
-            stop_sequence: indices.stopSequence !== -1 && values[indices.stopSequence] ? 
-                parseInt(values[indices.stopSequence], 10) : 0
-        };
-        
-        // Formater l'heure d'arrivée de manière plus efficace
-        if (values[indices.arrivalTime]) {
-            stopEntry.arrival_time = formatTimeSimple(values[indices.arrivalTime]);
-        }
-        
-        // Formater l'heure de départ si différente de l'arrivée
-        if (indices.departureTime !== -1 && values[indices.departureTime] && 
-            values[indices.departureTime] !== values[indices.arrivalTime]) {
-            stopEntry.departure_time = formatTimeSimple(values[indices.departureTime]);
-        } else {
-            stopEntry.departure_time = stopEntry.arrival_time;
-        }
-        
-        // Ajouter les types de montée/descente s'ils sont spécifiés (minimaliste)
-        if (indices.pickupType !== -1 && values[indices.pickupType] && values[indices.pickupType] !== '0') {
-            stopEntry.pickup_type = parseInt(values[indices.pickupType], 10);
-        }
-        
-        if (indices.dropOffType !== -1 && values[indices.dropOffType] && values[indices.dropOffType] !== '0') {
-            stopEntry.drop_off_type = parseInt(values[indices.dropOffType], 10);
-        }
-        
-        // Ajouter l'arrêt à la liste temporaire
-        tempTrips[tripId].push(stopEntry);
-        processedLines++;
-        
-        // Traitement par lots pour iOS
-        batchCounter++;
-        if (batchCounter >= batchSize) {
-            batchCounter = 0;
-            // Attendre un court moment pour laisser le navigateur respirer
-            await new Promise(resolve => setTimeout(resolve, 0));
-        }
-    }
-    
-    // Trier et finaliser tous les trips dans ce chunk
-    for (const tripId in tempTrips) {
-        tempTrips[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
-        results[tripId] = tempTrips[tripId];
-    }
-    
-    // Libérer la référence aux objets temporaires
-    lines.length = 0;
-    
-    // Ajouter le nombre de lignes traitées pour les statistiques
-    results._processedLines = processedLines;
-    
-    return results;
 }
 
 async function forceGarbageCollection() {
-    // Pour iOS, on utilise une technique différente
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    
-    if (isIOS) {
-        console.log('Libération mémoire pour iOS...');
+    if (typeof global !== 'undefined' && global.gc) {
+        // node.js --expose-gc flag
+        global.gc();
+        return true;
+    } else if (typeof window !== 'undefined' && window.performance && window.performance.memory) {
+        console.log('Tentative de libération mémoire dans enviro navigateur...');
         
-        // Pour iOS, utiliser une approche plus agressive
-        // mais moins intensive en mémoire
-        let dummy = [];
-        const smallSize = 100 * 1024; // Seulement 100KB pour éviter de surcharger
+        const allocationSize = 1024 * 1024 * 10; 
+        const allocations = [];
         
         try {
-            // Créer plusieurs petites allocations au lieu d'une grande
-            for (let i = 0; i < 5; i++) {
-                dummy.push(new ArrayBuffer(smallSize));
-                // iOS a besoin de plus de temps pour respirer
-                await new Promise(resolve => setTimeout(resolve, 10));
+            for (let i = 0; i < 10; i++) {
+                allocations.push(new ArrayBuffer(allocationSize));
+                await new Promise(resolve => setTimeout(resolve, 1));
             }
         } catch (e) {
-            // Ignorer les erreurs d'allocation
+            console.log('Mémoire temporaire allouée pour forcer le GC');
         }
         
-        // Supprimer les références
-        dummy = null;
-        
-        // Pauses plus longues pour iOS
-        await new Promise(resolve => setTimeout(resolve, 100));
-    } else if (typeof global !== 'undefined' && global.gc) {
-        // Node.js avec l'option --expose-gc
-        global.gc();
-    } else {
-        // Navigateurs desktop
-        console.log('Libération mémoire standard...');
-        
-        const allocationSize = 1024 * 1024 * 5; // 5MB
-        let dummy = null;
-        
-        try {
-            dummy = new ArrayBuffer(allocationSize);
-            await new Promise(resolve => setTimeout(resolve, 1));
-        } catch (e) {
-            // Ignorer les erreurs d'allocation
+        while (allocations.length) {
+            allocations.pop();
         }
         
-        dummy = null;
+        allocations.length = 0;
+    }
+    
+    for (let i = 0; i < 5; i++) {
         await new Promise(resolve => setTimeout(resolve, 10));
     }
     
-    return true;
+    console.log('Libération de mémoire terminée');
+    return false;
 }
 
 async function processBatch(batch, tempStopTimes) {
