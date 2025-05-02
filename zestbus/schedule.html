@@ -6,8 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.X.X/dist/protobuf.min.js"></script>
+    <title>MyBusSchedule</title>
     <style>
 @import url('https://fonts.googleapis.com/css?family=League+Spartan:400,700');
+
+@font-face {
+            font-family: 'SegoeUIBoot';
+            src: url('src/fonts/SegoeUIBoot.woff2') format('woff2'),
+                url('src/fonts/SegoeUIBoot.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
 
 body {
     font-family: 'League Spartan', sans-serif;
@@ -1931,6 +1940,61 @@ function startWindowsSpinnerAnimation(elementId, interval = 30) {
   return () => clearInterval(timer);
 }
 
+function createCloseTabButton() {
+  const closeButton = document.createElement('button');
+  
+  closeButton.innerHTML = '✕';
+  
+  Object.assign(closeButton.style, {
+    position: 'fixed',
+    bottom: '20px',
+    right: '20px',
+    width: '50px',
+    height: '50px',
+    borderRadius: '50%',
+    backgroundColor: '#ff4d4d',
+    color: 'white',
+    fontSize: '20px',
+    border: 'none',
+    cursor: 'pointer',
+    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
+    zIndex: '9999',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    transition: 'all 0.3s ease'
+  });
+  
+  closeButton.onmouseover = () => {
+    closeButton.style.backgroundColor = '#ff0000';
+    closeButton.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.3)';
+    closeButton.style.transform = 'scale(1.1)';
+  };
+  
+  closeButton.onmouseout = () => {
+    closeButton.style.backgroundColor = '#ff4d4d';
+    closeButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+    closeButton.style.transform = 'scale(1)';
+  };
+  
+  closeButton.onclick = () => {
+    try {
+      window.close();
+      setTimeout(() => {
+        alert('Il semble que votre navigateur bloque la fermeture automatique. Veuillez fermer cet onglet manuellement ou appuyer sur Ctrl+W (ou Cmd+W sur Mac).');
+      }, 300);
+    } catch (error) {
+      console.error('Erreur lors de la fermeture de l\'onglet:', error);
+      alert('Il semble que votre navigateur bloque la fermeture automatique. Veuillez fermer cet onglet manuellement ou appuyer sur Ctrl+W (ou Cmd+W sur Mac).');
+    }
+  };
+  
+  document.body.appendChild(closeButton);
+  
+  return closeButton;
+}
+
+document.addEventListener('DOMContentLoaded', createCloseTabButton);
 
 async function loadGtfsData() {
     const loadingOverlay = document.createElement('div');
@@ -1971,7 +2035,7 @@ async function loadGtfsData() {
     loadingText.id = 'gtfs-loading-text';
     loadingText.textContent = 'Chargement des données GTFS...';
     loadingText.style.cssText = `
-        font-family: sans-serif;
+        font-family: 'League Spartan', sans-serif;
         font-size: 16px;
         color: #333;
     `;
@@ -3015,7 +3079,8 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-function showInMap() {
+
+ function showInMap() {
     const event = {
         type: 'vehicleSelected',
         vehicleId: currentVehicleId,
@@ -3027,11 +3092,54 @@ function showInMap() {
     
     if (window.parent !== window) {
         window.parent.postMessage(event, '*');
+        
+        setTimeout(() => {
+            closeStopsTimeline();
+        }, 100);
+    } else if (window.opener) {
+        window.opener.postMessage(event, '*');
+        
+        setTimeout(() => {
+            window.close();
+            
+            setTimeout(() => {
+                alert("Impossible de fermer automatiquement l'onglet. Les données ont bien été envoyées.");
+            }, 300);
+        }, 100);
+    } else {
+        console.log("Données générées mais pas d'endroit où les envoyer", event);
+        
+        try {
+            window.close();
+            
+            setTimeout(() => {
+                alert("Impossible de fermer automatiquement l'onglet. Veuillez le fermer manuellement.");
+                closeStopsTimeline(); 
+            }, 300);
+        } catch (error) {
+            console.error("Erreur lors de la fermeture:", error);
+            closeStopsTimeline(); 
+        }
     }
-    
-    closeStopsTimeline();
 }
 
+
+function tryCloseTab() {
+    try {
+        const closed = window.close();
+        
+        setTimeout(() => {
+            if (!closed) {
+                alert("Votre navigateur empêche la fermeture automatique. Veuillez fermer cet onglet manuellement (Ctrl+W ou Cmd+W).");
+            }
+        }, 200);
+        
+        return closed;
+    } catch (error) {
+        console.error("Erreur lors de la fermeture de l'onglet:", error);
+        return false;
+    }
+}
         function showView(viewId) {
             document.querySelectorAll('.view').forEach(view => {
                 view.classList.remove('active');
