@@ -3078,7 +3078,8 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-function showInMap() {
+
+ function showInMap() {
     const event = {
         type: 'vehicleSelected',
         vehicleId: currentVehicleId,
@@ -3090,11 +3091,54 @@ function showInMap() {
     
     if (window.parent !== window) {
         window.parent.postMessage(event, '*');
+        
+        setTimeout(() => {
+            closeStopsTimeline();
+        }, 100);
+    } else if (window.opener) {
+        window.opener.postMessage(event, '*');
+        
+        setTimeout(() => {
+            window.close();
+            
+            setTimeout(() => {
+                alert("Impossible de fermer automatiquement l'onglet. Les données ont bien été envoyées.");
+            }, 300);
+        }, 100);
+    } else {
+        console.log("Données générées mais pas d'endroit où les envoyer", event);
+        
+        try {
+            window.close();
+            
+            setTimeout(() => {
+                alert("Impossible de fermer automatiquement l'onglet. Veuillez le fermer manuellement.");
+                closeStopsTimeline(); 
+            }, 300);
+        } catch (error) {
+            console.error("Erreur lors de la fermeture:", error);
+            closeStopsTimeline(); 
+        }
     }
-    
-    closeStopsTimeline();
 }
 
+
+function tryCloseTab() {
+    try {
+        const closed = window.close();
+        
+        setTimeout(() => {
+            if (!closed) {
+                alert("Votre navigateur empêche la fermeture automatique. Veuillez fermer cet onglet manuellement (Ctrl+W ou Cmd+W).");
+            }
+        }, 200);
+        
+        return closed;
+    } catch (error) {
+        console.error("Erreur lors de la fermeture de l'onglet:", error);
+        return false;
+    }
+}
         function showView(viewId) {
             document.querySelectorAll('.view').forEach(view => {
                 view.classList.remove('active');
