@@ -2227,172 +2227,227 @@ async function loadStopTimes(fileContent) {
     try {
         if (!fileContent) {
             console.warn('Aucun contenu de fichier stop_times fourni');
-            return;
+            return localStopTimes;
         }
         
         console.time('Chargement stop_times');
         console.log('Début du chargement des stop_times (fichier volumineux ~20Mo)...');
         
-        let newlineChar = '\n';
-        if (fileContent.indexOf('\r\n') >= 0 && fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1)) {
-            newlineChar = '\r\n';
-        }
+        // Déterminer le caractère de nouvelle ligne
+        const newlineChar = fileContent.indexOf('\r\n') >= 0 && 
+                          fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1) ? 
+                          '\r\n' : '\n';
         
+        // Lire l'en-tête
         const headerEndPos = fileContent.indexOf(newlineChar);
         const headerLine = fileContent.substring(0, headerEndPos);
-        
         const headers = parseCSVLine(headerLine);
         
-        const stopTripIdIndex = headers.indexOf('trip_id');
-        const stopIdIndex = headers.indexOf('stop_id');
-        const arrivalTimeIndex = headers.indexOf('arrival_time');
-        const departureTimeIndex = headers.indexOf('departure_time');
-        const stopSequenceIndex = headers.indexOf('stop_sequence');
-        const pickupTypeIndex = headers.indexOf('pickup_type');
-        const dropOffTypeIndex = headers.indexOf('drop_off_type');
+        // Obtenir les indices des colonnes importantes
+        const indices = {
+            tripId: headers.indexOf('trip_id'),
+            stopId: headers.indexOf('stop_id'),
+            arrivalTime: headers.indexOf('arrival_time'),
+            departureTime: headers.indexOf('departure_time'),
+            stopSequence: headers.indexOf('stop_sequence'),
+            pickupType: headers.indexOf('pickup_type'),
+            dropOffType: headers.indexOf('drop_off_type')
+        };
         
-        if (stopTripIdIndex === -1 || stopIdIndex === -1 || arrivalTimeIndex === -1) {
+        if (indices.tripId === -1 || indices.stopId === -1 || indices.arrivalTime === -1) {
             console.error('Format de fichier stop_times.txt invalide, colonnes requises manquantes');
-            return;
+            return localStopTimes;
         }
         
-        const tempStopTimes = new Map();
+        // Définir la taille des morceaux (nombre de lignes) pour le traitement
+        const CHUNK_SIZE = 100000; // traiter 100 000 lignes à la fois
+        const FLUSH_THRESHOLD = 500000; // vider les données temporaires après 500 000 entrées
+        
+        // Variables pour le suivi de la progression
         let entryCount = 0;
         let warningCount = 0;
         const MAX_WARNINGS = 5;
+        let lastProgressReport = Date.now();
+        const PROGRESS_INTERVAL = 1000; // rapport toutes les secondes
         
-        const fileSize = fileContent.length;
-        const onePercentSize = fileSize / 60;
-        let lastProgressReport = 0;
-        let currentProgress = 0;
+        // Objets temporaires
+        let tempTrips = {};
+        let tripCount = 0;
         
-        const tripIdSet = new Set();
-        
-        let startPos = headerEndPos + newlineChar.length;
+        // Position de départ pour la lecture (après l'en-tête)
+        let position = headerEndPos + newlineChar.length;
         let endPos, line;
+        let linesProcessed = 0;
         
-        while (startPos < fileContent.length) {
-            endPos = fileContent.indexOf(newlineChar, startPos);
-            
-            if (endPos === -1) {
-                line = fileContent.substring(startPos);
-                startPos = fileContent.length;
-            } else {
-                line = fileContent.substring(startPos, endPos);
-                startPos = endPos + newlineChar.length;
-            }
-            
-            if (!line.trim()) continue;
-            
-            currentProgress = startPos;
-            if (currentProgress - lastProgressReport > onePercentSize) {
-                const percentComplete = Math.floor((currentProgress / fileSize) * 100);
-                console.log(`Chargement en cours : ${percentComplete}% (${entryCount} arrêts)`);
-                lastProgressReport = currentProgress;
-            }
-            
-            let values;
-            if (line.indexOf('"') === -1) {
-                values = line.split(',');
-            } else {
-                values = parseCSVLine(line);
-            }
-            
-            if (values.length <= Math.max(stopTripIdIndex, stopIdIndex, arrivalTimeIndex)) {
-                if (warningCount < MAX_WARNINGS) {
-                    warningCount++;
-                    console.warn(`Ligne ignorée - données incomplètes (${warningCount}/${MAX_WARNINGS} avertissements max)`);
-                }
-                continue;
-            }
-            
-            const tripId = values[stopTripIdIndex];
-            if (!tripId) continue;
-            
-            tripIdSet.add(tripId);
-            
-            let tripStops = tempStopTimes.get(tripId);
-            if (!tripStops) {
-                tripStops = [];
-                tempStopTimes.set(tripId, tripStops);
-            }
-            
-            const stopEntry = {
-                stop_id: values[stopIdIndex],
-                stop_sequence: stopSequenceIndex !== -1 && values[stopSequenceIndex] ? 
-                    parseInt(values[stopSequenceIndex], 10) : 0
-            };
-            
-            if (values[arrivalTimeIndex]) {
-                const timeStr = values[arrivalTimeIndex];
-                const colonPos = timeStr.indexOf(':');
-                if (colonPos !== -1) {
-                    const hour = timeStr.substring(0, colonPos);
-                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-                    stopEntry.arrival_time = `${hour}h${minute}`;
-                } else {
-                    stopEntry.arrival_time = timeStr;
-                }
-            }
-            
-            if (departureTimeIndex !== -1 && values[departureTimeIndex] && 
-                values[departureTimeIndex] !== values[arrivalTimeIndex]) {
+        // Traiter le fichier par morceaux
+        while (position < fileContent.length) {
+            // Traiter un morceau de lignes
+            for (let i = 0; i < CHUNK_SIZE && position < fileContent.length; i++) {
+                endPos = fileContent.indexOf(newlineChar, position);
                 
-                const timeStr = values[departureTimeIndex];
-                const colonPos = timeStr.indexOf(':');
-                if (colonPos !== -1) {
-                    const hour = timeStr.substring(0, colonPos);
-                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-                    stopEntry.departure_time = `${hour}h${minute}`;
+                if (endPos === -1) {
+                    line = fileContent.substring(position);
+                    position = fileContent.length;
                 } else {
-                    stopEntry.departure_time = timeStr;
+                    line = fileContent.substring(position, endPos);
+                    position = endPos + newlineChar.length;
                 }
-            } else {
-                stopEntry.departure_time = stopEntry.arrival_time;
-            }
-            
-            if (pickupTypeIndex !== -1 && values[pickupTypeIndex] && values[pickupTypeIndex] !== '0') {
-                stopEntry.pickup_type = parseInt(values[pickupTypeIndex], 10);
-            }
-            
-            if (dropOffTypeIndex !== -1 && values[dropOffTypeIndex] && values[dropOffTypeIndex] !== '0') {
-                stopEntry.drop_off_type = parseInt(values[dropOffTypeIndex], 10);
-            }
-            
-            tripStops.push(stopEntry);
-            entryCount++;
-            
-            if (entryCount % 1000000 === 0) {
-                console.log(`Traitement interméd ${entryCount} arrêts traités..`);
-                for (const [batchTripId, stops] of tempStopTimes) {
-                    stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
-                    localStopTimes[batchTripId] = stops;
-                    tripIdSet.delete(batchTripId);
+                
+                // Ignorer les lignes vides
+                if (!line.trim()) continue;
+                
+                linesProcessed++;
+                
+                // Parser la ligne
+                let values;
+                try {
+                    if (line.indexOf('"') === -1) {
+                        values = line.split(',');
+                    } else {
+                        values = parseCSVLine(line);
+                    }
+                    
+                    if (values.length <= Math.max(indices.tripId, indices.stopId, indices.arrivalTime)) {
+                        if (warningCount < MAX_WARNINGS) {
+                            warningCount++;
+                            console.warn(`Ligne ignorée - données incomplètes (${warningCount}/${MAX_WARNINGS} avertissements max)`);
+                        }
+                        continue;
+                    }
+                    
+                    const tripId = values[indices.tripId];
+                    if (!tripId) continue;
+                    
+                    // Créer ou récupérer le tableau d'arrêts pour ce trajet
+                    if (!tempTrips[tripId]) {
+                        tempTrips[tripId] = [];
+                        tripCount++;
+                    }
+                    
+                    // Créer l'entrée d'arrêt avec le minimum de données nécessaires
+                    const stopEntry = {
+                        stop_id: values[indices.stopId],
+                        stop_sequence: indices.stopSequence !== -1 && values[indices.stopSequence] ? 
+                            parseInt(values[indices.stopSequence], 10) : 0
+                    };
+                    
+                    // Traiter l'heure d'arrivée
+                    if (values[indices.arrivalTime]) {
+                        stopEntry.arrival_time = formatTimeString(values[indices.arrivalTime]);
+                    }
+                    
+                    // Traiter l'heure de départ (seulement si différente de l'arrivée)
+                    if (indices.departureTime !== -1 && values[indices.departureTime] && 
+                        values[indices.departureTime] !== values[indices.arrivalTime]) {
+                        stopEntry.departure_time = formatTimeString(values[indices.departureTime]);
+                    } else {
+                        stopEntry.departure_time = stopEntry.arrival_time;
+                    }
+                    
+                    // Ajouter les types de prise en charge et de dépose uniquement si nécessaire
+                    if (indices.pickupType !== -1 && values[indices.pickupType] && values[indices.pickupType] !== '0') {
+                        stopEntry.pickup_type = parseInt(values[indices.pickupType], 10);
+                    }
+                    
+                    if (indices.dropOffType !== -1 && values[indices.dropOffType] && values[indices.dropOffType] !== '0') {
+                        stopEntry.drop_off_type = parseInt(values[indices.dropOffType], 10);
+                    }
+                    
+                    // Ajouter l'entrée au tableau d'arrêts du trajet
+                    tempTrips[tripId].push(stopEntry);
+                    entryCount++;
+                    
+                } catch (error) {
+                    if (warningCount < MAX_WARNINGS) {
+                        warningCount++;
+                        console.warn(`Erreur lors du traitement de la ligne: ${error.message} (${warningCount}/${MAX_WARNINGS} avertissements max)`);
+                    }
                 }
-                tempStopTimes.clear();
+            }
+            
+            // Afficher la progression
+            const now = Date.now();
+            if (now - lastProgressReport > PROGRESS_INTERVAL) {
+                const percentComplete = Math.floor((position / fileContent.length) * 100);
+                console.log(`Chargement en cours : ${percentComplete}% (${entryCount} arrêts, ${tripCount} trajets)`);
+                lastProgressReport = now;
+                
+                // Permettre au navigateur de respirer
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            
+            // Vider le tampon temporaire si nécessaire pour libérer de la mémoire
+            if (entryCount > FLUSH_THRESHOLD) {
+                await flushTempTrips(tempTrips, localStopTimes);
+                
+                // Réinitialiser les variables
+                tempTrips = {};
+                tripCount = 0;
+                
+                // Forcer le GC si possible
+                await minimalGC();
             }
         }
-    
-        console.log(`Traitement en final tri et finalisation ${tempStopTimes.size} trajets..`);
         
-        for (const [tripId, stops] of tempStopTimes) {
-            stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
-            localStopTimes[tripId] = stops;
+        // Traiter les entrées restantes
+        if (Object.keys(tempTrips).length > 0) {
+            await flushTempTrips(tempTrips, localStopTimes);
+            tempTrips = null;
         }
-        
-        tempStopTimes.clear();
-        tripIdSet.clear();
-        
-        Object.assign(stopTimes, localStopTimes);
         
         console.timeEnd('Chargement stop_times');
-        console.log(`Stop times chargés ${Object.keys(localStopTimes).length} trajets ${entryCount} arrêts au total`);
+        console.log(`Stop times chargés: ${Object.keys(localStopTimes).length} trajets, ${entryCount} arrêts au total`);
         
+        // Libérer la mémoire
         fileContent = null;
-        await forceGarbageCollection();
+        await minimalGC();
+        
+        return localStopTimes;
 
     } catch (error) {
-        console.error('Erreur lors du chargement des horaires', error.message);
+        console.error('Erreur lors du chargement des horaires', error.message, error.stack);
+        return localStopTimes;
+    }
+}
+
+async function flushTempTrips(tempTrips, destination) {
+    const tripIds = Object.keys(tempTrips);
+    const totalTrips = tripIds.length;
+    
+    console.log(`Traitement de ${totalTrips} trajets temporaires...`);
+    
+    // Traiter par lots pour ne pas bloquer le thread principal
+    const BATCH_SIZE = 1000;
+    
+    for (let i = 0; i < totalTrips; i += BATCH_SIZE) {
+        const batchIds = tripIds.slice(i, i + BATCH_SIZE);
+        
+        for (const tripId of batchIds) {
+            // Trier les arrêts par séquence
+            tempTrips[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
+            destination[tripId] = tempTrips[tripId];
+            
+            // Libérer la mémoire
+            delete tempTrips[tripId];
+        }
+        
+        // Permettre au navigateur de respirer si on traite un grand nombre de trajets
+        if (i % (BATCH_SIZE * 5) === 0 && i > 0) {
+            console.log(`Flush progression: ${Math.round((i/totalTrips)*100)}%`);
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+    
+    console.log('Flush terminé');
+}
+
+async function minimalGC() {
+    // Permettre au navigateur/runtime de récupérer la mémoire
+    await new Promise(resolve => setTimeout(resolve, 1));
+    
+    if (typeof global !== 'undefined' && global.gc) {
+        // node.js avec --expose-gc
+        global.gc();
     }
 }
 
@@ -2401,85 +2456,73 @@ async function forceGarbageCollection() {
         // node.js --expose-gc flag
         global.gc();
         return true;
-    } else if (typeof window !== 'undefined' && window.performance && window.performance.memory) {
-        console.log('Tentative de libération mémoire dans enviro navigateur...');
+    } else if (typeof window !== 'undefined') {
+        console.log('Tentative de libération mémoire dans environnement navigateur...');
         
-        const allocationSize = 1024 * 1024 * 10; 
-        const allocations = [];
+        const smallBuffer = new ArrayBuffer(1024 * 1024); 
         
-        try {
-            for (let i = 0; i < 10; i++) {
-                allocations.push(new ArrayBuffer(allocationSize));
-                await new Promise(resolve => setTimeout(resolve, 1));
-            }
-        } catch (e) {
-            console.log('Mémoire temporaire allouée pour forcer le GC');
-        }
-        
-        while (allocations.length) {
-            allocations.pop();
-        }
-        
-        allocations.length = 0;
+        setTimeout(() => {
+        }, 0);
     }
     
-    for (let i = 0; i < 5; i++) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-    }
+    await new Promise(resolve => setTimeout(resolve, 5));
     
-    console.log('Libération de mémoire terminée');
     return false;
 }
 
 async function processBatch(batch, tempStopTimes) {
     try {
-        for (const item of batch) {
-            if (!tempStopTimes[item.tripId]) {
-                tempStopTimes[item.tripId] = [];
-            }
+        const batchSize = batch.length;
+        const CHUNK_SIZE = 5000; // Traiter par petits morceaux
+        
+        for (let i = 0; i < batchSize; i += CHUNK_SIZE) {
+            const end = Math.min(i + CHUNK_SIZE, batchSize);
             
-            const stopEntry = {
-                stop_id: item.stopId,
-                stop_sequence: item.stopSequence
-            };
-            
-            if (item.arrivalTime) {
-                const timeStr = item.arrivalTime;
-                const colonPos = timeStr.indexOf(':');
-                if (colonPos !== -1) {
-                    const hour = timeStr.substring(0, colonPos);
-                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-                    stopEntry.arrival_time = `${hour}h${minute}`;
-                } else {
-                    stopEntry.arrival_time = timeStr;
+            for (let j = i; j < end; j++) {
+                const item = batch[j];
+                
+                if (!item || !item.tripId) continue;
+                
+                if (!tempStopTimes[item.tripId]) {
+                    tempStopTimes[item.tripId] = [];
                 }
-            }
-            
-            if (item.departureTime && item.departureTime !== item.arrivalTime) {
-                const timeStr = item.departureTime;
-                const colonPos = timeStr.indexOf(':');
-                if (colonPos !== -1) {
-                    const hour = timeStr.substring(0, colonPos);
-                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-                    stopEntry.departure_time = `${hour}h${minute}`;
-                } else {
-                    stopEntry.departure_time = timeStr;
+                
+                const stopEntry = {
+                    stop_id: item.stopId,
+                    stop_sequence: item.stopSequence || 0
+                };
+                
+                if (item.arrivalTime) {
+                    stopEntry.arrival_time = formatTimeString(item.arrivalTime);
                 }
-            } else {
-                stopEntry.departure_time = stopEntry.arrival_time;
+                
+                if (item.departureTime && item.departureTime !== item.arrivalTime) {
+                    stopEntry.departure_time = formatTimeString(item.departureTime);
+                } else {
+                    stopEntry.departure_time = stopEntry.arrival_time;
+                }
+                
+                if (item.pickupType && item.pickupType !== '0') {
+                    stopEntry.pickup_type = parseInt(item.pickupType, 10);
+                }
+                
+                if (item.dropOffType && item.dropOffType !== '0') {
+                    stopEntry.drop_off_type = parseInt(item.dropOffType, 10);
+                }
+                
+                tempStopTimes[item.tripId].push(stopEntry);
+                
+                // Libérer la référence à l'élément traité
+                batch[j] = null;
             }
             
-            if (item.pickupType && item.pickupType !== '0') {
-                stopEntry.pickup_type = parseInt(item.pickupType, 10);
+            // Donner un peu de temps au navigateur
+            if (end < batchSize) {
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
-            
-            if (item.dropOffType && item.dropOffType !== '0') {
-                stopEntry.drop_off_type = parseInt(item.dropOffType, 10);
-            }
-            
-            tempStopTimes[item.tripId].push(stopEntry);
         }
         
+        // Vider le tableau
         batch.length = 0;
         
     } catch (error) {
