@@ -2099,30 +2099,32 @@ async function loadTrips(fileContent) {
 
 
 
-function parseCSVLine(line) {
-    // Fonction simplifiée pour analyser une ligne CSV
-    // Cette implémentation suppose qu'une fonction parseCSVLine existe déjà dans votre code
-    // Si ce n'est pas le cas, voici une implémentation simple:
-    
-    const values = [];
-    let inQuotes = false;
+function parseCSVLine(csvLine) {
+    const result = [];
     let currentValue = '';
-    
-    for (let i = 0; i < line.length; i++) {
-        const char = line[i];
+    let insideQuotes = false;
+
+    for (let i = 0; i < csvLine.length; i++) {
+        const char = csvLine[i];
         
         if (char === '"') {
-            inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-            values.push(currentValue);
+            insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+            result.push(currentValue);
             currentValue = '';
         } else {
             currentValue += char;
         }
     }
     
-    values.push(currentValue); // Ajouter la dernière valeur
-    return values;
+    result.push(currentValue);
+    
+    return result.map(value => {
+        if (value.startsWith('"') && value.endsWith('"')) {
+            return value.slice(1, -1);
+        }
+        return value;
+    });
 }
 
 function formatDate(date) {
