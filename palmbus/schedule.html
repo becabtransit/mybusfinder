@@ -1939,6 +1939,61 @@ function startWindowsSpinnerAnimation(elementId, interval = 30) {
   return () => clearInterval(timer);
 }
 
+function createCloseTabButton() {
+  const closeButton = document.createElement('button');
+  
+  closeButton.innerHTML = '✕';
+  
+  Object.assign(closeButton.style, {
+    position: 'fixed',
+    bottom: '20px',
+    right: '20px',
+    width: '50px',
+    height: '50px',
+    borderRadius: '50%',
+    backgroundColor: '#ff4d4d',
+    color: 'white',
+    fontSize: '20px',
+    border: 'none',
+    cursor: 'pointer',
+    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
+    zIndex: '9999',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    transition: 'all 0.3s ease'
+  });
+  
+  closeButton.onmouseover = () => {
+    closeButton.style.backgroundColor = '#ff0000';
+    closeButton.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.3)';
+    closeButton.style.transform = 'scale(1.1)';
+  };
+  
+  closeButton.onmouseout = () => {
+    closeButton.style.backgroundColor = '#ff4d4d';
+    closeButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+    closeButton.style.transform = 'scale(1)';
+  };
+  
+  closeButton.onclick = () => {
+    try {
+      window.close();
+      setTimeout(() => {
+        alert('Il semble que votre navigateur bloque la fermeture automatique. Veuillez fermer cet onglet manuellement ou appuyer sur Ctrl+W (ou Cmd+W sur Mac).');
+      }, 300);
+    } catch (error) {
+      console.error('Erreur lors de la fermeture de l\'onglet:', error);
+      alert('Il semble que votre navigateur bloque la fermeture automatique. Veuillez fermer cet onglet manuellement ou appuyer sur Ctrl+W (ou Cmd+W sur Mac).');
+    }
+  };
+  
+  document.body.appendChild(closeButton);
+  
+  return closeButton;
+}
+
+document.addEventListener('DOMContentLoaded', createCloseTabButton);
 
 async function loadGtfsData() {
     const loadingOverlay = document.createElement('div');
