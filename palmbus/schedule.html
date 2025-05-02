@@ -1875,7 +1875,7 @@ async function extractGTFSFiles() {
         
         const zipData = await response.arrayBuffer();
         
-        const fileHash = await calculateSHA256(zipData.slice(0, Math.min(zipData.byteLength, 1024 * 50))); // Utiliser les 50 premiers KB
+        const fileHash = await calculateSHA256(zipData.slice(0, Math.min(zipData.byteLength, 1024 * 50))); // j'utilise les 50 premiers KB
         
         const zip = await JSZip.loadAsync(zipData);
         
@@ -2235,17 +2235,14 @@ async function loadStopTimes(fileContent) {
         console.time('Chargement stop_times');
         console.log('Début du chargement des stop_times (fichier volumineux ~20Mo)...');
         
-        // Déterminer le caractère de nouvelle ligne
         const newlineChar = fileContent.indexOf('\r\n') >= 0 && 
                           fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1) ? 
                           '\r\n' : '\n';
         
-        // Lire l'en-tête
         const headerEndPos = fileContent.indexOf(newlineChar);
         const headerLine = fileContent.substring(0, headerEndPos);
         const headers = parseCSVLine(headerLine);
         
-        // Obtenir les indices des colonnes importantes
         const indices = {
             tripId: headers.indexOf('trip_id'),
             stopId: headers.indexOf('stop_id'),
@@ -2261,29 +2258,23 @@ async function loadStopTimes(fileContent) {
             return localStopTimes;
         }
         
-        // Définir la taille des morceaux (nombre de lignes) pour le traitement
-        const CHUNK_SIZE = 100000; // traiter 100 000 lignes à la fois
-        const FLUSH_THRESHOLD = 500000; // vider les données temporaires après 500 000 entrées
+        const CHUNK_SIZE = 100000; 
+        const FLUSH_THRESHOLD = 100000; 
         
-        // Variables pour le suivi de la progression
         let entryCount = 0;
         let warningCount = 0;
         const MAX_WARNINGS = 5;
         let lastProgressReport = Date.now();
-        const PROGRESS_INTERVAL = 1000; // rapport toutes les secondes
+        const PROGRESS_INTERVAL = 500; 
         
-        // Objets temporaires
         let tempTrips = {};
         let tripCount = 0;
         
-        // Position de départ pour la lecture (après l'en-tête)
         let position = headerEndPos + newlineChar.length;
         let endPos, line;
         let linesProcessed = 0;
         
-        // Traiter le fichier par morceaux
         while (position < fileContent.length) {
-            // Traiter un morceau de lignes
             for (let i = 0; i < CHUNK_SIZE && position < fileContent.length; i++) {
                 endPos = fileContent.indexOf(newlineChar, position);
                 
@@ -2295,12 +2286,10 @@ async function loadStopTimes(fileContent) {
                     position = endPos + newlineChar.length;
                 }
                 
-                // Ignorer les lignes vides
                 if (!line.trim()) continue;
                 
                 linesProcessed++;
                 
-                // Parser la ligne
                 let values;
                 try {
                     if (line.indexOf('"') === -1) {
@@ -2320,25 +2309,21 @@ async function loadStopTimes(fileContent) {
                     const tripId = values[indices.tripId];
                     if (!tripId) continue;
                     
-                    // Créer ou récupérer le tableau d'arrêts pour ce trajet
                     if (!tempTrips[tripId]) {
                         tempTrips[tripId] = [];
                         tripCount++;
                     }
                     
-                    // Créer l'entrée d'arrêt avec le minimum de données nécessaires
                     const stopEntry = {
                         stop_id: values[indices.stopId],
                         stop_sequence: indices.stopSequence !== -1 && values[indices.stopSequence] ? 
                             parseInt(values[indices.stopSequence], 10) : 0
                     };
                     
-                    // Traiter l'heure d'arrivée
                     if (values[indices.arrivalTime]) {
                         stopEntry.arrival_time = formatTimeString(values[indices.arrivalTime]);
                     }
                     
-                    // Traiter l'heure de départ (seulement si différente de l'arrivée)
                     if (indices.departureTime !== -1 && values[indices.departureTime] && 
                         values[indices.departureTime] !== values[indices.arrivalTime]) {
                         stopEntry.departure_time = formatTimeString(values[indices.departureTime]);
@@ -2346,7 +2331,6 @@ async function loadStopTimes(fileContent) {
                         stopEntry.departure_time = stopEntry.arrival_time;
                     }
                     
-                    // Ajouter les types de prise en charge et de dépose uniquement si nécessaire
                     if (indices.pickupType !== -1 && values[indices.pickupType] && values[indices.pickupType] !== '0') {
                         stopEntry.pickup_type = parseInt(values[indices.pickupType], 10);
                     }
@@ -2355,7 +2339,6 @@ async function loadStopTimes(fileContent) {
                         stopEntry.drop_off_type = parseInt(values[indices.dropOffType], 10);
                     }
                     
-                    // Ajouter l'entrée au tableau d'arrêts du trajet
                     tempTrips[tripId].push(stopEntry);
                     entryCount++;
                     
@@ -2367,31 +2350,25 @@ async function loadStopTimes(fileContent) {
                 }
             }
             
-            // Afficher la progression
             const now = Date.now();
             if (now - lastProgressReport > PROGRESS_INTERVAL) {
                 const percentComplete = Math.floor((position / fileContent.length) * 100);
                 console.log(`Chargement en cours : ${percentComplete}% (${entryCount} arrêts, ${tripCount} trajets)`);
                 lastProgressReport = now;
                 
-                // Permettre au navigateur de respirer
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
             
-            // Vider le tampon temporaire si nécessaire pour libérer de la mémoire
             if (entryCount > FLUSH_THRESHOLD) {
                 await flushTempTrips(tempTrips, localStopTimes);
                 
-                // Réinitialiser les variables
                 tempTrips = {};
                 tripCount = 0;
                 
-                // Forcer le GC si possible
                 await minimalGC();
             }
         }
         
-        // Traiter les entrées restantes
         if (Object.keys(tempTrips).length > 0) {
             await flushTempTrips(tempTrips, localStopTimes);
             tempTrips = null;
@@ -2400,7 +2377,6 @@ async function loadStopTimes(fileContent) {
         console.timeEnd('Chargement stop_times');
         console.log(`Stop times chargés: ${Object.keys(localStopTimes).length} trajets, ${entryCount} arrêts au total`);
         
-        // Libérer la mémoire
         fileContent = null;
         await minimalGC();
         
@@ -2418,22 +2394,18 @@ async function flushTempTrips(tempTrips, destination) {
     
     console.log(`Traitement de ${totalTrips} trajets temporaires...`);
     
-    // Traiter par lots pour ne pas bloquer le thread principal
     const BATCH_SIZE = 1000;
     
     for (let i = 0; i < totalTrips; i += BATCH_SIZE) {
         const batchIds = tripIds.slice(i, i + BATCH_SIZE);
         
         for (const tripId of batchIds) {
-            // Trier les arrêts par séquence
             tempTrips[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
             destination[tripId] = tempTrips[tripId];
             
-            // Libérer la mémoire
             delete tempTrips[tripId];
         }
         
-        // Permettre au navigateur de respirer si on traite un grand nombre de trajets
         if (i % (BATCH_SIZE * 5) === 0 && i > 0) {
             console.log(`Flush progression: ${Math.round((i/totalTrips)*100)}%`);
             await new Promise(resolve => setTimeout(resolve, 0));
@@ -2444,7 +2416,6 @@ async function flushTempTrips(tempTrips, destination) {
 }
 
 async function minimalGC() {
-    // Permettre au navigateur/runtime de récupérer la mémoire
     await new Promise(resolve => setTimeout(resolve, 1));
     
     if (typeof global !== 'undefined' && global.gc) {
@@ -2475,7 +2446,7 @@ async function forceGarbageCollection() {
 async function processBatch(batch, tempStopTimes) {
     try {
         const batchSize = batch.length;
-        const CHUNK_SIZE = 5000; // Traiter par petits morceaux
+        const CHUNK_SIZE = 1000; 
         
         for (let i = 0; i < batchSize; i += CHUNK_SIZE) {
             const end = Math.min(i + CHUNK_SIZE, batchSize);
@@ -2514,17 +2485,14 @@ async function processBatch(batch, tempStopTimes) {
                 
                 tempStopTimes[item.tripId].push(stopEntry);
                 
-                // Libérer la référence à l'élément traité
                 batch[j] = null;
             }
             
-            // Donner un peu de temps au navigateur
             if (end < batchSize) {
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
         }
         
-        // Vider le tableau
         batch.length = 0;
         
     } catch (error) {
