@@ -2099,51 +2099,32 @@ async function loadTrips(fileContent) {
 
 
 
-// =========== Fonctions utilitaires optimisées ===========
-function parseCSVLine(line) {
-    const values = [];
-    let inQuote = false;
+function parseCSVLine(csvLine) {
+    const result = [];
     let currentValue = '';
-    let i = 0;
-    
-    while (i < line.length) {
-        const char = line[i];
+    let insideQuotes = false;
+
+    for (let i = 0; i < csvLine.length; i++) {
+        const char = csvLine[i];
         
         if (char === '"') {
-            if (inQuote && i + 1 < line.length && line[i + 1] === '"') {
-                // Double quote à l'intérieur d'une valeur entre guillemets
-                currentValue += '"';
-                i++;
-            } else {
-                // Basculer l'état des guillemets
-                inQuote = !inQuote;
-            }
-        } else if (char === ',' && !inQuote) {
-            // Fin d'une valeur
-            values.push(currentValue);
+            insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+            result.push(currentValue);
             currentValue = '';
         } else {
-            // Ajouter le caractère à la valeur en cours
             currentValue += char;
         }
-        
-        i++;
     }
     
-    // Ajouter la dernière valeur
-    values.push(currentValue);
+    result.push(currentValue);
     
-    return values;
-}
-
-function formatTimeString(timeStr) {
-    const colonPos = timeStr.indexOf(':');
-    if (colonPos !== -1) {
-        const hour = timeStr.substring(0, colonPos);
-        const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-        return `${hour}h${minute}`;
-    }
-    return timeStr;
+    return result.map(value => {
+        if (value.startsWith('"') && value.endsWith('"')) {
+            return value.slice(1, -1);
+        }
+        return value;
+    });
 }
 
 function formatDate(date) {
@@ -2153,18 +2134,7 @@ function formatDate(date) {
     return `${year}${month}${day}`;
 }
 
-// =========== Fonctions d'accès aux données ===========
-async function getStopTimesForTrip(tripId) {
-    try {
-        const db = new StopTimesDB();
-        const stops = await db.getTrip(tripId);
-        await db.close();
-        return stops || [];
-    } catch (error) {
-        console.error(`Erreur lors de la récupération des horaires pour le trajet ${tripId}:`, error);
-        return [];
-    }
-}
+
 
 async function loadCalendarDates(fileContent) {
     try {
@@ -2251,184 +2221,9 @@ function isServiceActive(serviceId, dateObj) {
 
 
 
-// =========== Gestionnaire de base de données IndexedDB ===========
-class StopTimesDB {
-    constructor(dbName = 'transitDB', storeName = 'stopTimes', version = 1) {
-        this.dbName = dbName;
-        this.storeName = storeName;
-        this.version = version;
-        this.db = null;
-    }
-
-    async open() {
-        if (this.db) return this.db;
-        
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(this.dbName, this.version);
-            
-            request.onerror = (event) => {
-                console.error('Erreur d\'ouverture de la base de données:', event.target.error);
-                reject(event.target.error);
-            };
-            
-            request.onsuccess = (event) => {
-                this.db = event.target.result;
-                resolve(this.db);
-            };
-            
-            request.onupgradeneeded = (event) => {
-                const db = event.target.result;
-                
-                // Supprimer l'ancien store s'il existe
-                if (db.objectStoreNames.contains(this.storeName)) {
-                    db.deleteObjectStore(this.storeName);
-                }
-                
-                // Créer le nouveau store avec un index tripId
-                const store = db.createObjectStore(this.storeName, { keyPath: 'tripId' });
-                store.createIndex('tripId', 'tripId', { unique: true });
-                
-                console.log(`Store '${this.storeName}' créé ou mis à jour`);
-            };
-        });
-    }
-
-    async clearStore() {
-        const db = await this.open();
-        
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(this.storeName, 'readwrite');
-            const store = transaction.objectStore(this.storeName);
-            
-            const request = store.clear();
-            
-            request.onsuccess = () => {
-                console.log(`Store '${this.storeName}' vidé avec succès`);
-                resolve();
-            };
-            
-            request.onerror = (event) => {
-                console.error('Erreur lors du vidage du store:', event.target.error);
-                reject(event.target.error);
-            };
-        });
-    }
-
-    async addTrip(tripId, stops) {
-        const db = await this.open();
-        
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(this.storeName, 'readwrite');
-            const store = transaction.objectStore(this.storeName);
-            
-            // Trier les arrêts par séquence avant stockage
-            stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
-            
-            const request = store.put({ tripId, stops });
-            
-            request.onsuccess = () => resolve();
-            
-            request.onerror = (event) => {
-                console.error(`Erreur lors de l'ajout du trajet ${tripId}:`, event.target.error);
-                reject(event.target.error);
-            };
-        });
-    }
-
-    async addTrips(tripsData) {
-        const db = await this.open();
-        
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(this.storeName, 'readwrite');
-            const store = transaction.objectStore(this.storeName);
-            
-            let completed = 0;
-            let errors = 0;
-            
-            transaction.oncomplete = () => {
-                resolve({ completed, errors });
-            };
-            
-            transaction.onerror = (event) => {
-                console.error('Erreur de transaction:', event.target.error);
-                reject(event.target.error);
-            };
-            
-            for (const [tripId, stops] of Object.entries(tripsData)) {
-                // Trier les arrêts par séquence avant stockage
-                stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
-                
-                const request = store.put({ tripId, stops });
-                
-                request.onsuccess = () => {
-                    completed++;
-                };
-                
-                request.onerror = () => {
-                    errors++;
-                };
-            }
-        });
-    }
-
-    async getTrip(tripId) {
-        const db = await this.open();
-        
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(this.storeName, 'readonly');
-            const store = transaction.objectStore(this.storeName);
-            
-            const request = store.get(tripId);
-            
-            request.onsuccess = (event) => {
-                const result = event.target.result;
-                resolve(result ? result.stops : null);
-            };
-            
-            request.onerror = (event) => {
-                console.error(`Erreur lors de la récupération du trajet ${tripId}:`, event.target.error);
-                reject(event.target.error);
-            };
-        });
-    }
-
-    async getAllTrips() {
-        const db = await this.open();
-        
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(this.storeName, 'readonly');
-            const store = transaction.objectStore(this.storeName);
-            
-            const request = store.getAll();
-            
-            request.onsuccess = (event) => {
-                const results = event.target.result;
-                const tripsMap = {};
-                
-                results.forEach(item => {
-                    tripsMap[item.tripId] = item.stops;
-                });
-                
-                resolve(tripsMap);
-            };
-            
-            request.onerror = (event) => {
-                console.error('Erreur lors de la récupération de tous les trajets:', event.target.error);
-                reject(event.target.error);
-            };
-        });
-    }
-
-    async close() {
-        if (this.db) {
-            this.db.close();
-            this.db = null;
-        }
-    }
-}
-
-// =========== Chargement et traitement optimisé des stop_times ===========
 async function loadStopTimes(fileContent) {
+    const localStopTimes = {}; 
+    
     try {
         if (!fileContent) {
             console.warn('Aucun contenu de fichier stop_times fourni');
@@ -2436,22 +2231,16 @@ async function loadStopTimes(fileContent) {
         }
         
         console.time('Chargement stop_times');
-        console.log('Début du chargement des stop_times (fichier volumineux ~25Mo)...');
+        console.log('Début du chargement des stop_times (fichier volumineux ~20Mo)...');
         
-        // Initialiser la base de données
-        const db = new StopTimesDB();
-        await db.open();
-        await db.clearStore();
-        
-        // Détecter le caractère de fin de ligne
         let newlineChar = '\n';
         if (fileContent.indexOf('\r\n') >= 0 && fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1)) {
             newlineChar = '\r\n';
         }
         
-        // Analyser les en-têtes
         const headerEndPos = fileContent.indexOf(newlineChar);
         const headerLine = fileContent.substring(0, headerEndPos);
+        
         const headers = parseCSVLine(headerLine);
         
         const stopTripIdIndex = headers.indexOf('trip_id');
@@ -2467,22 +2256,18 @@ async function loadStopTimes(fileContent) {
             return;
         }
         
-        // Variables pour le traitement par lots
-        const BATCH_SIZE = 5000; // Nombre d'entrées à traiter avant de sauvegarder
-        let tempStopTimes = {};
+        const tempStopTimes = new Map();
         let entryCount = 0;
-        let batchCount = 0;
-        let tripCount = 0;
         let warningCount = 0;
         const MAX_WARNINGS = 5;
         
-        // Variables pour le suivi de la progression
         const fileSize = fileContent.length;
-        const onePercentSize = fileSize / 100;
+        const onePercentSize = fileSize / 60;
         let lastProgressReport = 0;
         let currentProgress = 0;
         
-        // Traitement du fichier ligne par ligne
+        const tripIdSet = new Set();
+        
         let startPos = headerEndPos + newlineChar.length;
         let endPos, line;
         
@@ -2499,20 +2284,13 @@ async function loadStopTimes(fileContent) {
             
             if (!line.trim()) continue;
             
-            // Rapporter la progression
             currentProgress = startPos;
             if (currentProgress - lastProgressReport > onePercentSize) {
                 const percentComplete = Math.floor((currentProgress / fileSize) * 100);
                 console.log(`Chargement en cours : ${percentComplete}% (${entryCount} arrêts)`);
                 lastProgressReport = currentProgress;
-                
-                // Pause brève pour permettre le rendu de l'interface
-                if (percentComplete % 10 === 0) {
-                    await new Promise(resolve => setTimeout(resolve, 0));
-                }
             }
             
-            // Analyser la ligne CSV
             let values;
             if (line.indexOf('"') === -1) {
                 values = line.split(',');
@@ -2531,32 +2309,48 @@ async function loadStopTimes(fileContent) {
             const tripId = values[stopTripIdIndex];
             if (!tripId) continue;
             
-            // Créer ou obtenir l'array pour ce trip_id
-            if (!tempStopTimes[tripId]) {
-                tempStopTimes[tripId] = [];
+            tripIdSet.add(tripId);
+            
+            let tripStops = tempStopTimes.get(tripId);
+            if (!tripStops) {
+                tripStops = [];
+                tempStopTimes.set(tripId, tripStops);
             }
             
-            // Construire l'objet d'arrêt
             const stopEntry = {
                 stop_id: values[stopIdIndex],
                 stop_sequence: stopSequenceIndex !== -1 && values[stopSequenceIndex] ? 
                     parseInt(values[stopSequenceIndex], 10) : 0
             };
             
-            // Traiter l'heure d'arrivée
             if (values[arrivalTimeIndex]) {
-                stopEntry.arrival_time = formatTimeString(values[arrivalTimeIndex]);
+                const timeStr = values[arrivalTimeIndex];
+                const colonPos = timeStr.indexOf(':');
+                if (colonPos !== -1) {
+                    const hour = timeStr.substring(0, colonPos);
+                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
+                    stopEntry.arrival_time = `${hour}h${minute}`;
+                } else {
+                    stopEntry.arrival_time = timeStr;
+                }
             }
             
-            // Traiter l'heure de départ si différente
             if (departureTimeIndex !== -1 && values[departureTimeIndex] && 
                 values[departureTimeIndex] !== values[arrivalTimeIndex]) {
-                stopEntry.departure_time = formatTimeString(values[departureTimeIndex]);
+                
+                const timeStr = values[departureTimeIndex];
+                const colonPos = timeStr.indexOf(':');
+                if (colonPos !== -1) {
+                    const hour = timeStr.substring(0, colonPos);
+                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
+                    stopEntry.departure_time = `${hour}h${minute}`;
+                } else {
+                    stopEntry.departure_time = timeStr;
+                }
             } else {
                 stopEntry.departure_time = stopEntry.arrival_time;
             }
             
-            // Traiter les types de montée/descente
             if (pickupTypeIndex !== -1 && values[pickupTypeIndex] && values[pickupTypeIndex] !== '0') {
                 stopEntry.pickup_type = parseInt(values[pickupTypeIndex], 10);
             }
@@ -2565,45 +2359,40 @@ async function loadStopTimes(fileContent) {
                 stopEntry.drop_off_type = parseInt(values[dropOffTypeIndex], 10);
             }
             
-            // Ajouter l'arrêt au trajet
-            tempStopTimes[tripId].push(stopEntry);
+            tripStops.push(stopEntry);
             entryCount++;
             
-            // Si le lot atteint la taille définie, l'enregistrer dans IndexedDB
-            if (entryCount % BATCH_SIZE === 0) {
-                batchCount++;
-                console.log(`Sauvegarde du lot ${batchCount} (${Object.keys(tempStopTimes).length} trajets, ${entryCount} arrêts)...`);
-                
-                await db.addTrips(tempStopTimes);
-                tripCount += Object.keys(tempStopTimes).length;
-                
-                // Réinitialiser le lot temporaire
-                tempStopTimes = {};
-                
-                // Pause pour libérer le cycle d'événements
-                await new Promise(resolve => setTimeout(resolve, 0));
+            if (entryCount % 1000000 === 0) {
+                console.log(`Traitement interméd ${entryCount} arrêts traités..`);
+                for (const [batchTripId, stops] of tempStopTimes) {
+                    stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
+                    localStopTimes[batchTripId] = stops;
+                    tripIdSet.delete(batchTripId);
+                }
+                tempStopTimes.clear();
             }
         }
+    
+        console.log(`Traitement en final tri et finalisation ${tempStopTimes.size} trajets..`);
         
-        // Enregistrer le dernier lot s'il en reste
-        if (Object.keys(tempStopTimes).length > 0) {
-            console.log(`Sauvegarde du dernier lot (${Object.keys(tempStopTimes).length} trajets)...`);
-            await db.addTrips(tempStopTimes);
-            tripCount += Object.keys(tempStopTimes).length;
-            tempStopTimes = null;
+        for (const [tripId, stops] of tempStopTimes) {
+            stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
+            localStopTimes[tripId] = stops;
         }
         
+        tempStopTimes.clear();
+        tripIdSet.clear();
+        
+        Object.assign(stopTimes, localStopTimes);
+        
         console.timeEnd('Chargement stop_times');
-        console.log(`Stop times chargés : ${tripCount} trajets, ${entryCount} arrêts au total`);
+        console.log(`Stop times chargés ${Object.keys(localStopTimes).length} trajets ${entryCount} arrêts au total`);
         
-        // Fermer proprement la connexion à la base de données
-        await db.close();
-        
-        // Référence au fichier à null pour aider le GC
         fileContent = null;
+        await forceGarbageCollection();
 
     } catch (error) {
-        console.error('Erreur lors du chargement des horaires', error);
+        console.error('Erreur lors du chargement des horaires', error.message);
     }
 }
 
@@ -2722,6 +2511,16 @@ async function flushTempStopTimes(tempStopTimes, stopTimes, flushCallback) {
     }
 }
 
+
+function formatTimeString(timeStr) {
+    const colonPos = timeStr.indexOf(':');
+    if (colonPos !== -1) {
+        const hour = timeStr.substring(0, colonPos);
+        const minute = timeStr.substring(colonPos + 1, colonPos + 3);
+        return `${hour}h${minute}`;
+    }
+    return timeStr;
+}
 
 async function loadStops(fileContent) {
     try {
@@ -3350,45 +3149,74 @@ function updateStopsForDestination(routeId, destinationId) {
 
         let isShowingRealtime = false;
 
-// =========== Fonction showSchedule optimisée ===========
 function showSchedule(routeId, stopId, destinationId) {
-    currentStopId = stopId; 
-    currentRouteId = routeId; 
-    isShowingRealtime = false;
-    
-    // Sauvegarder l'historique de navigation
+    currentStopId = stopId;
+    currentRouteId = routeId;
+    isShowingRealtime = false; 
     navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
-    // Faire défiler vers le haut
     scrollToTop();
-    
-    // Mettre à jour les éléments de l'interface
     document.getElementById('route-info').textContent = 
         `${t("line")} ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
-    
     document.getElementById('stop-title').textContent = 
         `${t("scheduleforstop")} ${stops[stopId].replace(/"/g, '')}`;
+
+        const favoriteButton = document.createElement('div');
+favoriteButton.className = `favorite-star ${isFavorite(routeId, stopId, destinationId) ? 'active' : ''}`;
+favoriteButton.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="${isFavorite(routeId, stopId, destinationId) ? '#FFD700' : 'none'}" stroke="currentColor" stroke-width="1">
+        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+    </svg>
+`;
+favoriteButton.onclick = () => {
+    const id = `${routeId}-${stopId}-${destinationId}`;
+    if (isFavorite(routeId, stopId, destinationId)) {
+        removeFromFavorites(id);
+        favoriteButton.classList.remove('active');
+        favoriteButton.querySelector('svg').setAttribute('fill', 'none');
+    } else {
+        addToFavorites(routeId, stopId, destinationId);
+        favoriteButton.classList.add('active');
+        favoriteButton.querySelector('svg').setAttribute('fill', '#FFD700');
+    }
+};
+document.querySelector('#controls').parentNode.style.position = 'relative';
+document.querySelector('#controls').parentNode.appendChild(favoriteButton);
     
-    // Gestion du bouton favori
-    setupFavoriteButton(routeId, stopId, destinationId);
-    
-    // Initialisation du sélecteur de date
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
     dateSelect.value = today.toISOString().split('T')[0];
     
-    // Configuration des onglets
-    setupTabs();
-    
-    // Charger les horaires pour la date actuelle
-    updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
-    
-    // Gestion du changement de date
-    dateSelect.addEventListener('change', () => {
-        updateScheduleByDate(currentRouteId, currentStopId, destinationId, dateSelect.value);
+    document.querySelectorAll('.tab-button').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.dataset.tab === 'theoretical') {
+            tab.classList.add('active');
+        }
+    });
+
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+        if (content.id === 'theoretical-view') {
+            content.classList.add('active');
+        }
     });
     
-    // Afficher la vue
+    const indicator = document.querySelector('.tab-indicator');
+    indicator.style.transform = 'translateX(0)';
+
+    updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
+
+    const theoreticalTab = document.querySelector('.tab-button-gauche[data-tab="theoretical"]');
+    if (theoreticalTab) {
+        theoreticalTab.click();
+    }
+
+    dateSelect.addEventListener('change', () => {
+    updateScheduleByDate(currentRouteId, currentStopId, destinationId, dateSelect.value);
+});
+    
+    setupTabHandlers();
+    
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
     showView('schedule-view');
 }
@@ -3399,64 +3227,6 @@ function scrollToTop() {
     window.requestAnimationFrame(scrollToTop);
     window.scrollTo(0, currentPosition - currentPosition / 8);
   }
-}
-
-// =========== Fonctions d'assistance pour l'interface ===========
-function setupFavoriteButton(routeId, stopId, destinationId) {
-    // Supprimer l'ancien bouton s'il existe
-    const oldButton = document.querySelector('.favorite-star');
-    if (oldButton) oldButton.remove();
-    
-    // Créer le nouveau bouton
-    const favoriteButton = document.createElement('div');
-    const isFav = isFavorite(routeId, stopId, destinationId);
-    
-    favoriteButton.className = `favorite-star ${isFav ? 'active' : ''}`;
-    favoriteButton.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" 
-        fill="${isFav ? '#FFD700' : 'none'}" stroke="currentColor" stroke-width="1">
-        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-        </svg>`;
-    
-    favoriteButton.onclick = () => {
-        const id = `${routeId}-${stopId}-${destinationId}`;
-        const newState = !isFavorite(routeId, stopId, destinationId);
-        
-        if (newState) {
-            addToFavorites(routeId, stopId, destinationId);
-            favoriteButton.classList.add('active');
-            favoriteButton.querySelector('svg').setAttribute('fill', '#FFD700');
-        } else {
-            removeFromFavorites(id);
-            favoriteButton.classList.remove('active');
-            favoriteButton.querySelector('svg').setAttribute('fill', 'none');
-        }
-    };
-    
-    const container = document.querySelector('#controls').parentNode;
-    container.style.position = 'relative';
-    container.appendChild(favoriteButton);
-}
-
-function setupTabs() {
-    // Activer l'onglet théorique par défaut
-    document.querySelectorAll('.tab-button').forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.tab === 'theoretical');
-    });
-    
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.toggle('active', content.id === 'theoretical-view');
-    });
-    
-    // Positionner l'indicateur
-    const indicator = document.querySelector('.tab-indicator');
-    if (indicator) indicator.style.transform = 'translateX(0)';
-    
-    // Configuration des gestionnaires d'événements pour les onglets
-    setupTabHandlers();
-    
-    // Simuler un clic sur l'onglet théorique
-    const theoreticalTab = document.querySelector('.tab-button-gauche[data-tab="theoretical"]');
-    if (theoreticalTab) theoreticalTab.click();
 }
 
 function setupTabHandlers() {
