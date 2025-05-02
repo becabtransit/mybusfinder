@@ -2099,32 +2099,40 @@ async function loadTrips(fileContent) {
 
 
 
-function parseCSVLine(csvLine) {
-    const result = [];
-    let currentValue = '';
-    let insideQuotes = false;
+function formatTimeString(timeStr) {
+    const colonPos = timeStr.indexOf(':');
+    if (colonPos !== -1) {
+        const hour = timeStr.substring(0, colonPos);
+        const minute = timeStr.substring(colonPos + 1, colonPos + 3);
+        return `${hour}h${minute}`;
+    }
+    return timeStr;
+}
 
-    for (let i = 0; i < csvLine.length; i++) {
-        const char = csvLine[i];
+// Fonction utilitaire pour analyser une ligne CSV
+function parseCSVLine(line) {
+    const values = [];
+    let inQuotes = false;
+    let currentValue = '';
+    let i = 0;
+    
+    while (i < line.length) {
+        const char = line[i];
         
         if (char === '"') {
-            insideQuotes = !insideQuotes;
-        } else if (char === ',' && !insideQuotes) {
-            result.push(currentValue);
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            values.push(currentValue);
             currentValue = '';
         } else {
             currentValue += char;
         }
+        
+        i++;
     }
     
-    result.push(currentValue);
-    
-    return result.map(value => {
-        if (value.startsWith('"') && value.endsWith('"')) {
-            return value.slice(1, -1);
-        }
-        return value;
-    });
+    values.push(currentValue); // Ajouter la dernière valeur
+    return values;
 }
 
 function formatDate(date) {
@@ -2221,26 +2229,150 @@ function isServiceActive(serviceId, dateObj) {
 
 
 
-async function loadStopTimes(fileContent) {
-    const localStopTimes = {}; 
+async function initIndexedDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('transportDB', 1);
+        
+        request.onerror = event => {
+            console.error('Erreur d\'ouverture de la base de données IndexedDB:', event.target.error);
+            reject(event.target.error);
+        };
+        
+        request.onupgradeneeded = event => {
+            const db = event.target.result;
+            
+            // Création du store pour les stop_times
+            if (!db.objectStoreNames.contains('stopTimes')) {
+                const store = db.createObjectStore('stopTimes', { keyPath: 'tripId' });
+                store.createIndex('tripId', 'tripId', { unique: true });
+            }
+        };
+        
+        request.onsuccess = event => {
+            console.log('Base de données IndexedDB initialisée avec succès');
+            resolve(event.target.result);
+        };
+    });
+}
+
+// Fonction pour stocker les données dans IndexedDB
+async function storeInIndexedDB(tripId, stops) {
+    return new Promise((resolve, reject) => {
+        const db = globalThis.transportDB;
+        
+        if (!db) {
+            console.warn('La base de données n\'est pas initialisée');
+            resolve(false);
+            return;
+        }
+        
+        try {
+            const transaction = db.transaction(['stopTimes'], 'readwrite');
+            const store = transaction.objectStore('stopTimes');
+            
+            const request = store.put({ tripId, stops });
+            
+            request.onsuccess = () => resolve(true);
+            request.onerror = event => {
+                console.error(`Erreur lors du stockage du trajet ${tripId}:`, event.target.error);
+                reject(event.target.error);
+            };
+            
+            transaction.oncomplete = () => resolve(true);
+            transaction.onerror = event => reject(event.target.error);
+        } catch (error) {
+            console.error('Erreur lors de la transaction IndexedDB:', error);
+            reject(error);
+        }
+    });
+}
+
+// Fonction pour récupérer des données depuis IndexedDB
+async function getFromIndexedDB(tripId) {
+    return new Promise((resolve, reject) => {
+        const db = globalThis.transportDB;
+        
+        if (!db) {
+            console.warn('La base de données n\'est pas initialisée');
+            resolve(null);
+            return;
+        }
+        
+        try {
+            const transaction = db.transaction(['stopTimes'], 'readonly');
+            const store = transaction.objectStore('stopTimes');
+            
+            const request = store.get(tripId);
+            
+            request.onsuccess = () => {
+                if (request.result) {
+                    resolve(request.result.stops);
+                } else {
+                    resolve(null);
+                }
+            };
+            
+            request.onerror = event => {
+                console.error(`Erreur lors de la récupération du trajet ${tripId}:`, event.target.error);
+                reject(event.target.error);
+            };
+        } catch (error) {
+            console.error('Erreur lors de la lecture dans IndexedDB:', error);
+            reject(error);
+        }
+    });
+}
+
+// Fonction pour vérifier si la version des données est à jour
+async function checkDataVersion() {
+    const dataVersion = localStorage.getItem('stopTimesVersion');
+    const currentVersion = globalThis.datasetVersion || '1.0'; // À définir ailleurs dans votre code
     
+    return dataVersion === currentVersion;
+}
+
+// Fonction pour définir la version des données
+function setDataVersion() {
+    const currentVersion = globalThis.datasetVersion || '1.0';
+    localStorage.setItem('stopTimesVersion', currentVersion);
+}
+
+// Fonction principale pour charger les stop_times
+async function loadStopTimes(fileContent) {
     try {
         if (!fileContent) {
             console.warn('Aucun contenu de fichier stop_times fourni');
             return;
         }
         
-        console.time('Chargement stop_times');
-        console.log('Début du chargement des stop_times (fichier volumineux ~20Mo)...');
+        // Initialisation d'IndexedDB si pas déjà fait
+        if (!globalThis.transportDB) {
+            try {
+                globalThis.transportDB = await initIndexedDB();
+            } catch (error) {
+                console.error('Impossible d\'initialiser IndexedDB, retour au mode mémoire:', error);
+            }
+        }
         
+        // Vérifier si les données sont déjà en cache et à jour
+        const isDataCached = await checkDataVersion();
+        if (isDataCached && globalThis.transportDB) {
+            console.log('Utilisation des données en cache IndexedDB');
+            return;
+        }
+        
+        console.time('Chargement stop_times');
+        console.log('Début du chargement des stop_times (fichier volumineux ~25Mo)...');
+        
+        // Détection du type de saut de ligne
         let newlineChar = '\n';
         if (fileContent.indexOf('\r\n') >= 0 && fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1)) {
             newlineChar = '\r\n';
         }
         
+        // Traitement de l'en-tête
         const headerEndPos = fileContent.indexOf(newlineChar);
         const headerLine = fileContent.substring(0, headerEndPos);
-        
         const headers = parseCSVLine(headerLine);
         
         const stopTripIdIndex = headers.indexOf('trip_id');
@@ -2256,17 +2388,21 @@ async function loadStopTimes(fileContent) {
             return;
         }
         
-        const tempStopTimes = new Map();
+        // Variables pour le suivi de progression
+        const tripIdsToProcess = new Set();
         let entryCount = 0;
         let warningCount = 0;
         const MAX_WARNINGS = 5;
+        const BATCH_SIZE = 10000;
         
         const fileSize = fileContent.length;
         const onePercentSize = fileSize / 60;
         let lastProgressReport = 0;
         let currentProgress = 0;
         
-        const tripIdSet = new Set();
+        // Structure temporaire en mémoire, sera vidée régulièrement
+        let tempStopTimes = {};
+        let batchCounter = 0;
         
         let startPos = headerEndPos + newlineChar.length;
         let endPos, line;
@@ -2284,6 +2420,7 @@ async function loadStopTimes(fileContent) {
             
             if (!line.trim()) continue;
             
+            // Suivi de progression
             currentProgress = startPos;
             if (currentProgress - lastProgressReport > onePercentSize) {
                 const percentComplete = Math.floor((currentProgress / fileSize) * 100);
@@ -2291,6 +2428,7 @@ async function loadStopTimes(fileContent) {
                 lastProgressReport = currentProgress;
             }
             
+            // Parsing de la ligne
             let values;
             if (line.indexOf('"') === -1) {
                 values = line.split(',');
@@ -2309,12 +2447,10 @@ async function loadStopTimes(fileContent) {
             const tripId = values[stopTripIdIndex];
             if (!tripId) continue;
             
-            tripIdSet.add(tripId);
+            tripIdsToProcess.add(tripId);
             
-            let tripStops = tempStopTimes.get(tripId);
-            if (!tripStops) {
-                tripStops = [];
-                tempStopTimes.set(tripId, tripStops);
+            if (!tempStopTimes[tripId]) {
+                tempStopTimes[tripId] = [];
             }
             
             const stopEntry = {
@@ -2323,34 +2459,20 @@ async function loadStopTimes(fileContent) {
                     parseInt(values[stopSequenceIndex], 10) : 0
             };
             
+            // Traitement des heures d'arrivée
             if (values[arrivalTimeIndex]) {
-                const timeStr = values[arrivalTimeIndex];
-                const colonPos = timeStr.indexOf(':');
-                if (colonPos !== -1) {
-                    const hour = timeStr.substring(0, colonPos);
-                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-                    stopEntry.arrival_time = `${hour}h${minute}`;
-                } else {
-                    stopEntry.arrival_time = timeStr;
-                }
+                stopEntry.arrival_time = formatTimeString(values[arrivalTimeIndex]);
             }
             
+            // Traitement des heures de départ
             if (departureTimeIndex !== -1 && values[departureTimeIndex] && 
                 values[departureTimeIndex] !== values[arrivalTimeIndex]) {
-                
-                const timeStr = values[departureTimeIndex];
-                const colonPos = timeStr.indexOf(':');
-                if (colonPos !== -1) {
-                    const hour = timeStr.substring(0, colonPos);
-                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-                    stopEntry.departure_time = `${hour}h${minute}`;
-                } else {
-                    stopEntry.departure_time = timeStr;
-                }
+                stopEntry.departure_time = formatTimeString(values[departureTimeIndex]);
             } else {
                 stopEntry.departure_time = stopEntry.arrival_time;
             }
             
+            // Ajout des propriétés optionnelles
             if (pickupTypeIndex !== -1 && values[pickupTypeIndex] && values[pickupTypeIndex] !== '0') {
                 stopEntry.pickup_type = parseInt(values[pickupTypeIndex], 10);
             }
@@ -2359,74 +2481,114 @@ async function loadStopTimes(fileContent) {
                 stopEntry.drop_off_type = parseInt(values[dropOffTypeIndex], 10);
             }
             
-            tripStops.push(stopEntry);
+            tempStopTimes[tripId].push(stopEntry);
             entryCount++;
+            batchCounter++;
             
-            if (entryCount % 1000000 === 0) {
-                console.log(`Traitement interméd ${entryCount} arrêts traités..`);
-                for (const [batchTripId, stops] of tempStopTimes) {
-                    stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
-                    localStopTimes[batchTripId] = stops;
-                    tripIdSet.delete(batchTripId);
+            // Traitement par lots pour éviter de surcharger la mémoire
+            if (batchCounter >= BATCH_SIZE) {
+                await processBatchToIndexedDB(tempStopTimes);
+                tempStopTimes = {};
+                batchCounter = 0;
+                
+                // Forcer la libération de mémoire périodiquement
+                if (entryCount % (BATCH_SIZE * 5) === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 10));
                 }
-                tempStopTimes.clear();
             }
         }
-    
-        console.log(`Traitement en final tri et finalisation ${tempStopTimes.size} trajets..`);
         
-        for (const [tripId, stops] of tempStopTimes) {
-            stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
-            localStopTimes[tripId] = stops;
+        // Traitement du dernier lot
+        if (Object.keys(tempStopTimes).length > 0) {
+            await processBatchToIndexedDB(tempStopTimes);
+            tempStopTimes = null;
         }
         
-        tempStopTimes.clear();
-        tripIdSet.clear();
-        
-        Object.assign(stopTimes, localStopTimes);
+        // Mise à jour de la version des données
+        setDataVersion();
         
         console.timeEnd('Chargement stop_times');
-        console.log(`Stop times chargés ${Object.keys(localStopTimes).length} trajets ${entryCount} arrêts au total`);
+        console.log(`Stop times chargés: ${tripIdsToProcess.size} trajets, ${entryCount} arrêts au total`);
         
+        // Libérer la mémoire
         fileContent = null;
+        tripIdsToProcess.clear();
         await forceGarbageCollection();
 
     } catch (error) {
-        console.error('Erreur lors du chargement des horaires', error.message);
+        console.error('Erreur lors du chargement des horaires', error);
     }
 }
 
+async function processBatchToIndexedDB(batchData) {
+    console.log(`Traitement d'un lot de ${Object.keys(batchData).length} trajets...`);
+    
+    // Si IndexedDB n'est pas disponible, utiliser la mémoire
+    if (!globalThis.transportDB) {
+        for (const tripId in batchData) {
+            if (batchData.hasOwnProperty(tripId)) {
+                batchData[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
+                if (!globalThis.stopTimes) globalThis.stopTimes = {};
+                globalThis.stopTimes[tripId] = batchData[tripId];
+            }
+        }
+        return;
+    }
+    
+    // Traiter et stocker chaque trajet dans IndexedDB
+    const promises = [];
+    let count = 0;
+    
+    for (const tripId in batchData) {
+        if (batchData.hasOwnProperty(tripId)) {
+            // Trier les arrêts par séquence
+            batchData[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
+            
+            // Stocker dans IndexedDB
+            promises.push(storeInIndexedDB(tripId, batchData[tripId]));
+            
+            count++;
+            if (count % 100 === 0) {
+                // Attendre que certaines promesses se terminent pour éviter de saturer
+                await Promise.allSettled(promises.splice(0, promises.length));
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+        }
+    }
+    
+    // Attendre que toutes les promesses restantes se terminent
+    await Promise.allSettled(promises);
+}
+
+// Version améliorée pour forcer la libération de mémoire
 async function forceGarbageCollection() {
     if (typeof global !== 'undefined' && global.gc) {
         // node.js --expose-gc flag
         global.gc();
         return true;
-    } else if (typeof window !== 'undefined' && window.performance && window.performance.memory) {
-        console.log('Tentative de libération mémoire dans enviro navigateur...');
+    } else if (typeof window !== 'undefined') {
+        console.log('Tentative de libération mémoire dans environnement navigateur...');
         
-        const allocationSize = 1024 * 1024 * 10; 
-        const allocations = [];
-        
+        // Forcer le garbage collector en allouant puis libérant de la mémoire
+        const tempArrays = [];
         try {
-            for (let i = 0; i < 10; i++) {
-                allocations.push(new ArrayBuffer(allocationSize));
-                await new Promise(resolve => setTimeout(resolve, 1));
+            for (let i = 0; i < 5; i++) {
+                const array = new Array(1024 * 1024).fill(0); // ~8Mo
+                tempArrays.push(array);
+                await new Promise(resolve => setTimeout(resolve, 10));
             }
         } catch (e) {
-            console.log('Mémoire temporaire allouée pour forcer le GC');
+            console.log('Allocation temporaire pour forcer le GC');
+        } finally {
+            // Libérer explicitement les tableaux
+            while (tempArrays.length) {
+                tempArrays.pop();
+            }
         }
-        
-        while (allocations.length) {
-            allocations.pop();
-        }
-        
-        allocations.length = 0;
     }
     
-    for (let i = 0; i < 5; i++) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-    }
-    
+    // Donner du temps au navigateur pour effectuer le GC
+    await new Promise(resolve => setTimeout(resolve, 50));
     console.log('Libération de mémoire terminée');
     return false;
 }
@@ -2512,16 +2674,6 @@ async function flushTempStopTimes(tempStopTimes, stopTimes, flushCallback) {
 }
 
 
-function formatTimeString(timeStr) {
-    const colonPos = timeStr.indexOf(':');
-    if (colonPos !== -1) {
-        const hour = timeStr.substring(0, colonPos);
-        const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-        return `${hour}h${minute}`;
-    }
-    return timeStr;
-}
-
 async function loadStops(fileContent) {
     try {
         if (!fileContent) {
@@ -2568,6 +2720,27 @@ async function loadStops(fileContent) {
     }
 }
 
+
+async function getStopTimesForTrip(tripId) {
+    // Vérifier d'abord dans IndexedDB
+    if (globalThis.transportDB) {
+        try {
+            const stops = await getFromIndexedDB(tripId);
+            if (stops) {
+                return stops;
+            }
+        } catch (error) {
+            console.warn(`Erreur lors de la récupération depuis IndexedDB pour ${tripId}:`, error);
+        }
+    }
+    
+    // Sinon, retourner depuis la mémoire si disponible
+    if (globalThis.stopTimes && globalThis.stopTimes[tripId]) {
+        return globalThis.stopTimes[tripId];
+    }
+    
+    return null;
+}
 
 async function loadCalendar(fileContent) {
     try {
