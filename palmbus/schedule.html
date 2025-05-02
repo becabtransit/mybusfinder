@@ -2221,67 +2221,82 @@ function isServiceActive(serviceId, dateObj) {
 
 
 
-// Configuration de la base de données IndexedDB
-const DBNAME = 'transportCache';
-const DBVERSION = 1;
-const STORENAME = 'stopTimes';
-const BATCH_SIZE = 10000; // Nombre d'éléments à traiter par lot
-
-/**
- * Ouvre ou crée la base de données IndexedDB
- * @returns {Promise<IDBDatabase>} Instance de la base de données
- */
-function openDatabase() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DBNAME, DBVERSION);
-        
-        request.onerror = (event) => {
-            console.error('Erreur d\'ouverture de la base de données:', event.target.error);
-            reject(event.target.error);
-        };
-        
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            
-            // Création du magasin d'objets s'il n'existe pas
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                const store = db.createObjectStore(STORE_NAME, { keyPath: 'tripId' });
-                store.createIndex('tripId', 'tripId', { unique: true });
-            }
-        };
-        
-        request.onsuccess = (event) => {
-            const db = event.target.result;
-            resolve(db);
-        };
-    });
-}
-
-/**
- * Charge les horaires d'arrêts depuis un fichier CSV et les stocke dans IndexedDB
- * @param {string} fileContent - Contenu du fichier stop_times.txt
- * @returns {Promise<void>}
- */
 async function loadStopTimes(fileContent) {
+    const localStopTimes = {}; 
+    const CHUNK_SIZE = 1000; // Nombre de lignes à traiter par lot
+    const CACHE_SEGMENT_SIZE = 500; // Nombre de trajets par segment de cache
+    
     try {
         if (!fileContent) {
             console.warn('Aucun contenu de fichier stop_times fourni');
-            return;
+            return localStopTimes;
+        }
+        
+        // Vérifier si les données sont déjà en cache
+        const cacheTimestamp = localStorage.getItem('stopTimesCacheTimestamp');
+        const currentTime = Date.now();
+        
+        // Si le cache existe et a moins de 24h
+        if (cacheTimestamp && (currentTime - parseInt(cacheTimestamp, 10) < 86400000)) {
+            console.log('Utilisation du cache stop_times...');
+            
+            // Compter le nombre de segments dans le cache
+            let segmentCount = 0;
+            while (localStorage.getItem(`stopTimes_segment_${segmentCount}_info`)) {
+                segmentCount++;
+            }
+            
+            if (segmentCount > 0) {
+                console.log(`Chargement de ${segmentCount} segments depuis le cache...`);
+                
+                for (let i = 0; i < segmentCount; i++) {
+                    const segmentInfo = JSON.parse(localStorage.getItem(`stopTimes_segment_${i}_info`));
+                    if (!segmentInfo) continue;
+                    
+                    const segmentData = localStorage.getItem(`stopTimes_segment_${i}_data`);
+                    if (!segmentData) continue;
+                    
+                    // Décompresser et charger les données
+                    try {
+                        const decompressedData = LZString.decompressFromUTF16(segmentData);
+                        const segmentStopTimes = JSON.parse(decompressedData);
+                        
+                        // Fusionner avec les données locales
+                        Object.assign(localStopTimes, segmentStopTimes);
+                        
+                        if (i % 5 === 0) {
+                            console.log(`Cache: ${Math.round((i+1)/segmentCount*100)}% chargé`);
+                            // Pause pour permettre au navigateur de respirer
+                            await new Promise(resolve => setTimeout(resolve, 0));
+                        }
+                    } catch (e) {
+                        console.warn(`Erreur lors du chargement du segment ${i}:`, e);
+                        // En cas d'erreur, on supprime ce segment du cache
+                        localStorage.removeItem(`stopTimes_segment_${i}_info`);
+                        localStorage.removeItem(`stopTimes_segment_${i}_data`);
+                    }
+                }
+                
+                console.log(`Données chargées depuis le cache: ${Object.keys(localStopTimes).length} trajets`);
+                return localStopTimes;
+            }
         }
         
         console.time('Chargement stop_times');
         console.log('Début du chargement des stop_times (fichier volumineux ~25Mo)...');
         
-        // Détermine le caractère de fin de ligne
-        const newlineChar = fileContent.indexOf('\r\n') >= 0 && 
-                           fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1) ? '\r\n' : '\n';
+        // Déterminer le caractère de fin de ligne
+        let newlineChar = '\n';
+        if (fileContent.indexOf('\r\n') >= 0 && fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1)) {
+            newlineChar = '\r\n';
+        }
         
-        // Parse l'en-tête
+        // Extraire l'en-tête
         const headerEndPos = fileContent.indexOf(newlineChar);
         const headerLine = fileContent.substring(0, headerEndPos);
         const headers = parseCSVLine(headerLine);
         
-        // Trouve les indices des colonnes importantes
+        // Trouver les index des colonnes importantes
         const stopTripIdIndex = headers.indexOf('trip_id');
         const stopIdIndex = headers.indexOf('stop_id');
         const arrivalTimeIndex = headers.indexOf('arrival_time');
@@ -2292,39 +2307,32 @@ async function loadStopTimes(fileContent) {
         
         if (stopTripIdIndex === -1 || stopIdIndex === -1 || arrivalTimeIndex === -1) {
             console.error('Format de fichier stop_times.txt invalide, colonnes requises manquantes');
-            return;
+            return localStopTimes;
         }
         
-        // Ouvre la base de données
-        const db = await openDatabase();
-        
-        // Vérification si les données existent déjà (pour éviter de recharger inutilement)
-        const hasData = await checkIfDataExists(db);
-        if (hasData) {
-            console.log('Les données sont déjà en cache dans IndexedDB');
-            return;
-        }
-        
-        // Vide le magasin existant pour éviter les doublons
-        await clearObjectStore(db);
-        
-        // Variables pour le suivi du progrès
+        // Compteurs et variables de progression
+        let tempStopTimes = {};
         let entryCount = 0;
         let warningCount = 0;
+        let processedTripCount = 0;
         const MAX_WARNINGS = 5;
+        
         const fileSize = fileContent.length;
         const onePercentSize = fileSize / 60;
         let lastProgressReport = 0;
         let currentProgress = 0;
         
-        // Structure de données temporaires pour regrouper par tripId
-        const tempStopTimes = new Map();
+        let cacheSegments = [];
+        let currentSegment = {};
+        let currentSegmentSize = 0;
         
-        // Parcours du fichier ligne par ligne
+        // Traiter le fichier ligne par ligne
         let startPos = headerEndPos + newlineChar.length;
         let endPos, line;
+        let currentChunk = [];
         
         while (startPos < fileContent.length) {
+            // Lire une ligne
             endPos = fileContent.indexOf(newlineChar, startPos);
             
             if (endPos === -1) {
@@ -2337,15 +2345,18 @@ async function loadStopTimes(fileContent) {
             
             if (!line.trim()) continue;
             
-            // Affichage du progrès
+            // Rapporter la progression
             currentProgress = startPos;
             if (currentProgress - lastProgressReport > onePercentSize) {
                 const percentComplete = Math.floor((currentProgress / fileSize) * 100);
                 console.log(`Chargement en cours : ${percentComplete}% (${entryCount} arrêts)`);
                 lastProgressReport = currentProgress;
+                
+                // Libérer régulièrement le thread principal
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
             
-            // Parse la ligne
+            // Parser la ligne CSV
             let values;
             if (line.indexOf('"') === -1) {
                 values = line.split(',');
@@ -2353,6 +2364,7 @@ async function loadStopTimes(fileContent) {
                 values = parseCSVLine(line);
             }
             
+            // Vérifier que la ligne contient assez de données
             if (values.length <= Math.max(stopTripIdIndex, stopIdIndex, arrivalTimeIndex)) {
                 if (warningCount < MAX_WARNINGS) {
                     warningCount++;
@@ -2361,29 +2373,28 @@ async function loadStopTimes(fileContent) {
                 continue;
             }
             
+            // Extraire les données
             const tripId = values[stopTripIdIndex];
             if (!tripId) continue;
             
-            // Récupère ou crée le tableau pour ce tripId
-            let tripStops = tempStopTimes.get(tripId);
-            if (!tripStops) {
-                tripStops = [];
-                tempStopTimes.set(tripId, tripStops);
+            // Créer le tableau pour ce trip_id s'il n'existe pas
+            if (!tempStopTimes[tripId]) {
+                tempStopTimes[tripId] = [];
             }
             
-            // Crée l'entrée pour cet arrêt
+            // Créer l'entrée pour cet arrêt
             const stopEntry = {
                 stop_id: values[stopIdIndex],
                 stop_sequence: stopSequenceIndex !== -1 && values[stopSequenceIndex] ? 
                     parseInt(values[stopSequenceIndex], 10) : 0
             };
             
-            // Traitement de l'heure d'arrivée
+            // Traiter l'heure d'arrivée
             if (values[arrivalTimeIndex]) {
                 stopEntry.arrival_time = formatTimeString(values[arrivalTimeIndex]);
             }
             
-            // Traitement de l'heure de départ
+            // Traiter l'heure de départ si différente de l'heure d'arrivée
             if (departureTimeIndex !== -1 && values[departureTimeIndex] && 
                 values[departureTimeIndex] !== values[arrivalTimeIndex]) {
                 stopEntry.departure_time = formatTimeString(values[departureTimeIndex]);
@@ -2391,7 +2402,7 @@ async function loadStopTimes(fileContent) {
                 stopEntry.departure_time = stopEntry.arrival_time;
             }
             
-            // Ajoute les infos supplémentaires si elles existent
+            // Ajouter les types de montée/descente s'ils sont spécifiés
             if (pickupTypeIndex !== -1 && values[pickupTypeIndex] && values[pickupTypeIndex] !== '0') {
                 stopEntry.pickup_type = parseInt(values[pickupTypeIndex], 10);
             }
@@ -2400,223 +2411,338 @@ async function loadStopTimes(fileContent) {
                 stopEntry.drop_off_type = parseInt(values[dropOffTypeIndex], 10);
             }
             
-            tripStops.push(stopEntry);
+            // Ajouter l'entrée à la liste des arrêts pour ce trajet
+            tempStopTimes[tripId].push(stopEntry);
             entryCount++;
             
-            // Si le nombre d'entrées temporaires atteint BATCH_SIZE, on les traite et libère la mémoire
-            if (tempStopTimes.size >= BATCH_SIZE) {
-                await storeDataBatch(db, tempStopTimes);
-                tempStopTimes.clear();
+            // Traitement par lots pour limiter la consommation mémoire
+            if (Object.keys(tempStopTimes).length >= CACHE_SEGMENT_SIZE) {
+                await processTripBatch(tempStopTimes, localStopTimes, cacheSegments);
+                processedTripCount += Object.keys(tempStopTimes).length;
+                tempStopTimes = {};
+                
+                // Libérer la mémoire
+                if (processedTripCount % (CACHE_SEGMENT_SIZE * 10) === 0) {
+                    await forceMemoryCleanup();
+                }
             }
         }
         
-        // Traite les dernières entrées restantes
-        if (tempStopTimes.size > 0) {
-            await storeDataBatch(db, tempStopTimes);
-            tempStopTimes.clear();
+        // Traiter le dernier lot
+        if (Object.keys(tempStopTimes).length > 0) {
+            await processTripBatch(tempStopTimes, localStopTimes, cacheSegments);
+            processedTripCount += Object.keys(tempStopTimes).length;
+            tempStopTimes = null;
         }
         
-        // Libère la mémoire explicitement
-        fileContent = null;
+        // Sauvegarder les derniers segments dans le cache
+        await saveSegmentsToCache(cacheSegments);
+        cacheSegments = null;
+        
+        // Mettre à jour le timestamp du cache
+        localStorage.setItem('stopTimesCacheTimestamp', Date.now().toString());
         
         console.timeEnd('Chargement stop_times');
-        console.log(`Stop times chargés avec succès: ${entryCount} arrêts au total`);
+        console.log(`Stop times chargés: ${Object.keys(localStopTimes).length} trajets, ${entryCount} arrêts au total`);
         
+        // Libérer la mémoire
+        fileContent = null;
+        await forceMemoryCleanup();
+        
+        return localStopTimes;
+
     } catch (error) {
         console.error('Erreur lors du chargement des horaires', error);
+        return localStopTimes;
     }
 }
 
-async function storeDataBatch(db, tempStopTimes) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([STORE_NAME], 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        
-        let count = 0;
-        const total = tempStopTimes.size;
-        console.log(`Stockage d'un lot de ${total} trajets...`);
-        
-        transaction.onerror = (event) => {
-            console.error('Erreur lors de la transaction:', event.target.error);
-            reject(event.target.error);
-        };
-        
-        transaction.oncomplete = () => {
-            console.log(`Lot de ${total} trajets stocké avec succès`);
-            resolve();
-        };
-        
-        for (const [tripId, stops] of tempStopTimes) {
-            // Trie les arrêts par séquence avant de les stocker
-            stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
+async function processTripBatch(tempStopTimes, localStopTimes, cacheSegments) {
+    // Créer un segment pour le cache
+    const segment = {};
+    
+    // Traiter chaque trajet
+    for (const tripId in tempStopTimes) {
+        if (Object.prototype.hasOwnProperty.call(tempStopTimes, tripId)) {
+            // Trier les arrêts par séquence
+            tempStopTimes[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
             
-            // Stocke les données dans IndexedDB
-            const request = store.put({ 
-                tripId: tripId, 
-                stops: stops 
-            });
+            // Ajouter au résultat local
+            localStopTimes[tripId] = tempStopTimes[tripId];
             
-            request.onsuccess = () => {
-                count++;
-                if (count % 1000 === 0) {
-                    console.log(`Progression du stockage: ${Math.round((count/total)*100)}%`);
-                }
-            };
-        }
-    });
-}
-
-/**
- * Vérifie si des données existent déjà dans le magasin d'objets
- * @param {IDBDatabase} db - Base de données IndexedDB
- * @returns {Promise<boolean>} true si des données existent, false sinon
- */
-function checkIfDataExists(db) {
-    return new Promise((resolve) => {
-        const transaction = db.transaction([STORE_NAME], 'readonly');
-        const store = transaction.objectStore(STORE_NAME);
-        const countRequest = store.count();
-        
-        countRequest.onsuccess = () => {
-            resolve(countRequest.result > 0);
-        };
-        
-        countRequest.onerror = () => {
-            resolve(false);
-        };
-    });
-}
-
-/**
- * Vide le magasin d'objets
- * @param {IDBDatabase} db - Base de données IndexedDB
- * @returns {Promise<void>}
- */
-function clearObjectStore(db) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([STORE_NAME], 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const clearRequest = store.clear();
-        
-        clearRequest.onsuccess = () => {
-            console.log('Magasin vidé avec succès');
-            resolve();
-        };
-        
-        clearRequest.onerror = (event) => {
-            console.error('Erreur lors du vidage du magasin:', event.target.error);
-            reject(event.target.error);
-        };
-    });
-}
-
-/**
- * Récupère les horaires pour un trajet donné
- * @param {string} tripId - Identifiant du trajet
- * @returns {Promise<Array>} Les arrêts pour ce trajet
- */
-async function getStopTimesForTrip(tripId) {
-    try {
-        const db = await openDatabase();
-        
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.get(tripId);
-            
-            request.onsuccess = (event) => {
-                const result = event.target.result;
-                if (result) {
-                    resolve(result.stops);
-                } else {
-                    resolve([]);
-                }
-            };
-            
-            request.onerror = (event) => {
-                console.error('Erreur lors de la récupération des données:', event.target.error);
-                reject(event.target.error);
-            };
-        });
-    } catch (error) {
-        console.error('Erreur lors de l\'accès à la base de données:', error);
-        return [];
-    }
-}
-
-/**
- * Récupère tous les trajets avec leurs arrêts
- * @returns {Promise<Object>} Un objet avec les tripId comme clés et les tableaux d'arrêts comme valeurs
- */
-async function getAllStopTimes() {
-    try {
-        const db = await openDatabase();
-        
-        return new Promise((resolve, reject) => {
-            const result = {};
-            const transaction = db.transaction([STORE_NAME], 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-            const cursorRequest = store.openCursor();
-            
-            cursorRequest.onsuccess = (event) => {
-                const cursor = event.target.result;
-                if (cursor) {
-                    const data = cursor.value;
-                    result[data.tripId] = data.stops;
-                    cursor.continue();
-                } else {
-                    resolve(result);
-                }
-            };
-            
-            cursorRequest.onerror = (event) => {
-                console.error('Erreur lors de la récupération des données:', event.target.error);
-                reject(event.target.error);
-            };
-        });
-    } catch (error) {
-        console.error('Erreur lors de l\'accès à la base de données:', error);
-        return {};
-    }
-}
-
-
-async function forceGarbageCollection() {
-    if (typeof global !== 'undefined' && global.gc) {
-        // node.js avec --expose-gc flag
-        global.gc();
-        return true;
-    } else {
-        console.log('Tentative de libération mémoire dans environnement navigateur...');
-        
-        // Dans un navigateur, on ne peut pas appeler directement le GC
-        // mais on peut favoriser son déclenchement
-        
-        // Libération explicite des références
-        if (typeof window !== 'undefined' && window.performance && window.performance.memory) {
-            // Allouer puis libérer de gros tableaux peut aider à déclencher le GC
-            try {
-                const allocationSize = 1024 * 1024 * 10; // 10MB
-                const allocations = [];
-                
-                for (let i = 0; i < 5; i++) {
-                    allocations.push(new ArrayBuffer(allocationSize));
-                    await new Promise(resolve => setTimeout(resolve, 1));
-                }
-                
-                // Libérer les allocations
-                while (allocations.length) {
-                    allocations.pop();
-                }
-                allocations.length = 0;
-            } catch (e) {
-                console.log('GC forcé par allocation temporaire');
-            }
+            // Ajouter au segment de cache
+            segment[tripId] = tempStopTimes[tripId];
         }
     }
     
-    // Pause pour laisser le temps au navigateur de nettoyer
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // Ajouter le segment à la liste
+    cacheSegments.push(segment);
+    
+    // Sauvegarder régulièrement dans le cache
+    if (cacheSegments.length >= 10) {
+        await saveSegmentsToCache(cacheSegments);
+        cacheSegments.length = 0;
+    }
+    
+    // Libérer le thread principal
+    await new Promise(resolve => setTimeout(resolve, 0));
+}
+
+/**
+ * Sauvegarde les segments de données dans le localStorage
+ * @param {Array} segments - Segments à sauvegarder
+ */
+async function saveSegmentsToCache(segments) {
+    if (!segments || segments.length === 0) return;
+    
+    try {
+        // Récupérer le dernier index utilisé
+        let lastSegmentIndex = parseInt(localStorage.getItem('stopTimesLastSegmentIndex') || '-1', 10);
+        
+        for (let i = 0; i < segments.length; i++) {
+            const segment = segments[i];
+            lastSegmentIndex++;
+            
+            // Informations sur le segment
+            const segmentInfo = {
+                tripCount: Object.keys(segment).length,
+                timestamp: Date.now()
+            };
+            
+            // Compression des données pour économiser de l'espace
+            const segmentDataString = JSON.stringify(segment);
+            const compressedData = LZString.compressToUTF16(segmentDataString);
+            
+            try {
+                // Stocker les informations et les données du segment
+                localStorage.setItem(`stopTimes_segment_${lastSegmentIndex}_info`, JSON.stringify(segmentInfo));
+                localStorage.setItem(`stopTimes_segment_${lastSegmentIndex}_data`, compressedData);
+            } catch (e) {
+                // En cas d'erreur de stockage (quota dépassé), nettoyer le cache
+                console.warn('Erreur lors de la sauvegarde dans le cache:', e);
+                await cleanupCache();
+                
+                // Réessayer une fois
+                try {
+                    localStorage.setItem(`stopTimes_segment_${lastSegmentIndex}_info`, JSON.stringify(segmentInfo));
+                    localStorage.setItem(`stopTimes_segment_${lastSegmentIndex}_data`, compressedData);
+                } catch (e2) {
+                    console.error('Impossible de sauvegarder dans le cache même après nettoyage:', e2);
+                    // Abandonner la sauvegarde de ce segment
+                    lastSegmentIndex--;
+                }
+            }
+            
+            // Pause pour éviter de bloquer l'UI
+            if (i % 3 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+        }
+        
+        // Mettre à jour l'index du dernier segment
+        localStorage.setItem('stopTimesLastSegmentIndex', lastSegmentIndex.toString());
+        
+    } catch (error) {
+        console.error('Erreur lors de la sauvegarde des segments dans le cache:', error);
+    }
+}
+
+async function cleanupCache() {
+    try {
+        console.log('Nettoyage du cache stop_times...');
+        
+        // Récupérer tous les segments
+        const segments = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('stopTimes_segment_') && key.endsWith('_info')) {
+                const segmentIndex = parseInt(key.replace('stopTimes_segment_', '').replace('_info', ''), 10);
+                const segmentInfo = JSON.parse(localStorage.getItem(key) || '{}');
+                
+                segments.push({
+                    index: segmentIndex,
+                    timestamp: segmentInfo.timestamp || 0
+                });
+            }
+        }
+        
+        // Trier par ancienneté (du plus ancien au plus récent)
+        segments.sort((a, b) => a.timestamp - b.timestamp);
+        
+        // Supprimer les 30% les plus anciens
+        const toDelete = Math.ceil(segments.length * 0.3);
+        
+        for (let i = 0; i < toDelete; i++) {
+            if (i < segments.length) {
+                const segmentIndex = segments[i].index;
+                localStorage.removeItem(`stopTimes_segment_${segmentIndex}_info`);
+                localStorage.removeItem(`stopTimes_segment_${segmentIndex}_data`);
+            }
+        }
+        
+        console.log(`${toDelete} segments supprimés du cache.`);
+        
+    } catch (error) {
+        console.error('Erreur lors du nettoyage du cache:', error);
+    }
+}
+
+/**
+ * Force le nettoyage de la mémoire
+ */
+async function forceMemoryCleanup() {
+    try {
+        if (typeof global !== 'undefined' && global.gc) {
+            // Node.js avec --expose-gc
+            global.gc();
+        } else {
+            // Navigateur - tenter de forcer indirectement le GC
+            const mb = 1024 * 1024;
+            const garbageSize = 10 * mb; // 10 MB
+            let garbageArray = [];
+            
+            // Allouer de la mémoire pour forcer le GC
+            try {
+                for (let i = 0; i < 3; i++) {
+                    garbageArray.push(new Uint8Array(garbageSize));
+                }
+            } catch (e) {
+                // L'allocation peut échouer si la mémoire est déjà sous pression
+            }
+            
+            // Libérer les références
+            garbageArray = null;
+        }
+        
+        // Pause pour permettre au GC de faire son travail
+        await new Promise(resolve => setTimeout(resolve, 20));
+        
+    } catch (e) {
+        console.warn('Erreur lors du nettoyage mémoire:', e);
+    }
+}
+
+/**
+ * Formate une chaîne de temps au format "HHhMM"
+ * @param {string} timeStr - Chaîne de temps au format "HH:MM:SS"
+ * @returns {string} - Chaîne formatée "HHhMM"
+ */
+function formatTimeString(timeStr) {
+    const colonPos = timeStr.indexOf(':');
+    if (colonPos !== -1) {
+        const hour = timeStr.substring(0, colonPos);
+        const minute = timeStr.substring(colonPos + 1, colonPos + 3);
+        return `${hour}h${minute}`;
+    }
+    return timeStr;
+}
+
+async function cleanupCache() {
+    try {
+        console.log('Nettoyage du cache stop_times...');
+        
+        // Récupérer tous les segments
+        const segments = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('stopTimes_segment_') && key.endsWith('_info')) {
+                const segmentIndex = parseInt(key.replace('stopTimes_segment_', '').replace('_info', ''), 10);
+                const segmentInfo = JSON.parse(localStorage.getItem(key) || '{}');
+                
+                segments.push({
+                    index: segmentIndex,
+                    timestamp: segmentInfo.timestamp || 0
+                });
+            }
+        }
+        
+        // Trier par ancienneté (du plus ancien au plus récent)
+        segments.sort((a, b) => a.timestamp - b.timestamp);
+        
+        // Supprimer les 30% les plus anciens
+        const toDelete = Math.ceil(segments.length * 0.3);
+        
+        for (let i = 0; i < toDelete; i++) {
+            if (i < segments.length) {
+                const segmentIndex = segments[i].index;
+                localStorage.removeItem(`stopTimes_segment_${segmentIndex}_info`);
+                localStorage.removeItem(`stopTimes_segment_${segmentIndex}_data`);
+            }
+        }
+        
+        console.log(`${toDelete} segments supprimés du cache.`);
+        
+    } catch (error) {
+        console.error('Erreur lors du nettoyage du cache:', error);
+    }
+}
+
+/**
+ * Force le nettoyage de la mémoire
+ */
+async function forceMemoryCleanup() {
+    try {
+        if (typeof global !== 'undefined' && global.gc) {
+            // Node.js avec --expose-gc
+            global.gc();
+        } else {
+            // Navigateur - tenter de forcer indirectement le GC
+            const mb = 1024 * 1024;
+            const garbageSize = 10 * mb; // 10 MB
+            let garbageArray = [];
+            
+            // Allouer de la mémoire pour forcer le GC
+            try {
+                for (let i = 0; i < 3; i++) {
+                    garbageArray.push(new Uint8Array(garbageSize));
+                }
+            } catch (e) {
+                // L'allocation peut échouer si la mémoire est déjà sous pression
+            }
+            
+            // Libérer les références
+            garbageArray = null;
+        }
+        
+        // Pause pour permettre au GC de faire son travail
+        await new Promise(resolve => setTimeout(resolve, 20));
+        
+    } catch (e) {
+        console.warn('Erreur lors du nettoyage mémoire:', e);
+    }
+}
+
+async function forceGarbageCollection() {
+    if (typeof global !== 'undefined' && global.gc) {
+        // node.js --expose-gc flag
+        global.gc();
+        return true;
+    } else if (typeof window !== 'undefined' && window.performance && window.performance.memory) {
+        console.log('Tentative de libération mémoire dans enviro navigateur...');
+        
+        const allocationSize = 1024 * 1024 * 10; 
+        const allocations = [];
+        
+        try {
+            for (let i = 0; i < 10; i++) {
+                allocations.push(new ArrayBuffer(allocationSize));
+                await new Promise(resolve => setTimeout(resolve, 1));
+            }
+        } catch (e) {
+            console.log('Mémoire temporaire allouée pour forcer le GC');
+        }
+        
+        while (allocations.length) {
+            allocations.pop();
+        }
+        
+        allocations.length = 0;
+    }
+    
+    for (let i = 0; i < 5; i++) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    
     console.log('Libération de mémoire terminée');
     return false;
 }
@@ -3339,74 +3465,51 @@ function updateStopsForDestination(routeId, destinationId) {
 
         let isShowingRealtime = false;
 
-        function showSchedule(routeId, stopId, destinationId) {
-    // Stocke les valeurs courantes
+function showSchedule(routeId, stopId, destinationId) {
     currentStopId = stopId;
     currentRouteId = routeId;
-    isShowingRealtime = false;
+    isShowingRealtime = false; 
+    navigationHistory.push({ view: 'stops-view', routeId, destinationId });
     
-    // Ajoute à l'historique de navigation
-    navigationHistory.push({ 
-        view: 'stops-view', 
-        routeId, 
-        destinationId 
-    });
-    
-    // Défilement vers le haut
     scrollToTop();
-    
-    // Met à jour les informations de la route et de l'arrêt
     document.getElementById('route-info').textContent = 
         `${t("line")} ${routes[routeId].short_name} ➜ ${stops[destinationId].replace(/"/g, '')}`;
     document.getElementById('stop-title').textContent = 
         `${t("scheduleforstop")} ${stops[stopId].replace(/"/g, '')}`;
+
+        const favoriteButton = document.createElement('div');
+favoriteButton.className = `favorite-star ${isFavorite(routeId, stopId, destinationId) ? 'active' : ''}`;
+favoriteButton.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="${isFavorite(routeId, stopId, destinationId) ? '#FFD700' : 'none'}" stroke="currentColor" stroke-width="1">
+        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+    </svg>
+`;
+favoriteButton.onclick = () => {
+    const id = `${routeId}-${stopId}-${destinationId}`;
+    if (isFavorite(routeId, stopId, destinationId)) {
+        removeFromFavorites(id);
+        favoriteButton.classList.remove('active');
+        favoriteButton.querySelector('svg').setAttribute('fill', 'none');
+    } else {
+        addToFavorites(routeId, stopId, destinationId);
+        favoriteButton.classList.add('active');
+        favoriteButton.querySelector('svg').setAttribute('fill', '#FFD700');
+    }
+};
+document.querySelector('#controls').parentNode.style.position = 'relative';
+document.querySelector('#controls').parentNode.appendChild(favoriteButton);
     
-    // Crée le bouton favori
-    const favoriteButton = document.createElement('div');
-    const isFav = isFavorite(routeId, stopId, destinationId);
-    
-    favoriteButton.className = `favorite-star ${isFav ? 'active' : ''}`;
-    favoriteButton.innerHTML = `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="${isFav ? '#FFD700' : 'none'}" 
-             stroke="currentColor" stroke-width="1">
-            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-        </svg>
-    `;
-    
-    // Gestion du clic sur le bouton favori
-    favoriteButton.onclick = () => {
-        const id = `${routeId}-${stopId}-${destinationId}`;
-        
-        if (isFavorite(routeId, stopId, destinationId)) {
-            removeFromFavorites(id);
-            favoriteButton.classList.remove('active');
-            favoriteButton.querySelector('svg').setAttribute('fill', 'none');
-        } else {
-            addToFavorites(routeId, stopId, destinationId);
-            favoriteButton.classList.add('active');
-            favoriteButton.querySelector('svg').setAttribute('fill', '#FFD700');
-        }
-    };
-    
-    // Ajoute le bouton favori à l'interface
-    const controlsParent = document.querySelector('#controls').parentNode;
-    controlsParent.style.position = 'relative';
-    controlsParent.appendChild(favoriteButton);
-    
-    // Initialise le sélecteur de date à aujourd'hui
     const dateSelect = document.getElementById('date-select');
     const today = new Date();
     dateSelect.value = today.toISOString().split('T')[0];
     
-    // Active l'onglet théorique par défaut
     document.querySelectorAll('.tab-button').forEach(tab => {
         tab.classList.remove('active');
         if (tab.dataset.tab === 'theoretical') {
             tab.classList.add('active');
         }
     });
-    
-    // Affiche le contenu de l'onglet théorique
+
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.remove('active');
         if (content.id === 'theoretical-view') {
@@ -3414,33 +3517,23 @@ function updateStopsForDestination(routeId, destinationId) {
         }
     });
     
-    // Positionne l'indicateur d'onglet
     const indicator = document.querySelector('.tab-indicator');
-    if (indicator) {
-        indicator.style.transform = 'translateX(0)';
-    }
-    
-    // Met à jour les horaires pour la date sélectionnée
+    indicator.style.transform = 'translateX(0)';
+
     updateScheduleByDate(routeId, stopId, destinationId, dateSelect.value);
-    
-    // S'assure que l'onglet théorique est actif
+
     const theoreticalTab = document.querySelector('.tab-button-gauche[data-tab="theoretical"]');
     if (theoreticalTab) {
         theoreticalTab.click();
     }
-    
-    // Ajoute l'écouteur d'événements pour le changement de date
+
     dateSelect.addEventListener('change', () => {
-        updateScheduleByDate(currentRouteId, currentStopId, destinationId, dateSelect.value);
-    });
+    updateScheduleByDate(currentRouteId, currentStopId, destinationId, dateSelect.value);
+});
     
-    // Configure les gestionnaires d'onglets
     setupTabHandlers();
     
-    // Animation de transition entre les pages
     document.querySelectorAll('.page-transition').forEach(el => el.classList.remove('slide-in'));
-    
-    // Affiche la vue des horaires
     showView('schedule-view');
 }
 
