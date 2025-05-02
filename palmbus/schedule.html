@@ -2223,80 +2223,26 @@ function isServiceActive(serviceId, dateObj) {
 
 async function loadStopTimes(fileContent) {
     const localStopTimes = {}; 
-    const CHUNK_SIZE = 1000; // Nombre de lignes à traiter par lot
-    const CACHE_SEGMENT_SIZE = 500; // Nombre de trajets par segment de cache
     
     try {
         if (!fileContent) {
             console.warn('Aucun contenu de fichier stop_times fourni');
-            return localStopTimes;
-        }
-        
-        // Vérifier si les données sont déjà en cache
-        const cacheTimestamp = localStorage.getItem('stopTimesCacheTimestamp');
-        const currentTime = Date.now();
-        
-        // Si le cache existe et a moins de 24h
-        if (cacheTimestamp && (currentTime - parseInt(cacheTimestamp, 10) < 86400000)) {
-            console.log('Utilisation du cache stop_times...');
-            
-            // Compter le nombre de segments dans le cache
-            let segmentCount = 0;
-            while (localStorage.getItem(`stopTimes_segment_${segmentCount}_info`)) {
-                segmentCount++;
-            }
-            
-            if (segmentCount > 0) {
-                console.log(`Chargement de ${segmentCount} segments depuis le cache...`);
-                
-                for (let i = 0; i < segmentCount; i++) {
-                    const segmentInfo = JSON.parse(localStorage.getItem(`stopTimes_segment_${i}_info`));
-                    if (!segmentInfo) continue;
-                    
-                    const segmentData = localStorage.getItem(`stopTimes_segment_${i}_data`);
-                    if (!segmentData) continue;
-                    
-                    // Décompresser et charger les données
-                    try {
-                        const decompressedData = LZString.decompressFromUTF16(segmentData);
-                        const segmentStopTimes = JSON.parse(decompressedData);
-                        
-                        // Fusionner avec les données locales
-                        Object.assign(localStopTimes, segmentStopTimes);
-                        
-                        if (i % 5 === 0) {
-                            console.log(`Cache: ${Math.round((i+1)/segmentCount*100)}% chargé`);
-                            // Pause pour permettre au navigateur de respirer
-                            await new Promise(resolve => setTimeout(resolve, 0));
-                        }
-                    } catch (e) {
-                        console.warn(`Erreur lors du chargement du segment ${i}:`, e);
-                        // En cas d'erreur, on supprime ce segment du cache
-                        localStorage.removeItem(`stopTimes_segment_${i}_info`);
-                        localStorage.removeItem(`stopTimes_segment_${i}_data`);
-                    }
-                }
-                
-                console.log(`Données chargées depuis le cache: ${Object.keys(localStopTimes).length} trajets`);
-                return localStopTimes;
-            }
+            return;
         }
         
         console.time('Chargement stop_times');
-        console.log('Début du chargement des stop_times (fichier volumineux ~25Mo)...');
+        console.log('Début du chargement des stop_times (fichier volumineux ~20Mo)...');
         
-        // Déterminer le caractère de fin de ligne
         let newlineChar = '\n';
         if (fileContent.indexOf('\r\n') >= 0 && fileContent.indexOf('\r\n') < fileContent.indexOf('\n', 1)) {
             newlineChar = '\r\n';
         }
         
-        // Extraire l'en-tête
         const headerEndPos = fileContent.indexOf(newlineChar);
         const headerLine = fileContent.substring(0, headerEndPos);
+        
         const headers = parseCSVLine(headerLine);
         
-        // Trouver les index des colonnes importantes
         const stopTripIdIndex = headers.indexOf('trip_id');
         const stopIdIndex = headers.indexOf('stop_id');
         const arrivalTimeIndex = headers.indexOf('arrival_time');
@@ -2307,14 +2253,12 @@ async function loadStopTimes(fileContent) {
         
         if (stopTripIdIndex === -1 || stopIdIndex === -1 || arrivalTimeIndex === -1) {
             console.error('Format de fichier stop_times.txt invalide, colonnes requises manquantes');
-            return localStopTimes;
+            return;
         }
         
-        // Compteurs et variables de progression
-        let tempStopTimes = {};
+        const tempStopTimes = new Map();
         let entryCount = 0;
         let warningCount = 0;
-        let processedTripCount = 0;
         const MAX_WARNINGS = 5;
         
         const fileSize = fileContent.length;
@@ -2322,17 +2266,12 @@ async function loadStopTimes(fileContent) {
         let lastProgressReport = 0;
         let currentProgress = 0;
         
-        let cacheSegments = [];
-        let currentSegment = {};
-        let currentSegmentSize = 0;
+        const tripIdSet = new Set();
         
-        // Traiter le fichier ligne par ligne
         let startPos = headerEndPos + newlineChar.length;
         let endPos, line;
-        let currentChunk = [];
         
         while (startPos < fileContent.length) {
-            // Lire une ligne
             endPos = fileContent.indexOf(newlineChar, startPos);
             
             if (endPos === -1) {
@@ -2345,18 +2284,13 @@ async function loadStopTimes(fileContent) {
             
             if (!line.trim()) continue;
             
-            // Rapporter la progression
             currentProgress = startPos;
             if (currentProgress - lastProgressReport > onePercentSize) {
                 const percentComplete = Math.floor((currentProgress / fileSize) * 100);
                 console.log(`Chargement en cours : ${percentComplete}% (${entryCount} arrêts)`);
                 lastProgressReport = currentProgress;
-                
-                // Libérer régulièrement le thread principal
-                await new Promise(resolve => setTimeout(resolve, 0));
             }
             
-            // Parser la ligne CSV
             let values;
             if (line.indexOf('"') === -1) {
                 values = line.split(',');
@@ -2364,7 +2298,6 @@ async function loadStopTimes(fileContent) {
                 values = parseCSVLine(line);
             }
             
-            // Vérifier que la ligne contient assez de données
             if (values.length <= Math.max(stopTripIdIndex, stopIdIndex, arrivalTimeIndex)) {
                 if (warningCount < MAX_WARNINGS) {
                     warningCount++;
@@ -2373,36 +2306,51 @@ async function loadStopTimes(fileContent) {
                 continue;
             }
             
-            // Extraire les données
             const tripId = values[stopTripIdIndex];
             if (!tripId) continue;
             
-            // Créer le tableau pour ce trip_id s'il n'existe pas
-            if (!tempStopTimes[tripId]) {
-                tempStopTimes[tripId] = [];
+            tripIdSet.add(tripId);
+            
+            let tripStops = tempStopTimes.get(tripId);
+            if (!tripStops) {
+                tripStops = [];
+                tempStopTimes.set(tripId, tripStops);
             }
             
-            // Créer l'entrée pour cet arrêt
             const stopEntry = {
                 stop_id: values[stopIdIndex],
                 stop_sequence: stopSequenceIndex !== -1 && values[stopSequenceIndex] ? 
                     parseInt(values[stopSequenceIndex], 10) : 0
             };
             
-            // Traiter l'heure d'arrivée
             if (values[arrivalTimeIndex]) {
-                stopEntry.arrival_time = formatTimeString(values[arrivalTimeIndex]);
+                const timeStr = values[arrivalTimeIndex];
+                const colonPos = timeStr.indexOf(':');
+                if (colonPos !== -1) {
+                    const hour = timeStr.substring(0, colonPos);
+                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
+                    stopEntry.arrival_time = `${hour}h${minute}`;
+                } else {
+                    stopEntry.arrival_time = timeStr;
+                }
             }
             
-            // Traiter l'heure de départ si différente de l'heure d'arrivée
             if (departureTimeIndex !== -1 && values[departureTimeIndex] && 
                 values[departureTimeIndex] !== values[arrivalTimeIndex]) {
-                stopEntry.departure_time = formatTimeString(values[departureTimeIndex]);
+                
+                const timeStr = values[departureTimeIndex];
+                const colonPos = timeStr.indexOf(':');
+                if (colonPos !== -1) {
+                    const hour = timeStr.substring(0, colonPos);
+                    const minute = timeStr.substring(colonPos + 1, colonPos + 3);
+                    stopEntry.departure_time = `${hour}h${minute}`;
+                } else {
+                    stopEntry.departure_time = timeStr;
+                }
             } else {
                 stopEntry.departure_time = stopEntry.arrival_time;
             }
             
-            // Ajouter les types de montée/descente s'ils sont spécifiés
             if (pickupTypeIndex !== -1 && values[pickupTypeIndex] && values[pickupTypeIndex] !== '0') {
                 stopEntry.pickup_type = parseInt(values[pickupTypeIndex], 10);
             }
@@ -2411,304 +2359,40 @@ async function loadStopTimes(fileContent) {
                 stopEntry.drop_off_type = parseInt(values[dropOffTypeIndex], 10);
             }
             
-            // Ajouter l'entrée à la liste des arrêts pour ce trajet
-            tempStopTimes[tripId].push(stopEntry);
+            tripStops.push(stopEntry);
             entryCount++;
             
-            // Traitement par lots pour limiter la consommation mémoire
-            if (Object.keys(tempStopTimes).length >= CACHE_SEGMENT_SIZE) {
-                await processTripBatch(tempStopTimes, localStopTimes, cacheSegments);
-                processedTripCount += Object.keys(tempStopTimes).length;
-                tempStopTimes = {};
-                
-                // Libérer la mémoire
-                if (processedTripCount % (CACHE_SEGMENT_SIZE * 10) === 0) {
-                    await forceMemoryCleanup();
+            if (entryCount % 1000000 === 0) {
+                console.log(`Traitement interméd ${entryCount} arrêts traités..`);
+                for (const [batchTripId, stops] of tempStopTimes) {
+                    stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
+                    localStopTimes[batchTripId] = stops;
+                    tripIdSet.delete(batchTripId);
                 }
+                tempStopTimes.clear();
             }
         }
+    
+        console.log(`Traitement en final tri et finalisation ${tempStopTimes.size} trajets..`);
         
-        // Traiter le dernier lot
-        if (Object.keys(tempStopTimes).length > 0) {
-            await processTripBatch(tempStopTimes, localStopTimes, cacheSegments);
-            processedTripCount += Object.keys(tempStopTimes).length;
-            tempStopTimes = null;
+        for (const [tripId, stops] of tempStopTimes) {
+            stops.sort((a, b) => a.stop_sequence - b.stop_sequence);
+            localStopTimes[tripId] = stops;
         }
         
-        // Sauvegarder les derniers segments dans le cache
-        await saveSegmentsToCache(cacheSegments);
-        cacheSegments = null;
+        tempStopTimes.clear();
+        tripIdSet.clear();
         
-        // Mettre à jour le timestamp du cache
-        localStorage.setItem('stopTimesCacheTimestamp', Date.now().toString());
+        Object.assign(stopTimes, localStopTimes);
         
         console.timeEnd('Chargement stop_times');
-        console.log(`Stop times chargés: ${Object.keys(localStopTimes).length} trajets, ${entryCount} arrêts au total`);
+        console.log(`Stop times chargés ${Object.keys(localStopTimes).length} trajets ${entryCount} arrêts au total`);
         
-        // Libérer la mémoire
         fileContent = null;
-        await forceMemoryCleanup();
-        
-        return localStopTimes;
+        await forceGarbageCollection();
 
     } catch (error) {
-        console.error('Erreur lors du chargement des horaires', error);
-        return localStopTimes;
-    }
-}
-
-async function processTripBatch(tempStopTimes, localStopTimes, cacheSegments) {
-    // Créer un segment pour le cache
-    const segment = {};
-    
-    // Traiter chaque trajet
-    for (const tripId in tempStopTimes) {
-        if (Object.prototype.hasOwnProperty.call(tempStopTimes, tripId)) {
-            // Trier les arrêts par séquence
-            tempStopTimes[tripId].sort((a, b) => a.stop_sequence - b.stop_sequence);
-            
-            // Ajouter au résultat local
-            localStopTimes[tripId] = tempStopTimes[tripId];
-            
-            // Ajouter au segment de cache
-            segment[tripId] = tempStopTimes[tripId];
-        }
-    }
-    
-    // Ajouter le segment à la liste
-    cacheSegments.push(segment);
-    
-    // Sauvegarder régulièrement dans le cache
-    if (cacheSegments.length >= 10) {
-        await saveSegmentsToCache(cacheSegments);
-        cacheSegments.length = 0;
-    }
-    
-    // Libérer le thread principal
-    await new Promise(resolve => setTimeout(resolve, 0));
-}
-
-/**
- * Sauvegarde les segments de données dans le localStorage
- * @param {Array} segments - Segments à sauvegarder
- */
-async function saveSegmentsToCache(segments) {
-    if (!segments || segments.length === 0) return;
-    
-    try {
-        // Récupérer le dernier index utilisé
-        let lastSegmentIndex = parseInt(localStorage.getItem('stopTimesLastSegmentIndex') || '-1', 10);
-        
-        for (let i = 0; i < segments.length; i++) {
-            const segment = segments[i];
-            lastSegmentIndex++;
-            
-            // Informations sur le segment
-            const segmentInfo = {
-                tripCount: Object.keys(segment).length,
-                timestamp: Date.now()
-            };
-            
-            // Compression des données pour économiser de l'espace
-            const segmentDataString = JSON.stringify(segment);
-            const compressedData = LZString.compressToUTF16(segmentDataString);
-            
-            try {
-                // Stocker les informations et les données du segment
-                localStorage.setItem(`stopTimes_segment_${lastSegmentIndex}_info`, JSON.stringify(segmentInfo));
-                localStorage.setItem(`stopTimes_segment_${lastSegmentIndex}_data`, compressedData);
-            } catch (e) {
-                // En cas d'erreur de stockage (quota dépassé), nettoyer le cache
-                console.warn('Erreur lors de la sauvegarde dans le cache:', e);
-                await cleanupCache();
-                
-                // Réessayer une fois
-                try {
-                    localStorage.setItem(`stopTimes_segment_${lastSegmentIndex}_info`, JSON.stringify(segmentInfo));
-                    localStorage.setItem(`stopTimes_segment_${lastSegmentIndex}_data`, compressedData);
-                } catch (e2) {
-                    console.error('Impossible de sauvegarder dans le cache même après nettoyage:', e2);
-                    // Abandonner la sauvegarde de ce segment
-                    lastSegmentIndex--;
-                }
-            }
-            
-            // Pause pour éviter de bloquer l'UI
-            if (i % 3 === 0) {
-                await new Promise(resolve => setTimeout(resolve, 0));
-            }
-        }
-        
-        // Mettre à jour l'index du dernier segment
-        localStorage.setItem('stopTimesLastSegmentIndex', lastSegmentIndex.toString());
-        
-    } catch (error) {
-        console.error('Erreur lors de la sauvegarde des segments dans le cache:', error);
-    }
-}
-
-async function cleanupCache() {
-    try {
-        console.log('Nettoyage du cache stop_times...');
-        
-        // Récupérer tous les segments
-        const segments = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('stopTimes_segment_') && key.endsWith('_info')) {
-                const segmentIndex = parseInt(key.replace('stopTimes_segment_', '').replace('_info', ''), 10);
-                const segmentInfo = JSON.parse(localStorage.getItem(key) || '{}');
-                
-                segments.push({
-                    index: segmentIndex,
-                    timestamp: segmentInfo.timestamp || 0
-                });
-            }
-        }
-        
-        // Trier par ancienneté (du plus ancien au plus récent)
-        segments.sort((a, b) => a.timestamp - b.timestamp);
-        
-        // Supprimer les 30% les plus anciens
-        const toDelete = Math.ceil(segments.length * 0.3);
-        
-        for (let i = 0; i < toDelete; i++) {
-            if (i < segments.length) {
-                const segmentIndex = segments[i].index;
-                localStorage.removeItem(`stopTimes_segment_${segmentIndex}_info`);
-                localStorage.removeItem(`stopTimes_segment_${segmentIndex}_data`);
-            }
-        }
-        
-        console.log(`${toDelete} segments supprimés du cache.`);
-        
-    } catch (error) {
-        console.error('Erreur lors du nettoyage du cache:', error);
-    }
-}
-
-/**
- * Force le nettoyage de la mémoire
- */
-async function forceMemoryCleanup() {
-    try {
-        if (typeof global !== 'undefined' && global.gc) {
-            // Node.js avec --expose-gc
-            global.gc();
-        } else {
-            // Navigateur - tenter de forcer indirectement le GC
-            const mb = 1024 * 1024;
-            const garbageSize = 10 * mb; // 10 MB
-            let garbageArray = [];
-            
-            // Allouer de la mémoire pour forcer le GC
-            try {
-                for (let i = 0; i < 3; i++) {
-                    garbageArray.push(new Uint8Array(garbageSize));
-                }
-            } catch (e) {
-                // L'allocation peut échouer si la mémoire est déjà sous pression
-            }
-            
-            // Libérer les références
-            garbageArray = null;
-        }
-        
-        // Pause pour permettre au GC de faire son travail
-        await new Promise(resolve => setTimeout(resolve, 20));
-        
-    } catch (e) {
-        console.warn('Erreur lors du nettoyage mémoire:', e);
-    }
-}
-
-/**
- * Formate une chaîne de temps au format "HHhMM"
- * @param {string} timeStr - Chaîne de temps au format "HH:MM:SS"
- * @returns {string} - Chaîne formatée "HHhMM"
- */
-function formatTimeString(timeStr) {
-    const colonPos = timeStr.indexOf(':');
-    if (colonPos !== -1) {
-        const hour = timeStr.substring(0, colonPos);
-        const minute = timeStr.substring(colonPos + 1, colonPos + 3);
-        return `${hour}h${minute}`;
-    }
-    return timeStr;
-}
-
-async function cleanupCache() {
-    try {
-        console.log('Nettoyage du cache stop_times...');
-        
-        // Récupérer tous les segments
-        const segments = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('stopTimes_segment_') && key.endsWith('_info')) {
-                const segmentIndex = parseInt(key.replace('stopTimes_segment_', '').replace('_info', ''), 10);
-                const segmentInfo = JSON.parse(localStorage.getItem(key) || '{}');
-                
-                segments.push({
-                    index: segmentIndex,
-                    timestamp: segmentInfo.timestamp || 0
-                });
-            }
-        }
-        
-        // Trier par ancienneté (du plus ancien au plus récent)
-        segments.sort((a, b) => a.timestamp - b.timestamp);
-        
-        // Supprimer les 30% les plus anciens
-        const toDelete = Math.ceil(segments.length * 0.3);
-        
-        for (let i = 0; i < toDelete; i++) {
-            if (i < segments.length) {
-                const segmentIndex = segments[i].index;
-                localStorage.removeItem(`stopTimes_segment_${segmentIndex}_info`);
-                localStorage.removeItem(`stopTimes_segment_${segmentIndex}_data`);
-            }
-        }
-        
-        console.log(`${toDelete} segments supprimés du cache.`);
-        
-    } catch (error) {
-        console.error('Erreur lors du nettoyage du cache:', error);
-    }
-}
-
-/**
- * Force le nettoyage de la mémoire
- */
-async function forceMemoryCleanup() {
-    try {
-        if (typeof global !== 'undefined' && global.gc) {
-            // Node.js avec --expose-gc
-            global.gc();
-        } else {
-            // Navigateur - tenter de forcer indirectement le GC
-            const mb = 1024 * 1024;
-            const garbageSize = 10 * mb; // 10 MB
-            let garbageArray = [];
-            
-            // Allouer de la mémoire pour forcer le GC
-            try {
-                for (let i = 0; i < 3; i++) {
-                    garbageArray.push(new Uint8Array(garbageSize));
-                }
-            } catch (e) {
-                // L'allocation peut échouer si la mémoire est déjà sous pression
-            }
-            
-            // Libérer les références
-            garbageArray = null;
-        }
-        
-        // Pause pour permettre au GC de faire son travail
-        await new Promise(resolve => setTimeout(resolve, 20));
-        
-    } catch (e) {
-        console.warn('Erreur lors du nettoyage mémoire:', e);
+        console.error('Erreur lors du chargement des horaires', error.message);
     }
 }
 
