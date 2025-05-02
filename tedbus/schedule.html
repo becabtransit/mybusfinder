@@ -6,8 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.X.X/dist/protobuf.min.js"></script>
+    <title>MyBusSchedule</title>
     <style>
 @import url('https://fonts.googleapis.com/css?family=League+Spartan:400,700');
+
+@font-face {
+            font-family: 'SegoeUIBoot';
+            src: url('src/fonts/SegoeUIBoot.woff2') format('woff2'),
+                url('src/fonts/SegoeUIBoot.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
 
 body {
     font-family: 'League Spartan', sans-serif;
@@ -1905,23 +1914,166 @@ async function extractGTFSFiles() {
     }
 }
 
+function startWindowsSpinnerAnimation(elementId, interval = 30) {
+    const frames = [
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','','','','','','','','',
+    '','','','','','','','','',''
+  ];
+
+
+  const el = document.getElementById(elementId);
+  if (!el) {
+    return () => {};
+  }
+
+  let i = 0;
+  const timer = setInterval(() => {
+    el.textContent = frames[i];
+    i = (i + 1) % frames.length;
+  }, interval);
+  return () => clearInterval(timer);
+}
+
+function createCloseTabButton() {
+  const closeButton = document.createElement('button');
+  
+  closeButton.innerHTML = '✕';
+  
+  Object.assign(closeButton.style, {
+    position: 'fixed',
+    bottom: '20px',
+    right: '20px',
+    width: '50px',
+    height: '50px',
+    borderRadius: '50%',
+    backgroundColor: '#ff4d4d',
+    color: 'white',
+    fontSize: '20px',
+    border: 'none',
+    cursor: 'pointer',
+    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
+    zIndex: '9999',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    transition: 'all 0.3s ease'
+  });
+  
+  closeButton.onmouseover = () => {
+    closeButton.style.backgroundColor = '#ff0000';
+    closeButton.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.3)';
+    closeButton.style.transform = 'scale(1.1)';
+  };
+  
+  closeButton.onmouseout = () => {
+    closeButton.style.backgroundColor = '#ff4d4d';
+    closeButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+    closeButton.style.transform = 'scale(1)';
+  };
+  
+  closeButton.onclick = () => {
+    try {
+      window.close();
+      setTimeout(() => {
+        alert('Il semble que votre navigateur bloque la fermeture automatique. Veuillez fermer cet onglet manuellement ou appuyer sur Ctrl+W (ou Cmd+W sur Mac).');
+      }, 300);
+    } catch (error) {
+      console.error('Erreur lors de la fermeture de l\'onglet:', error);
+      alert('Il semble que votre navigateur bloque la fermeture automatique. Veuillez fermer cet onglet manuellement ou appuyer sur Ctrl+W (ou Cmd+W sur Mac).');
+    }
+  };
+  
+  document.body.appendChild(closeButton);
+  
+  return closeButton;
+}
+
+document.addEventListener('DOMContentLoaded', createCloseTabButton);
+
 async function loadGtfsData() {
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'loading-overlay';
+    loadingOverlay.style.cssText = `
+        position: fixed; 
+        top: 0; 
+        left: 0; 
+        width: 100%; 
+        height: 100%; 
+        background-color: rgba(255, 255, 255, 0.7); 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        z-index: 9999;
+    `;
+    
+    const loadingContainer = document.createElement('div');
+    loadingContainer.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    `;
+    
+    const spinnerElement = document.createElement('span');
+    spinnerElement.id = 'gtfs-loading-spinner';
+    spinnerElement.style.cssText = `
+        font-family: 'SegoeUIBoot'; 
+        font-size: 2rem; 
+        margin-bottom: 10px;
+    `;
+    
+    const loadingText = document.createElement('div');
+    loadingText.id = 'gtfs-loading-text';
+    loadingText.textContent = 'Chargement des données GTFS...';
+    loadingText.style.cssText = `
+        font-family: 'League Spartan', sans-serif;
+        font-size: 16px;
+        color: #333;
+    `;
+    
+    loadingContainer.appendChild(spinnerElement);
+    loadingContainer.appendChild(loadingText);
+    loadingOverlay.appendChild(loadingContainer);
+    document.body.appendChild(loadingOverlay);
+    
+    const stopSpinner = startWindowsSpinnerAnimation('gtfs-loading-spinner', 30);
+    
     try {
         let extractedFiles;
         
+        const updateLoadingText = (text) => {
+            const textElement = document.getElementById('gtfs-loading-text');
+            if (textElement) textElement.textContent = text;
+        };
+        
+        updateLoadingText('Vérification des mises à jour GTFS...');
         const { needsUpdate, fileHash, metadata } = await checkGTFSUpdate();
         
         if (needsUpdate) {
+            updateLoadingText('Extraction des fichiers GTFS...');
             const result = await extractGTFSFiles();
             extractedFiles = result.extractedFiles;
             
+            updateLoadingText('Sauvegarde des données dans le cache...');
             await saveToCache(extractedFiles, result.metadata);
             
         } else {
+            updateLoadingText('Récupération des données depuis le cache...');
             extractedFiles = await getFromCache();
             if (!extractedFiles) {
+                updateLoadingText('Extraction des fichiers GTFS...');
                 const result = await extractGTFSFiles();
                 extractedFiles = result.extractedFiles;
+                updateLoadingText('Sauvegarde des données dans le cache...');
                 await saveToCache(extractedFiles, result.metadata);
                 toastBottomRight.success(t("downloadsuccess"));
             } 
@@ -1936,21 +2088,49 @@ async function loadGtfsData() {
         
         const loadPromises = [];
         
+        updateLoadingText('Chargement des routes...');
         if (extractedFiles['routes.txt']) loadPromises.push(loadRoutes(extractedFiles['routes.txt']));
+        
+        updateLoadingText('Chargement des trajets...');
         if (extractedFiles['trips.txt']) loadPromises.push(loadTrips(extractedFiles['trips.txt']));
+        
+        updateLoadingText('Chargement des horaires...');
         if (extractedFiles['stop_times.txt']) loadPromises.push((async () => {
             stopTimes = await loadStopTimes(extractedFiles['stop_times.txt']);
         })());
+        
+        updateLoadingText('Chargement des arrêts...');
         if (extractedFiles['stops.txt']) loadPromises.push(loadStops(extractedFiles['stops.txt']));
         
+        updateLoadingText('Chargement du calendrier...');
         if (extractedFiles['calendar.txt']) loadPromises.push(loadCalendar(extractedFiles['calendar.txt']));
+        
+        updateLoadingText('Chargement des dates calendrier...');
         if (extractedFiles['calendar_dates.txt']) loadPromises.push(loadCalendarDates(extractedFiles['calendar_dates.txt']));
         
+        updateLoadingText('Finalisation du chargement...');
         await Promise.all(loadPromises);
+        
+        stopSpinner();
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) overlay.remove();
         
         return true;
     } catch (error) {
         console.error('Erreur lors du chargement des données GTFS', error);
+        
+        const textElement = document.getElementById('gtfs-loading-text');
+        if (textElement) {
+            textElement.textContent = "Erreur lors du chargement des données";
+            textElement.style.color = "red";
+        }
+        
+        stopSpinner();
+        setTimeout(() => {
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.remove();
+        }, 3000);
+        
         toastBottomRight.error("errorfetchingdata");
         throw error;
     }
@@ -2258,14 +2438,14 @@ async function loadStopTimes(fileContent) {
             return localStopTimes;
         }
         
-        const CHUNK_SIZE = 100000; 
-        const FLUSH_THRESHOLD = 100000; 
+        const CHUNK_SIZE = 10000; 
+        const FLUSH_THRESHOLD = 10000; 
         
         let entryCount = 0;
         let warningCount = 0;
         const MAX_WARNINGS = 5;
         let lastProgressReport = Date.now();
-        const PROGRESS_INTERVAL = 500; 
+        const PROGRESS_INTERVAL = 1000; 
         
         let tempTrips = {};
         let tripCount = 0;
@@ -2899,7 +3079,8 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-function showInMap() {
+
+ function showInMap() {
     const event = {
         type: 'vehicleSelected',
         vehicleId: currentVehicleId,
@@ -2911,11 +3092,54 @@ function showInMap() {
     
     if (window.parent !== window) {
         window.parent.postMessage(event, '*');
+        
+        setTimeout(() => {
+            closeStopsTimeline();
+        }, 100);
+    } else if (window.opener) {
+        window.opener.postMessage(event, '*');
+        
+        setTimeout(() => {
+            window.close();
+            
+            setTimeout(() => {
+                alert("Impossible de fermer automatiquement l'onglet. Les données ont bien été envoyées.");
+            }, 300);
+        }, 100);
+    } else {
+        console.log("Données générées mais pas d'endroit où les envoyer", event);
+        
+        try {
+            window.close();
+            
+            setTimeout(() => {
+                alert("Impossible de fermer automatiquement l'onglet. Veuillez le fermer manuellement.");
+                closeStopsTimeline(); 
+            }, 300);
+        } catch (error) {
+            console.error("Erreur lors de la fermeture:", error);
+            closeStopsTimeline(); 
+        }
     }
-    
-    closeStopsTimeline();
 }
 
+
+function tryCloseTab() {
+    try {
+        const closed = window.close();
+        
+        setTimeout(() => {
+            if (!closed) {
+                alert("Votre navigateur empêche la fermeture automatique. Veuillez fermer cet onglet manuellement (Ctrl+W ou Cmd+W).");
+            }
+        }, 200);
+        
+        return closed;
+    } catch (error) {
+        console.error("Erreur lors de la fermeture de l'onglet:", error);
+        return false;
+    }
+}
         function showView(viewId) {
             document.querySelectorAll('.view').forEach(view => {
                 view.classList.remove('active');
