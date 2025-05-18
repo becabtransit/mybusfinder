@@ -5253,72 +5253,70 @@ function closeMenu() {
 function updateMenu() {
     const menu = document.getElementById('menu');
     menu.innerHTML = '';
-
-    // Création de la top bar
+    
+    // Création de la top bar sticky
     const topBar = document.createElement('div');
-    topBar.id = 'topBar';
+    topBar.classList.add('menu-top-bar');
     topBar.style.cssText = `
         position: sticky;
         top: 0;
         left: 0;
         width: 100%;
-        background-color: #1a73e8;
+        background-color: #1a1a1a;
         color: white;
         padding: 15px;
         display: flex;
         align-items: center;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        z-index: 1000;
+        z-index: 1001;
         transition: transform 0.3s ease;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     `;
+    menu.appendChild(topBar);
     
-    // Création de la flèche de retour
-    const backArrow = document.createElement('div');
-    backArrow.innerHTML = '&#8592;';
-    backArrow.style.cssText = `
-        font-size: 20px;
-        margin-right: 15px;
+    // Bouton flèche à gauche
+    const backButton = document.createElement('div');
+    backButton.innerHTML = '&#8592;';
+    backButton.style.cssText = `
+        font-size: 22px;
+        color: white;
         cursor: pointer;
+        padding: 5px 10px;
+        margin-right: 15px;
     `;
-    backArrow.onclick = closeMenu;
+    backButton.onclick = closeMenu;
+    topBar.appendChild(backButton);
     
-    // Création du titre "Réseau"
+    // Titre "Réseau"
     const title = document.createElement('div');
     title.textContent = 'Réseau';
     title.style.cssText = `
-        font-size: 18px;
+        font-size: 20px;
         font-weight: 500;
-        flex-grow: 1;
     `;
-    
-    // Assemblage de la top bar
-    topBar.appendChild(backArrow);
     topBar.appendChild(title);
-    menu.appendChild(topBar);
     
-    // Gestion du scroll (disparition de la top bar)
+    // Ajoutez un div après la topBar pour créer un espace et éviter que le contenu soit caché derrière la topBar
+    const spacer = document.createElement('div');
+    spacer.style.height = '10px'; // Ajustez selon besoin
+    menu.appendChild(spacer);
+
+    // Logique pour masquer la topBar lors du scroll vers le bas
     let lastScrollTop = 0;
     
-    window.addEventListener('scroll', function() {
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    menu.addEventListener('scroll', function() {
+        const scrollTop = menu.scrollTop;
         
-        if (scrollTop > lastScrollTop) {
-            // Scroll vers le bas - cacher la barre
+        if (scrollTop > lastScrollTop && scrollTop > 50) {
+            // Scroll vers le bas, masquer la barre
             topBar.style.transform = 'translateY(-100%)';
         } else {
-            // Scroll vers le haut - afficher la barre
+            // Scroll vers le haut, afficher la barre
             topBar.style.transform = 'translateY(0)';
         }
         
         lastScrollTop = scrollTop;
     });
-    
-    // S'assurer que le contenu du menu ne se superpose pas avec la top bar
-    const menuContent = document.createElement('div');
-    menuContent.style.cssText = `
-        padding-top: 10px; /* espace pour éviter la superposition avec la top bar */
-    `;
-    
+
 let isStandardView = localStorage.getItem('isStandardView') === 'true';
 
 function toggleMapView() {
