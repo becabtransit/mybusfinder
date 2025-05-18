@@ -5256,43 +5256,69 @@ function updateMenu() {
 
     // Création de la top bar
     const topBar = document.createElement('div');
+    topBar.id = 'topBar';
     topBar.style.cssText = `
-        position: absolute;
+        position: sticky;
         top: 0;
         left: 0;
-        right: 0;
-        height: 50px;
-        background-color: #333;
+        width: 100%;
+        background-color: #1a73e8;
         color: white;
+        padding: 15px;
         display: flex;
         align-items: center;
-        padding: 0 15px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         z-index: 1000;
+        transition: transform 0.3s ease;
     `;
-    menu.appendChild(topBar);
-
-    // Flèche retour (remplace la croix)
+    
+    // Création de la flèche de retour
     const backArrow = document.createElement('div');
-    backArrow.innerHTML = '&#8592;'; // Flèche vers la gauche
+    backArrow.innerHTML = '&#8592;';
     backArrow.style.cssText = `
-        font-size: 24px;
+        font-size: 20px;
+        margin-right: 15px;
         cursor: pointer;
-        padding: 5px 15px 5px 0;
     `;
     backArrow.onclick = closeMenu;
-    topBar.appendChild(backArrow);
-
-    // Titre "Réseau"
+    
+    // Création du titre "Réseau"
     const title = document.createElement('div');
     title.textContent = 'Réseau';
     title.style.cssText = `
         font-size: 18px;
-        font-weight: bold;
+        font-weight: 500;
         flex-grow: 1;
-        text-align: center;
-        padding-right: 24px; // Pour compenser la largeur de la flèche et centrer le titre
     `;
+    
+    // Assemblage de la top bar
+    topBar.appendChild(backArrow);
     topBar.appendChild(title);
+    menu.appendChild(topBar);
+    
+    // Gestion du scroll (disparition de la top bar)
+    let lastScrollTop = 0;
+    
+    window.addEventListener('scroll', function() {
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        
+        if (scrollTop > lastScrollTop) {
+            // Scroll vers le bas - cacher la barre
+            topBar.style.transform = 'translateY(-100%)';
+        } else {
+            // Scroll vers le haut - afficher la barre
+            topBar.style.transform = 'translateY(0)';
+        }
+        
+        lastScrollTop = scrollTop;
+    });
+    
+    // S'assurer que le contenu du menu ne se superpose pas avec la top bar
+    const menuContent = document.createElement('div');
+    menuContent.style.cssText = `
+        padding-top: 10px; /* espace pour éviter la superposition avec la top bar */
+    `;
+    
 let isStandardView = localStorage.getItem('isStandardView') === 'true';
 
 function toggleMapView() {
