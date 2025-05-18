@@ -435,8 +435,9 @@ visibility: hidden;
 }
 
 #menu {
+  display: inline-block; 
+  box-sizing: content-box;
   animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-  white-space: nowrap;
   transition: width 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 
@@ -5354,29 +5355,36 @@ fullscreenToggleButton.onclick = () => {
     fullscreenToggleButton.style.transform = 'scale(0.9)';
     setTimeout(() => fullscreenToggleButton.style.transform = 'scale(1)', 150);
 
-    const menu = document.getElementById('menu');
-    const map2 = document.getElementById('map');
-    const contentWidth = menu.scrollWidth + 'px';
+let isExpanded = true;
 
-    if (menu.style.width === '100%') {
-        menu.style.width = menu.offsetWidth + 'px';
-        
-        requestAnimationFrame(() => {
-            menu.style.transition = 'width 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
-            menu.style.width = contentWidth;
-        });
 
-        map2.classList.remove('hidden');
-    } else {
-        menu.style.width = menu.offsetWidth + 'px';
-        
-        requestAnimationFrame(() => {
-            menu.style.transition = 'transition: width 0.5s cubic-bezier(0.25, 1.5, 0.5, 1)';
-            menu.style.width = '100%';
-        });
+  const menu = document.getElementById('menu');
+  const map2 = document.getElementById('map');
 
-        map2.classList.add('hidden');
-    }
+  const currentWidth = menu.offsetWidth;
+  menu.style.width = currentWidth + 'px';
+
+  void menu.offsetWidth;
+
+  if (isExpanded) {
+    const clone = menu.cloneNode(true);
+    clone.style.visibility = 'hidden';
+    clone.style.position = 'absolute';
+    clone.style.width = 'auto';
+    clone.style.maxWidth = 'none';
+    document.body.appendChild(clone);
+    const naturalWidth = clone.offsetWidth;
+    document.body.removeChild(clone);
+
+    menu.style.width = naturalWidth + 'px';
+    map2.classList.remove('hidden');
+  } else {
+    const parentWidth = menu.parentElement.offsetWidth;
+    menu.style.width = parentWidth + 'px';
+    map2.classList.add('hidden');
+  }
+
+  isExpanded = !isExpanded;
 
 };
 
