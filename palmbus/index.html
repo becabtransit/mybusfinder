@@ -5358,35 +5358,41 @@ const map2 = document.getElementById('map');
 const isExpanded = menu.classList.contains('expanded');
 
 if (isExpanded) {
-  // ----------- RETRACTION (vers "auto") -----------
+  // ----------- RETRACTION vers auto -----------
 
-  // 🔒 1. Réinitialiser la largeur pour mesurer l’auto
+  // 1. Réinitialiser la largeur pour mesurer l'auto
   menu.style.width = 'auto';
-  const autoWidth = menu.offsetWidth;
+  const autoWidth = menu.offsetWidth + 'px';
 
-  // 🔁 2. Repasser à largeur actuelle pour animer depuis
-  menu.style.width = menu.offsetWidth + 'px';
+  // 2. Revenir à la largeur courante pour amorcer l'animation
+  const currentWidth = menu.offsetWidth + 'px';
+  menu.style.width = currentWidth;
 
-  // 🔁 3. Forcer le repaint pour garantir transition
+  // 3. Repaint + ensuite appliquer target width
   requestAnimationFrame(() => {
-    menu.style.transition = 'width 0.5s ease';
-    menu.style.width = autoWidth + 'px';
-    menu.classList.remove('expanded');
-    map2.classList.remove('hidden');
+    requestAnimationFrame(() => {
+      menu.style.transition = 'width 0.5s ease';
+      menu.style.width = autoWidth;
+
+      menu.classList.remove('expanded');
+      map2.classList.remove('hidden');
+    });
   });
 
 } else {
-  // ----------- EXPANSION (vers 100%) -----------
+  // ----------- EXPANSION vers 100% -----------
 
-  const currentWidth = menu.offsetWidth;
-  menu.style.width = currentWidth + 'px';
+  const currentWidth = menu.offsetWidth + 'px';
+  menu.style.width = currentWidth;
 
-  // 🔁 Forcer un repaint
   requestAnimationFrame(() => {
-    menu.style.transition = 'width 0.5s ease';
-    menu.style.width = '100%';
-    menu.classList.add('expanded');
-    map2.classList.add('hidden');
+    requestAnimationFrame(() => {
+      menu.style.transition = 'width 0.5s ease';
+      menu.style.width = '100%';
+
+      menu.classList.add('expanded');
+      map2.classList.add('hidden');
+    });
   });
 }
 
