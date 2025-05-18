@@ -1854,6 +1854,24 @@ tarteaucitron.init({
                 }
             });
 
+            FluentSettingsMenu.addSelect("general", "mapview", {
+                icon: "🖌️",
+                label: theme,
+                description: themeselect,
+                value: localStorage.getItem('theme') === 'default' ? 'default' : localStorage.getItem('theme'),
+                options: [
+                { value: 'default', label: defaulttheme },
+                { value: 'dark', label: darktheme },
+                { value: 'hero', label: hero },
+                { value: 'corail', label: corail },
+                { value: 'barbie', label: barbie },
+                { value: 'palmbus', label: palmbus }
+                ],
+                onChange: function (value) {
+                changeColorBkg(value);
+                }
+            });
+
             FluentSettingsMenu.addToggle("general", "locate", {
                 icon: "📍",
                 label: locateonstart,
@@ -2030,16 +2048,37 @@ const vehicleTypes = {
 
 let map;
 
-async function setColors() {
+async function changeColorBkg(selectedTheme = null) {
     const data = await getSetvar();
-    if (data) {
-        document.getElementById("menubtm").style.backgroundColor = `${data.colorbkg}9c`;
-        document.getElementById("filtre").style.backgroundColor = `${data.colorbkg}9c`;
-        window.colorbkg = data.colorbkg;
+    const defaultColor = data && data.colorbkg ? data.colorbkg : "#0078D4";
 
-    }
+    const themes = {
+        default: defaultColor,   
+        dark: "#1E1E1E",
+        hero: "#3B3B98",
+        corail: "#FF6F61",
+        barbie: "#E0218A",
+        palmbus: "#FFD700"
+    };
+
+    const savedTheme = localStorage.getItem("theme") || "default";
+    const theme = selectedTheme || savedTheme;
+
+    const baseColor = themes[theme] || themes["default"];
+    const colorWithAlpha = `${baseColor}9c`;
+
+    localStorage.setItem("theme", theme);
+    localStorage.setItem("colorbkg", baseColor);
+
+    document.getElementById("menubtm").style.backgroundColor = colorWithAlpha;
+    document.getElementById("filtre").style.backgroundColor = colorWithAlpha;
+    window.colorbkg = baseColor;
 }
-setColors();
+
+(async () => {
+    await changeColorBkg();
+})();
+
 
 setTimeout(() => {
     const logoscr = document.getElementById('logoscr');
