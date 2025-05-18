@@ -1937,13 +1937,11 @@ async function getSetvar() {
 getSetvar();
 
 const FluentSettingsMenu = (function() {
-  // Variables privées
   let menuElement = null;
   let isOpen = false;
   let sections = {};
   let langSwitcher = null;
   
-  // Configuration par défaut
   const DEFAULT_CONFIG = {
     title: "Paramètres",
     accentColor: "#0078d7",
@@ -1954,12 +1952,9 @@ const FluentSettingsMenu = (function() {
     animation: true
   };
   
-  // Options courantes
   let options = { ...DEFAULT_CONFIG };
   
-  /**
-   * Crée les styles du menu
-   */
+
   function createStyles() {
     if (document.getElementById('fluent-settings-styles')) return;
     
@@ -2005,7 +2000,7 @@ const FluentSettingsMenu = (function() {
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         display: none;
         flex-direction: column;
-        font-family: 'Segoe UI', sans-serif;
+        font-family: 'League Spartan', sans-serif;
         z-index: ${options.zIndex};
         overflow: hidden;
         opacity: 0;
@@ -2197,7 +2192,7 @@ const FluentSettingsMenu = (function() {
         border-radius: 4px;
         border: 1px solid #ddd;
         background-color: rgba(255, 255, 255, 0.8);
-        font-family: 'Segoe UI', sans-serif;
+        font-family: 'League Spartan', sans-serif;
         font-size: 14px;
         color: #333;
       }
@@ -2211,19 +2206,14 @@ const FluentSettingsMenu = (function() {
     document.head.appendChild(styleElement);
   }
   
-  /**
-   * Crée l'élément du menu principal
-   */
+
   function createMenuElement() {
-    // Backdrop (fond semi-transparent)
     const backdrop = document.createElement('div');
     backdrop.className = 'fluent-settings-backdrop';
     
-    // Conteneur principal
     const container = document.createElement('div');
     container.className = 'fluent-settings-container';
     
-    // En-tête
     const header = document.createElement('div');
     header.className = 'fluent-settings-header';
     
@@ -2243,16 +2233,13 @@ const FluentSettingsMenu = (function() {
     
     container.appendChild(header);
     
-    // Contenu
     const content = document.createElement('div');
     content.className = 'fluent-settings-content';
     container.appendChild(content);
     
-    // Ajouter les éléments au DOM
     document.body.appendChild(backdrop);
     document.body.appendChild(container);
     
-    // Fermer le menu en cliquant sur le backdrop
     backdrop.addEventListener('click', close);
     
     menuElement = {
@@ -2262,9 +2249,7 @@ const FluentSettingsMenu = (function() {
     };
   }
   
-  /**
-   * Ouvre le menu de paramètres
-   */
+
   function open() {
     if (!menuElement) {
       createStyles();
@@ -2275,7 +2260,6 @@ const FluentSettingsMenu = (function() {
     menuElement.backdrop.style.display = 'block';
     menuElement.container.style.display = 'flex';
     
-    // Force un reflow pour que l'animation fonctionne
     menuElement.container.offsetHeight;
     
     menuElement.backdrop.style.opacity = '1';
@@ -2289,9 +2273,7 @@ const FluentSettingsMenu = (function() {
     isOpen = true;
   }
   
-  /**
-   * Ferme le menu de paramètres
-   */
+
   function close() {
     if (!menuElement || !isOpen) return;
     
@@ -2302,7 +2284,6 @@ const FluentSettingsMenu = (function() {
       menuElement.backdrop.style.display = 'none';
       menuElement.container.style.display = 'none';
       
-      // Réinitialiser tous les sous-menus
       const submenus = menuElement.container.querySelectorAll('.fluent-settings-submenu');
       submenus.forEach(submenu => {
         submenu.style.transform = 'translateX(100%)';
@@ -2312,9 +2293,7 @@ const FluentSettingsMenu = (function() {
     isOpen = false;
   }
   
-  /**
-   * Crée une section de paramètres
-   */
+
   function createSection(id, title) {
     if (sections[id]) {
       console.warn(`Une section avec l'ID "${id}" existe déjà.`);
@@ -2330,9 +2309,7 @@ const FluentSettingsMenu = (function() {
     return sections[id];
   }
   
-  /**
-   * Ajoute un élément toggle (switch) à une section
-   */
+
   function addToggle(sectionId, id, options) {
     const section = sections[sectionId];
     if (!section) {
@@ -2353,9 +2330,7 @@ const FluentSettingsMenu = (function() {
     return this;
   }
   
-  /**
-   * Ajoute un élément sélecteur à une section
-   */
+
   function addSelect(sectionId, id, options) {
     const section = sections[sectionId];
     if (!section) {
@@ -2384,10 +2359,8 @@ function addSubmenu(sectionId, id, options) {
     return;
   }
   
-  // Créer un ID unique pour le sous-menu
   const submenuId = `submenu-${id}`;
   
-  // Créer une section pour le sous-menu s'il n'existe pas déjà
   if (!sections[submenuId]) {
     createSection(submenuId, options.title || 'Sous-menu');
   }
@@ -2399,15 +2372,13 @@ function addSubmenu(sectionId, id, options) {
     icon: options.icon || '⚙️',
     label: options.label || 'Sous-menu',
     description: options.description || '',
-    onclick: options.onclick || null // Ajout du support pour l'attribut onclick
+    onclick: options.onclick || null 
   });
   
   return this;
 }
   
-  /**
-   * Ajoute un changeur de langue
-   */
+
   function addLanguageSwitcher(sectionId, options = {}) {
     const section = sections[sectionId];
     if (!section) {
@@ -2415,7 +2386,6 @@ function addSubmenu(sectionId, id, options) {
       return;
     }
     
-    // Configuration par défaut des langues
     const languages = options.languages || [
       { code: 'fr', name: 'Français 🇫🇷' },
       { code: 'en', name: 'English 🇬🇧' }
@@ -2431,7 +2401,6 @@ function addSubmenu(sectionId, id, options) {
       currentLang: options.currentLang || (window.i18n ? window.i18n.currentLang : languages[0].code),
       onChange: options.onChange || function(lang) {
         if (window.i18n) {
-          // Utiliser la logique existante de votre fonction de changement de langue
           const newLang = lang;
           
           if (newLang !== window.i18n.currentLang) {
@@ -2468,7 +2437,6 @@ function addSubmenu(sectionId, id, options) {
       }
     });
     
-    // Importation du switcher de langue existant
     if (window.createLanguageSwitcher) {
       langSwitcher = window.createLanguageSwitcher();
     } else if (window.langSwitcher) {
@@ -2478,38 +2446,30 @@ function addSubmenu(sectionId, id, options) {
     return this;
   }
   
-  /**
-   * Rend toutes les sections dans le menu
-   */
+
   function renderSections() {
     if (!menuElement) return;
     
-    // Vider le contenu actuel
     menuElement.content.innerHTML = '';
     
-    // Rendre chaque section
     Object.values(sections).forEach(section => {
-      if (section.id.startsWith('submenu-')) return; // Les sous-menus sont rendus séparément
+      if (section.id.startsWith('submenu-')) return; 
       
       renderSection(section);
     });
   }
   
-  /**
-   * Rend une section spécifique
-   */
+
   function renderSection(section) {
     const sectionElement = document.createElement('div');
     sectionElement.className = 'fluent-settings-section';
     sectionElement.dataset.sectionId = section.id;
     
-    // Titre de la section
     const titleElement = document.createElement('h3');
     titleElement.className = 'fluent-settings-section-title';
     titleElement.textContent = section.title;
     sectionElement.appendChild(titleElement);
     
-    // Éléments de la section
     section.items.forEach(item => {
       const itemElement = renderItem(item, section.id);
       sectionElement.appendChild(itemElement);
@@ -2517,7 +2477,6 @@ function addSubmenu(sectionId, id, options) {
     
     menuElement.content.appendChild(sectionElement);
     
-    // Rendre les sous-menus associés à cette section
     section.items.forEach(item => {
       if (item.type === 'submenu') {
         renderSubmenu(item.submenuId, section.id, item.label);
@@ -2525,21 +2484,17 @@ function addSubmenu(sectionId, id, options) {
     });
   }
   
-  /**
-   * Rend un élément spécifique
-   */
+
   function renderItem(item, sectionId) {
     const itemElement = document.createElement('div');
     itemElement.className = 'fluent-settings-item';
     itemElement.dataset.itemId = item.id;
     
-    // Icône
     const iconElement = document.createElement('div');
     iconElement.className = 'fluent-settings-item-icon';
     iconElement.textContent = item.icon;
     itemElement.appendChild(iconElement);
     
-    // Contenu (label + description)
     const contentElement = document.createElement('div');
     contentElement.className = 'fluent-settings-item-content';
     
@@ -2557,7 +2512,6 @@ function addSubmenu(sectionId, id, options) {
     
     itemElement.appendChild(contentElement);
     
-    // Contrôle spécifique au type d'élément
     const controlElement = document.createElement('div');
     controlElement.className = 'fluent-settings-item-control';
     
@@ -2610,14 +2564,11 @@ function addSubmenu(sectionId, id, options) {
         indicator.textContent = '❯';
         controlElement.appendChild(indicator);
         
-        // Rendre l'élément entier cliquable pour ouvrir le sous-menu
         itemElement.addEventListener('click', (event) => {
-        // Exécuter la fonction onclick personnalisée si elle existe
         if (item.onclick && typeof item.onclick === 'function') {
             item.onclick(event);
         }
         
-        // Comportement par défaut pour les sous-menus (afficher le sous-menu)
         if (item.type === 'submenu') {
             const submenu = menuElement.container.querySelector(`.fluent-settings-submenu[data-submenu-id="${item.submenuId}"]`);
             if (submenu) {
@@ -2655,9 +2606,6 @@ function addSubmenu(sectionId, id, options) {
     return itemElement;
   }
   
-  /**
-   * Rend un sous-menu
-   */
   function renderSubmenu(submenuId, parentSectionId, title) {
     const submenuSection = sections[submenuId];
     if (!submenuSection) return;
@@ -2667,7 +2615,6 @@ function addSubmenu(sectionId, id, options) {
     submenuElement.dataset.submenuId = submenuId;
     submenuElement.style.transform = 'translateX(100%)';
     
-    // Bouton retour
     const backButton = document.createElement('div');
     backButton.className = 'fluent-settings-back';
     
@@ -2687,13 +2634,11 @@ function addSubmenu(sectionId, id, options) {
     
     submenuElement.appendChild(backButton);
     
-    // En-tête du sous-menu
     const headerElement = document.createElement('h3');
     headerElement.className = 'fluent-settings-section-title';
     headerElement.textContent = title || submenuSection.title;
     submenuElement.appendChild(headerElement);
     
-    // Éléments du sous-menu
     submenuSection.items.forEach(item => {
       const itemElement = renderItem(item, submenuId);
       submenuElement.appendChild(itemElement);
@@ -2701,28 +2646,21 @@ function addSubmenu(sectionId, id, options) {
     
     menuElement.container.appendChild(submenuElement);
     
-    // Rendre récursivement les sous-menus de ce sous-menu
     submenuSection.items.forEach(item => {
       if (item.type === 'submenu') {
         renderSubmenu(item.submenuId, submenuId, item.label);
       }
     });
   }
-  
-  /**
-   * Initialise le menu avec des options personnalisées
-   */
+
   function init(customOptions = {}) {
     options = { ...DEFAULT_CONFIG, ...customOptions };
     
-    // Si le menu existe déjà, le recréer avec les nouvelles options
     if (menuElement) {
-      // Supprimer les éléments existants
       menuElement.backdrop.remove();
       menuElement.container.remove();
       menuElement = null;
       
-      // Recréer les styles
       const oldStyles = document.getElementById('fluent-settings-styles');
       if (oldStyles) oldStyles.remove();
       
@@ -2732,7 +2670,6 @@ function addSubmenu(sectionId, id, options) {
     return this;
   }
   
-  // API publique
   return {
     init,
     open,
@@ -2751,7 +2688,6 @@ FluentSettingsMenu.init({
   accentColor: "#0078d7" 
 });
 
-// Créer des sections
 FluentSettingsMenu.createSection("general", t("general"));
 FluentSettingsMenu.createSection("advanced", t("advanced"));
 FluentSettingsMenu.createSection("about", t("aboutmbf"));
@@ -2801,7 +2737,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-// Ajouter un sélecteur de langue
 FluentSettingsMenu.addLanguageSwitcher("general", {
   icon: "🌐",
   label: t("selectlanguage"),
@@ -2836,8 +2771,6 @@ FluentSettingsMenu.addSubmenu("about", "aboutsub", {
 });
 
 
-// Ouvrir le menu
- FluentSettingsMenu.open();
 
 const vehicleModels = {};
 
@@ -6308,6 +6241,30 @@ function updateMenu() {
         font-weight: 500;
     `;
     topBar.appendChild(title);
+
+    const settingsButton = document.createElement('div');
+    settingsButton.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 15.5C13.933 15.5 15.5 13.933 15.5 12C15.5 10.067 13.933 8.5 12 8.5C10.067 8.5 8.5 10.067 8.5 12C8.5 13.933 10.067 15.5 12 15.5Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M19.4 15A1.65 1.65 0 0 0 21 13.35V10.65A1.65 1.65 0 0 0 19.4 9L18.35 7.05A1.65 1.65 0 0 0 16.65 6H14.95L14.05 4.6A1.65 1.65 0 0 0 12.5 3.5H11.5A1.65 1.65 0 0 0 9.95 4.6L9.05 6H7.35A1.65 1.65 0 0 0 5.65 7.05L4.6 9A1.65 1.65 0 0 0 3 10.65V13.35A1.65 1.65 0 0 0 4.6 15L5.65 16.95A1.65 1.65 0 0 0 7.35 18H9.05L9.95 19.4A1.65 1.65 0 0 0 11.5 20.5H12.5A1.65 1.65 0 0 0 14.05 19.4L14.95 18H16.65A1.65 1.65 0 0 0 18.35 16.95L19.4 15Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    `;
+    settingsButton.style.cssText = `
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 8px;
+        transition: background 0.2s ease;
+    `;
+    settingsButton.onmouseover = () => settingsButton.style.background = 'rgba(255, 255, 255, 0.1)';
+    settingsButton.onmouseout = () => settingsButton.style.background = 'transparent';
+
+    settingsButton.onclick = () => FluentSettingsMenu.open();
+    topBar.appendChild(settingsButton);
+
     
     const spacer = document.createElement('div');
     spacer.style.height = '15px'; 
