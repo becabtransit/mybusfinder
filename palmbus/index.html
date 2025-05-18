@@ -4966,6 +4966,46 @@ function startWindowsSpinnerAnimation(elementId, interval = 30) {
   return () => clearInterval(timer);
 }
 
+let isStandardView = localStorage.getItem('isStandardView') === 'true';
+
+function toggleMapView(forceState) {
+    if (forceState !== undefined) {
+        isStandardView = forceState;
+    } else {
+        isStandardView = !isStandardView;
+    }
+    
+    localStorage.setItem('isStandardView', isStandardView);
+
+    const menubottom1 = document.getElementById('menubtm');
+    const menu = document.getElementById('menu');
+    const mapp = document.getElementById('map');
+    mapp.style.opacity = '1';
+    menu.classList.add('hidden');
+    const map = document.getElementById('map');
+    map.classList.remove('hidden');
+    window.isMenuShowed = false;
+    menu.addEventListener('animationend', function onAnimationEnd(event) {
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+            menu.style.display = 'none';
+        }
+    });
+    isMenuVisible = false;
+    menubottom1.style.display = 'flex';
+    setTimeout(() => {
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
+        if (selectedLine) {
+            const filtre = document.getElementById('filtre');
+            filtre.classList.remove('slide-upc');
+            filtre.classList.add('slide-downc');
+            filtre.style.display = 'flex';
+        }
+    }, 10);
+
+    applyMapView();
+}
+
 
 async function fetchVehiclePositions() {
 
