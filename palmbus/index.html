@@ -1936,7 +1936,862 @@ async function getSetvar() {
 
 getSetvar();
 
+const FluentSettingsMenu = (function() {
+  // Variables privées
+  let menuElement = null;
+  let isOpen = false;
+  let sections = {};
+  let langSwitcher = null;
+  
+  // Configuration par défaut
+  const DEFAULT_CONFIG = {
+    title: "Paramètres",
+    accentColor: "#0078d7",
+    width: "400px",
+    height: "500px",
+    zIndex: 10000,
+    showCloseButton: true,
+    animation: true
+  };
+  
+  // Options courantes
+  let options = { ...DEFAULT_CONFIG };
+  
+  /**
+   * Crée les styles du menu
+   */
+  function createStyles() {
+    if (document.getElementById('fluent-settings-styles')) return;
+    
+    const styleElement = document.createElement('style');
+    styleElement.id = 'fluent-settings-styles';
+    styleElement.textContent = `
+      @keyframes fluentFadeIn {
+        from { opacity: 0; transform: translate(-50%, -48%); }
+        to { opacity: 1; transform: translate(-50%, -50%); }
+      }
+      
+      @keyframes fluentBackdropFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      
+      .fluent-settings-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
+        z-index: ${options.zIndex - 1};
+        display: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      
+      .fluent-settings-container {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: ${options.width};
+        height: ${options.height};
+        background-color: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border-radius: 8px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        display: none;
+        flex-direction: column;
+        font-family: 'Segoe UI', sans-serif;
+        z-index: ${options.zIndex};
+        overflow: hidden;
+        opacity: 0;
+      }
+      
+      .fluent-settings-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      }
+      
+      .fluent-settings-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+        margin: 0;
+      }
+      
+      .fluent-settings-close {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: transparent;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        color: #666;
+        transition: background-color 0.2s;
+      }
+      
+      .fluent-settings-close:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+      }
+      
+      .fluent-settings-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0;
+      }
+      
+      .fluent-settings-section {
+        padding: 0;
+        margin: 0;
+      }
+      
+      .fluent-settings-section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: ${options.accentColor};
+        padding: 12px 20px 8px;
+        margin: 0;
+      }
+      
+      .fluent-settings-item {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+      
+      .fluent-settings-item:hover {
+        background-color: rgba(0, 0, 0, 0.03);
+      }
+      
+      .fluent-settings-item-icon {
+        width: 18px;
+        height: 18px;
+        margin-right: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        color: #666;
+      }
+      
+      .fluent-settings-item-content {
+        flex: 1;
+      }
+      
+      .fluent-settings-item-label {
+        font-size: 14px;
+        color: #333;
+        margin-bottom: 3px;
+      }
+      
+      .fluent-settings-item-description {
+        font-size: 12px;
+        color: #666;
+      }
+      
+      .fluent-settings-item-control {
+        margin-left: 10px;
+      }
+      
+      .fluent-settings-submenu-indicator {
+        margin-left: 8px;
+        color: #666;
+        font-size: 10px;
+      }
+      
+      .fluent-settings-back {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        cursor: pointer;
+        background-color: rgba(0, 0, 0, 0.02);
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      }
+      
+      .fluent-settings-back:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+      }
+      
+      .fluent-settings-back-icon {
+        margin-right: 10px;
+        font-size: 12px;
+      }
+      
+      .fluent-settings-back-text {
+        font-size: 14px;
+        color: #555;
+      }
+      
+      .fluent-settings-submenu {
+        position: absolute;
+        top: 0;
+        left: 100%;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.85);
+        transition: transform 0.3s ease;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .fluent-switch {
+        position: relative;
+        display: inline-block;
+        width: 40px;
+        height: 20px;
+      }
+      
+      .fluent-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      
+      .fluent-switch-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 20px;
+      }
+      
+      .fluent-switch-slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 2px;
+        bottom: 2px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+      }
+      
+      input:checked + .fluent-switch-slider {
+        background-color: ${options.accentColor};
+      }
+      
+      input:checked + .fluent-switch-slider:before {
+        transform: translateX(20px);
+      }
+      
+      .fluent-select {
+        padding: 5px 10px;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+        background-color: rgba(255, 255, 255, 0.8);
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 14px;
+        color: #333;
+      }
+      
+      .fluent-select:focus {
+        outline: none;
+        border-color: ${options.accentColor};
+      }
+    `;
+    
+    document.head.appendChild(styleElement);
+  }
+  
+  /**
+   * Crée l'élément du menu principal
+   */
+  function createMenuElement() {
+    // Backdrop (fond semi-transparent)
+    const backdrop = document.createElement('div');
+    backdrop.className = 'fluent-settings-backdrop';
+    
+    // Conteneur principal
+    const container = document.createElement('div');
+    container.className = 'fluent-settings-container';
+    
+    // En-tête
+    const header = document.createElement('div');
+    header.className = 'fluent-settings-header';
+    
+    const title = document.createElement('h2');
+    title.className = 'fluent-settings-title';
+    title.textContent = options.title;
+    
+    header.appendChild(title);
+    
+    if (options.showCloseButton) {
+      const closeButton = document.createElement('button');
+      closeButton.className = 'fluent-settings-close';
+      closeButton.innerHTML = '✕';
+      closeButton.addEventListener('click', close);
+      header.appendChild(closeButton);
+    }
+    
+    container.appendChild(header);
+    
+    // Contenu
+    const content = document.createElement('div');
+    content.className = 'fluent-settings-content';
+    container.appendChild(content);
+    
+    // Ajouter les éléments au DOM
+    document.body.appendChild(backdrop);
+    document.body.appendChild(container);
+    
+    // Fermer le menu en cliquant sur le backdrop
+    backdrop.addEventListener('click', close);
+    
+    menuElement = {
+      backdrop,
+      container,
+      content
+    };
+  }
+  
+  /**
+   * Ouvre le menu de paramètres
+   */
+  function open() {
+    if (!menuElement) {
+      createStyles();
+      createMenuElement();
+      renderSections();
+    }
+    
+    menuElement.backdrop.style.display = 'block';
+    menuElement.container.style.display = 'flex';
+    
+    // Force un reflow pour que l'animation fonctionne
+    menuElement.container.offsetHeight;
+    
+    menuElement.backdrop.style.opacity = '1';
+    menuElement.container.style.opacity = '1';
+    
+    if (options.animation) {
+      menuElement.container.style.animation = 'fluentFadeIn 0.3s forwards';
+      menuElement.backdrop.style.animation = 'fluentBackdropFadeIn 0.3s forwards';
+    }
+    
+    isOpen = true;
+  }
+  
+  /**
+   * Ferme le menu de paramètres
+   */
+  function close() {
+    if (!menuElement || !isOpen) return;
+    
+    menuElement.backdrop.style.opacity = '0';
+    menuElement.container.style.opacity = '0';
+    
+    setTimeout(() => {
+      menuElement.backdrop.style.display = 'none';
+      menuElement.container.style.display = 'none';
+      
+      // Réinitialiser tous les sous-menus
+      const submenus = menuElement.container.querySelectorAll('.fluent-settings-submenu');
+      submenus.forEach(submenu => {
+        submenu.style.transform = 'translateX(100%)';
+      });
+    }, 300);
+    
+    isOpen = false;
+  }
+  
+  /**
+   * Crée une section de paramètres
+   */
+  function createSection(id, title) {
+    if (sections[id]) {
+      console.warn(`Une section avec l'ID "${id}" existe déjà.`);
+      return sections[id];
+    }
+    
+    sections[id] = {
+      id,
+      title,
+      items: []
+    };
+    
+    return sections[id];
+  }
+  
+  /**
+   * Ajoute un élément toggle (switch) à une section
+   */
+  function addToggle(sectionId, id, options) {
+    const section = sections[sectionId];
+    if (!section) {
+      console.error(`Section "${sectionId}" non trouvée`);
+      return;
+    }
+    
+    section.items.push({
+      type: 'toggle',
+      id,
+      icon: options.icon || '⚙️',
+      label: options.label || 'Option',
+      description: options.description || '',
+      value: options.value || false,
+      onChange: options.onChange || function() {}
+    });
+    
+    return this;
+  }
+  
+  /**
+   * Ajoute un élément sélecteur à une section
+   */
+  function addSelect(sectionId, id, options) {
+    const section = sections[sectionId];
+    if (!section) {
+      console.error(`Section "${sectionId}" non trouvée`);
+      return;
+    }
+    
+    section.items.push({
+      type: 'select',
+      id,
+      icon: options.icon || '⚙️',
+      label: options.label || 'Option',
+      description: options.description || '',
+      value: options.value || '',
+      options: options.options || [],
+      onChange: options.onChange || function() {}
+    });
+    
+    return this;
+  }
+  
+  /**
+   * Ajoute un sous-menu à une section
+   */
+  function addSubmenu(sectionId, id, options) {
+    const section = sections[sectionId];
+    if (!section) {
+      console.error(`Section "${sectionId}" non trouvée`);
+      return;
+    }
+    
+    // Créer un ID unique pour le sous-menu
+    const submenuId = `submenu-${id}`;
+    
+    // Créer une section pour le sous-menu s'il n'existe pas déjà
+    if (!sections[submenuId]) {
+      createSection(submenuId, options.title || 'Sous-menu');
+    }
+    
+    section.items.push({
+      type: 'submenu',
+      id,
+      submenuId,
+      icon: options.icon || '⚙️',
+      label: options.label || 'Sous-menu',
+      description: options.description || ''
+    });
+    
+    return this;
+  }
+  
+  /**
+   * Ajoute un changeur de langue
+   */
+  function addLanguageSwitcher(sectionId, options = {}) {
+    const section = sections[sectionId];
+    if (!section) {
+      console.error(`Section "${sectionId}" non trouvée`);
+      return;
+    }
+    
+    // Configuration par défaut des langues
+    const languages = options.languages || [
+      { code: 'fr', name: 'Français 🇫🇷' },
+      { code: 'en', name: 'English 🇬🇧' }
+    ];
+    
+    section.items.push({
+      type: 'language',
+      id: 'language-switcher',
+      icon: options.icon || '🌐',
+      label: options.label || 'Langue',
+      description: options.description || 'Changer la langue de l\'interface',
+      languages,
+      currentLang: options.currentLang || (window.i18n ? window.i18n.currentLang : languages[0].code),
+      onChange: options.onChange || function(lang) {
+        if (window.i18n) {
+          // Utiliser la logique existante de votre fonction de changement de langue
+          const newLang = lang;
+          
+          if (newLang !== window.i18n.currentLang) {
+            if (langSwitcher && langSwitcher.updateCurrentLanguage) {
+              langSwitcher.updateCurrentLanguage(newLang);
+            }
+            
+            const transitionOverlay = document.createElement('div');
+            transitionOverlay.style.position = 'fixed';
+            transitionOverlay.style.top = '0';
+            transitionOverlay.style.left = '0';
+            transitionOverlay.style.width = '100%';
+            transitionOverlay.style.height = '100%';
+            transitionOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+            transitionOverlay.style.zIndex = '9999';
+            transitionOverlay.style.opacity = '0';
+            transitionOverlay.style.transition = 'opacity 0.4s ease';
+            document.body.appendChild(transitionOverlay);
+            
+            setTimeout(() => {
+              transitionOverlay.style.opacity = '1';
+              
+              const urlParams = new URLSearchParams(window.location.search);
+              urlParams.set('lang', newLang);
+              
+              localStorage.setItem('preferredLanguage', newLang);
+              
+              setTimeout(() => {
+                window.location.search = urlParams.toString();
+              }, 300);
+            }, 50);
+          }
+        }
+      }
+    });
+    
+    // Importation du switcher de langue existant
+    if (window.createLanguageSwitcher) {
+      langSwitcher = window.createLanguageSwitcher();
+    } else if (window.langSwitcher) {
+      langSwitcher = window.langSwitcher;
+    }
+    
+    return this;
+  }
+  
+  /**
+   * Rend toutes les sections dans le menu
+   */
+  function renderSections() {
+    if (!menuElement) return;
+    
+    // Vider le contenu actuel
+    menuElement.content.innerHTML = '';
+    
+    // Rendre chaque section
+    Object.values(sections).forEach(section => {
+      if (section.id.startsWith('submenu-')) return; // Les sous-menus sont rendus séparément
+      
+      renderSection(section);
+    });
+  }
+  
+  /**
+   * Rend une section spécifique
+   */
+  function renderSection(section) {
+    const sectionElement = document.createElement('div');
+    sectionElement.className = 'fluent-settings-section';
+    sectionElement.dataset.sectionId = section.id;
+    
+    // Titre de la section
+    const titleElement = document.createElement('h3');
+    titleElement.className = 'fluent-settings-section-title';
+    titleElement.textContent = section.title;
+    sectionElement.appendChild(titleElement);
+    
+    // Éléments de la section
+    section.items.forEach(item => {
+      const itemElement = renderItem(item, section.id);
+      sectionElement.appendChild(itemElement);
+    });
+    
+    menuElement.content.appendChild(sectionElement);
+    
+    // Rendre les sous-menus associés à cette section
+    section.items.forEach(item => {
+      if (item.type === 'submenu') {
+        renderSubmenu(item.submenuId, section.id, item.label);
+      }
+    });
+  }
+  
+  /**
+   * Rend un élément spécifique
+   */
+  function renderItem(item, sectionId) {
+    const itemElement = document.createElement('div');
+    itemElement.className = 'fluent-settings-item';
+    itemElement.dataset.itemId = item.id;
+    
+    // Icône
+    const iconElement = document.createElement('div');
+    iconElement.className = 'fluent-settings-item-icon';
+    iconElement.textContent = item.icon;
+    itemElement.appendChild(iconElement);
+    
+    // Contenu (label + description)
+    const contentElement = document.createElement('div');
+    contentElement.className = 'fluent-settings-item-content';
+    
+    const labelElement = document.createElement('div');
+    labelElement.className = 'fluent-settings-item-label';
+    labelElement.textContent = item.label;
+    contentElement.appendChild(labelElement);
+    
+    if (item.description) {
+      const descElement = document.createElement('div');
+      descElement.className = 'fluent-settings-item-description';
+      descElement.textContent = item.description;
+      contentElement.appendChild(descElement);
+    }
+    
+    itemElement.appendChild(contentElement);
+    
+    // Contrôle spécifique au type d'élément
+    const controlElement = document.createElement('div');
+    controlElement.className = 'fluent-settings-item-control';
+    
+    switch (item.type) {
+      case 'toggle':
+        const toggleLabel = document.createElement('label');
+        toggleLabel.className = 'fluent-switch';
+        
+        const toggleInput = document.createElement('input');
+        toggleInput.type = 'checkbox';
+        toggleInput.checked = item.value;
+        toggleInput.addEventListener('change', (e) => {
+          item.value = e.target.checked;
+          if (item.onChange) item.onChange(item.value);
+        });
+        
+        const toggleSlider = document.createElement('span');
+        toggleSlider.className = 'fluent-switch-slider';
+        
+        toggleLabel.appendChild(toggleInput);
+        toggleLabel.appendChild(toggleSlider);
+        controlElement.appendChild(toggleLabel);
+        break;
+        
+      case 'select':
+        const select = document.createElement('select');
+        select.className = 'fluent-select';
+        
+        item.options.forEach(option => {
+          const optionElement = document.createElement('option');
+          optionElement.value = option.value;
+          optionElement.textContent = option.label;
+          if (option.value === item.value) {
+            optionElement.selected = true;
+          }
+          select.appendChild(optionElement);
+        });
+        
+        select.addEventListener('change', (e) => {
+          item.value = e.target.value;
+          if (item.onChange) item.onChange(item.value);
+        });
+        
+        controlElement.appendChild(select);
+        break;
+        
+      case 'submenu':
+        const indicator = document.createElement('span');
+        indicator.className = 'fluent-settings-submenu-indicator';
+        indicator.textContent = '❯';
+        controlElement.appendChild(indicator);
+        
+        // Rendre l'élément entier cliquable pour ouvrir le sous-menu
+        itemElement.addEventListener('click', () => {
+          const submenu = menuElement.container.querySelector(`.fluent-settings-submenu[data-submenu-id="${item.submenuId}"]`);
+          if (submenu) {
+            submenu.style.transform = 'translateX(0)';
+          }
+        });
+        break;
+        
+      case 'language':
+        const langSelect = document.createElement('select');
+        langSelect.className = 'fluent-select';
+        
+        item.languages.forEach(lang => {
+          const optionElement = document.createElement('option');
+          optionElement.value = lang.code;
+          optionElement.textContent = lang.name;
+          if (lang.code === item.currentLang) {
+            optionElement.selected = true;
+          }
+          langSelect.appendChild(optionElement);
+        });
+        
+        langSelect.addEventListener('change', (e) => {
+          item.currentLang = e.target.value;
+          if (item.onChange) item.onChange(item.currentLang);
+        });
+        
+        controlElement.appendChild(langSelect);
+        break;
+    }
+    
+    itemElement.appendChild(controlElement);
+    
+    return itemElement;
+  }
+  
+  /**
+   * Rend un sous-menu
+   */
+  function renderSubmenu(submenuId, parentSectionId, title) {
+    const submenuSection = sections[submenuId];
+    if (!submenuSection) return;
+    
+    const submenuElement = document.createElement('div');
+    submenuElement.className = 'fluent-settings-submenu';
+    submenuElement.dataset.submenuId = submenuId;
+    submenuElement.style.transform = 'translateX(100%)';
+    
+    // Bouton retour
+    const backButton = document.createElement('div');
+    backButton.className = 'fluent-settings-back';
+    
+    const backIcon = document.createElement('span');
+    backIcon.className = 'fluent-settings-back-icon';
+    backIcon.textContent = '❮';
+    backButton.appendChild(backIcon);
+    
+    const backText = document.createElement('span');
+    backText.className = 'fluent-settings-back-text';
+    backText.textContent = `Retour à ${sections[parentSectionId].title}`;
+    backButton.appendChild(backText);
+    
+    backButton.addEventListener('click', () => {
+      submenuElement.style.transform = 'translateX(100%)';
+    });
+    
+    submenuElement.appendChild(backButton);
+    
+    // En-tête du sous-menu
+    const headerElement = document.createElement('h3');
+    headerElement.className = 'fluent-settings-section-title';
+    headerElement.textContent = title || submenuSection.title;
+    submenuElement.appendChild(headerElement);
+    
+    // Éléments du sous-menu
+    submenuSection.items.forEach(item => {
+      const itemElement = renderItem(item, submenuId);
+      submenuElement.appendChild(itemElement);
+    });
+    
+    menuElement.container.appendChild(submenuElement);
+    
+    // Rendre récursivement les sous-menus de ce sous-menu
+    submenuSection.items.forEach(item => {
+      if (item.type === 'submenu') {
+        renderSubmenu(item.submenuId, submenuId, item.label);
+      }
+    });
+  }
+  
+  /**
+   * Initialise le menu avec des options personnalisées
+   */
+  function init(customOptions = {}) {
+    options = { ...DEFAULT_CONFIG, ...customOptions };
+    
+    // Si le menu existe déjà, le recréer avec les nouvelles options
+    if (menuElement) {
+      // Supprimer les éléments existants
+      menuElement.backdrop.remove();
+      menuElement.container.remove();
+      menuElement = null;
+      
+      // Recréer les styles
+      const oldStyles = document.getElementById('fluent-settings-styles');
+      if (oldStyles) oldStyles.remove();
+      
+      createStyles();
+    }
+    
+    return this;
+  }
+  
+  // API publique
+  return {
+    init,
+    open,
+    close,
+    createSection,
+    addToggle,
+    addSelect,
+    addSubmenu,
+    addLanguageSwitcher
+  };
+})();
 
+// Exemple d'utilisation :
+// Initialiser le menu
+FluentSettingsMenu.init({
+  title: "Paramètres de l'application",
+  accentColor: "#0078d7"  // Couleur Fluent Design de Microsoft
+});
+
+// Créer des sections
+FluentSettingsMenu.createSection("general", "Général");
+FluentSettingsMenu.createSection("appearance", "Apparence");
+
+// Ajouter des paramètres
+FluentSettingsMenu.addToggle("general", "notifications", {
+  icon: "🔔",
+  label: "Notifications",
+  description: "Activer les notifications push",
+  value: true,
+  onChange: function(value) {
+    console.log("Notifications:", value);
+  }
+});
+
+// Ajouter un sous-menu
+FluentSettingsMenu.addSubmenu("general", "advanced", {
+  icon: "⚙️",
+  label: "Paramètres avancés",
+  description: "Configuration avancée"
+});
+
+// Ajouter des options au sous-menu
+FluentSettingsMenu.createSection("submenu-advanced", "Paramètres avancés");
+FluentSettingsMenu.addToggle("submenu-advanced", "debug-mode", {
+  icon: "🐛",
+  label: "Mode débogage",
+  description: "Activer les outils de débogage",
+  value: false
+});
+
+// Ajouter un sélecteur de langue
+FluentSettingsMenu.addLanguageSwitcher("general", {
+  icon: "🌐",
+  label: "Langue",
+  description: "Changer la langue de l'interface",
+  languages: [
+    { code: 'fr', name: 'Français 🇫🇷' },
+    { code: 'en', name: 'English 🇬🇧' },
+    { code: 'es', name: 'Español 🇪🇸' }
+  ],
+  currentLang: 'fr'
+});
+
+// Ouvrir le menu
+// FluentSettingsMenu.open();
 
 const vehicleModels = {};
 
