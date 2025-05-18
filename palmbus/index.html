@@ -5355,34 +5355,39 @@ fullscreenToggleButton.onclick = () => {
 
 const menu = document.getElementById('menu');
 const map2 = document.getElementById('map');
-const isExpanded = menu.classList.toggle('expanded');
+const isExpanded = menu.classList.contains('expanded');
 
 if (isExpanded) {
-  // État élargi : de taille naturelle → 100%
-  const naturalWidth = menu.scrollWidth;
-  menu.style.width = naturalWidth + 'px'; // fige la largeur de départ
+  // ----------- RETRACTION (vers "auto") -----------
 
+  // 🔒 1. Réinitialiser la largeur pour mesurer l’auto
+  menu.style.width = 'auto';
+  const autoWidth = menu.offsetWidth;
+
+  // 🔁 2. Repasser à largeur actuelle pour animer depuis
+  menu.style.width = menu.offsetWidth + 'px';
+
+  // 🔁 3. Forcer le repaint pour garantir transition
   requestAnimationFrame(() => {
     menu.style.transition = 'width 0.5s ease';
-    menu.style.width = '100%'; // anime vers pleine largeur
+    menu.style.width = autoWidth + 'px';
+    menu.classList.remove('expanded');
+    map2.classList.remove('hidden');
   });
 
-  map2.classList.add('hidden');
-
 } else {
-  // État réduit : de 100% → largeur du contenu (auto-like)
-  const fullWidth = menu.offsetWidth; // taille actuelle
-  menu.style.transition = 'none';     // désactive transition pour setter départ
-  menu.style.width = fullWidth + 'px';
+  // ----------- EXPANSION (vers 100%) -----------
 
-  // ⚠️ Important : forcer reflow avant l'animation
-  void menu.offsetWidth;
+  const currentWidth = menu.offsetWidth;
+  menu.style.width = currentWidth + 'px';
 
-  const naturalWidth = menu.scrollWidth;
-  menu.style.transition = 'width 0.5s ease';
-  menu.style.width = naturalWidth + 'px'; // anime vers largeur du contenu
-
-  map2.classList.remove('hidden');
+  // 🔁 Forcer un repaint
+  requestAnimationFrame(() => {
+    menu.style.transition = 'width 0.5s ease';
+    menu.style.width = '100%';
+    menu.classList.add('expanded');
+    map2.classList.add('hidden');
+  });
 }
 
 };
