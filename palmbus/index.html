@@ -6438,16 +6438,78 @@ sortedLines.forEach(line => {
                 mainText.style.color = textColor;
                 
                 // Création de la boîte pour l'ID du bus
-                const busIdBox = document.createElement('div');
-                busIdBox.textContent = displayLabel;
-                busIdBox.style.padding = '2px 8px';
-                busIdBox.style.backgroundColor = lineColor;
-                busIdBox.style.borderRadius = '6px';
-                busIdBox.style.fontWeight = 'bold';
-                busIdBox.style.color = textColor;
-                busIdBox.style.display = 'inline-block';
-                busIdBox.style.textAlign = 'center';
-                busIdBox.style.minWidth = '40px';
+                function isLightColor(color) {
+                // Si la couleur est au format hexadécimal, la convertir en RGB
+                if (color.startsWith('#')) {
+                    color = color.substring(1);
+                    // Gestion des formats raccourcis comme #FFF
+                    if (color.length === 3) {
+                        color = color.split('').map(char => char + char).join('');
+                    }
+                    const r = parseInt(color.substr(0, 2), 16);
+                    const g = parseInt(color.substr(2, 2), 16);
+                    const b = parseInt(color.substr(4, 2), 16);
+                    return calculateLuminance(r, g, b) > 0.5;
+                }
+                
+                // Si la couleur est au format rgb() ou rgba()
+                if (color.startsWith('rgb')) {
+                    const rgbValues = color.match(/\d+/g);
+                    if (rgbValues && rgbValues.length >= 3) {
+                        const r = parseInt(rgbValues[0], 10);
+                        const g = parseInt(rgbValues[1], 10);
+                        const b = parseInt(rgbValues[2], 10);
+                        return calculateLuminance(r, g, b) > 0.5;
+                    }
+                }
+                
+                // Pour les couleurs nommées, créons un élément temporaire pour obtenir la valeur RGB
+                const tempElem = document.createElement('div');
+                tempElem.style.color = color;
+                document.body.appendChild(tempElem);
+                const computedColor = window.getComputedStyle(tempElem).color;
+                document.body.removeChild(tempElem);
+                
+                // Maintenant, extrayons les valeurs RGB
+                const rgbValues = computedColor.match(/\d+/g);
+                if (rgbValues && rgbValues.length >= 3) {
+                    const r = parseInt(rgbValues[0], 10);
+                    const g = parseInt(rgbValues[1], 10);
+                    const b = parseInt(rgbValues[2], 10);
+                    return calculateLuminance(r, g, b) > 0.5;
+                }
+                
+                // Par défaut, considérons que c'est une couleur foncée
+                return false;
+            }
+
+            // Calcul de la luminance selon la formule de la perception humaine
+            function calculateLuminance(r, g, b) {
+                // Formule de luminance relative (perception humaine)
+                return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            }
+
+            // Votre code modifié
+            const busIdBox = document.createElement('div');
+            busIdBox.textContent = displayLabel;
+            busIdBox.style.padding = '2px 8px';
+            busIdBox.style.borderRadius = '6px';
+            busIdBox.style.fontWeight = 'bold';
+            busIdBox.style.display = 'inline-block';
+            busIdBox.style.textAlign = 'center';
+            busIdBox.style.minWidth = '40px';
+
+            // Définir la couleur du texte
+            busIdBox.style.color = textColor;
+
+            // Déterminer si la couleur du texte est claire ou foncée
+            if (isLightColor(textColor)) {
+                // Si le texte est clair, utiliser un arrière-plan foncé
+                busIdBox.style.backgroundColor = lineColor || '#333333';
+            } else {
+                // Si le texte est foncé, utiliser un arrière-plan clair
+                busIdBox.style.backgroundColor = lineColor || '#FFFFFF';
+            }
                 
                 // Création du texte d'information
                 const infoText = document.createElement('span');
