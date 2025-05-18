@@ -435,8 +435,6 @@ visibility: hidden;
 }
 
 #menu {
-  display: inline-block; 
-  box-sizing: content-box;
   animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
   transition: width 0.5s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
@@ -5355,36 +5353,35 @@ fullscreenToggleButton.onclick = () => {
     fullscreenToggleButton.style.transform = 'scale(0.9)';
     setTimeout(() => fullscreenToggleButton.style.transform = 'scale(1)', 150);
 
-let isExpanded = true;
+const menu = document.getElementById('menu');
+const map2 = document.getElementById('map');
 
+const isExpanded = menu.classList.toggle('expanded');
 
-  const menu = document.getElementById('menu');
-  const map2 = document.getElementById('map');
+if (isExpanded) {
+  // Passer de "auto" à "100%"
+  const currentWidth = menu.scrollWidth;
+  menu.style.width = currentWidth + 'px'; // fige largeur actuelle
+  map2.classList.add('hidden');
 
-  const currentWidth = menu.offsetWidth;
-  menu.style.width = currentWidth + 'px';
+  requestAnimationFrame(() => {
+    menu.style.transition = 'width 0.5s ease';
+    menu.style.width = '100%'; // déclenche animation vers 100%
+  });
 
-  void menu.offsetWidth;
+} else {
+  // Passer de "100%" à "auto"
+  const fullWidth = menu.offsetWidth;
+  menu.style.width = fullWidth + 'px'; // fige la taille de départ
+  map2.classList.remove('hidden');
 
-  if (isExpanded) {
-    const clone = menu.cloneNode(true);
-    clone.style.visibility = 'hidden';
-    clone.style.position = 'absolute';
-    clone.style.width = 'auto';
-    clone.style.maxWidth = 'none';
-    document.body.appendChild(clone);
-    const naturalWidth = clone.offsetWidth;
-    document.body.removeChild(clone);
-
-    menu.style.width = naturalWidth + 'px';
-    map2.classList.remove('hidden');
-  } else {
-    const parentWidth = menu.parentElement.offsetWidth;
-    menu.style.width = parentWidth + 'px';
-    map2.classList.add('hidden');
-  }
-
-  isExpanded = !isExpanded;
+  // On force un reflow avant de lire scrollWidth
+  requestAnimationFrame(() => {
+    const targetWidth = menu.scrollWidth;
+    menu.style.transition = 'width 0.5s ease';
+    menu.style.width = targetWidth + 'px'; // anime vers la largeur naturelle
+  });
+}
 
 };
 
