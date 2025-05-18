@@ -5355,52 +5355,45 @@ fullscreenToggleButton.onclick = () => {
 
 const menu = document.getElementById('menu');
 const map2 = document.getElementById('map');
+const isExpanded = menu.classList.contains('expanded');
 
-function toggleMenu() {
-  if (menu.classList.contains('expanded')) {
-    // On veut rétracter
+if (isExpanded) {
+  // ----------- RETRACTION vers auto -----------
 
-    // 1. Mesurer largeur minimale (contenu)
-    menu.style.maxWidth = 'none'; // enlever max-width temporairement
-    menu.style.width = 'auto';
-    const minWidth = menu.offsetWidth;
+  // 1. Réinitialiser la largeur pour mesurer l'auto
+  menu.style.width = 'auto';
+  const autoWidth = menu.offsetWidth + 'px';
 
-    // 2. Fixer max-width actuelle comme point de départ
-    const currentMaxWidth = menu.offsetWidth;
-    menu.style.maxWidth = currentMaxWidth + 'px';
+  // 2. Revenir à la largeur courante pour amorcer l'animation
+  const currentWidth = menu.offsetWidth + 'px';
+  menu.style.width = currentWidth;
 
-    // 3. Forcer repaint puis démarrer transition vers minWidth
+  // 3. Repaint + ensuite appliquer target width
+  requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      menu.style.transition = 'max-width 0.5s ease';
-      menu.style.maxWidth = minWidth + 'px';
+      menu.style.transition = 'width 0.5s ease';
+      menu.style.width = autoWidth;
 
-      map2.classList.remove('hidden');
       menu.classList.remove('expanded');
+      map2.classList.remove('hidden');
     });
+  });
 
-    // 4. Après transition, remettre max-width auto pour que ça s'adapte
-    menu.addEventListener('transitionend', function handler() {
-      menu.style.maxWidth = 'none';
-      menu.style.width = 'auto';
-      menu.removeEventListener('transitionend', handler);
-    });
+} else {
+  // ----------- EXPANSION vers 100% -----------
 
-  } else {
-    // On veut étendre
+  const currentWidth = menu.offsetWidth + 'px';
+  menu.style.width = currentWidth;
 
-    // 1. Fixer max-width minimale (contenu actuel)
-    menu.style.maxWidth = menu.offsetWidth + 'px';
-    menu.style.width = 'auto';
-
-    // 2. Forcer repaint puis passer à max-width 100%
+  requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      menu.style.transition = 'max-width 0.5s ease';
-      menu.style.maxWidth = '100%';
+      menu.style.transition = 'width 0.5s ease';
+      menu.style.width = '100%';
 
-      map2.classList.add('hidden');
       menu.classList.add('expanded');
+      map2.classList.add('hidden');
     });
-  }
+  });
 }
 
 };
