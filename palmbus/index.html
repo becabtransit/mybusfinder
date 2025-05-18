@@ -2747,7 +2747,8 @@ FluentSettingsMenu.init({
 
 // Créer des sections
 FluentSettingsMenu.createSection("general", "Général");
-FluentSettingsMenu.createSection("appearance", "Apparence");
+FluentSettingsMenu.createSection("advanced", "Avancé");
+FluentSettingsMenu.createSection("about", "À propos");
 
 FluentSettingsMenu.addToggle("general", "mapview", {
   icon: "🗺️",
@@ -2766,20 +2767,33 @@ function updateMapViewToggle(state) {
   }
 }
 
-// Ajouter un sous-menu
-FluentSettingsMenu.addSubmenu("general", "advanced", {
-  icon: "⚙️",
-  label: "Paramètres avancés",
-  description: "Configuration avancée"
+
+FluentSettingsMenu.addToggle("general", "locate", {
+  icon: "📍",
+  label: "Me localiser au démarrage de l'app",
+  description: "Activer la localisation au démarrage",
+  value: localStorage.getItem('locateonstart') === 'true', 
+  onChange: function(value) {
+    localStorage.setItem('locateonstart', value);
+  }
 });
 
-// Ajouter des options au sous-menu
-FluentSettingsMenu.addToggle("general", "debug-mode", {
-  icon: "🐛",
-  label: "Mode débogage",
-  description: "Activer les outils de débogage",
-  value: false
+function updateLocateToggle(state) {
+  const toggle = FluentSettingsMenu.getToggle("general", "locate");
+  if (toggle && toggle.value !== state) {
+    toggle.setValue(state, false); 
+  }
+}
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (localStorage.getItem('locateonstart') === 'true') {
+        locateUser();
+    } 
 });
+
+
+
 
 // Ajouter un sélecteur de langue
 FluentSettingsMenu.addLanguageSwitcher("general", {
@@ -2795,6 +2809,19 @@ FluentSettingsMenu.addLanguageSwitcher("general", {
   ],
   currentLang: 'fr'
 });
+
+FluentSettingsMenu.addToggle("advanced", "spottingmode", {
+  icon: "📸",
+  label: "Mode spotting (beta)",
+  description: "Activer le mode spotting pour les passionnés",
+  value: false, 
+  onChange: function(value) {
+    toggleSunOrientation(value);
+  }
+});
+
+
+
 
 // Ouvrir le menu
 // FluentSettingsMenu.open();
@@ -3096,21 +3123,24 @@ const sunOverlay = document.getElementById('sun-overlay');
         return 'black'; 
     }
 
-    function toggleSunOrientation() {
+function toggleSunOrientation(forceState) {
+    if (forceState !== undefined) {
+        isSunOrientationVisible = forceState;
+    } else {
         isSunOrientationVisible = !isSunOrientationVisible;
-        
-        if (isSunOrientationVisible) {
-            sunOverlay.style.opacity = 1; 
-            updateSunOrientation();
-            window.nearbyVehiclesControl.show();
-            window.nearbyVehiclesControl.collapse();
-
-        } else {
-            sunOverlay.style.opacity = 0; 
-            setTimeout(() => sunOverlay.innerHTML = '', 500); 
-            window.nearbyVehiclesControl.hide();
-        }
     }
+    
+    if (isSunOrientationVisible) {
+        sunOverlay.style.opacity = 1; 
+        updateSunOrientation();
+        window.nearbyVehiclesControl.show();
+        window.nearbyVehiclesControl.collapse();
+    } else {
+        sunOverlay.style.opacity = 0; 
+        setTimeout(() => sunOverlay.innerHTML = '', 500); 
+        window.nearbyVehiclesControl.hide();
+    }
+}
 
 
 
