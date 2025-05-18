@@ -1936,6 +1936,7 @@ async function getSetvar() {
 
 getSetvar();
 
+setTimeout (() => {
 const FluentSettingsMenu = (function() {
   let menuElement = null;
   let isOpen = false;
@@ -2682,7 +2683,105 @@ function addSubmenu(sectionId, id, options) {
   };
 })();
 
+document.addEventListener('DOMContentLoaded', function() {
+    const settingsmbf = `${t("settingsmbf")}`;
+    const general = `${t("general")}`;
+    const advanced = `${t("advanced")}`;
+    const about = `${t("aboutmbf")}`;
+    const settings = `${t("settings")}`;
+    const satelmode = `${t("satelmode")}`;
+    const satelmodetext = `${t("satelmodetext")}`;
+    const locateonstart = `${t("locateonstart")}`;
+    const locateonstarttext = `${t("locateonstarttext")}`;
+    const selectlanguage = `${t("selectlanguage")}`;
+    const selectlanguagetext = `${t("selectlanguagetext")}`;
+    const spottingmode = `${t("spottingmode")}`;
+    const spottingmodetext = `${t("spottingmodetext")}`;
+    if (localStorage.getItem('locateonstart') === 'true') {
+        locateUser();
+    } 
 
+    FluentSettingsMenu.init({
+  title: settingsmbf,
+  accentColor: "#0078d7" 
+});
+
+FluentSettingsMenu.createSection("general", general);
+FluentSettingsMenu.createSection("advanced", advanced);
+FluentSettingsMenu.createSection("about", about);
+
+FluentSettingsMenu.addToggle("general", "mapview", {
+  icon: "🗺️",
+  label: satelmode,
+  description: satelmodetext,
+  value: localStorage.getItem('isStandardView') === 'true', 
+  onChange: function(value) {
+    toggleMapView(value);
+  }
+});
+
+function updateMapViewToggle(state) {
+  const toggle = FluentSettingsMenu.getToggle("general", "mapview");
+  if (toggle && toggle.value !== state) {
+    toggle.setValue(state, false); 
+  }
+}
+
+
+FluentSettingsMenu.addToggle("general", "locate", {
+  icon: "📍",
+  label: locateonstart,
+  description: locateonstarttext,
+  value: localStorage.getItem('locateonstart') === 'true', 
+  onChange: function(value) {
+    localStorage.setItem('locateonstart', value);
+  }
+});
+
+function updateLocateToggle(state) {
+  const toggle = FluentSettingsMenu.getToggle("general", "locate");
+  if (toggle && toggle.value !== state) {
+    toggle.setValue(state, false); 
+  }
+}
+
+FluentSettingsMenu.addLanguageSwitcher("general", {
+  icon: "🌐",
+  label: selectlanguage,
+  description: selectlanguagetext,
+  languages: [
+    { code: 'fr', name: 'Français 🇫🇷' },
+    { code: 'en', name: 'English 🇬🇧' },
+    { code: 'it', name: 'Italiano 🇮🇹' },
+    { code: 'ar', name: 'Arabe 🇸🇦' },
+
+  ],
+  currentLang: 'fr'
+});
+
+FluentSettingsMenu.addToggle("advanced", "spottingmode", {
+  icon: "📸",
+  label: spottingmode,
+  description: spottingmodetext,
+  value: false, 
+  onChange: function(value) {
+    toggleSunOrientation(value);
+  }
+});
+
+FluentSettingsMenu.addSubmenu("about", "aboutsub", {
+  icon: "⚙️",
+  label: about,
+  description: "My Bus Finder - by BecabTransit",
+    onclick: function() {
+    showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html")
+  }
+});
+
+
+});
+
+}, 2000);
 
 
 
@@ -4943,107 +5042,6 @@ function applyMapView() {
 
 }
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-    const settingsmbf = `${t("settingsmbf")}`;
-    const general = `${t("general")}`;
-    const advanced = `${t("advanced")}`;
-    const about = `${t("aboutmbf")}`;
-    const settings = `${t("settings")}`;
-    const satelmode = `${t("satelmode")}`;
-    const satelmodetext = `${t("satelmodetext")}`;
-    const locateonstart = `${t("locateonstart")}`;
-    const locateonstarttext = `${t("locateonstarttext")}`;
-    const selectlanguage = `${t("selectlanguage")}`;
-    const selectlanguagetext = `${t("selectlanguagetext")}`;
-    const spottingmode = `${t("spottingmode")}`;
-    const spottingmodetext = `${t("spottingmodetext")}`;
-    if (localStorage.getItem('locateonstart') === 'true') {
-        locateUser();
-    } 
-
-    FluentSettingsMenu.init({
-  title: settingsmbf,
-  accentColor: "#0078d7" 
-});
-
-FluentSettingsMenu.createSection("general", general);
-FluentSettingsMenu.createSection("advanced", advanced);
-FluentSettingsMenu.createSection("about", about);
-
-FluentSettingsMenu.addToggle("general", "mapview", {
-  icon: "🗺️",
-  label: satelmode,
-  description: satelmodetext,
-  value: localStorage.getItem('isStandardView') === 'true', 
-  onChange: function(value) {
-    toggleMapView(value);
-  }
-});
-
-function updateMapViewToggle(state) {
-  const toggle = FluentSettingsMenu.getToggle("general", "mapview");
-  if (toggle && toggle.value !== state) {
-    toggle.setValue(state, false); 
-  }
-}
-
-
-FluentSettingsMenu.addToggle("general", "locate", {
-  icon: "📍",
-  label: locateonstart,
-  description: locateonstarttext,
-  value: localStorage.getItem('locateonstart') === 'true', 
-  onChange: function(value) {
-    localStorage.setItem('locateonstart', value);
-  }
-});
-
-function updateLocateToggle(state) {
-  const toggle = FluentSettingsMenu.getToggle("general", "locate");
-  if (toggle && toggle.value !== state) {
-    toggle.setValue(state, false); 
-  }
-}
-
-FluentSettingsMenu.addLanguageSwitcher("general", {
-  icon: "🌐",
-  label: selectlanguage,
-  description: selectlanguagetext,
-  languages: [
-    { code: 'fr', name: 'Français 🇫🇷' },
-    { code: 'en', name: 'English 🇬🇧' },
-    { code: 'it', name: 'Italiano 🇮🇹' },
-    { code: 'ar', name: 'Arabe 🇸🇦' },
-
-  ],
-  currentLang: 'fr'
-});
-
-FluentSettingsMenu.addToggle("advanced", "spottingmode", {
-  icon: "📸",
-  label: spottingmode,
-  description: spottingmodetext,
-  value: false, 
-  onChange: function(value) {
-    toggleSunOrientation(value);
-  }
-});
-
-FluentSettingsMenu.addSubmenu("about", "aboutsub", {
-  icon: "⚙️",
-  label: about,
-  description: "My Bus Finder - by BecabTransit",
-    onclick: function() {
-    showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html")
-  }
-});
-
-
-});
-
-
-
 
 
 async function fetchVehiclePositions() {
