@@ -1820,6 +1820,113 @@ tarteaucitron.init({
         if (langSwitcher && langSwitcher.updateCurrentLanguage) {
         langSwitcher.updateCurrentLanguage(i18n.currentLang);
         }
+        waitForTranslations().then(() => {
+            const settingsmbf = t("settingsmbf");
+            const general = t("general");
+            const advanced = t("advanced");
+            const about = t("aboutmbf");
+            const settings = t("settings");
+            const satelmode = t("satelmode");
+            const satelmodetext = t("satelmodetext");
+            const locateonstart = t("locateonstart");
+            const locateonstarttext = t("locateonstarttext");
+            const selectlanguage = t("selectlanguage");
+            const selectlanguagetext = t("selectlanguagetext");
+            const spottingmode = t("spottingmode");
+            const spottingmodetext = t("spottingmodetext");
+            const theme = t("theme");
+            const themeselect = t("themeselect");
+            const defaulttheme = t("defaulttheme");
+            const darktheme = t("darktheme");
+            const hero = t("hero");
+            const corail = t("corail");
+            const barbie = t("barbie");
+            const palmbus = t("palmbus");            
+
+            FluentSettingsMenu.init({
+                title: settingsmbf,
+                accentColor: "#0078d7"
+            });
+
+            FluentSettingsMenu.createSection("general", general);
+            FluentSettingsMenu.createSection("advanced", advanced);
+            FluentSettingsMenu.createSection("about", about);
+
+            FluentSettingsMenu.addToggle("general", "mapview", {
+                icon: "🗺️",
+                label: satelmode,
+                description: satelmodetext,
+                value: localStorage.getItem('isStandardView') === 'true',
+                onChange: function (value) {
+                toggleMapView(value);
+                }
+            });
+
+            FluentSettingsMenu.addSelect("general", "mapview", {
+                icon: "🖌️",
+                label: theme,
+                description: themeselect,
+                value: localStorage.getItem('theme') === 'default' ? 'default' : localStorage.getItem('theme'),
+                options: [
+                { value: 'default', label: defaulttheme },
+                { value: 'dark', label: darktheme },
+                { value: 'hero', label: hero },
+                { value: 'corail', label: corail },
+                { value: 'barbie', label: barbie },
+                { value: 'palmbus', label: palmbus }
+                ],
+                onChange: function (value) {
+                changeColorBkg(value);
+                }
+            });
+
+            FluentSettingsMenu.addToggle("general", "locate", {
+                icon: "📍",
+                label: locateonstart,
+                description: locateonstarttext,
+                value: localStorage.getItem('locateonstart') === 'true',
+                onChange: function (value) {
+                localStorage.setItem('locateonstart', value);
+                }
+            });
+
+            FluentSettingsMenu.addLanguageSwitcher("general", {
+                icon: "🌐",
+                label: selectlanguage,
+                description: selectlanguagetext,
+                languages: [
+                { code: 'fr', name: 'Français 🇫🇷' },
+                { code: 'en', name: 'English 🇬🇧' },
+                { code: 'it', name: 'Italiano 🇮🇹' },
+                { code: 'ar', name: 'Arabe 🇸🇦' },
+                ],
+                currentLang: i18n.currentLang,
+                onChange: (lang) => {
+                localStorage.setItem('preferredLanguage', lang);
+                location.reload(); // recharge pour refléter les traductions
+                }
+            });
+
+            FluentSettingsMenu.addToggle("advanced", "spottingmode", {
+                icon: "📸",
+                label: spottingmode,
+                description: spottingmodetext,
+                value: false,
+                onChange: function (value) {
+                toggleSunOrientation(value);
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("about", "aboutsub", {
+                icon: "⚙️",
+                label: about,
+                description: "My Bus Finder - by BecabTransit",
+                onclick: function () {
+                showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html");
+                }
+            });
+        });
+
     });
     });
 
@@ -1937,7 +2044,6 @@ async function getSetvar() {
 getSetvar();
 
 
-
 const vehicleModels = {};
 
 const vehicleTypes = {
@@ -1950,16 +2056,48 @@ const vehicleTypes = {
 
 let map;
 
-async function setColors() {
+async function changeColorBkg(selectedTheme = null) {
     const data = await getSetvar();
-    if (data) {
-        document.getElementById("menubtm").style.backgroundColor = `${data.colorbkg}9c`;
-        document.getElementById("filtre").style.backgroundColor = `${data.colorbkg}9c`;
-        window.colorbkg = data.colorbkg;
+    const defaultColor = data && data.colorbkg ? data.colorbkg : "#005A9E";
 
+    const themes = {
+        default: defaultColor,
+        dark: "#121212",
+        hero: "#2A2A6E",
+        corail: "#444444",
+        barbie: "#9A0D5B",
+        palmbus: "#B38F00"
+    };
+
+    const savedTheme = localStorage.getItem("theme") || "default";
+    const theme = selectedTheme || savedTheme;
+
+    const baseColor = themes[theme] || themes["default"];
+    const colorWithAlpha = `${baseColor}9c`;
+
+    localStorage.setItem("theme", theme);
+    localStorage.setItem("colorbkg", baseColor);
+
+    document.getElementById("menubtm").style.backgroundColor = colorWithAlpha;
+    document.getElementById("filtre").style.backgroundColor = colorWithAlpha;
+    document.documentElement.style.backgroundColor = colorWithAlpha;
+
+    window.colorbkg = baseColor;
+    window.isNightMode = (theme === "dark");
+
+    const mapPane = map.getPanes().tilePane;
+    if (window.isNightMode) {
+        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+    } else {
+        mapPane.style.filter = 'none';
     }
 }
-setColors();
+
+
+(async () => {
+    await changeColorBkg();
+})();
+
 
 setTimeout(() => {
     const logoscr = document.getElementById('logoscr');
@@ -2021,19 +2159,7 @@ async function initMap() {
     });
 
     
-   const getSunTimes = (latitude, longitude) => {
-        const currentDate = new Date();
-        const sunTimes = SunCalc.getTimes(currentDate, latitude, longitude);
-        return {
-            sunrise: sunTimes.sunrise,
-            sunset: sunTimes.sunset
-        };
-    };
 
-    const { sunrise, sunset } = getSunTimes(defaultCoords[0], defaultCoords[1]);
-    const currentTime = new Date();
-    
-    const isNightMode = currentTime >= sunset || currentTime <= sunrise;
 
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
     
@@ -2050,8 +2176,9 @@ async function initMap() {
         mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
     } else {
         const mapPane = mapInstance.getPanes().tilePane;
-        mapPane.style.filter = 'none';
+        const html = document.documentElement;
     }
+
 } else {
     const mapPane = mapInstance.getPanes().tilePane;
     mapPane.style.filter = 'none';
@@ -2062,6 +2189,8 @@ async function initMap() {
         format: 'image/jpeg',
         style: 'normal'
     }).addTo(mapInstance);
+    const html = document.documentElement;
+    html.style.backgroundColor = '#373737';
 }
 
 
@@ -2228,21 +2357,24 @@ const sunOverlay = document.getElementById('sun-overlay');
         return 'black'; 
     }
 
-    function toggleSunOrientation() {
+function toggleSunOrientation(forceState) {
+    if (forceState !== undefined) {
+        isSunOrientationVisible = forceState;
+    } else {
         isSunOrientationVisible = !isSunOrientationVisible;
-        
-        if (isSunOrientationVisible) {
-            sunOverlay.style.opacity = 1; 
-            updateSunOrientation();
-            window.nearbyVehiclesControl.show();
-            window.nearbyVehiclesControl.collapse();
-
-        } else {
-            sunOverlay.style.opacity = 0; 
-            setTimeout(() => sunOverlay.innerHTML = '', 500); 
-            window.nearbyVehiclesControl.hide();
-        }
     }
+    
+    if (isSunOrientationVisible) {
+        sunOverlay.style.opacity = 1; 
+        updateSunOrientation();
+        window.nearbyVehiclesControl.show();
+        window.nearbyVehiclesControl.collapse();
+    } else {
+        sunOverlay.style.opacity = 0; 
+        setTimeout(() => sunOverlay.innerHTML = '', 500); 
+        window.nearbyVehiclesControl.hide();
+    }
+}
 
 
 
@@ -2268,7 +2400,6 @@ function showLoadingScreen() {
 
 
 var audio = new Audio("src/sounds/musique.mp3"); 
-
 
 
 let globalStopSpinner = null;
@@ -3771,9 +3902,7 @@ function getVehicleBrandHtmlLight(parkNumber) {
     }
 
     return `
-            <img src="${defaultImagePath}" 
-                 alt="Bus par défaut" 
-                 class="vehicle-thumbnaill"  />
+
     `;
 }
 
@@ -4095,6 +4224,89 @@ function startWindowsSpinnerAnimation(elementId, interval = 30) {
     i = (i + 1) % frames.length;
   }, interval);
   return () => clearInterval(timer);
+}
+
+let isStandardView = localStorage.getItem('isStandardView') === 'true';
+
+function toggleMapView(forceState) {
+    if (forceState !== undefined) {
+        isStandardView = forceState;
+    } else {
+        isStandardView = !isStandardView;
+    }
+    
+    localStorage.setItem('isStandardView', isStandardView);
+
+    const menubottom1 = document.getElementById('menubtm');
+    const menu = document.getElementById('menu');
+    const mapp = document.getElementById('map');
+    mapp.style.opacity = '1';
+    menu.classList.add('hidden');
+    const map = document.getElementById('map');
+    map.classList.remove('hidden');
+    window.isMenuShowed = false;
+    menu.addEventListener('animationend', function onAnimationEnd(event) {
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+            menu.style.display = 'none';
+        }
+    });
+    isMenuVisible = false;
+    menubottom1.style.display = 'flex';
+    setTimeout(() => {
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
+        if (selectedLine) {
+            const filtre = document.getElementById('filtre');
+            filtre.classList.remove('slide-upc');
+            filtre.classList.add('slide-downc');
+            filtre.style.display = 'flex';
+        }
+    }, 10);
+
+    applyMapView();
+}
+
+function applyMapView() {
+    const currentDate = new Date();
+    const latitude = map.getCenter().lat;  
+    const longitude = map.getCenter().lng;  
+
+
+    map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer) {
+            map.removeLayer(layer);
+        }
+    });
+
+    if (!isStandardView) {
+    const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        minZoom: 12,
+        maxZoom: 19,
+    }).addTo(map);
+    
+    if (isNightMode) {
+        const mapPane = map.getPanes().tilePane;
+        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+    } else {
+        const mapPane = map.getPanes().tilePane;
+        mapPane.style.filter = 'none';
+    }
+
+} else {
+    const mapPane = map.getPanes().tilePane;
+    mapPane.style.filter = 'none';
+    
+    const html = document.documentElement;
+    html.style.backgroundColor = '#373737';
+    
+    L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
+        minZoom: 12,
+        maxZoom: 19,
+        format: 'image/jpeg',
+        style: 'normal'
+    }).addTo(map);
+
+}
 }
 
 
@@ -5305,6 +5517,31 @@ function updateMenu() {
         font-weight: 500;
     `;
     topBar.appendChild(title);
+
+    const settingsButton = document.createElement('div');
+    settingsButton.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="3" stroke-width="1.5"></circle>
+            <path d="M3.661 10.639c.472.297.777.803.777 1.361s-.305 1.065-.777 1.362c-.322.202-.53.363-.677.555-.323.421-.465.953-.396 1.479.052.394.285.798.751 1.605.466.807.699 1.21 1.015 1.452.421.323.953.465 1.479.396.24-.032.483-.13.819-.308.494-.261 1.084-.27 1.567.009.483.279.769.795.79 1.353.014.38.05.64.143.864.203.49.592.88 1.082 1.083.368.152.834.152 1.766.152s1.398 0 1.766-.152c.49-.203.88-.593 1.083-1.083.093-.224.129-.484.143-.864.02-.558.306-1.074.79-1.353.483-.279 1.073-.27 1.566-.009.336.178.579.276.819.308.526.069 1.058-.073 1.479-.396.316-.242.549-.645 1.015-1.452.207-.359.368-.639.488-.873m-.81-2.766c-.472-.297-.776-.803-.776-1.361s.304-1.065.776-1.362c.322-.202.529-.364.677-.556.323-.42.466-.952.396-1.478-.052-.394-.285-.798-.751-1.605-.466-.807-.699-1.211-1.015-1.453-.421-.322-.953-.464-1.479-.395-.24.032-.483.129-.819.307-.494.261-1.084.27-1.567-.009-.483-.279-.769-.795-.79-1.353-.014-.38-.05-.64-.143-.864-.203-.49-.592-.88-1.082-1.083C13.398 2 12.932 2 12 2s-1.398 0-1.766.152c-.49.203-.88.593-1.083 1.083-.093.224-.129.484-.143.864-.02.558-.306 1.074-.79 1.353-.483.279-1.073.27-1.566.009a2.633 2.633 0 0 0-.819-.307c-.526-.069-1.058.073-1.479.395-.316.242-.549.646-1.015 1.453-.207.359-.368.639-.488.873" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+    `;
+    settingsButton.style.cssText = `
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 8px;
+        transition: background 0.2s ease;
+    `;
+    settingsButton.onmouseover = () => settingsButton.style.background = 'rgba(255, 255, 255, 0.1)';
+    settingsButton.onmouseout = () => settingsButton.style.background = 'transparent';
+
+    settingsButton.onclick = () => FluentSettingsMenu.open();
+    topBar.appendChild(settingsButton);
+
+
     
     const spacer = document.createElement('div');
     spacer.style.height = '15px'; 
@@ -5326,52 +5563,48 @@ function updateMenu() {
 
 let isStandardView = localStorage.getItem('isStandardView') === 'true';
 
-function toggleMapView() {
-    isStandardView = !isStandardView;
+function toggleMapView(forceState) {
+    if (forceState !== undefined) {
+        isStandardView = forceState;
+    } else {
+        isStandardView = !isStandardView;
+    }
     
     localStorage.setItem('isStandardView', isStandardView);
 
     const menubottom1 = document.getElementById('menubtm');
-        const menu = document.getElementById('menu');
-        const mapp = document.getElementById('map');
-        mapp.style.opacity = '1';
-        menu.classList.add('hidden');
-        const map = document.getElementById('map');
-        map.classList.remove('hidden');
-        window.isMenuShowed = false;
-        menu.addEventListener('animationend', function onAnimationEnd(event) {
-            if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-                menu.style.display = 'none';
-            }
-        });
-        isMenuVisible = false;
-        menubottom1.style.display = 'flex';
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-            if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.remove('slide-upc');
-        filtre.classList.add('slide-downc');
-        filtre.style.display = 'flex';
+    const menu = document.getElementById('menu');
+    const mapp = document.getElementById('map');
+    mapp.style.opacity = '1';
+    menu.classList.add('hidden');
+    const map = document.getElementById('map');
+    map.classList.remove('hidden');
+    window.isMenuShowed = false;
+    menu.addEventListener('animationend', function onAnimationEnd(event) {
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+            menu.style.display = 'none';
         }
-        }, 10);
+    });
+    isMenuVisible = false;
+    menubottom1.style.display = 'flex';
+    setTimeout(() => {
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
+        if (selectedLine) {
+            const filtre = document.getElementById('filtre');
+            filtre.classList.remove('slide-upc');
+            filtre.classList.add('slide-downc');
+            filtre.style.display = 'flex';
+        }
+    }, 10);
 
-    
     applyMapView();
-
 }
 
 function applyMapView() {
     const currentDate = new Date();
     const latitude = map.getCenter().lat;  
     const longitude = map.getCenter().lng;  
-
-    const sunTimes = SunCalc.getTimes(currentDate, latitude, longitude);
-    const sunrise = sunTimes.sunrise;
-    const sunset = sunTimes.sunset;
-
-    const isNightMode = currentDate >= sunset || currentDate <= sunrise;
 
     map.eachLayer(function(layer) {
         if (layer instanceof L.TileLayer) {
@@ -5392,9 +5625,13 @@ function applyMapView() {
         const mapPane = map.getPanes().tilePane;
         mapPane.style.filter = 'none';
     }
+
 } else {
     const mapPane = map.getPanes().tilePane;
     mapPane.style.filter = 'none';
+    
+    const html = document.documentElement;
+    html.style.backgroundColor = '#373737';
     
     L.tileLayer('https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
         minZoom: 12,
@@ -5402,6 +5639,7 @@ function applyMapView() {
         format: 'image/jpeg',
         style: 'normal'
     }).addTo(map);
+
 }
 }
 
@@ -5705,19 +5943,7 @@ function createBottomSheet() {
         locateUser
     );
 
-    const satelliteButton = createStyledButton(
-        t("satellite"), 
-        t("satellitedesc"), 
-        `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3.6 9l1.5 1.5M9 3.6L10.5 5M21 3l-9 9M18.4 15l1.5 1.5M15 18.4l1.5 1.5M3 21l9-9"/>
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M14.5 9.5L19 5"/>
-            <path d="M5 19l4.5-4.5"/>
-        </svg>
-        `,
-        toggleMapView
-    );
+
 
     const histovecButton = createStyledButton(
         t("histovec"), 
@@ -5726,25 +5952,7 @@ function createBottomSheet() {
         `,
         () => showUpdatePopup("histovec.html")
     );
-
-    const togglesun = createStyledButtonBeta(
-        t("spottingmode"), 
-        '', 
-        `
-        `,
-        toggleSunOrientation
-    );
-
-
     
-    
-    const about = createStyledButton(
-        t("about"), 
-        `MBF 3Xperience build ${buildVersion}`, 
-        `
-        `,
-        () => showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html")
-    );
 
 
     bottomSheet.appendChild(dragHandle);
@@ -5784,10 +5992,10 @@ function createBottomSheet() {
     greetingText.textContent = getTransportGreeting();
     bottomSheet.appendChild(greetingText);
 
-    const sedeplacerBox = createStyledBox(t("tomove"), [transportStateContainer, locationButton, satelliteButton]);
+    const sedeplacerBox = createStyledBox(t("tomove"), [transportStateContainer, locationButton]);
     bottomSheet.appendChild(sedeplacerBox);
 
-    const allerplusloinBox = createStyledBox(t("gofurther"), [histovecButton, togglesun, about]);
+    const allerplusloinBox = createStyledBox(t("gofurther"), [histovecButton]);
     bottomSheet.appendChild(allerplusloinBox);
 
     let startY, initialY, isDragging = false;
@@ -6136,9 +6344,8 @@ function showBottomSheet() {
     const mapp1 = document.getElementById('map');
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
-
     mapp1.style.scale = '0.9';
-    mapp1.style.opacity = '0.5';
+    mapp1.style.setProperty('opacity', '0.5', 'important');
     mapp1.style.borderRadius = '20px';
     mapp1.style.transform = 'translateY(-13px)';
 
@@ -6196,10 +6403,13 @@ function closeBottomSheet() {
     const bottomSheet = document.getElementById('bottomSheet');
 
     const mapp = document.getElementById('map');
+
+
     mapp.style.scale = '1';
-    mapp.style.opacity = '1';
+    mapp.style.removeProperty('opacity');
     mapp.style.borderRadius = '0px';
     mapp.style.transform = 'translateY(0px)';
+
 
     safeVibrate(50);
 
@@ -6727,6 +6937,7 @@ const menubottom1 = document.getElementById('menubtm');
             const map = document.getElementById('map');
             map.classList.add('hidden');
             menu.style.display = 'block'; 
+            mapp.style.animationPlayState = 'running';
             isMenuVisible = true; 
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
@@ -6786,7 +6997,760 @@ const menubottom1 = document.getElementById('menubtm');
     }
 }
 
+const FluentSettingsMenu = (function() {
+  let menuElement = null;
+  let isOpen = false;
+  let sections = {};
+  let langSwitcher = null;
+  
+  const DEFAULT_CONFIG = {
+    title: "Paramètres",
+    accentColor: "#0078d7",
+    width: "400px",
+    height: "500px",
+    zIndex: 10000,
+    showCloseButton: true,
+    animation: true
+  };
+  
+  let options = { ...DEFAULT_CONFIG };
+  
 
+  function createStyles() {
+    if (document.getElementById('fluent-settings-styles')) return;
+    
+    const styleElement = document.createElement('style');
+    styleElement.id = 'fluent-settings-styles';
+    styleElement.textContent = `
+      @keyframes fluentFadeIn {
+        from { opacity: 0; transform: translate(-50%, -48%); }
+        to { opacity: 1; transform: translate(-50%, -50%); }
+      }
+      
+      @keyframes fluentBackdropFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      
+      .fluent-settings-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
+        z-index: ${options.zIndex - 1};
+        display: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      
+      .fluent-settings-container {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: ${options.width};
+        height: ${options.height};
+        background-color: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border-radius: 8px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        display: none;
+        flex-direction: column;
+        font-family: 'League Spartan', sans-serif;
+        z-index: ${options.zIndex};
+        overflow: hidden;
+        opacity: 0;
+      }
+      
+      .fluent-settings-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      }
+      
+      .fluent-settings-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+        margin: 0;
+      }
+      
+      .fluent-settings-close {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: transparent;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        color: #666;
+        transition: background-color 0.2s;
+      }
+      
+      .fluent-settings-close:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+      }
+      
+      .fluent-settings-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0;
+      }
+      
+      .fluent-settings-section {
+        padding: 0;
+        margin: 0;
+      }
+      
+      .fluent-settings-section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: ${options.accentColor};
+        padding: 12px 20px 8px;
+        margin: 0;
+      }
+      
+      .fluent-settings-item {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+      
+      .fluent-settings-item:hover {
+        background-color: rgba(0, 0, 0, 0.03);
+      }
+      
+      .fluent-settings-item-icon {
+        width: 18px;
+        height: 18px;
+        margin-right: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        color: #666;
+      }
+      
+      .fluent-settings-item-content {
+        flex: 1;
+      }
+      
+      .fluent-settings-item-label {
+        font-size: 14px;
+        color: #333;
+        margin-bottom: 3px;
+      }
+      
+      .fluent-settings-item-description {
+        font-size: 12px;
+        color: #666;
+      }
+      
+      .fluent-settings-item-control {
+        margin-left: 10px;
+      }
+      
+      .fluent-settings-submenu-indicator {
+        margin-left: 8px;
+        color: #666;
+        font-size: 10px;
+      }
+      
+      .fluent-settings-back {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        cursor: pointer;
+        background-color: rgba(0, 0, 0, 0.02);
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      }
+      
+      .fluent-settings-back:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+      }
+      
+      .fluent-settings-back-icon {
+        margin-right: 10px;
+        font-size: 12px;
+      }
+      
+      .fluent-settings-back-text {
+        font-size: 14px;
+        color: #555;
+      }
+      
+      .fluent-settings-submenu {
+        position: absolute;
+        top: 0;
+        left: 100%;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.85);
+        transition: transform 0.3s ease;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .fluent-switch {
+        position: relative;
+        display: inline-block;
+        width: 40px;
+        height: 20px;
+      }
+      
+      .fluent-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      
+      .fluent-switch-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 20px;
+      }
+      
+      .fluent-switch-slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 2px;
+        bottom: 2px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+      }
+      
+      input:checked + .fluent-switch-slider {
+        background-color: ${options.accentColor};
+      }
+      
+      input:checked + .fluent-switch-slider:before {
+        transform: translateX(20px);
+      }
+      
+      .fluent-select {
+        padding: 5px 10px;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+        background-color: rgba(255, 255, 255, 0.8);
+        font-family: 'League Spartan', sans-serif;
+        font-size: 14px;
+        color: #333;
+      }
+      
+      .fluent-select:focus {
+        outline: none;
+        border-color: ${options.accentColor};
+      }
+    `;
+    
+    document.head.appendChild(styleElement);
+  }
+  
+
+  function createMenuElement() {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'fluent-settings-backdrop';
+    
+    const container = document.createElement('div');
+    container.className = 'fluent-settings-container';
+    
+    const header = document.createElement('div');
+    header.className = 'fluent-settings-header';
+    
+    const title = document.createElement('h2');
+    title.className = 'fluent-settings-title';
+    title.textContent = options.title;
+    
+    header.appendChild(title);
+    
+    if (options.showCloseButton) {
+      const closeButton = document.createElement('button');
+      closeButton.className = 'fluent-settings-close';
+      closeButton.innerHTML = '✕';
+      closeButton.addEventListener('click', close);
+      header.appendChild(closeButton);
+    }
+    
+    container.appendChild(header);
+    
+    const content = document.createElement('div');
+    content.className = 'fluent-settings-content';
+    container.appendChild(content);
+    
+    document.body.appendChild(backdrop);
+    document.body.appendChild(container);
+    
+    backdrop.addEventListener('click', close);
+    
+    menuElement = {
+      backdrop,
+      container,
+      content
+    };
+  }
+  
+
+  function open() {
+    if (!menuElement) {
+      createStyles();
+      createMenuElement();
+      renderSections();
+    }
+    
+    menuElement.backdrop.style.display = 'block';
+    menuElement.container.style.display = 'flex';
+    
+    menuElement.container.offsetHeight;
+    
+    menuElement.backdrop.style.opacity = '1';
+    menuElement.container.style.opacity = '1';
+    
+    if (options.animation) {
+      menuElement.container.style.animation = 'fluentFadeIn 0.3s forwards';
+      menuElement.backdrop.style.animation = 'fluentBackdropFadeIn 0.3s forwards';
+    }
+    
+    isOpen = true;
+  }
+  
+
+  function close() {
+    if (!menuElement || !isOpen) return;
+    
+    menuElement.backdrop.style.opacity = '0';
+    menuElement.container.style.opacity = '0';
+    
+    setTimeout(() => {
+      menuElement.backdrop.style.display = 'none';
+      menuElement.container.style.display = 'none';
+      
+      const submenus = menuElement.container.querySelectorAll('.fluent-settings-submenu');
+      submenus.forEach(submenu => {
+        submenu.style.transform = 'translateX(100%)';
+      });
+    }, 300);
+    
+    isOpen = false;
+  }
+  
+
+  function createSection(id, title) {
+    if (sections[id]) {
+      console.warn(`Une section avec l'ID "${id}" existe déjà.`);
+      return sections[id];
+    }
+    
+    sections[id] = {
+      id,
+      title,
+      items: []
+    };
+    
+    return sections[id];
+  }
+  
+
+  function addToggle(sectionId, id, options) {
+    const section = sections[sectionId];
+    if (!section) {
+      console.error(`Section "${sectionId}" non trouvée`);
+      return;
+    }
+    
+    section.items.push({
+      type: 'toggle',
+      id,
+      icon: options.icon || '⚙️',
+      label: options.label || 'Option',
+      description: options.description || '',
+      value: options.value || false,
+      onChange: options.onChange || function() {}
+    });
+    
+    return this;
+  }
+  
+
+  function addSelect(sectionId, id, options) {
+    const section = sections[sectionId];
+    if (!section) {
+      console.error(`Section "${sectionId}" non trouvée`);
+      return;
+    }
+    
+    section.items.push({
+      type: 'select',
+      id,
+      icon: options.icon || '⚙️',
+      label: options.label || 'Option',
+      description: options.description || '',
+      value: options.value || '',
+      options: options.options || [],
+      onChange: options.onChange || function() {}
+    });
+    
+    return this;
+  }
+  
+function addSubmenu(sectionId, id, options) {
+  const section = sections[sectionId];
+  if (!section) {
+    console.error(`Section "${sectionId}" non trouvée`);
+    return;
+  }
+  
+  const submenuId = `submenu-${id}`;
+  
+  if (!sections[submenuId]) {
+    createSection(submenuId, options.title || 'Sous-menu');
+  }
+  
+  section.items.push({
+    type: 'submenu',
+    id,
+    submenuId,
+    icon: options.icon || '⚙️',
+    label: options.label || 'Sous-menu',
+    description: options.description || '',
+    onclick: options.onclick || null 
+  });
+  
+  return this;
+}
+  
+
+  function addLanguageSwitcher(sectionId, options = {}) {
+    const section = sections[sectionId];
+    if (!section) {
+      console.error(`Section "${sectionId}" non trouvée`);
+      return;
+    }
+    
+    const languages = options.languages || [
+      { code: 'fr', name: 'Français 🇫🇷' },
+      { code: 'en', name: 'English 🇬🇧' }
+    ];
+    
+    section.items.push({
+      type: 'language',
+      id: 'language-switcher',
+      icon: options.icon || '🌐',
+      label: options.label || 'Langue',
+      description: options.description || 'Changer la langue de l\'interface',
+      languages,
+      currentLang: options.currentLang || (window.i18n ? window.i18n.currentLang : languages[0].code),
+      onChange: options.onChange || function(lang) {
+        if (window.i18n) {
+          const newLang = lang;
+          
+          if (newLang !== window.i18n.currentLang) {
+            if (langSwitcher && langSwitcher.updateCurrentLanguage) {
+              langSwitcher.updateCurrentLanguage(newLang);
+            }
+            
+            const transitionOverlay = document.createElement('div');
+            transitionOverlay.style.position = 'fixed';
+            transitionOverlay.style.top = '0';
+            transitionOverlay.style.left = '0';
+            transitionOverlay.style.width = '100%';
+            transitionOverlay.style.height = '100%';
+            transitionOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+            transitionOverlay.style.zIndex = '9999';
+            transitionOverlay.style.opacity = '0';
+            transitionOverlay.style.transition = 'opacity 0.4s ease';
+            document.body.appendChild(transitionOverlay);
+            
+            setTimeout(() => {
+              transitionOverlay.style.opacity = '1';
+              
+              const urlParams = new URLSearchParams(window.location.search);
+              urlParams.set('lang', newLang);
+              
+              localStorage.setItem('preferredLanguage', newLang);
+              
+              setTimeout(() => {
+                window.location.search = urlParams.toString();
+              }, 300);
+            }, 50);
+          }
+        }
+      }
+    });
+    
+    if (window.createLanguageSwitcher) {
+      langSwitcher = window.createLanguageSwitcher();
+    } else if (window.langSwitcher) {
+      langSwitcher = window.langSwitcher;
+    }
+    
+    return this;
+  }
+  
+
+  function renderSections() {
+    if (!menuElement) return;
+    
+    menuElement.content.innerHTML = '';
+    
+    Object.values(sections).forEach(section => {
+      if (section.id.startsWith('submenu-')) return; 
+      
+      renderSection(section);
+    });
+  }
+  
+
+  function renderSection(section) {
+    const sectionElement = document.createElement('div');
+    sectionElement.className = 'fluent-settings-section';
+    sectionElement.dataset.sectionId = section.id;
+    
+    const titleElement = document.createElement('h3');
+    titleElement.className = 'fluent-settings-section-title';
+    titleElement.textContent = section.title;
+    sectionElement.appendChild(titleElement);
+    
+    section.items.forEach(item => {
+      const itemElement = renderItem(item, section.id);
+      sectionElement.appendChild(itemElement);
+    });
+    
+    menuElement.content.appendChild(sectionElement);
+    
+    section.items.forEach(item => {
+      if (item.type === 'submenu') {
+        renderSubmenu(item.submenuId, section.id, item.label);
+      }
+    });
+  }
+  
+
+  function renderItem(item, sectionId) {
+    const itemElement = document.createElement('div');
+    itemElement.className = 'fluent-settings-item';
+    itemElement.dataset.itemId = item.id;
+    
+    const iconElement = document.createElement('div');
+    iconElement.className = 'fluent-settings-item-icon';
+    iconElement.textContent = item.icon;
+    itemElement.appendChild(iconElement);
+    
+    const contentElement = document.createElement('div');
+    contentElement.className = 'fluent-settings-item-content';
+    
+    const labelElement = document.createElement('div');
+    labelElement.className = 'fluent-settings-item-label';
+    labelElement.textContent = item.label;
+    contentElement.appendChild(labelElement);
+    
+    if (item.description) {
+      const descElement = document.createElement('div');
+      descElement.className = 'fluent-settings-item-description';
+      descElement.textContent = item.description;
+      contentElement.appendChild(descElement);
+    }
+    
+    itemElement.appendChild(contentElement);
+    
+    const controlElement = document.createElement('div');
+    controlElement.className = 'fluent-settings-item-control';
+    
+    switch (item.type) {
+      case 'toggle':
+        const toggleLabel = document.createElement('label');
+        toggleLabel.className = 'fluent-switch';
+        
+        const toggleInput = document.createElement('input');
+        toggleInput.type = 'checkbox';
+        toggleInput.checked = item.value;
+        toggleInput.addEventListener('change', (e) => {
+          item.value = e.target.checked;
+          if (item.onChange) item.onChange(item.value);
+          safeVibrate([20, 10, 20], true);
+        });
+        
+        const toggleSlider = document.createElement('span');
+        toggleSlider.className = 'fluent-switch-slider';
+        
+        toggleLabel.appendChild(toggleInput);
+        toggleLabel.appendChild(toggleSlider);
+        controlElement.appendChild(toggleLabel);
+        break;
+        
+      case 'select':
+        const select = document.createElement('select');
+        select.className = 'fluent-select';
+        
+        item.options.forEach(option => {
+          const optionElement = document.createElement('option');
+          optionElement.value = option.value;
+          optionElement.textContent = option.label;
+          if (option.value === item.value) {
+            optionElement.selected = true;
+          }
+          select.appendChild(optionElement);
+        });
+        
+        select.addEventListener('change', (e) => {
+          item.value = e.target.value;
+          if (item.onChange) item.onChange(item.value);
+        });
+        
+        controlElement.appendChild(select);
+        break;
+        
+      case 'submenu':
+        const indicator = document.createElement('span');
+        indicator.className = 'fluent-settings-submenu-indicator';
+        indicator.textContent = '❯';
+        controlElement.appendChild(indicator);
+        
+        itemElement.addEventListener('click', (event) => {
+        if (item.onclick && typeof item.onclick === 'function') {
+            item.onclick(event);
+            safeVibrate([50], true);
+        }
+        
+        if (item.type === 'submenu') {
+            const submenu = menuElement.container.querySelector(`.fluent-settings-submenu[data-submenu-id="${item.submenuId}"]`);
+            if (submenu) {
+            submenu.style.transform = 'translateX(0)';
+            }
+        }
+        });
+        break;
+        
+      case 'language':
+        const langSelect = document.createElement('select');
+        langSelect.className = 'fluent-select';
+        
+        item.languages.forEach(lang => {
+          const optionElement = document.createElement('option');
+          optionElement.value = lang.code;
+          optionElement.textContent = lang.name;
+          if (lang.code === item.currentLang) {
+            optionElement.selected = true;
+          }
+          langSelect.appendChild(optionElement);
+        });
+        
+        langSelect.addEventListener('change', (e) => {
+          item.currentLang = e.target.value;
+          safeVibrate([50, 30, 50], true);
+          if (item.onChange) item.onChange(item.currentLang);
+        });
+        
+        controlElement.appendChild(langSelect);
+        break;
+    }
+    
+    itemElement.appendChild(controlElement);
+    
+    return itemElement;
+  }
+  
+  function renderSubmenu(submenuId, parentSectionId, title) {
+    const submenuSection = sections[submenuId];
+    if (!submenuSection) return;
+    
+    const submenuElement = document.createElement('div');
+    submenuElement.className = 'fluent-settings-submenu';
+    submenuElement.dataset.submenuId = submenuId;
+    submenuElement.style.transform = 'translateX(100%)';
+    
+    const backButton = document.createElement('div');
+    backButton.className = 'fluent-settings-back';
+    
+    const backIcon = document.createElement('span');
+    backIcon.className = 'fluent-settings-back-icon';
+    backIcon.textContent = '❮';
+    backButton.appendChild(backIcon);
+    
+    const backText = document.createElement('span');
+    backText.className = 'fluent-settings-back-text';
+    backText.textContent = `Retour à ${sections[parentSectionId].title}`;
+    backButton.appendChild(backText);
+    
+    backButton.addEventListener('click', () => {
+      submenuElement.style.transform = 'translateX(100%)';
+    });
+    
+    submenuElement.appendChild(backButton);
+    
+    const headerElement = document.createElement('h3');
+    headerElement.className = 'fluent-settings-section-title';
+    headerElement.textContent = title || submenuSection.title;
+    submenuElement.appendChild(headerElement);
+    
+    submenuSection.items.forEach(item => {
+      const itemElement = renderItem(item, submenuId);
+      submenuElement.appendChild(itemElement);
+    });
+    
+    menuElement.container.appendChild(submenuElement);
+    
+    submenuSection.items.forEach(item => {
+      if (item.type === 'submenu') {
+        renderSubmenu(item.submenuId, submenuId, item.label);
+      }
+    });
+  }
+
+  function init(customOptions = {}) {
+    options = { ...DEFAULT_CONFIG, ...customOptions };
+    
+    if (menuElement) {
+      menuElement.backdrop.remove();
+      menuElement.container.remove();
+      menuElement = null;
+      
+      const oldStyles = document.getElementById('fluent-settings-styles');
+      if (oldStyles) oldStyles.remove();
+      
+      createStyles();
+    }
+    
+    return this;
+  }
+  
+  return {
+    init,
+    open,
+    close,
+    createSection,
+    addToggle,
+    addSelect,
+    addSubmenu,
+    addLanguageSwitcher
+  };
+})();
+
+setTimeout(() => {
+    if (localStorage.getItem('locateonstart') === 'true') {
+        locateUser();
+    } 
+}, 2000);
 
 
 let lastTripUpdateTimestamp = 0;
