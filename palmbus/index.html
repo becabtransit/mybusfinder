@@ -2739,27 +2739,32 @@ const FluentSettingsMenu = (function() {
   };
 })();
 
-// Exemple d'utilisation :
-// Initialiser le menu
+
 FluentSettingsMenu.init({
   title: "Paramètres de My Bus Finder",
-  accentColor: "#0078d7"  // Couleur Fluent Design de Microsoft
+  accentColor: "#0078d7" 
 });
 
 // Créer des sections
 FluentSettingsMenu.createSection("general", "Général");
 FluentSettingsMenu.createSection("appearance", "Apparence");
 
-// Ajouter des paramètres
-FluentSettingsMenu.addToggle("general", "notifications", {
-  icon: "🔔",
-  label: "Notifications",
-  description: "Activer les notifications push",
-  value: true,
+FluentSettingsMenu.addToggle("general", "mapview", {
+  icon: "🗺️",
+  label: "Mode satellite/classique",
+  description: "Changer le mode d'affichage de la carte",
+  value: localStorage.getItem('isStandardView') === 'true', 
   onChange: function(value) {
-    console.log("Notifications:", value);
+    toggleMapView(value);
   }
 });
+
+function updateMapViewToggle(state) {
+  const toggle = FluentSettingsMenu.getToggle("general", "mapview");
+  if (toggle && toggle.value !== state) {
+    toggle.setValue(state, false); 
+  }
+}
 
 // Ajouter un sous-menu
 FluentSettingsMenu.addSubmenu("general", "advanced", {
@@ -2770,7 +2775,7 @@ FluentSettingsMenu.addSubmenu("general", "advanced", {
 
 // Ajouter des options au sous-menu
 FluentSettingsMenu.createSection("submenu-advanced", "Paramètres avancés");
-FluentSettingsMenu.addToggle("advanced", "debug-mode", {
+FluentSettingsMenu.addToggle("submenu-advanced", "debug-mode", {
   icon: "🐛",
   label: "Mode débogage",
   description: "Activer les outils de débogage",
@@ -6190,40 +6195,42 @@ function updateMenu() {
 
 let isStandardView = localStorage.getItem('isStandardView') === 'true';
 
-function toggleMapView() {
-    isStandardView = !isStandardView;
+function toggleMapView(forceState) {
+    if (forceState !== undefined) {
+        isStandardView = forceState;
+    } else {
+        isStandardView = !isStandardView;
+    }
     
     localStorage.setItem('isStandardView', isStandardView);
 
     const menubottom1 = document.getElementById('menubtm');
-        const menu = document.getElementById('menu');
-        const mapp = document.getElementById('map');
-        mapp.style.opacity = '1';
-        menu.classList.add('hidden');
-        const map = document.getElementById('map');
-        map.classList.remove('hidden');
-        window.isMenuShowed = false;
-        menu.addEventListener('animationend', function onAnimationEnd(event) {
-            if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-                menu.style.display = 'none';
-            }
-        });
-        isMenuVisible = false;
-        menubottom1.style.display = 'flex';
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-            if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.remove('slide-upc');
-        filtre.classList.add('slide-downc');
-        filtre.style.display = 'flex';
+    const menu = document.getElementById('menu');
+    const mapp = document.getElementById('map');
+    mapp.style.opacity = '1';
+    menu.classList.add('hidden');
+    const map = document.getElementById('map');
+    map.classList.remove('hidden');
+    window.isMenuShowed = false;
+    menu.addEventListener('animationend', function onAnimationEnd(event) {
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+            menu.style.display = 'none';
         }
-        }, 10);
+    });
+    isMenuVisible = false;
+    menubottom1.style.display = 'flex';
+    setTimeout(() => {
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
+        if (selectedLine) {
+            const filtre = document.getElementById('filtre');
+            filtre.classList.remove('slide-upc');
+            filtre.classList.add('slide-downc');
+            filtre.style.display = 'flex';
+        }
+    }, 10);
 
-    
     applyMapView();
-
 }
 
 function applyMapView() {
