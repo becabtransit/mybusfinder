@@ -3748,6 +3748,26 @@ function getVehicleBrandHtml(parkNumber) {
     `;
 }
 
+function getVehicleBrandHtmlLight(parkNumber) {
+    const model = getVehicleModel(parkNumber);
+    const defaultImagePath = "src/generic.png";
+    
+    if (model) {
+        return `
+            <img src="${model.thumbnail}" 
+                onerror="this.onerror=null; this.src='${defaultImagePath}';" 
+                alt="Thumbnail ${model.name}" 
+                class="vehicle-thumbnail"  />
+        `;
+    }
+
+    return `
+            <img src="${defaultImagePath}" 
+                 alt="Bus par défaut" 
+                 class="vehicle-thumbnail"  />
+    `;
+}
+
 
 async function initializeApp() {
     try {
@@ -6372,6 +6392,7 @@ sortedLines.forEach(line => {
     Object.keys(busesByLineAndDestination[line])
         .sort()
         .forEach(destination => {
+            
             const destinationSection = document.createElement('div');
             destinationSection.style.marginTop = '5px';
             destinationSection.style.paddingLeft = '10px';
@@ -6443,6 +6464,7 @@ sortedLines.forEach(line => {
                 const mainText = document.createElement('div');
                 const labelMatch = popupContent.match(/<span style="display: inline-block[^>]*>([^<]+)<\/span>/);
                 const vehicleLabel = labelMatch ? labelMatch[1].trim() : "Véhicule inconnu";
+                const vehicleBrandHtmlLight = getVehicleBrandHtmlLight(vehicleLabel);
                 const displayLabel = vehicleLabel.replace(/Véhicule inconnu\./, "inconnu");
                 
                 // création de disp flexbox pour aligner parc et les info
@@ -6486,13 +6508,54 @@ sortedLines.forEach(line => {
                 contentContainer.appendChild(mainText);
                 contentContainer.appendChild(arrivalText);
 
+                // Ajout du vehicleBrandHtmlLight en arrière-plan
+                busItem.style.position = 'relative';
+                
+                // Création d'un conteneur pour l'image en arrière-plan
+                const backgroundContainer = document.createElement('div');
+                backgroundContainer.style.position = 'absolute';
+                backgroundContainer.style.top = '0';
+                backgroundContainer.style.right = '8px';
+                backgroundContainer.style.bottom = '0';
+                backgroundContainer.style.display = 'flex';
+                backgroundContainer.style.alignItems = 'center';
+                backgroundContainer.style.justifyContent = 'flex-end';
+                backgroundContainer.style.pointerEvents = 'none'; // Pour que les clics passent à travers
+                backgroundContainer.style.opacity = '0.2'; // Ajustez selon besoin
+                backgroundContainer.style.zIndex = '0'; // Mettre en arrière-plan
+                backgroundContainer.innerHTML = vehicleBrandHtmlLight;
+                
+                // Assurer que l'image s'adapte correctement
+                const thumbnailImg = backgroundContainer.querySelector('.vehicle-thumbnail');
+                if (thumbnailImg) {
+                    thumbnailImg.style.height = '80%';
+                    thumbnailImg.style.width = 'auto';
+                    thumbnailImg.style.maxHeight = '40px';
+                    thumbnailImg.style.objectFit = 'contain';
+                }
+
                 // Vider busItem et ajouter les éléments dans le bon ordre
                 busItem.textContent = '';
                 busItem.style.display = 'flex';
                 busItem.style.alignItems = 'center';
                 busItem.style.gap = '10px';
-                busItem.appendChild(busIdBox);
-                busItem.appendChild(contentContainer);
+                busItem.style.overflow = 'hidden'; // Assurez-vous que l'image ne déborde pas
+                
+                // Ajout du background en premier (pour qu'il soit en arrière-plan)
+                busItem.appendChild(backgroundContainer);
+                
+                // Ajout du contenu principal avec un z-index supérieur
+                const frontContent = document.createElement('div');
+                frontContent.style.display = 'flex';
+                frontContent.style.alignItems = 'center';
+                frontContent.style.gap = '10px';
+                frontContent.style.width = '100%';
+                frontContent.style.position = 'relative';
+                frontContent.style.zIndex = '1';
+                
+                frontContent.appendChild(busIdBox);
+                frontContent.appendChild(contentContainer);
+                busItem.appendChild(frontContent);
 
                 busItem.style.cursor = 'pointer';
                 busItem.classList.add('menu-item');
@@ -6502,8 +6565,6 @@ sortedLines.forEach(line => {
                 busItem.style.marginBottom = '5px';
                 busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
                 busItem.style.borderRadius = '8px';
-                busItem.style.overflow = 'hidden';
-
 
                 lineSection.onclick = () => {
                     const mapp = document.getElementById('map');
