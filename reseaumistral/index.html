@@ -26,7 +26,7 @@
             margin: 0;
             padding: 0;
             font-family: 'League Spartan', sans-serif;
-            background-color: #000000; 
+            background-color: #c7c7c7; 
             color: #333; 
             transition: background-color 0.5s ease; 
         }
@@ -258,14 +258,10 @@ visibility: hidden;
     position: absolute;
     top: 0px;
     right: 0px;
-    background-color: #0F056B9c;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    padding: 10px;
     border-radius: 0px 0px 0px 0px;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 1);
     z-index: 1000;
     height: -webkit-fill-available; 
+    width: -webkit-fill-available; 
     overflow-y: auto;
     transition: all 0.3s ease;
     display: none;
@@ -327,7 +323,7 @@ visibility: hidden;
 
         @keyframes jspcommentlappelercettekeyframe {
             to {
-                transform: scale(0.95);
+                opacity: 0.9;
             }
         }
 
@@ -383,28 +379,58 @@ visibility: hidden;
 
 @keyframes slideInBounce {
     0% {
-        right: -100%; 
+        transform: translateX(30%); 
+        opacity: 0;
     }
     100% {
-        right: 0; 
+        transform: translateX(0%); 
+        opacity: 1;
+    }
+}
+
+@keyframes slideInBounceM {
+    0% {
+        transform: translateX(-30%); 
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0%); 
+        opacity: 1;
     }
 }
 
 @keyframes slideInBounceInv {
     0% {
-        right: 0; 
-    }
+        transform: translateX(0%); 
+        opacity: 1;
+        }
     100% {
-        right: -100%; 
+        transform: translateX(30%); 
+        opacity: 0;
+    }
+}
+
+@keyframes slideInBounceInvM {
+    0% {
+        transform: translateX(0%); 
+        opacity: 1;
+        }
+    100% {
+        transform: translateX(-30%); 
+        opacity: 0;
     }
 }
 
 #menu {
-    animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+  animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
 #menu.hidden {
   animation: slideInBounceInv 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+#map.hidden {
+  animation: slideInBounceInvM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
 @keyframes bounceIn {
@@ -1367,7 +1393,9 @@ shape.bounce-down {
 #map { 
     height: 100%; 
     width: 100%; 
+    animation: slideInBounceM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
 }
+
 #sun-overlay {
     position: absolute;
     top: 0;
@@ -1516,9 +1544,19 @@ shape.bounce-down {
     padding: 0px 8px;
 }
 
+.vehicle-thumbnaill {
+    font-weight: normal; 
+    white-space: nowrap; 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 6px;
+}
+
 #map {
     transition: all 0.4s cubic-bezier(0.32, 0.64, 0.45, 1);
 }
+
+
 
 
     </style>
@@ -1916,7 +1954,6 @@ async function setColors() {
     const data = await getSetvar();
     if (data) {
         document.getElementById("menubtm").style.backgroundColor = `${data.colorbkg}9c`;
-        document.getElementById("menu").style.backgroundColor = `${data.colorbkg}9c`;
         document.getElementById("filtre").style.backgroundColor = `${data.colorbkg}9c`;
         window.colorbkg = data.colorbkg;
 
@@ -2497,6 +2534,8 @@ function closeUpdatePopup() {
     const menubottom1 = document.getElementById('menubtm');
     const menu = document.getElementById('menu');
     menu.classList.add('hidden');
+    const map = document.getElementById('map');
+    map.classList.remove('hidden');
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -3491,6 +3530,8 @@ function closePopup() {
     const menubottom1 = document.getElementById('menubtm');
             const menu = document.getElementById('menu');
             menu.classList.add('hidden');
+            const map = document.getElementById('map');
+            map.classList.remove('hidden');
             window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
                 if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -3713,6 +3754,26 @@ function getVehicleBrandHtml(parkNumber) {
                  class="vehicle-thumbnail"  />
             <span style="margin-top: 6px; margin-left: 20px; font-size: 12px;">${t("abus")}</span>
         </div>
+    `;
+}
+
+function getVehicleBrandHtmlLight(parkNumber) {
+    const model = getVehicleModel(parkNumber);
+    const defaultImagePath = "src/generic.png";
+    
+    if (model) {
+        return `
+            <img src="${model.thumbnail}" 
+                onerror="this.onerror=null; this.src='${defaultImagePath}';" 
+                alt="Thumbnail ${model.name}" 
+                class="vehicle-thumbnaill"  />
+        `;
+    }
+
+    return `
+            <img src="${defaultImagePath}" 
+                 alt="Bus par défaut" 
+                 class="vehicle-thumbnaill"  />
     `;
 }
 
@@ -5002,9 +5063,9 @@ async function animateAddFavorite(button, lineSection, sections, positions, curr
         }
     });
     
-    lineSection.style.transform = `scale(1.05)`;
+    lineSection.style.transform = `scale(0.95)`;
     await new Promise(r => setTimeout(r, 100));
-    lineSection.style.transform = `translateY(${deltaY}px) scale(1.05)`;
+    lineSection.style.transform = `translateY(${deltaY}px) scale(0.95)`;
     await new Promise(r => setTimeout(r, ANIMATION_CONFIG.DURATION - 150));
     lineSection.style.transform = `translateY(${deltaY}px) scale(1)`;
     
@@ -5168,6 +5229,8 @@ function closeMenu() {
     mapp.style.opacity = '1';
     
     menu.classList.add('hidden');
+    const map = document.getElementById('map');
+    map.classList.remove('hidden');
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -5189,47 +5252,77 @@ function closeMenu() {
 }
 
 function updateMenu() {
-
     const menu = document.getElementById('menu');
     menu.innerHTML = '';
-
-    const closeButton = document.createElement('div');
-    closeButton.innerHTML = '&times;';
-    closeButton.style.cssText = `
-        position: absolute;
-        top: 10px;
-        right: 15px;
-        font-size: 24px;
+    
+    const topBar = document.createElement('div');
+    topBar.classList.add('menu-top-bar');
+    topBar.style.cssText = `
+        position: sticky;
+        top: 0;
+        left: 0;
+        width: -webkit-fill-available;
+        background-color: #1a1a1ab0;
         color: white;
-        cursor: pointer;
-        z-index: 1000;
-        padding: 5px;
+        padding: 9px;
+        display: flex;
+        align-items: center;
+        z-index: 1001;
+        transition: transform 0.3s ease;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(8px); 
+        -webkit-backdrop-filter: blur(8px);
     `;
-    closeButton.onclick = closeMenu;
-    menu.appendChild(closeButton);
+    menu.appendChild(topBar);
+    
+    const backButton = document.createElement('div');
+    backButton.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 6L9 12L15 18" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    `;
+    backButton.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 8px;
+        margin-right: 15px;
+        border-radius: 8px;
+        transition: background 0.2s ease;
+    `;
+    backButton.onmouseover = () => backButton.style.background = 'rgba(255, 255, 255, 0.1)';
+    backButton.onmouseout = () => backButton.style.background = 'transparent';
 
-    const logoContainer = document.createElement('div');
-    logoContainer.style.textAlign = 'center';
-    logoContainer.style.marginBottom = '7px';
+    backButton.onclick = closeMenu;
+    topBar.appendChild(backButton);
 
-    const logo = document.createElement('img');
-    logo.src = 'src/whitelogo.png'; 
-    logo.alt = 'Logo de My Bus Finder';
-    logo.style.maxWidth = '200px';
-    logo.style.display = 'block';
-    logo.style.margin = '0 auto';
-    logo.style.cursor = 'pointer';
-    logo.onclick = () => {
-        showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
+    
+    const title = document.createElement('div');
+    title.textContent = `${t("network")}`;
+    title.style.cssText = `
+        font-size: 20px;
+        font-weight: 500;
+    `;
+    topBar.appendChild(title);
+    
+    const spacer = document.createElement('div');
+    spacer.style.height = '15px'; 
+    menu.appendChild(spacer);
+
+    let lastScrollTop = 0;
+    
+    menu.addEventListener('scroll', function() {
+        const scrollTop = menu.scrollTop;
         
-        musique();
-    };
-
-
-    logoContainer.appendChild(logo);
-    menu.appendChild(logoContainer);
-
-
+        if (scrollTop > lastScrollTop && scrollTop > 50) {
+            topBar.style.transform = 'translateY(-100%)';
+        } else {
+            topBar.style.transform = 'translateY(0)';
+        }
+        
+        lastScrollTop = scrollTop;
+    });
 
 let isStandardView = localStorage.getItem('isStandardView') === 'true';
 
@@ -5243,6 +5336,8 @@ function toggleMapView() {
         const mapp = document.getElementById('map');
         mapp.style.opacity = '1';
         menu.classList.add('hidden');
+        const map = document.getElementById('map');
+        map.classList.remove('hidden');
         window.isMenuShowed = false;
         menu.addEventListener('animationend', function onAnimationEnd(event) {
             if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -6038,18 +6133,20 @@ function createStyledButton(title, description, svgContent, onClickHandler) {
 window.isMenuShowed = false;
 
 function showBottomSheet() {
-    const mapp = document.getElementById('map');
+    const mapp1 = document.getElementById('map');
     const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
     const menu = document.getElementById('menu');
 
-    mapp.style.scale = '0.9';
-    mapp.style.opacity = '0.5';
-    mapp.style.borderRadius = '20px';
-    mapp.style.transform = 'translateY(-13px)';
+    mapp1.style.scale = '0.9';
+    mapp1.style.opacity = '0.5';
+    mapp1.style.borderRadius = '20px';
+    mapp1.style.transform = 'translateY(-13px)';
 
     safeVibrate(50);
     // Hide menu
     menu.classList.add('hidden');
+    const map = document.getElementById('map');
+    map.classList.remove('hidden');
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -6100,7 +6197,7 @@ function closeBottomSheet() {
 
     const mapp = document.getElementById('map');
     mapp.style.scale = '1';
-    mapp.style.opacity = '1';
+    mapp1.style.opacity = '1';
     mapp.style.borderRadius = '0px';
     mapp.style.transform = 'translateY(0px)';
 
@@ -6299,220 +6396,322 @@ function getTextColor(backgroundColor) {
 }
 
 
-    sortedLines.forEach(line => {
-        const lineNameText = lineName[line] || t("unknown_line");
-        const lineColor = lineColors[line] || '#000000';
-        const textColor = getTextColor(lineColor);
+sortedLines.forEach(line => {
+    const lineNameText = lineName[line] || t("unknown_line");
+    const lineColor = lineColors[line] || '#000000';
+    const textColor = getTextColor(lineColor);
 
+    const lineSection = document.createElement('div');
+    lineSection.dataset.line = line;
+    lineSection.style.backgroundColor = lineColor;
+    lineSection.classList.add('linesection');
+    lineSection.style.marginBottom = '10px';
+    lineSection.style.marginLeft = '10px';
+    lineSection.style.marginRight = '10px';
+    lineSection.style.padding = '10px';
+    lineSection.style.borderRadius = '16px';
+    lineSection.style.position = 'relative';
+    lineSection.style.overflow = 'hidden';
 
-        const lineSection = document.createElement('div');
-        lineSection.dataset.line = line;
-        lineSection.style.backgroundColor = lineColor;
-        lineSection.classList.add('linesection');
-        lineSection.style.marginBottom = '10px';
-        lineSection.style.padding = '10px';
-        lineSection.style.borderRadius = '8px';
-        lineSection.style.position = 'relative';
+    const beam1 = document.createElement('div');
+    beam1.classList.add('light-beam', 'beam1');
+    lineSection.appendChild(beam1);
 
-        lineSection.onmouseover = () => {
-        lineSection.style.transform = 'scale(0.98,0.98)';
+    const beam2 = document.createElement('div');
+    beam2.classList.add('light-beam', 'beam2');
+    lineSection.appendChild(beam2);
+
+    const beam3 = document.createElement('div');
+    beam3.classList.add('light-beam', 'beam3');
+    lineSection.appendChild(beam3);
+
+    lineSection.onmouseover = () => {
+        lineSection.style.transform = 'scale(0.99,0.99)';
         lineSection.style.opacity = '0.9';
-        lineSection.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
+        lineSection.style.boxShadow = '0 0px 20px 11px rgba(0, 0, 0, 0.1)';
         };  
-        lineSection.onmouseout = () => {
-            lineSection.style.transform = 'scale(1,1)';
-            lineSection.style.opacity = '0.9';
-            lineSection.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-        };
 
-        const favoriteButton = document.createElement('button');
-        favoriteButton.style.position = 'absolute';
-        favoriteButton.style.right = '5px';
-        favoriteButton.style.top = '5px';
-        favoriteButton.style.background = 'none';
-        favoriteButton.style.border = 'none';
-        favoriteButton.style.color = textColor;
-        favoriteButton.style.fontSize = '20px';
-        favoriteButton.style.cursor = 'pointer';
-        favoriteButton.innerHTML = favoriteLines.has(line) ? '★' : '☆';
-        favoriteButton.onclick = async (e) => {
-            e.stopPropagation();
-            const lineSection = e.target.closest('.linesection');
-            const isFavorite = favoriteLines.has(line);
-            await animateFavoriteTransition(e.target, lineSection, line, isFavorite);
-        };
+    lineSection.onmouseout = () => {
+        lineSection.style.transform = 'scale(1,1)';
+        lineSection.style.opacity = '0.9';
+        lineSection.style.boxShadow = '0 0px 20px 3px rgba(0, 0, 0, 0.1)';
+    };
 
-        const lineTitle = document.createElement('div');
-        lineTitle.textContent = `${t("line")} ${lineNameText}`;
-        lineTitle.style.fontSize = '23px';
-        lineTitle.style.fontWeight = 'normal';
-        lineTitle.style.color = textColor;
-        lineTitle.style.paddingRight = '30px';
-        lineTitle.style.paddingLeft = '10px';
+    
 
+    const favoriteButton = document.createElement('button');
+    favoriteButton.style.position = 'absolute';
+    favoriteButton.style.right = '5px';
+    favoriteButton.style.top = '5px';
+    favoriteButton.style.background = 'none';
+    favoriteButton.style.border = 'none';
+    favoriteButton.style.color = textColor;
+    favoriteButton.style.fontSize = '20px';
+    favoriteButton.style.cursor = 'pointer';
+    favoriteButton.innerHTML = favoriteLines.has(line) ? '★' : '☆';
+    favoriteButton.onclick = async (e) => {
+        e.stopPropagation();
+        const lineSection = e.target.closest('.linesection');
+        const isFavorite = favoriteLines.has(line);
+        await animateFavoriteTransition(e.target, lineSection, line, isFavorite);
+    };
 
-        lineSection.appendChild(lineTitle);
-        lineSection.appendChild(favoriteButton);
+    const lineTitle = document.createElement('div');
+    lineTitle.textContent = `${t("line")} ${lineNameText}`;
+    lineTitle.style.fontSize = '20px';
+    lineTitle.style.fontWeight = 'normal';
+    lineTitle.style.color = textColor;
+    lineTitle.style.paddingRight = '30px';
+    lineTitle.style.paddingLeft = '10px';
 
-        Object.keys(busesByLineAndDestination[line])
-    .sort()
-    .forEach(destination => {
-        const destinationSection = document.createElement('div');
-        destinationSection.style.marginTop = '5px';
-        destinationSection.style.paddingLeft = '10px';
+    lineSection.appendChild(lineTitle);
+    lineSection.appendChild(favoriteButton);
 
-        const destinationTitle = document.createElement('div');
-        destinationTitle.textContent = `➜ ${destination}`;
-        destinationTitle.style.fontSize = '16px';
-        destinationTitle.style.fontWeight = 'normal';
-        destinationTitle.style.color = textColor;
-        destinationSection.appendChild(destinationTitle);
-
-        busesByLineAndDestination[line][destination].forEach(bus => {
-            const busItem = document.createElement('div');
-            const marker = bus.vehicle;
-            const popupContent = marker.getPopup().getContent();
+    Object.keys(busesByLineAndDestination[line])
+        .sort()
+        .forEach(destination => {
             
-            let nextStopInfo = '';
-            let terminusInfo = '';
-            
-            const stopNameContainers = popupContent.match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/g);
-            const timeDisplays = popupContent.match(/<div class="time-display"[^>]*data-time-left="([^"]*)"[^>]*data-departure-time="([^"]*)"[^>]*>([\s\S]*?)<\/div>/g);
-            
-            if (stopNameContainers && stopNameContainers.length > 0 && timeDisplays && timeDisplays.length > 0) {
-                const firstStopNameMatch = stopNameContainers[0].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
-                const firstTimeMatch = timeDisplays[0].match(/data-time-left="([^"]*)"/);
+            const destinationSection = document.createElement('div');
+            destinationSection.style.marginTop = '5px';
+            destinationSection.style.paddingLeft = '10px';
+
+            const destinationTitle = document.createElement('div');
+            destinationTitle.textContent = `➜ ${destination}`;
+            destinationTitle.style.fontSize = '16px';
+            destinationTitle.style.fontWeight = 'normal';
+            destinationTitle.style.marginBottom = '4px';
+            destinationTitle.style.color = textColor;
+            destinationSection.appendChild(destinationTitle);
+
+       
+
+
+            busesByLineAndDestination[line][destination].forEach(bus => {
+                const busItem = document.createElement('div');
+                const marker = bus.vehicle;
+                const popupContent = marker.getPopup().getContent();
                 
-                if (firstStopNameMatch && firstStopNameMatch[1] && firstTimeMatch && firstTimeMatch[1]) {
-                    const stopName = firstStopNameMatch[1].trim();
-                    const timeInfo = firstTimeMatch[1].trim();
-                    if (stopName && timeInfo) {
-                        nextStopInfo = `| ${stopName}`;
-                    }
-                }
+                let nextStopInfo = '';
+                let terminusInfo = '';
                 
-                if (stopNameContainers.length > 1 && timeDisplays.length > 1) {
-                    const lastIndex = stopNameContainers.length - 1;
-                    const lastStopNameMatch = stopNameContainers[lastIndex].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
-                    const lastTimeMatch = timeDisplays[lastIndex].match(/data-time-left="([^"]*)"/);
+                const stopNameContainers = popupContent.match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/g);
+                const timeDisplays = popupContent.match(/<div class="time-display"[^>]*data-time-left="([^"]*)"[^>]*data-departure-time="([^"]*)"[^>]*>([\s\S]*?)<\/div>/g);
+                
+                if (stopNameContainers && stopNameContainers.length > 0 && timeDisplays && timeDisplays.length > 0) {
+                    const firstStopNameMatch = stopNameContainers[0].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
+                    const firstTimeMatch = timeDisplays[0].match(/data-time-left="([^"]*)"/);
                     
-                    if (lastStopNameMatch && lastStopNameMatch[1] && lastTimeMatch && lastTimeMatch[1]) {
-                        const terminusName = lastStopNameMatch[1].trim();
-                        const terminusTime = lastTimeMatch[1].trim();
-                        if (terminusName && terminusTime) {
-                            terminusInfo = `${t("arrivalat")} ${destination} ${terminusTime !== t("imminent") ? t("in") + ' ' + terminusTime : t("imminent")}.`;
+                    if (firstStopNameMatch && firstStopNameMatch[1] && firstTimeMatch && firstTimeMatch[1]) {
+                        const stopName = firstStopNameMatch[1].trim();
+                        const timeInfo = firstTimeMatch[1].trim();
+                        if (stopName && timeInfo) {
+                            nextStopInfo = `${stopName}`;
                         }
                     }
-                }
-            }
-            
-            if (!nextStopInfo || !terminusInfo) {
-                const stopsHeaderMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
-                if (stopsHeaderMatch && stopsHeaderMatch[1]) {
-                    const headerText = stopsHeaderMatch[1].trim();
-                    if (headerText.includes('imminent')) {
-                        nextStopInfo = '| ' + t("imminentdeparture") + '.';
-                    } else if (headerText.includes('min')) {
-                        const minMatch = headerText.match(/dans (\d+) min/);
-                        if (minMatch && minMatch[1]) {
-                            nextStopInfo = `| ${t("departurein")} ${minMatch[1]} ${t("min")}.`;
+                    
+                    if (stopNameContainers.length > 1 && timeDisplays.length > 1) {
+                        const lastIndex = stopNameContainers.length - 1;
+                        const lastStopNameMatch = stopNameContainers[lastIndex].match(/<div class="stop-name"[^>]*>([\s\S]*?)<\/div>/);
+                        const lastTimeMatch = timeDisplays[lastIndex].match(/data-time-left="([^"]*)"/);
+                        
+                        if (lastStopNameMatch && lastStopNameMatch[1] && lastTimeMatch && lastTimeMatch[1]) {
+                            const terminusName = lastStopNameMatch[1].trim();
+                            const terminusTime = lastTimeMatch[1].trim();
+                            if (terminusName && terminusTime) {
+                                terminusInfo = `${t("arrivalat")} ${destination} ${terminusTime !== t("imminent") ? t("in") + ' ' + terminusTime : t("imminent")}.`;
+                            }
                         }
                     }
                 }
                 
-                if (!terminusInfo) {
-                    terminusInfo = `${t("indirectionof")} ${destination}.`;
+                if (!nextStopInfo || !terminusInfo) {
+                    const stopsHeaderMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
+                    if (stopsHeaderMatch && stopsHeaderMatch[1]) {
+                        const headerText = stopsHeaderMatch[1].trim();
+                        if (headerText.includes('imminent')) {
+                            nextStopInfo = t("imminentdeparture") + '.';
+                        } else if (headerText.includes('min')) {
+                            const minMatch = headerText.match(/dans (\d+) min/);
+                            if (minMatch && minMatch[1]) {
+                                nextStopInfo = `${t("departurein")} ${minMatch[1]} ${t("min")}.`;
+                            }
+                        }
+                    }
+                    
+                    if (!terminusInfo) {
+                        terminusInfo = `${t("indirectionof")} ${destination}.`;
+                    }
                 }
-            }
+
                 const mainText = document.createElement('div');
-                    const labelMatch = popupContent.match(/<span style="display: inline-block[^>]*>([^<]+)<\/span>/);
-                    const vehicleLabel = labelMatch ? labelMatch[1].trim() : "Véhicule inconnu";
+                const labelMatch = popupContent.match(/<span style="display: inline-block[^>]*>([^<]+)<\/span>/);
+                const vehicleLabel = labelMatch ? labelMatch[1].trim() : "Véhicule inconnu";
+                const vehicleBrandHtmlLight = getVehicleBrandHtmlLight(vehicleLabel);
+                const displayLabel = vehicleLabel.replace(/Véhicule inconnu\./, "inconnu");
+                
+                // création de disp flexbox pour aligner parc et les info
+                mainText.style.display = 'flex';
+                mainText.style.alignItems = 'center';
+                mainText.style.gap = '10px';
+                mainText.style.fontSize = '1.2em';
+                mainText.style.fontWeight = '500';
+                mainText.style.color = textColor;
 
-                    const displayLabel = vehicleLabel.replace(/Véhicule inconnu\./, "inconnu");
+                // création boîte pour parc
+                const busIdBox = document.createElement('div');
+                busIdBox.textContent = displayLabel;
+                busIdBox.style.padding = '2px 8px';
+                busIdBox.style.backgroundColor = '#00000017';
+                busIdBox.style.borderRadius = '6px';
+                busIdBox.style.fontWeight = 'bold';
+                busIdBox.style.color = textColor;
+                busIdBox.style.display = 'inline-block';
+                busIdBox.style.textAlign = 'center';
+                busIdBox.style.padding = '5px 10px';
 
-                    mainText.textContent = `${t("bus")} ${displayLabel} ${nextStopInfo}`;
-                    mainText.style.fontSize = '1.2em';  
-                    mainText.style.fontWeight = '500';  
-                    mainText.style.color = textColor;
-                    
-                    const arrivalText = document.createElement('div');
-                    arrivalText.textContent = terminusInfo;
-                    arrivalText.style.fontSize = '0.9em'; 
-                    arrivalText.style.opacity = '0.8';  
-                    arrivalText.style.textAlign = 'right';
-                    arrivalText.style.color = textColor;
+                // statut véc
+                const infoText = document.createElement('span');
+                infoText.textContent = `${nextStopInfo}`;
 
-                    busItem.textContent = '';
-                    busItem.appendChild(mainText);
-                    busItem.appendChild(arrivalText);
-                    
-                    busItem.style.cursor = 'pointer';
-                    busItem.classList.add('menu-item');
-                    busItem.style.fontFamily = 'League Spartan';
-                    busItem.style.color = textColor;
-                    busItem.style.padding = '5px 10px';
-                    busItem.style.marginBottom = '5px';
-                    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
-                    busItem.style.border = '1px solid rgba(0, 0, 0, 0.2)'; 
-                    busItem.style.borderRadius = '8px';
-                    busItem.style.overflow = 'hidden';
-                    busItem.style.maxWidth = '300px';
-                    lineSection.onclick = () => {
-                        const mapp = document.getElementById('map');
-                        mapp.style.opacity = '1';
-                        safeVibrate([50, 30, 50], true);
-                        const lineId = line;
-                        selectedLine = lineId;
-                        filterByLine(lineId);
-                        menu.classList.add('hidden');
-                        window.isMenuShowed = false;
-                        menu.addEventListener('animationend', function onAnimationEnd(event) {
-                            if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-                                menu.style.display = 'none';
-                            }
-                        });
-                        isMenuVisible = false;
-                        const filtre = document.getElementById('filtre');
-                        menubottom1.style.display = 'flex';
-                        setTimeout(() => {
-                            menubottom1.classList.remove('slide-upb');
-                            menubottom1.classList.add('slide-downb');
-                            if (selectedLine) {
-                                filtre.classList.remove('slide-upc');
-                                filtre.classList.add('slide-downc');
-                                filtre.style.display = 'flex';
-                            }
-                        }, 10);
-                    };
+                // ajout des éléments au dom
+                mainText.appendChild(infoText);
 
-                    busItem.onclick = (event) => {
-                        safeVibrate([50, 300, 50, 30, 50], true);
-                        map.setView(bus.vehicle.getLatLng(), 15);
-                        bus.vehicle.openPopup();
-                        const mapp = document.getElementById('map');
-                        mapp.style.opacity = '1';
-                        menu.classList.add('hidden');
-                        window.isMenuShowed = false;
-                        menu.addEventListener('animationend', function onAnimationEnd(event) {
-                            if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-                                menu.style.display = 'none';
-                            }
-                        });
-                        isMenuVisible = false;
-                        if (selectedLine) {
-                            resetMapView();
+                const arrivalText = document.createElement('div');
+                arrivalText.textContent = terminusInfo;
+                arrivalText.style.fontSize = '0.9em'; 
+                arrivalText.style.opacity = '0.8';  
+                arrivalText.style.color = textColor;
+
+                // Création d'un conteneur pour organiser les éléments
+                const contentContainer = document.createElement('div');
+                contentContainer.style.display = 'flex';
+                contentContainer.style.flexDirection = 'column';
+                contentContainer.style.flexGrow = '1';
+                contentContainer.appendChild(mainText);
+                contentContainer.appendChild(arrivalText);
+
+                // Ajout du vehicleBrandHtmlLight en arrière-plan
+                busItem.style.position = 'relative';
+                
+                // Création d'un conteneur pour l'image en arrière-plan
+                const backgroundContainer = document.createElement('div');
+                backgroundContainer.style.position = 'absolute';
+                backgroundContainer.style.right = '8px';
+                backgroundContainer.style.bottom = '0';
+                backgroundContainer.style.display = 'flex';
+                backgroundContainer.style.alignItems = 'center';
+                backgroundContainer.style.justifyContent = 'flex-end';
+                backgroundContainer.style.pointerEvents = 'none'; // Pour que les clics passent à travers
+                backgroundContainer.style.opacity = '0.2'; // Ajustez selon besoin
+                backgroundContainer.style.zIndex = '0'; // Mettre en arrière-plan
+                backgroundContainer.style.scale = '1.7';
+                backgroundContainer.innerHTML = vehicleBrandHtmlLight;
+                
+                // Assurer que l'image s'adapte correctement
+                const thumbnailImg = backgroundContainer.querySelector('.vehicle-thumbnaill');
+                if (thumbnailImg) {
+                    thumbnailImg.style.height = '80%';
+                    thumbnailImg.style.width = 'auto';
+                    thumbnailImg.style.maxHeight = '40px';
+                    thumbnailImg.style.objectFit = 'contain';
+                }
+
+                // Vider busItem et ajouter les éléments dans le bon ordre
+                busItem.textContent = '';
+                busItem.style.display = 'flex';
+                busItem.style.alignItems = 'center';
+                busItem.style.gap = '10px';
+                busItem.style.overflow = 'hidden'; // Assurez-vous que l'image ne déborde pas
+                busItem.style.boxShadow = '0 0 7px 0px rgb(0 0 0 / 24%)';
+
+
+                
+                // Ajout du background en premier (pour qu'il soit en arrière-plan)
+                busItem.appendChild(backgroundContainer);
+                
+                // Ajout du contenu principal avec un z-index supérieur
+                const frontContent = document.createElement('div');
+                frontContent.style.display = 'flex';
+                frontContent.style.alignItems = 'center';
+                frontContent.style.gap = '10px';
+                frontContent.style.width = '100%';
+                frontContent.style.position = 'relative';
+                frontContent.style.zIndex = '1';
+                
+                frontContent.appendChild(busIdBox);
+                frontContent.appendChild(contentContainer);
+                busItem.appendChild(frontContent);
+
+                busItem.style.cursor = 'pointer';
+                busItem.classList.add('menu-item');
+                busItem.style.fontFamily = 'League Spartan';
+                busItem.style.color = textColor;
+                busItem.style.padding = '5px 10px';
+                busItem.style.marginBottom = '8px';
+                busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+                busItem.style.borderRadius = '8px';
+
+                lineSection.onclick = () => {
+                    const mapp = document.getElementById('map');
+                    mapp.style.opacity = '1';
+                    safeVibrate([50, 30, 50], true);
+                    const lineId = line;
+                    selectedLine = lineId;
+                    filterByLine(lineId);
+                    menu.classList.add('hidden');
+                    const map = document.getElementById('map');
+                    map.classList.remove('hidden');
+                    window.isMenuShowed = false;
+                    menu.addEventListener('animationend', function onAnimationEnd(event) {
+                        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+                            menu.style.display = 'none';
                         }
-                        event.stopPropagation();
-                    };
+                    });
+                    isMenuVisible = false;
+                    const filtre = document.getElementById('filtre');
+                    menubottom1.style.display = 'flex';
+                    setTimeout(() => {
+                        menubottom1.classList.remove('slide-upb');
+                        menubottom1.classList.add('slide-downb');
+                        if (selectedLine) {
+                            filtre.classList.remove('slide-upc');
+                            filtre.classList.add('slide-downc');
+                            filtre.style.display = 'flex';
+                        }
+                    }, 10);
+                    event.stopPropagation();
 
-                    destinationSection.appendChild(busItem);
-                });
+                };
 
-                lineSection.appendChild(destinationSection);
+                busItem.onclick = (event) => {
+                    event.stopPropagation();
+                    safeVibrate([50, 300, 50, 30, 50], true);
+                    map.setView(bus.vehicle.getLatLng(), 15);
+                    bus.vehicle.openPopup();
+                    const mapp = document.getElementById('map');
+                    mapp.style.opacity = '1';
+                    menu.classList.add('hidden');
+                    mapp.classList.remove('hidden');
+                    window.isMenuShowed = false;
+                    menu.addEventListener('animationend', function onAnimationEnd(event) {
+                        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+                            menu.style.display = 'none';
+                        }
+                    });
+                    isMenuVisible = false;
+                    if (selectedLine) {
+                        resetMapView();
+                    }
+                };
+
+                destinationSection.appendChild(busItem);
             });
 
-        menu.appendChild(lineSection);
-    });
+            lineSection.appendChild(destinationSection);
+        });
+
+    menu.appendChild(lineSection);
+});
 }
 
 const menubottom1 = document.getElementById('menubtm');
@@ -6525,6 +6724,8 @@ const menubottom1 = document.getElementById('menubtm');
             const menu = document.getElementById('menu');
             const menubotom = document.getElementById('menubottom');
             menu.classList.remove('hidden');
+            const map = document.getElementById('map');
+            map.classList.add('hidden');
             menu.style.display = 'block'; 
             isMenuVisible = true; 
             menubottom1.classList.remove('slide-downb');
@@ -6554,8 +6755,8 @@ const menubottom1 = document.getElementById('menubtm');
         closeMap.onclick = () => {
             const menu = document.getElementById('menu');
             menu.classList.add('hidden');
-            const mapp = document.getElementById('map');
-            mapp.style.opacity = '1';
+            const map = document.getElementById('map');
+            map.classList.remove('hidden');
             window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
                 if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
