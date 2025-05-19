@@ -3255,25 +3255,34 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                     return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
                 }
 
-                function getContrastRatio(lum1, lum2) {
+                function getContrastRatio(rgb1, rgb2) {
+                    const lum1 = getLuminance(...rgb1);
+                    const lum2 = getLuminance(...rgb2);
                     const brightest = Math.max(lum1, lum2);
                     const darkest = Math.min(lum1, lum2);
                     return (brightest + 0.05) / (darkest + 0.05);
                 }
 
-                function getTextColorForHexColor(color) {
-                    const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-                    if (!rgb) return '#FFFFFF'; 
+                function getTextColorForBackground(color) {
+                    const hex = color.replace('#', '').trim();
+                    const match = hex.match(/^([a-f\d]{6})$/i);
+                    if (!match) return '#000000'; 
 
-                    const r = parseInt(rgb[1], 16);
-                    const g = parseInt(rgb[2], 16);
-                    const b = parseInt(rgb[3], 16);
+                    const r = parseInt(hex.substring(0, 2), 16);
+                    const g = parseInt(hex.substring(2, 4), 16);
+                    const b = parseInt(hex.substring(4, 6), 16);
 
-                    const bgLuminance = getLuminance(r, g, b);
-                    const whiteContrast = getContrastRatio(bgLuminance, getLuminance(255, 255, 255));
-                    const blackContrast = getContrastRatio(bgLuminance, getLuminance(0, 0, 0));
+                    const background = [r, g, b];
+                    const white = [255, 255, 255];
+                    const black = [0, 0, 0];
 
-                    return whiteContrast >= blackContrast ? '#FFFFFF' : '#000000';
+                    const contrastWithWhite = getContrastRatio(background, white);
+                    const contrastWithBlack = getContrastRatio(background, black);
+
+                    if (contrastWithBlack >= 4.5) return '#000000';
+                    if (contrastWithWhite >= 4.5) return '#FFFFFF';
+
+                    return contrastWithBlack > contrastWithWhite ? '#000000' : '#FFFFFF';
                 }
 
                 const textColor = getTextColorForHexColor(color);
@@ -3311,25 +3320,34 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                     return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
                 }
 
-                function getContrastRatio(lum1, lum2) {
+                function getContrastRatio(rgb1, rgb2) {
+                    const lum1 = getLuminance(...rgb1);
+                    const lum2 = getLuminance(...rgb2);
                     const brightest = Math.max(lum1, lum2);
                     const darkest = Math.min(lum1, lum2);
                     return (brightest + 0.05) / (darkest + 0.05);
                 }
 
-                function getTextColorForHexColor(color) {
-                    const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-                    if (!rgb) return '#FFFFFF'; 
+                function getTextColorForBackground(color) {
+                    const hex = color.replace('#', '').trim();
+                    const match = hex.match(/^([a-f\d]{6})$/i);
+                    if (!match) return '#000000'; 
 
-                    const r = parseInt(rgb[1], 16);
-                    const g = parseInt(rgb[2], 16);
-                    const b = parseInt(rgb[3], 16);
+                    const r = parseInt(hex.substring(0, 2), 16);
+                    const g = parseInt(hex.substring(2, 4), 16);
+                    const b = parseInt(hex.substring(4, 6), 16);
 
-                    const bgLuminance = getLuminance(r, g, b);
-                    const whiteContrast = getContrastRatio(bgLuminance, getLuminance(255, 255, 255));
-                    const blackContrast = getContrastRatio(bgLuminance, getLuminance(0, 0, 0));
+                    const background = [r, g, b];
+                    const white = [255, 255, 255];
+                    const black = [0, 0, 0];
 
-                    return whiteContrast >= blackContrast ? '#FFFFFF' : '#000000';
+                    const contrastWithWhite = getContrastRatio(background, white);
+                    const contrastWithBlack = getContrastRatio(background, black);
+
+                    if (contrastWithBlack >= 4.5) return '#000000';
+                    if (contrastWithWhite >= 4.5) return '#FFFFFF';
+
+                    return contrastWithBlack > contrastWithWhite ? '#000000' : '#FFFFFF';
                 }
 
                 const textColor = getTextColorForHexColor(color);
@@ -3401,36 +3419,45 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                         styleSheet.id = styleId;
                         styleSheet.classList.add('menu-color-style');
                         
-                    function getLuminance(r, g, b) {
-                        const a = [r, g, b].map(v => {
-                            v /= 255;
-                            return v <= 0.03928
-                                ? v / 12.92
-                                : Math.pow((v + 0.055) / 1.055, 2.4);
-                        });
-                        return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
-                    }
+                        function getLuminance(r, g, b) {
+                            const a = [r, g, b].map(v => {
+                                v /= 255;
+                                return v <= 0.03928
+                                    ? v / 12.92
+                                    : Math.pow((v + 0.055) / 1.055, 2.4);
+                            });
+                            return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+                        }
 
-                    function getContrastRatio(lum1, lum2) {
-                        const brightest = Math.max(lum1, lum2);
-                        const darkest = Math.min(lum1, lum2);
-                        return (brightest + 0.05) / (darkest + 0.05);
-                    }
+                        function getContrastRatio(rgb1, rgb2) {
+                            const lum1 = getLuminance(...rgb1);
+                            const lum2 = getLuminance(...rgb2);
+                            const brightest = Math.max(lum1, lum2);
+                            const darkest = Math.min(lum1, lum2);
+                            return (brightest + 0.05) / (darkest + 0.05);
+                        }
 
-                    function getTextColorForHexColor(color) {
-                        const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-                        if (!rgb) return '#FFFFFF'; 
+                        function getTextColorForBackground(color) {
+                            const hex = color.replace('#', '').trim();
+                            const match = hex.match(/^([a-f\d]{6})$/i);
+                            if (!match) return '#000000'; 
 
-                        const r = parseInt(rgb[1], 16);
-                        const g = parseInt(rgb[2], 16);
-                        const b = parseInt(rgb[3], 16);
+                            const r = parseInt(hex.substring(0, 2), 16);
+                            const g = parseInt(hex.substring(2, 4), 16);
+                            const b = parseInt(hex.substring(4, 6), 16);
 
-                        const bgLuminance = getLuminance(r, g, b);
-                        const whiteContrast = getContrastRatio(bgLuminance, getLuminance(255, 255, 255));
-                        const blackContrast = getContrastRatio(bgLuminance, getLuminance(0, 0, 0));
+                            const background = [r, g, b];
+                            const white = [255, 255, 255];
+                            const black = [0, 0, 0];
 
-                        return whiteContrast >= blackContrast ? '#FFFFFF' : '#000000';
-                    }
+                            const contrastWithWhite = getContrastRatio(background, white);
+                            const contrastWithBlack = getContrastRatio(background, black);
+
+                            if (contrastWithBlack >= 4.5) return '#000000';
+                            if (contrastWithWhite >= 4.5) return '#FFFFFF';
+
+                            return contrastWithBlack > contrastWithWhite ? '#000000' : '#FFFFFF';
+                        }
 
                     const textColor = getTextColorForHexColor(color);
                         
@@ -4622,23 +4649,34 @@ async function fetchVehiclePositions() {
                     return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
                 }
 
-                function getContrastRatio(lum1, lum2) {
+                function getContrastRatio(rgb1, rgb2) {
+                    const lum1 = getLuminance(...rgb1);
+                    const lum2 = getLuminance(...rgb2);
                     const brightest = Math.max(lum1, lum2);
                     const darkest = Math.min(lum1, lum2);
                     return (brightest + 0.05) / (darkest + 0.05);
                 }
 
-                function getTextColorForBackground(bgColor) {
-                    const hex = bgColor.replace('#', '');
+                function getTextColorForBackground(color) {
+                    const hex = color.replace('#', '').trim();
+                    const match = hex.match(/^([a-f\d]{6})$/i);
+                    if (!match) return '#000000'; 
+
                     const r = parseInt(hex.substring(0, 2), 16);
                     const g = parseInt(hex.substring(2, 4), 16);
                     const b = parseInt(hex.substring(4, 6), 16);
 
-                    const bgLuminance = getLuminance(r, g, b);
-                    const whiteContrast = getContrastRatio(bgLuminance, getLuminance(255, 255, 255));
-                    const blackContrast = getContrastRatio(bgLuminance, getLuminance(0, 0, 0));
+                    const background = [r, g, b];
+                    const white = [255, 255, 255];
+                    const black = [0, 0, 0];
 
-                    return whiteContrast >= blackContrast ? '#FFFFFF' : '#000000';
+                    const contrastWithWhite = getContrastRatio(background, white);
+                    const contrastWithBlack = getContrastRatio(background, black);
+
+                    if (contrastWithBlack >= 4.5) return '#000000';
+                    if (contrastWithWhite >= 4.5) return '#FFFFFF';
+
+                    return contrastWithBlack > contrastWithWhite ? '#000000' : '#FFFFFF';
                 }
 
                 const backgroundColor = lineColors[line] || '#000000';
@@ -4822,25 +4860,34 @@ async function fetchVehiclePositions() {
                         return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
                     }
 
-                    function getContrastRatio(lum1, lum2) {
+                    function getContrastRatio(rgb1, rgb2) {
+                        const lum1 = getLuminance(...rgb1);
+                        const lum2 = getLuminance(...rgb2);
                         const brightest = Math.max(lum1, lum2);
                         const darkest = Math.min(lum1, lum2);
                         return (brightest + 0.05) / (darkest + 0.05);
                     }
 
-                    function getTextColorForHexColor(color) {
-                        const rgb = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
-                        if (!rgb) return '#FFFFFF'; 
+                    function getTextColorForBackground(color) {
+                        const hex = color.replace('#', '').trim();
+                        const match = hex.match(/^([a-f\d]{6})$/i);
+                        if (!match) return '#000000'; 
 
-                        const r = parseInt(rgb[1], 16);
-                        const g = parseInt(rgb[2], 16);
-                        const b = parseInt(rgb[3], 16);
+                        const r = parseInt(hex.substring(0, 2), 16);
+                        const g = parseInt(hex.substring(2, 4), 16);
+                        const b = parseInt(hex.substring(4, 6), 16);
 
-                        const bgLuminance = getLuminance(r, g, b);
-                        const whiteContrast = getContrastRatio(bgLuminance, getLuminance(255, 255, 255));
-                        const blackContrast = getContrastRatio(bgLuminance, getLuminance(0, 0, 0));
+                        const background = [r, g, b];
+                        const white = [255, 255, 255];
+                        const black = [0, 0, 0];
 
-                        return whiteContrast >= blackContrast ? '#FFFFFF' : '#000000';
+                        const contrastWithWhite = getContrastRatio(background, white);
+                        const contrastWithBlack = getContrastRatio(background, black);
+
+                        if (contrastWithBlack >= 4.5) return '#000000';
+                        if (contrastWithWhite >= 4.5) return '#FFFFFF';
+
+                        return contrastWithBlack > contrastWithWhite ? '#000000' : '#FFFFFF';
                     }
 
                     const textColor = getTextColorForHexColor(color);
