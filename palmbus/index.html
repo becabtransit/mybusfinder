@@ -267,6 +267,23 @@ visibility: hidden;
     display: none;
 }
 
+#menuretro {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    background-color: #0F056B9c;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 10px;
+    border-radius: 0px 0px 0px 0px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 1);
+    z-index: 1000;
+    height: -webkit-fill-available; 
+    overflow-y: auto;
+    transition: all 0.3s ease;
+    display: none;
+}
+
 
 
 
@@ -431,6 +448,33 @@ visibility: hidden;
 
 #map.hidden {
   animation: slideInBounceInvM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+
+@keyframes slideInBounceR {
+    0% {
+        right: -100%; 
+    }
+    100% {
+        right: 0; 
+    }
+}
+
+@keyframes slideInBounceInvR {
+    0% {
+        right: 0; 
+    }
+    100% {
+        right: -100%; 
+    }
+}
+
+#menuretro {
+    animation: slideInBounceR 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+}
+
+#menuretro.hidden {
+  animation: slideInBounceInvR 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
 @keyframes bounceIn {
@@ -1623,6 +1667,7 @@ shape.bounce-down {
 
 
     <div id="menu"></div>
+    <div id="menuretro"></div>
     <div id="update-popup" class="update-popup">
         <div class="popup-content">
             <button id="close-popup" class="close-btn">
@@ -5717,7 +5762,13 @@ menubtm.addEventListener('touchend', () => {
         
         if (Math.abs(horizontalSwipeDistance) > Math.abs(verticalSwipeDistance)) {
             if (horizontalSwipeDistance > minSwipeDistance) {
+            if (window.retrostyle === '2') {
                 showMenu();
+            } else if (window.retrostyle === '1') {
+                showMenuRetro();
+            } else {
+                showMenu();
+            }
             }
         } else {
             if (verticalSwipeDistance > minSwipeDistance) {
@@ -5760,7 +5811,13 @@ document.addEventListener('touchend', function(e) {
         const touchDuration = Date.now() - touchStartTime;
         if (!isBottomSheetOpen) {
             if (swipeDistance > minSwipeDistance && touchDuration < 300) {
+            if (window.retrostyle === '2') {
                 showMenu();
+            } else if (window.retrostyle === '1') {
+                showMenuRetro();
+            } else {
+                showMenu();
+            }
             }
         }   
         
@@ -7012,11 +7069,37 @@ sortedLines.forEach(line => {
 
 
 
+function closeMenuRetro() {
+    const menu = document.getElementById('menuretro');
+    const menubottom1 = document.getElementById('menubtm');
+    const mapp = document.getElementById('map');
+    mapp.style.opacity = '1';
+    
+    menu.classList.add('hidden');
+    window.isMenuShowed = false;
+    menu.addEventListener('animationend', function onAnimationEnd(event) {
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+            menu.style.display = 'none';
+        }
+    });
+    isMenuVisible = false;
+    const filtre = document.getElementById('filtre');
+    menubottom1.style.display = 'flex';
+    setTimeout(() => {
+        menubottom1.classList.remove('slide-upb');
+        menubottom1.classList.add('slide-downb');
+        if (selectedLine) {
+            filtre.classList.remove('slide-upc');
+            filtre.classList.add('slide-downc');
+            filtre.style.display = 'flex';
+        }
+    }, 10);
+}
 
 
         function updateMenuRetro() {
 
-    const menu = document.getElementById('menu');
+    const menu = document.getElementById('menuretro');
     menu.innerHTML = '';
 
     const logoContainer = document.createElement('div');
@@ -7268,7 +7351,13 @@ menubtm.addEventListener('touchend', () => {
         
         if (Math.abs(horizontalSwipeDistance) > Math.abs(verticalSwipeDistance)) {
             if (horizontalSwipeDistance > minSwipeDistance) {
-                showMenu();
+                if (window.retrostyle === '2') {
+                    showMenu();
+                } else if (window.retrostyle === '1') {
+                    showMenuRetro();
+                } else {
+                    showMenu();
+                }
             }
         } else {
             if (verticalSwipeDistance > minSwipeDistance) {
@@ -7311,7 +7400,13 @@ document.addEventListener('touchend', function(e) {
         const touchDuration = Date.now() - touchStartTime;
         if (!isBottomSheetOpen) {
             if (swipeDistance > minSwipeDistance && touchDuration < 300) {
-                showMenu();
+                if (window.retrostyle === '2') {
+                    showMenu();
+                } else if (window.retrostyle === '1') {
+                    showMenuRetro();
+                } else {
+                    showMenu();
+                }
             }
         }   
         
@@ -8389,7 +8484,7 @@ const menubottom1 = document.getElementById('menubtm');
 
         function showMenuRetro() {
             window.isMenuShowed = true;
-            const menu = document.getElementById('menu');
+            const menu = document.getElementById('menuretro');
             const menubotom = document.getElementById('menubottom');
             menu.classList.remove('hidden');
             menu.style.display = 'block'; 
@@ -8429,8 +8524,15 @@ const menubottom1 = document.getElementById('menubtm');
 
 
 
-        const menubutton = document.getElementById('menubutton');
-        menubutton.onclick = showMenu; 
+        menubutton.addEventListener('click', () => {
+            if (window.retrostyle === '2') {
+                showMenu();
+            } else if (window.retrostyle === '1') {
+                showMenuRetro();
+            } else {
+                showMenu();
+            }
+        });
 
 
         const closeMap = document.getElementById('map');
