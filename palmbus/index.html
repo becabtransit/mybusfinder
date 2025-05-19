@@ -3245,47 +3245,41 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                 menubtm.style.backgroundColor = `${color}9c`;
                 filtre.style.backgroundColor = `${color}9c`;
 
-                function getLuminance(r, g, b) {
-                    const a = [r, g, b].map(v => {
-                        v /= 255;
-                        return v <= 0.03928
-                            ? v / 12.92
-                            : Math.pow((v + 0.055) / 1.055, 2.4);
-                    });
-                    return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
-                }
+                    function getAccessibleTextColor(color) {
+                        let r, g, b, alpha = 1;
 
-                function getContrastRatio(rgb1, rgb2) {
-                    const lum1 = getLuminance(...rgb1);
-                    const lum2 = getLuminance(...rgb2);
-                    const brightest = Math.max(lum1, lum2);
-                    const darkest = Math.min(lum1, lum2);
-                    return (brightest + 0.05) / (darkest + 0.05);
-                }
+                        const hexMatch = color.match(/^#?([a-f\d]{6})([a-f\d]{2})?$/i);
+                        if (hexMatch) {
+                            const hex = hexMatch[1];
+                            r = parseInt(hex.substring(0, 2), 16);
+                            g = parseInt(hex.substring(2, 4), 16);
+                            b = parseInt(hex.substring(4, 6), 16);
+                            if (hexMatch[2]) {
+                                alpha = parseInt(hexMatch[2], 16) / 255;
+                            }
+                        } else {
+                            return "#000000";
+                        }
 
-                function getTextColorForBackground(color) {
-                    const hex = color.replace('#', '').trim();
-                    const match = hex.match(/^([a-f\d]{6})$/i);
-                    if (!match) return '#000000'; 
+                        if (alpha < 0.1) {
+                            r = g = b = 255;
+                        } else if (alpha < 1) {
+                            r = Math.round(255 * (1 - alpha) + r * alpha);
+                            g = Math.round(255 * (1 - alpha) + g * alpha);
+                            b = Math.round(255 * (1 - alpha) + b * alpha);
+                        }
 
-                    const r = parseInt(hex.substring(0, 2), 16);
-                    const g = parseInt(hex.substring(2, 4), 16);
-                    const b = parseInt(hex.substring(4, 6), 16);
+                        const [R, G, B] = [r, g, b].map(c => {
+                            const v = c / 255;
+                            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+                        });
 
-                    const background = [r, g, b];
-                    const white = [255, 255, 255];
-                    const black = [0, 0, 0];
+                        const luminance = 0.2126 * R + 0.7152 * G + 0.0722 * B;
 
-                    const contrastWithWhite = getContrastRatio(background, white);
-                    const contrastWithBlack = getContrastRatio(background, black);
+                        return luminance > 0.179 ? "#000000" : "#FFFFFF";
+                    }
+                    const textColor = getAccessibleTextColor(color);
 
-                    if (contrastWithBlack >= 4.5) return '#000000';
-                    if (contrastWithWhite >= 4.5) return '#FFFFFF';
-
-                    return contrastWithBlack > contrastWithWhite ? '#000000' : '#FFFFFF';
-                }
-
-                const textColor = getTextColorForHexColor(color);
                 
                 document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
                 
@@ -3310,48 +3304,41 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             } else {
                 const currentColor = window.getComputedStyle(menubtm).backgroundColor;
                 
-                function getLuminance(r, g, b) {
-                    const a = [r, g, b].map(v => {
-                        v /= 255;
-                        return v <= 0.03928
-                            ? v / 12.92
-                            : Math.pow((v + 0.055) / 1.055, 2.4);
-                    });
-                    return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
-                }
+                    function getAccessibleTextColor(color) {
+                        let r, g, b, alpha = 1;
 
-                function getContrastRatio(rgb1, rgb2) {
-                    const lum1 = getLuminance(...rgb1);
-                    const lum2 = getLuminance(...rgb2);
-                    const brightest = Math.max(lum1, lum2);
-                    const darkest = Math.min(lum1, lum2);
-                    return (brightest + 0.05) / (darkest + 0.05);
-                }
+                        const hexMatch = color.match(/^#?([a-f\d]{6})([a-f\d]{2})?$/i);
+                        if (hexMatch) {
+                            const hex = hexMatch[1];
+                            r = parseInt(hex.substring(0, 2), 16);
+                            g = parseInt(hex.substring(2, 4), 16);
+                            b = parseInt(hex.substring(4, 6), 16);
+                            if (hexMatch[2]) {
+                                alpha = parseInt(hexMatch[2], 16) / 255;
+                            }
+                        } else {
+                            return "#000000";
+                        }
 
-                function getTextColorForBackground(color) {
-                    const hex = color.replace('#', '').trim();
-                    const match = hex.match(/^([a-f\d]{6})$/i);
-                    if (!match) return '#000000'; 
+                        if (alpha < 0.1) {
+                            r = g = b = 255;
+                        } else if (alpha < 1) {
+                            r = Math.round(255 * (1 - alpha) + r * alpha);
+                            g = Math.round(255 * (1 - alpha) + g * alpha);
+                            b = Math.round(255 * (1 - alpha) + b * alpha);
+                        }
 
-                    const r = parseInt(hex.substring(0, 2), 16);
-                    const g = parseInt(hex.substring(2, 4), 16);
-                    const b = parseInt(hex.substring(4, 6), 16);
+                        const [R, G, B] = [r, g, b].map(c => {
+                            const v = c / 255;
+                            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+                        });
 
-                    const background = [r, g, b];
-                    const white = [255, 255, 255];
-                    const black = [0, 0, 0];
+                        const luminance = 0.2126 * R + 0.7152 * G + 0.0722 * B;
 
-                    const contrastWithWhite = getContrastRatio(background, white);
-                    const contrastWithBlack = getContrastRatio(background, black);
+                        return luminance > 0.179 ? "#000000" : "#FFFFFF";
+                    }
+                    const textColor = getAccessibleTextColor(color);
 
-                    if (contrastWithBlack >= 4.5) return '#000000';
-                    if (contrastWithWhite >= 4.5) return '#FFFFFF';
-
-                    return contrastWithBlack > contrastWithWhite ? '#000000' : '#FFFFFF';
-                }
-                
-                const backgroundColor = lineColors[line] || '#000000';
-                const textColor = getTextColorForBackground(backgroundColor);
                 
                 document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
                 
@@ -3420,47 +3407,41 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                         styleSheet.id = styleId;
                         styleSheet.classList.add('menu-color-style');
                         
-                        function getLuminance(r, g, b) {
-                            const a = [r, g, b].map(v => {
-                                v /= 255;
-                                return v <= 0.03928
-                                    ? v / 12.92
-                                    : Math.pow((v + 0.055) / 1.055, 2.4);
-                            });
-                            return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+                    function getAccessibleTextColor(color) {
+                        let r, g, b, alpha = 1;
+
+                        const hexMatch = color.match(/^#?([a-f\d]{6})([a-f\d]{2})?$/i);
+                        if (hexMatch) {
+                            const hex = hexMatch[1];
+                            r = parseInt(hex.substring(0, 2), 16);
+                            g = parseInt(hex.substring(2, 4), 16);
+                            b = parseInt(hex.substring(4, 6), 16);
+                            if (hexMatch[2]) {
+                                alpha = parseInt(hexMatch[2], 16) / 255;
+                            }
+                        } else {
+                            return "#000000";
                         }
 
-                        function getContrastRatio(rgb1, rgb2) {
-                            const lum1 = getLuminance(...rgb1);
-                            const lum2 = getLuminance(...rgb2);
-                            const brightest = Math.max(lum1, lum2);
-                            const darkest = Math.min(lum1, lum2);
-                            return (brightest + 0.05) / (darkest + 0.05);
+                        if (alpha < 0.1) {
+                            r = g = b = 255;
+                        } else if (alpha < 1) {
+                            r = Math.round(255 * (1 - alpha) + r * alpha);
+                            g = Math.round(255 * (1 - alpha) + g * alpha);
+                            b = Math.round(255 * (1 - alpha) + b * alpha);
                         }
 
-                        function getTextColorForBackground(color) {
-                            const hex = color.replace('#', '').trim();
-                            const match = hex.match(/^([a-f\d]{6})$/i);
-                            if (!match) return '#000000'; 
+                        const [R, G, B] = [r, g, b].map(c => {
+                            const v = c / 255;
+                            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+                        });
 
-                            const r = parseInt(hex.substring(0, 2), 16);
-                            const g = parseInt(hex.substring(2, 4), 16);
-                            const b = parseInt(hex.substring(4, 6), 16);
+                        const luminance = 0.2126 * R + 0.7152 * G + 0.0722 * B;
 
-                            const background = [r, g, b];
-                            const white = [255, 255, 255];
-                            const black = [0, 0, 0];
+                        return luminance > 0.179 ? "#000000" : "#FFFFFF";
+                    }
+                    const textColor = getAccessibleTextColor(color);
 
-                            const contrastWithWhite = getContrastRatio(background, white);
-                            const contrastWithBlack = getContrastRatio(background, black);
-
-                            if (contrastWithBlack >= 4.5) return '#000000';
-                            if (contrastWithWhite >= 4.5) return '#FFFFFF';
-
-                            return contrastWithBlack > contrastWithWhite ? '#000000' : '#FFFFFF';
-                        }
-
-                    const textColor = getTextColorForHexColor(color);
                         
                         styleSheet.textContent = `
                             #menubtm * {
@@ -4640,47 +4621,51 @@ async function fetchVehiclePositions() {
                 const scheduledArrival = delayInfo ? delayInfo.scheduledArrival : null; 
 
                                 
-                function getLuminance(r, g, b) {
-                    const a = [r, g, b].map(v => {
-                        v /= 255;
-                        return v <= 0.03928
-                            ? v / 12.92
-                            : Math.pow((v + 0.055) / 1.055, 2.4);
+                function getTextColorForBackground(bgColor) {
+                    let r, g, b, alpha = 1;
+
+                    if (bgColor.startsWith("rgba")) {
+                        const parts = bgColor.replace(/[^\d,.]/g, "").split(",");
+                        r = parseInt(parts[0], 10);
+                        g = parseInt(parts[1], 10);
+                        b = parseInt(parts[2], 10);
+                        alpha = parseFloat(parts[3]);
+                    } else if (bgColor.startsWith("#")) {
+                        const hex = bgColor.replace("#", "");
+                        if (hex.length === 6 || hex.length === 8) {
+                            r = parseInt(hex.substring(0, 2), 16);
+                            g = parseInt(hex.substring(2, 4), 16);
+                            b = parseInt(hex.substring(4, 6), 16);
+                            if (hex.length === 8) {
+                                alpha = parseInt(hex.substring(6, 8), 16) / 255;
+                            }
+                        } else {
+                            return "#000000";
+                        }
+                    } else {
+                        return "#000000";
+                    }
+
+                    if (alpha < 0.1) {
+                        r = g = b = 255;
+                    } else if (alpha < 1) {
+                        r = Math.round(255 * (1 - alpha) + r * alpha);
+                        g = Math.round(255 * (1 - alpha) + g * alpha);
+                        b = Math.round(255 * (1 - alpha) + b * alpha);
+                    }
+
+                    const [R, G, B] = [r, g, b].map(c => {
+                        const v = c / 255;
+                        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
                     });
-                    return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+
+                    const luminance = 0.2126 * R + 0.7152 * G + 0.0722 * B;
+
+                    return luminance > 0.179 ? "#000000" : "#FFFFFF";
                 }
 
-                function getContrastRatio(rgb1, rgb2) {
-                    const lum1 = getLuminance(...rgb1);
-                    const lum2 = getLuminance(...rgb2);
-                    const brightest = Math.max(lum1, lum2);
-                    const darkest = Math.min(lum1, lum2);
-                    return (brightest + 0.05) / (darkest + 0.05);
-                }
 
-                function getTextColorForBackground(color) {
-                    const hex = color.replace('#', '').trim();
-                    const match = hex.match(/^([a-f\d]{6})$/i);
-                    if (!match) return '#000000'; 
-
-                    const r = parseInt(hex.substring(0, 2), 16);
-                    const g = parseInt(hex.substring(2, 4), 16);
-                    const b = parseInt(hex.substring(4, 6), 16);
-
-                    const background = [r, g, b];
-                    const white = [255, 255, 255];
-                    const black = [0, 0, 0];
-
-                    const contrastWithWhite = getContrastRatio(background, white);
-                    const contrastWithBlack = getContrastRatio(background, black);
-
-                    if (contrastWithBlack >= 4.5) return '#000000';
-                    if (contrastWithWhite >= 4.5) return '#FFFFFF';
-
-                    return contrastWithBlack > contrastWithWhite ? '#000000' : '#FFFFFF';
-                }
-
-                const backgroundColor = lineColors[line] || '#000000';
+                const backgroundColor = lineColors[line] || "#000000";
                 const textColor = getTextColorForBackground(backgroundColor);
 
 
@@ -4851,48 +4836,42 @@ async function fetchVehiclePositions() {
                     filtre.style.backgroundColor = `${color}9c`;
 
                     
-                    function getLuminance(r, g, b) {
-                        const a = [r, g, b].map(v => {
-                            v /= 255;
-                            return v <= 0.03928
-                                ? v / 12.92
-                                : Math.pow((v + 0.055) / 1.055, 2.4);
+                    function getAccessibleTextColor(color) {
+                        let r, g, b, alpha = 1;
+
+                        const hexMatch = color.match(/^#?([a-f\d]{6})([a-f\d]{2})?$/i);
+                        if (hexMatch) {
+                            const hex = hexMatch[1];
+                            r = parseInt(hex.substring(0, 2), 16);
+                            g = parseInt(hex.substring(2, 4), 16);
+                            b = parseInt(hex.substring(4, 6), 16);
+                            if (hexMatch[2]) {
+                                alpha = parseInt(hexMatch[2], 16) / 255;
+                            }
+                        } else {
+                            return "#000000";
+                        }
+
+                        if (alpha < 0.1) {
+                            r = g = b = 255;
+                        } else if (alpha < 1) {
+                            r = Math.round(255 * (1 - alpha) + r * alpha);
+                            g = Math.round(255 * (1 - alpha) + g * alpha);
+                            b = Math.round(255 * (1 - alpha) + b * alpha);
+                        }
+
+                        const [R, G, B] = [r, g, b].map(c => {
+                            const v = c / 255;
+                            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
                         });
-                        return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+
+                        const luminance = 0.2126 * R + 0.7152 * G + 0.0722 * B;
+
+                        return luminance > 0.179 ? "#000000" : "#FFFFFF";
                     }
+                    const textColor = getAccessibleTextColor(color);
 
-                    function getContrastRatio(rgb1, rgb2) {
-                        const lum1 = getLuminance(...rgb1);
-                        const lum2 = getLuminance(...rgb2);
-                        const brightest = Math.max(lum1, lum2);
-                        const darkest = Math.min(lum1, lum2);
-                        return (brightest + 0.05) / (darkest + 0.05);
-                    }
-
-                    function getTextColorForBackground(color) {
-                        const hex = color.replace('#', '').trim();
-                        const match = hex.match(/^([a-f\d]{6})$/i);
-                        if (!match) return '#000000'; 
-
-                        const r = parseInt(hex.substring(0, 2), 16);
-                        const g = parseInt(hex.substring(2, 4), 16);
-                        const b = parseInt(hex.substring(4, 6), 16);
-
-                        const background = [r, g, b];
-                        const white = [255, 255, 255];
-                        const black = [0, 0, 0];
-
-                        const contrastWithWhite = getContrastRatio(background, white);
-                        const contrastWithBlack = getContrastRatio(background, black);
-
-                        if (contrastWithBlack >= 4.5) return '#000000';
-                        if (contrastWithWhite >= 4.5) return '#FFFFFF';
-
-                        return contrastWithBlack > contrastWithWhite ? '#000000' : '#FFFFFF';
-                    }
-
-                    const textColor = getTextColorForHexColor(color);
-                                        
+                    
                     const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
                     const styleSheet = document.createElement('style');
                     styleSheet.id = styleId;
