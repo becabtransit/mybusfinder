@@ -1997,7 +1997,6 @@ tarteaucitron.init({
                 value: localStorage.getItem('darkmap') === 'true',
                 onChange: function (value) {
                 localStorage.setItem('darkmap', value);
-                fetchVehiclePositions();
                 }
             });
 
@@ -2170,6 +2169,12 @@ async function changeColorBkg(selectedTheme = null) {
     window.colorbkg9c = colorWithAlpha;
     window.isNightMode = (theme === "dark");
 
+    const mapPane = map.getPanes().tilePane;
+    if (localStorage.getItem('darkmap') === 'true') {
+        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+    } else {
+        mapPane.style.filter = 'none';
+    }
 }
 
 
@@ -2250,10 +2255,13 @@ async function initMap() {
         maxZoom: 19,
     }).addTo(mapInstance);
 
-    const mapPane = map.getPanes().tilePane;
+
+    
     if (localStorage.getItem('darkmap') === 'true') {
+        const mapPane = mapInstance.getPanes().tilePane;
         mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
     } else {
+        const mapPane = mapInstance.getPanes().tilePane;
         mapPane.style.filter = 'none';
     }
 
@@ -4520,6 +4528,13 @@ function applyMapView() {
         maxZoom: 19,
     }).addTo(map);
     
+    if (localStorage.getItem('darkmap') === 'true') {
+        const mapPane = mapInstance.getPanes().tilePane;
+        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+    } else {
+        const mapPane = mapInstance.getPanes().tilePane;
+        mapPane.style.filter = 'none';
+    }
 
 } else {
     const mapPane = map.getPanes().tilePane;
