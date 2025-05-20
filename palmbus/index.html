@@ -421,9 +421,17 @@ visibility: hidden;
     }
 }
 
-#menu {
-  animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+@keyframes slideInBounceInvMBlur {
+    0% {
+        backdrop-filter: blur(0px);
+        -webkit-backdrop-filter: blur(0px);
+        }
+    100% {
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
 }
+
 
 #menu.hidden {
   animation: slideInBounceInv 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
@@ -431,6 +439,10 @@ visibility: hidden;
 
 #map.hidden {
   animation: slideInBounceInvM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+#map.hiddennotransition {
+  animation: slideInBounceInvMBlur 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
 @keyframes bounceIn {
@@ -1890,6 +1902,16 @@ tarteaucitron.init({
                 }
             });
 
+            FluentSettingsMenu.addToggle("general", "transparency", {
+                icon: "📍",
+                label: transparency,
+                description: transparencytext,
+                value: localStorage.getItem('transparency') === 'true',
+                onChange: function (value) {
+                localStorage.setItem('transparency', value);
+                }
+            });
+
             FluentSettingsMenu.addLanguageSwitcher("general", {
                 icon: "🌐",
                 label: selectlanguage,
@@ -1917,8 +1939,18 @@ tarteaucitron.init({
                 }
             });
 
+            FluentSettingsMenu.addToggle("advanced", "darkmap", {
+                icon: "🎴",
+                label: darkmap,
+                description: darkmaptext,
+                value: localStorage.getItem('darkmap') === 'true',
+                onChange: function (value) {
+                localStorage.setItem('darkmap', value);
+                }
+            });
+
             FluentSettingsMenu.addSubmenu("about", "aboutsub", {
-                icon: "⚙️",
+                icon: "",
                 label: "My Bus Finder - by BecabTransit",
                 description: "build " + `${window.BUILD_VERSION}`,
                 onclick: function () {
@@ -2088,7 +2120,11 @@ async function changeColorBkg(selectedTheme = null) {
 
     const mapPane = map.getPanes().tilePane;
     if (window.isNightMode) {
-        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        if (localStorage.getItem('darkmap') === 'true') {
+            mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        } else {
+            mapPane.style.filter = 'none';
+        }
     } else {
         mapPane.style.filter = 'none';
     }
@@ -2171,10 +2207,17 @@ async function initMap() {
         minZoom: 12,
         maxZoom: 19,
     }).addTo(mapInstance);
+
+
     
     if (window.isNightMode) {
-        const mapPane = mapInstance.getPanes().tilePane;
-        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        if (localStorage.getItem('darkmap') === 'true') {
+            const mapPane = mapInstance.getPanes().tilePane;
+            mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        } else {
+            const mapPane = mapInstance.getPanes().tilePane;
+            mapPane.style.filter = 'none';
+        }
     } else {
         const mapPane = mapInstance.getPanes().tilePane;
         const html = document.documentElement;
@@ -4393,11 +4436,16 @@ function applyMapView() {
     }).addTo(map);
     
     if (window.isNightMode) {
-        const mapPane = map.getPanes().tilePane;
-        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        if (localStorage.getItem('darkmap') === 'true') {
+            const mapPane = mapInstance.getPanes().tilePane;
+            mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        } else {
+            const mapPane = mapInstance.getPanes().tilePane;
+            mapPane.style.filter = 'none';
+        }
     } else {
-        const mapPane = map.getPanes().tilePane;
-        mapPane.style.filter = 'none';
+        const mapPane = mapInstance.getPanes().tilePane;
+        const html = document.documentElement;
     }
 
 } else {
@@ -5796,11 +5844,16 @@ function applyMapView() {
     }).addTo(map);
     
     if (window.isNightMode) {
-        const mapPane = map.getPanes().tilePane;
-        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        if (localStorage.getItem('darkmap') === 'true') {
+            const mapPane = mapInstance.getPanes().tilePane;
+            mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+        } else {
+            const mapPane = mapInstance.getPanes().tilePane;
+            mapPane.style.filter = 'none';
+        }
     } else {
-        const mapPane = map.getPanes().tilePane;
-        mapPane.style.filter = 'none';
+        const mapPane = mapInstance.getPanes().tilePane;
+        const html = document.documentElement;
     }
 
 } else {
@@ -7101,10 +7154,19 @@ const menubottom1 = document.getElementById('menubtm');
             const menu = document.getElementById('menu');
             const menubotom = document.getElementById('menubottom');
             menu.classList.remove('hidden');
-            const map = document.getElementById('map');
-            map.classList.add('hidden');
-            menu.style.display = 'block'; 
-            mapp.style.animationPlayState = 'running';
+
+            if (localStorage.getItem('transparency') === 'true') {
+                const map = document.getElementById('map');
+                map.classList.add('hiddennotransition');
+                menu.style.display = 'block'; 
+                mapp.style.animationPlayState = 'running';
+            } else {
+                const map = document.getElementById('map');
+                map.classList.add('hidden');
+                menu.style.display = 'block'; 
+                mapp.style.animationPlayState = 'running';
+            }
+
             isMenuVisible = true; 
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
