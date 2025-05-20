@@ -2094,12 +2094,6 @@ tarteaucitron.init({
     }
     }
 
-    function isLowDPI() {
-    const mediaQueryList = window.matchMedia('(resolution: 1dppx)');
-    
-    const dpr = window.devicePixelRatio || 1;
-    return dpr < 1.25 || mediaQueryList.matches;
-    }
     const fluentPopupManager = new FluentPopup();
 
     function showFluentPopup(options = {}) {
@@ -2144,22 +2138,6 @@ tarteaucitron.init({
             const betasettingdarkmap = t("betasettingdarkmap");
             const understood = t("understood");
             const cancel = t("cancel");
-
-            if (isLowDPI()) {
-                fluentPopupManager.open({
-                title: t('lowscreendpierror'),
-                message: t('lowscreendpierrortext'),
-                buttons: {
-                    primary: t('understood'),
-                    primaryAction: () => fluentPopupManager.close(),
-                    secondary: t('notdisplay'),
-                    secondaryAction: () => {
-                    localStorage.setItem('dpi-warning-dismissed', 'true');
-                    fluentPopupManager.close();
-                    }
-                }
-                });
-            }
                    
 
             FluentSettingsMenu.init({
@@ -2265,7 +2243,7 @@ tarteaucitron.init({
                 description: darkmaptext,
                 value: localStorage.getItem('darkmap') === 'true',
                 onChange: function (value) {
-                    if (value && localStorage.getItem('darkmap-beta-warning-shown') !== 'true') {
+                    if (value && localStorage.getItem('darkmap-beta-warning-shown') === 'true') {
                         showFluentPopup({
                             title: betasetting,
                             message: betasettingdarkmap,
