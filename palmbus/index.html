@@ -5246,6 +5246,26 @@ async function fetchVehiclePositions() {
         
         if (!markers[id].id) {
             markers[id].id = id;
+            const urlParams = new URLSearchParams(window.location.search);
+            const popupId = urlParams.get("vehicule");
+            if (popupId && popupId === id) {
+                markers[id].openPopup();
+            } else {
+                const fluentPopupManager = new FluentPopup();
+                document.addEventListener('DOMContentLoaded', () => {
+                if (isLowDPI()) {
+                    fluentPopupManager.open({
+                    title: t('noexists'),
+                    message: t('noexistsmessage'),
+                    buttons: {
+                        primary: t('understood'),
+                        primaryAction: () => fluentPopupManager.close(),
+                        secondary: t('notdisplay'),
+                    }
+                    });
+                }
+                });
+            }
         }
         
         if (markers[id].line !== line) {
