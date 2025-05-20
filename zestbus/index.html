@@ -410,19 +410,50 @@ visibility: hidden;
     }
 }
 
+
+
 @keyframes slideInBounceInvM {
     0% {
         transform: translateX(0%); 
         opacity: 1;
+        filter: blur(0px);
         }
     100% {
         transform: translateX(-50%); 
         opacity: 0;
+        filter: blur(0px);
+    }
+}
+
+@keyframes slideInBounceInvMBlur {
+    0% {
+        filter: blur(0px);
+        scale: 1;
+        }
+    100% {
+        scale: 1.2;
+        filter: blur(2px);
+    }
+}
+
+@keyframes slideInBounceInvMBlurRev {
+    0% {
+        scale: 1.2;
+        filter: blur(2px);
+        }
+    100% {
+        filter: blur(0px);
+        scale: 1;
     }
 }
 
 #menu {
   animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+#map.appear {
+    animation: slideInBounceM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+
 }
 
 #menu.hidden {
@@ -431,6 +462,14 @@ visibility: hidden;
 
 #map.hidden {
   animation: slideInBounceInvM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+#map.hiddennotransition {
+  animation: slideInBounceInvMBlur 1.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+#map.appearnotransition {
+  animation: slideInBounceInvMBlurRev 1.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
 @keyframes bounceIn {
@@ -1393,7 +1432,6 @@ shape.bounce-down {
 #map { 
     height: 100%; 
     width: 100%; 
-    animation: slideInBounceM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
 }
 
 #sun-overlay {
@@ -1587,19 +1625,19 @@ shape.bounce-down {
  <div class="menubottom">
         <ul id="menubtm" class="menubottom-ul">
             <li>
-                <a href="https://mybusfinder.fr/"><span class="icon"><img src="src/menu.png" style="width: 40px; height: 40px;"></img></span> <span
+                <a href="https://mybusfinder.fr/"><span class="icon"><img src="src/menu.png" id="menuicon" style="width: 40px; height: 40px;"></img></span> <span
                     class="title" data-i18n="menu">Menu</span></a>
             </li>
             <li>
-                <a onclick="showUpdatePopupPourHoraires()" id="clock"><span class="icon"><img src="src/horloge.png" style="width: 40px; height: 40px;"></img></span> <span
+                <a onclick="showUpdatePopupPourHoraires()" id="clock"><span class="icon"><img src="src/horloge.png" id="myscheduleicon" style="width: 40px; height: 40px;"></img></span> <span
                         class="title" data-i18n="schedule">Horaires</span></a>
             </li>
             <li>
-                <a id="menubutton"><span class="icon"><img src="src/bus.png" style="width: 40px; height: 40px;"></img></span> <span
+                <a id="menubutton"><span class="icon"><img src="src/bus.png" id="vehicleicon" style="width: 40px; height: 40px;"></img></span> <span
                         class="title" data-i18n="network">Réseau</span></a>
             </li>
             <li>
-                <a onclick="showUpdatePopup('alerts.html');" id="histovecbutton"><span class="icon"><img src="src/newspaper.png" style="width: 40px; height: 40px;"></img></span> <span
+                <a onclick="showUpdatePopup('alerts.html');" id="histovecbutton"><span class="icon"><img id="actuicon" src="src/newspaper.png" style="width: 40px; height: 40px;"></img></span> <span
                         class="title" data-i18n="news">Actualités</span></a>
             </li>
             <li id="bottomsheetappearcss">
@@ -1814,6 +1852,259 @@ tarteaucitron.init({
     });
     }
 
+
+    const fluentPopupStyles = `
+    .fluent-popup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(10px);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 99999999999;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .fluent-popup {
+        background-color: rgba(255, 255, 255, 0.9);
+        border-radius: 8px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        padding: 20px;
+        max-width: 400px;
+        width: 90%;
+        font-family: 'League Spartan', sans-serif;
+        position: relative;
+        transform: translateY(20px);
+        transition: transform 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        color: #202020;
+        margin-right: 20px;
+        margin-left: 20px;
+    }
+
+    .fluent-popup.show {
+        transform: translateY(0);
+    }
+
+    .fluent-popup-overlay.show {
+        opacity: 1;
+    }
+
+    .fluent-popup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .fluent-popup-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .fluent-popup-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #555;
+        width: 28px;
+        height: 28px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.2s;
+    }
+
+    .fluent-popup-close:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+        color: #000;
+    }
+
+    .fluent-popup-content {
+        margin-bottom: 15px;
+        line-height: 1.5;
+    }
+
+    .fluent-popup-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    .fluent-button {
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+    }
+
+    .fluent-button-primary {
+        background-color: #0078d4;
+        color: white;
+    }
+
+    .fluent-button-primary:hover {
+        background-color: #106ebe;
+    }
+
+    .fluent-button-secondary {
+        background-color: rgba(0, 0, 0, 0.05);
+        color: #000;
+    }
+
+    .fluent-button-secondary:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .fluent-popup {
+        background-color: rgba(32, 32, 32, 0.95);
+        color: #ffffff;
+        border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .fluent-popup-close {
+        color: #aaa;
+        }
+
+        .fluent-popup-close:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        }
+
+        .fluent-button-secondary {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        }
+
+        .fluent-button-secondary:hover {
+        background-color: rgba(255, 255, 255, 0.15);
+        }
+    }
+    `;
+
+    class FluentPopup {
+    constructor() {
+        this.initialized = false;
+        this.isOpen = false;
+        this.overlay = null;
+        this.popup = null;
+        this.styleElement = null;
+    }
+
+    init() {
+        if (this.initialized) return;
+
+        this.styleElement = document.createElement('style');
+        this.styleElement.textContent = fluentPopupStyles;
+        document.head.appendChild(this.styleElement);
+
+        this.overlay = document.createElement('div');
+        this.overlay.className = 'fluent-popup-overlay';
+        
+        
+        this.popup = document.createElement('div');
+        this.popup.className = 'fluent-popup';
+        
+        this.overlay.appendChild(this.popup);
+        document.body.appendChild(this.overlay);
+
+        this.initialized = true;
+    }
+
+
+    open(options = {}) {
+        if (!this.initialized) this.init();
+        if (this.isOpen) return;
+        document.querySelector(".fluent-popup-overlay").style.display = "flex";
+
+        const {
+        title = 'Notification',
+        message = '',
+        buttons = {
+            primary: 'OK',
+            primaryAction: () => this.close()
+        },
+        closeButton = true
+        } = options;
+
+        this.popup.innerHTML = `
+        <div class="fluent-popup-header">
+            <h3 class="fluent-popup-title">${title}</h3>
+        </div>
+        <div class="fluent-popup-content">
+            ${message}
+        </div>
+        <div class="fluent-popup-actions">
+            ${buttons.secondary ? `<button class="fluent-button fluent-button-secondary">${buttons.secondary}</button>` : ''}
+            <button class="fluent-button fluent-button-primary">${buttons.primary}</button>
+        </div>
+        `;
+
+
+        const primaryBtn = this.popup.querySelector('.fluent-button-primary');
+        primaryBtn.addEventListener('click', (e) => {
+        if (buttons.primaryAction) buttons.primaryAction(e);
+        });
+
+        const secondaryBtn = this.popup.querySelector('.fluent-button-secondary');
+        if (secondaryBtn && buttons.secondaryAction) {
+        secondaryBtn.addEventListener('click', (e) => buttons.secondaryAction(e));
+        }
+
+        requestAnimationFrame(() => {
+        this.overlay.classList.add('show');
+        this.popup.classList.add('show');
+        });
+
+        this.isOpen = true;
+    }
+
+    close() {
+        if (!this.isOpen) return;
+        
+        this.overlay.classList.remove('show');
+        this.popup.classList.remove('show');
+        
+        setTimeout(() => {
+        this.isOpen = false;
+        document.querySelector(".fluent-popup-overlay").style.display = "none";
+        }, 300);
+    }
+
+
+    destroy() {
+        if (this.overlay && this.overlay.parentNode) {
+        this.overlay.parentNode.removeChild(this.overlay);
+        }
+        
+        if (this.styleElement && this.styleElement.parentNode) {
+        this.styleElement.parentNode.removeChild(this.styleElement);
+        }
+        
+        this.initialized = false;
+        this.isOpen = false;
+    }
+    }
+
+    const fluentPopupManager = new FluentPopup();
+
+    function showFluentPopup(options = {}) {
+    fluentPopupManager.open(options);
+    }
+
+
+
     document.addEventListener('DOMContentLoaded', () => {
     i18n.init().then(() => {
         i18n.applyTranslations();
@@ -1841,7 +2132,16 @@ tarteaucitron.init({
             const hero = t("hero");
             const corail = t("corail");
             const barbie = t("barbie");
-            const palmbus = t("palmbus");            
+            const palmbus = t("palmbus");     
+            const transparency = t("transparency");
+            const transparencytext = t("transparencytext");
+            const darkmap = t("darkmap");
+            const darkmaptext = t("darkmaptext");   
+            const betasetting = t("betasetting");
+            const betasettingdarkmap = t("betasettingdarkmap");
+            const understood = t("understood");
+            const cancel = t("cancel");
+                   
 
             FluentSettingsMenu.init({
                 title: settingsmbf,
@@ -1890,6 +2190,29 @@ tarteaucitron.init({
                 }
             });
 
+            FluentSettingsMenu.addToggle("general", "transparency", {
+                icon: "🪟",
+                label: transparency,
+                description: transparencytext,
+                value: localStorage.getItem('transparency') === 'true',
+                onChange: function (value) {
+                localStorage.setItem('transparency', value);
+                    if (value) {
+                        const map = document.getElementById('map');
+                        map.classList.remove('appearnotransition');
+                        map.classList.remove('hidden');
+                        map.classList.remove('appear');
+                        map.classList.add('hiddennotransition');
+                    } else {
+                        const map = document.getElementById('map');
+                        map.classList.remove('appear');
+                        map.classList.remove('hiddennotransition');
+                        map.classList.remove('appearnotransition');
+                        map.classList.add('hidden');                        
+                    }
+                }
+            });
+
             FluentSettingsMenu.addLanguageSwitcher("general", {
                 icon: "🌐",
                 label: selectlanguage,
@@ -1917,8 +2240,45 @@ tarteaucitron.init({
                 }
             });
 
+            FluentSettingsMenu.addToggle("advanced", "darkmap", {
+                icon: "🎴",
+                label: darkmap,
+                description: darkmaptext,
+                value: localStorage.getItem('darkmap') === 'true',
+                onChange: function (value) {
+                    if (value) {
+                        showFluentPopup({
+                            title: betasetting,
+                            message: betasettingdarkmap,
+                            buttons: {
+                                primary: understood,
+                                primaryAction: () => {
+                                    localStorage.setItem('darkmap', 'true');
+                                    const mapPane = map.getPanes().tilePane;
+                                    mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+                                    fluentPopupManager.close();
+                                },
+                                secondary: cancel,
+                                secondaryAction: () => {
+                                    const toggle = document.querySelector('[data-setting="darkmap"]');
+                                    if (toggle) {
+                                        toggle.querySelector('input[type="checkbox"]').checked = false;
+                                    }
+                                    localStorage.setItem('darkmap', 'false');
+                                    fluentPopupManager.close();
+                                }
+                            }
+                        });
+                    } else {
+                        localStorage.setItem('darkmap', value);
+                        const mapPane = map.getPanes().tilePane;
+                        mapPane.style.filter = 'none';
+                    }
+                }
+            });
+
             FluentSettingsMenu.addSubmenu("about", "aboutsub", {
-                icon: "⚙️",
+                icon: "",
                 label: "My Bus Finder - by BecabTransit",
                 description: "build " + `${window.BUILD_VERSION}`,
                 onclick: function () {
@@ -1939,6 +2299,21 @@ tarteaucitron.init({
 
 document.addEventListener('DOMContentLoaded', function() {
     const menuItems = document.querySelectorAll('.menubottom-ul li a');
+
+    if (localStorage.getItem('transparency') === 'true') {
+        const map = document.getElementById('map');
+        map.classList.remove('hiddennotransition');
+        map.classList.add('appearnotransition');
+        map.classList.remove('hidden');
+        map.classList.remove('appear');
+    } else {
+        const map = document.getElementById('map');
+        map.classList.remove('hidden');
+        map.classList.add('appear');
+        map.classList.remove('hiddennotransition');
+        map.classList.remove('appearnotransition');
+    }
+
     
     menuItems.forEach(item => {
         item.addEventListener('touchstart', function() {
@@ -2084,10 +2459,9 @@ async function changeColorBkg(selectedTheme = null) {
 
     window.colorbkg = baseColor;
     window.colorbkg9c = colorWithAlpha;
-    window.isNightMode = (theme === "dark");
 
     const mapPane = map.getPanes().tilePane;
-    if (window.isNightMode) {
+    if (localStorage.getItem('darkmap') === 'true') {
         mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
     } else {
         mapPane.style.filter = 'none';
@@ -2171,14 +2545,7 @@ async function initMap() {
         minZoom: 12,
         maxZoom: 19,
     }).addTo(mapInstance);
-    
-    if (window.isNightMode) {
-        const mapPane = mapInstance.getPanes().tilePane;
-        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
-    } else {
-        const mapPane = mapInstance.getPanes().tilePane;
-        const html = document.documentElement;
-    }
+
 
 } else {
     const mapPane = mapInstance.getPanes().tilePane;
@@ -2664,9 +3031,22 @@ function closeUpdatePopup() {
     
     const menubottom1 = document.getElementById('menubtm');
     const menu = document.getElementById('menu');
-    menu.classList.add('hidden');
+
     const map = document.getElementById('map');
-    map.classList.remove('hidden');
+    menu.classList.add('hidden');
+    if (localStorage.getItem('transparency') === 'true') {
+        const map = document.getElementById('map');
+        map.classList.remove('hiddennotransition');
+        map.classList.add('appearnotransition');
+        map.classList.remove('hidden');
+        map.classList.remove('appear');
+    } else {
+        const map = document.getElementById('map');
+        map.classList.remove('hidden');
+        map.classList.add('appear');
+        map.classList.remove('hiddennotransition');
+        map.classList.remove('appearnotransition');
+    }
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -3137,7 +3517,21 @@ async function decodeProtobuf(buffer) {
             marker.openPopup();
             
             const menu = document.getElementById('menu');
-            menu.classList.add('hidden');
+            const map = document.getElementById('map');
+                menu.classList.add('hidden');
+            if (localStorage.getItem('transparency') === 'true') {
+                const map = document.getElementById('map');
+                map.classList.remove('hiddennotransition');
+                map.classList.add('appearnotransition');
+                map.classList.remove('hidden');
+                map.classList.remove('appear');
+            } else {
+                const map = document.getElementById('map');
+                map.classList.remove('hidden');
+                map.classList.add('appear');
+                map.classList.remove('hiddennotransition');
+                map.classList.remove('appearnotransition');
+            }
             window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
                 if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -3768,9 +4162,21 @@ function closePopup() {
     popup2.style.display = 'none';
     const menubottom1 = document.getElementById('menubtm');
             const menu = document.getElementById('menu');
-            menu.classList.add('hidden');
             const map = document.getElementById('map');
-            map.classList.remove('hidden');
+            menu.classList.add('hidden');
+            if (localStorage.getItem('transparency') === 'true') {
+                const map = document.getElementById('map');
+                map.classList.remove('hiddennotransition');
+                map.classList.add('appearnotransition');
+                map.classList.remove('hidden');
+                map.classList.remove('appear');
+            } else {
+                const map = document.getElementById('map');
+                map.classList.remove('hidden');
+                map.classList.add('appear');
+                map.classList.remove('hiddennotransition');
+                map.classList.remove('appearnotransition');
+            }
             window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
                 if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -4349,9 +4755,21 @@ function toggleMapView(forceState) {
     const menu = document.getElementById('menu');
     const mapp = document.getElementById('map');
     mapp.style.opacity = '1';
-    menu.classList.add('hidden');
     const map = document.getElementById('map');
-    map.classList.remove('hidden');
+    menu.classList.add('hidden');
+    if (localStorage.getItem('transparency') === 'true') {
+        const map = document.getElementById('map');
+        map.classList.remove('hiddennotransition');
+        map.classList.add('appearnotransition');
+        map.classList.remove('hidden');
+        map.classList.remove('appear');
+    } else {
+        const map = document.getElementById('map');
+        map.classList.remove('hidden');
+        map.classList.add('appear');
+        map.classList.remove('hiddennotransition');
+        map.classList.remove('appearnotransition');
+    }
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -4392,13 +4810,6 @@ function applyMapView() {
         maxZoom: 19,
     }).addTo(map);
     
-    if (window.isNightMode) {
-        const mapPane = map.getPanes().tilePane;
-        mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
-    } else {
-        const mapPane = map.getPanes().tilePane;
-        mapPane.style.filter = 'none';
-    }
 
 } else {
     const mapPane = map.getPanes().tilePane;
@@ -4413,6 +4824,19 @@ function applyMapView() {
     }).addTo(map);
 
 }
+}
+
+function shareVehicleId(id) {
+  const message = t("shareMessage").replace("{{vehicleId}}", id);
+  const url = window.location.href; 
+  const fullMessage = `${message} ${url}`;
+
+  if (navigator.share) {
+    navigator.share({
+      title: 'My Bus Finder',
+      text: fullMessage,
+    }).catch(err => console.error("Sharing failed :(", err));
+  } 
 }
 
 
@@ -4733,10 +5157,35 @@ async function fetchVehiclePositions() {
                         remainingTimeMessage = ' ' + t("unknownarrival");
                     }
                 }
+
+
                 
                 const popupContent = `
                     <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-                        
+                       
+                <button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    background: none;
+                    border: none;
+                    padding: 4px;
+                    cursor: pointer;
+                    z-index: 3;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                ">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3C10.3431 3 9 4.34315 9 6C9 7.65685 10.3431 9 12 9C13.6569 9 15 7.65685 15 6" />
+                    <path d="M5.5 15C3.84315 15 2.5 16.3431 2.5 18C2.5 19.6569 3.84315 21 5.5 21C7.15685 21 8.5 19.6569 8.5 18" />
+                    <path d="M18.5 21C16.8431 21 15.5 19.6569 15.5 18C15.5 16.3431 16.8431 15 18.5 15C20.1569 15 21.5 16.3431 21.5 18" />
+                    <path d="M20 13C20 10.6106 18.9525 8.46589 17.2916 7M4 13C4 10.6106 5.04752 8.46589 6.70838 7M10 20.748C10.6392 20.9125 11.3094 21 12 21C12.6906 21 13.3608 20.9125 14 20.748" />
+                </svg>
+                
+                </button>
+
+
                 <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
                 <div class="light-beam beam1"></div>
                 <div class="light-beam beam2"></div>
@@ -4829,8 +5278,11 @@ async function fetchVehiclePositions() {
                 </div>
                 </div>
                 `;
+
+
+
                 
-                if (markers[id]) {
+    if (markers[id]) {
         animateMarker(markers[id], [latitude, longitude]);
         
         if (!markers[id].id) {
@@ -4968,6 +5420,9 @@ async function fetchVehiclePositions() {
                 }
             }
         }
+
+
+
 
         if (selectedLine && markers[id].line !== selectedLine) {
             if (map.hasLayer(markers[id])) {
@@ -5617,9 +6072,23 @@ function closeMenu() {
     const mapp = document.getElementById('map');
     mapp.style.opacity = '1';
     
-    menu.classList.add('hidden');
+
     const map = document.getElementById('map');
-    map.classList.remove('hidden');
+    menu.classList.add('hidden');
+    if (localStorage.getItem('transparency') === 'true') {
+        const map = document.getElementById('map');
+        map.classList.remove('hiddennotransition');
+        map.classList.add('appearnotransition');
+        map.classList.remove('hidden');
+        map.classList.remove('appear');
+    } else {
+        const map = document.getElementById('map');
+        map.classList.remove('hidden');
+        map.classList.add('appear');
+        map.classList.remove('hiddennotransition');
+        map.classList.remove('appearnotransition');
+    }
+
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -5753,9 +6222,22 @@ function toggleMapView(forceState) {
     const menu = document.getElementById('menu');
     const mapp = document.getElementById('map');
     mapp.style.opacity = '1';
-    menu.classList.add('hidden');
     const map = document.getElementById('map');
-    map.classList.remove('hidden');
+    menu.classList.add('hidden');
+
+    if (localStorage.getItem('transparency') === 'true') {
+        const map = document.getElementById('map');
+        map.classList.remove('hiddennotransition');
+        map.classList.add('appearnotransition');
+        map.classList.remove('hidden');
+        map.classList.remove('appear');
+    } else {
+        const map = document.getElementById('map');
+        map.classList.remove('hidden');
+        map.classList.add('appear');
+        map.classList.remove('hiddennotransition');
+        map.classList.remove('appearnotransition');
+    }
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -5795,11 +6277,11 @@ function applyMapView() {
         maxZoom: 19,
     }).addTo(map);
     
-    if (window.isNightMode) {
-        const mapPane = map.getPanes().tilePane;
+    if (localStorage.getItem('darkmap') === 'true') {
+        const mapPane = mapInstance.getPanes().tilePane;
         mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
     } else {
-        const mapPane = map.getPanes().tilePane;
+        const mapPane = mapInstance.getPanes().tilePane;
         mapPane.style.filter = 'none';
     }
 
@@ -6525,9 +7007,22 @@ function showBottomSheet() {
 
     safeVibrate(50);
     // Hide menu
-    menu.classList.add('hidden');
     const map = document.getElementById('map');
-    map.classList.remove('hidden');
+    menu.classList.add('hidden');
+
+    if (localStorage.getItem('transparency') === 'true') {
+        const map = document.getElementById('map');
+        map.classList.remove('hiddennotransition');
+        map.classList.add('appearnotransition');
+        map.classList.remove('hidden');
+        map.classList.remove('appear');
+    } else {
+        const map = document.getElementById('map');
+        map.classList.remove('hidden');
+        map.classList.add('appear');
+        map.classList.remove('hiddennotransition');
+        map.classList.remove('appearnotransition');
+    }
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -7035,9 +7530,21 @@ sortedLines.forEach(line => {
                     const lineId = line;
                     selectedLine = lineId;
                     filterByLine(lineId);
-                    menu.classList.add('hidden');
                     const map = document.getElementById('map');
-                    map.classList.remove('hidden');
+                    menu.classList.add('hidden');
+                    if (localStorage.getItem('transparency') === 'true') {
+                        const map = document.getElementById('map');
+                        map.classList.remove('hiddennotransition');
+                        map.classList.add('appearnotransition');
+                        map.classList.remove('hidden');
+                        map.classList.remove('appear');
+                    } else {
+                        const map = document.getElementById('map');
+                        map.classList.remove('hidden');
+                        map.classList.add('appear');
+                        map.classList.remove('hiddennotransition');
+                        map.classList.remove('appearnotransition');
+                    }
                     window.isMenuShowed = false;
                     menu.addEventListener('animationend', function onAnimationEnd(event) {
                         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -7068,7 +7575,19 @@ sortedLines.forEach(line => {
                     const mapp = document.getElementById('map');
                     mapp.style.opacity = '1';
                     menu.classList.add('hidden');
-                    mapp.classList.remove('hidden');
+                    if (localStorage.getItem('transparency') === 'true') {
+                        const map = document.getElementById('map');
+                        map.classList.remove('hiddennotransition');
+                        map.classList.add('appearnotransition');
+                        map.classList.remove('hidden');
+                        map.classList.remove('appear');
+                    } else {
+                        const map = document.getElementById('map');
+                        map.classList.remove('hidden');
+                        map.classList.add('appear');
+                        map.classList.remove('hiddennotransition');
+                        map.classList.remove('appearnotransition');
+                    }
                     window.isMenuShowed = false;
                     menu.addEventListener('animationend', function onAnimationEnd(event) {
                         if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -7101,10 +7620,25 @@ const menubottom1 = document.getElementById('menubtm');
             const menu = document.getElementById('menu');
             const menubotom = document.getElementById('menubottom');
             menu.classList.remove('hidden');
-            const map = document.getElementById('map');
-            map.classList.add('hidden');
-            menu.style.display = 'block'; 
-            mapp.style.animationPlayState = 'running';
+            if (localStorage.getItem('transparency') === 'true') {
+                const map = document.getElementById('map');
+                map.classList.add('hiddennotransition');
+                map.classList.remove('appearnotransition');
+                map.classList.remove('hidden');
+                map.classList.remove('appear');
+                menu.style.display = 'block'; 
+                mapp.style.animationPlayState = 'running';
+            } else {
+                const map = document.getElementById('map');
+                map.classList.add('hidden');
+                map.classList.remove('appear');
+                map.classList.remove('hiddennotransition');
+                map.classList.remove('appearnotransition');
+
+                menu.style.display = 'block'; 
+                mapp.style.animationPlayState = 'running';
+            }
+
             isMenuVisible = true; 
             menubottom1.classList.remove('slide-downb');
             menubottom1.classList.add('slide-upb');
@@ -7132,9 +7666,21 @@ const menubottom1 = document.getElementById('menubtm');
         const closeMap = document.getElementById('map');
         closeMap.onclick = () => {
             const menu = document.getElementById('menu');
-            menu.classList.add('hidden');
             const map = document.getElementById('map');
-            map.classList.remove('hidden');
+            menu.classList.add('hidden');
+            if (localStorage.getItem('transparency') === 'true') {
+                const map = document.getElementById('map');
+                map.classList.remove('hiddennotransition');
+                map.classList.add('appearnotransition');
+                map.classList.remove('hidden');
+                map.classList.remove('appear');
+            } else {
+                const map = document.getElementById('map');
+                map.classList.remove('hidden');
+                map.classList.add('appear');
+                map.classList.remove('hiddennotransition');
+                map.classList.remove('appearnotransition');
+            }
             window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
                 if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
@@ -7156,6 +7702,7 @@ const menubottom1 = document.getElementById('menubtm');
                 }, 10);
             }
         };
+        
 
         updateMenu();
 
@@ -7444,6 +7991,24 @@ const FluentSettingsMenu = (function() {
     
     const header = document.createElement('div');
     header.className = 'fluent-settings-header';
+
+    // mhhhh les bonnes pizzas à l'ananas
+    const pizza = document.getElementById('menuicon');
+    const ananas = document.getElementById('myscheduleicon');
+    const bousse = document.getElementById('vehicleicon');
+    const mamamia = document.getElementById('actuicon');
+
+    let naderbousse = 0;
+    header.addEventListener('click', () => {
+    naderbousse++;
+
+    if (naderbousse === 5) {
+        pizza.src = 'https://mybusfinder.fr/mamamialapizza.png'; 
+        ananas.src = 'https://mybusfinder.fr/mamamialapizza.png'; 
+        bousse.src = 'https://mybusfinder.fr/mamamialapizza.png';         
+        mamamia.src = 'https://mybusfinder.fr/mamamialapizza.png'; 
+    }
+    });
     
     const title = document.createElement('h2');
     title.className = 'fluent-settings-title';
@@ -7502,7 +8067,7 @@ const FluentSettingsMenu = (function() {
   }
   
 
-  function close() {
+  function close(e) {
     if (!menuElement || !isOpen) return;
     
     menuElement.backdrop.style.opacity = '0';
@@ -7519,6 +8084,8 @@ const FluentSettingsMenu = (function() {
     }, 300);
     
     isOpen = false;
+    e.stopPropagation();
+
   }
   
 
