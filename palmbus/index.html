@@ -5147,7 +5147,31 @@ async function fetchVehiclePositions() {
                 
                 const popupContent = `
                     <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-                        
+                       
+                        <button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
+                        position: absolute;
+                        top: 10px;
+                        right: 10px;
+                        background-color: #00000077;
+                        color: ${textColor};
+                        border: none;
+                        border-radius: 8px;
+                        padding: 6px 10px;
+                        cursor: pointer;
+                        font-size: 13px;
+                        backdrop-filter: blur(8px);
+                        -webkit-backdrop-filter: blur(8px);
+                        z-index: 3;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    ">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" height="16" viewBox="0 0 24 24" width="16" stroke="${textColor}" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 8a3 3 0 100-6 3 3 0 000 6zM5 21a3 3 0 100-6 3 3 0 000 6zM19 21a3 3 0 100-6 3 3 0 000 6zM8.59 13.51l6.83 3.98M8.59 6.49l6.83 3.98" />
+                        </svg>
+                        ${t("share")}
+                    </button>
+
                 <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
                 <div class="light-beam beam1"></div>
                 <div class="light-beam beam2"></div>
@@ -5240,8 +5264,23 @@ async function fetchVehiclePositions() {
                 </div>
                 </div>
                 `;
+
+                function shareVehicleId(vehicleId) {
+                const textToShare = `🚍 ${t("vehicleId")}: ${vehicleId}`;
+                if (navigator.share) {
+                    navigator.share({
+                        title: t("shareVehicle"),
+                        text: textToShare
+                    }).catch(console.error);
+                } else {
+                    navigator.clipboard.writeText(vehicleId)
+                        .then(() => alert(t("copiedToClipboard")))
+                        .catch(err => alert(t("copyFailed")));
+                }
+            }
+
                 
-                if (markers[id]) {
+    if (markers[id]) {
         animateMarker(markers[id], [latitude, longitude]);
         
         if (!markers[id].id) {
