@@ -2101,23 +2101,6 @@ tarteaucitron.init({
     return dpr < 1.25 || mediaQueryList.matches;
     }
     const fluentPopupManager = new FluentPopup();
-    document.addEventListener('DOMContentLoaded', () => {
-    if (isLowDPI()) {
-        fluentPopupManager.open({
-        title: t('lowscreendpierror'),
-        message: t('lowscreendpierrortext'),
-        buttons: {
-            primary: t('understood'),
-            primaryAction: () => fluentPopupManager.close(),
-            secondary: t('notdisplay'),
-            secondaryAction: () => {
-            localStorage.setItem('dpi-warning-dismissed', 'true');
-            fluentPopupManager.close();
-            }
-        }
-        });
-    }
-    });
 
     function showFluentPopup(options = {}) {
     fluentPopupManager.open(options);
@@ -2156,7 +2139,28 @@ tarteaucitron.init({
             const transparency = t("transparency");
             const transparencytext = t("transparencytext");
             const darkmap = t("darkmap");
-            const darkmaptext = t("darkmaptext");          
+            const darkmaptext = t("darkmaptext");   
+            const betasetting = t("betasetting");
+            const betasettingdarkmap = t("betasettingdarkmap");
+            const understood = t("understood");
+            const cancel = t("cancel");
+
+            if (isLowDPI()) {
+                fluentPopupManager.open({
+                title: t('lowscreendpierror'),
+                message: t('lowscreendpierrortext'),
+                buttons: {
+                    primary: t('understood'),
+                    primaryAction: () => fluentPopupManager.close(),
+                    secondary: t('notdisplay'),
+                    secondaryAction: () => {
+                    localStorage.setItem('dpi-warning-dismissed', 'true');
+                    fluentPopupManager.close();
+                    }
+                }
+                });
+            }
+                   
 
             FluentSettingsMenu.init({
                 title: settingsmbf,
@@ -2263,10 +2267,10 @@ tarteaucitron.init({
                 onChange: function (value) {
                     if (value && localStorage.getItem('darkmap-beta-warning-shown') !== 'true') {
                         showFluentPopup({
-                            title: t('betasetting'),
-                            message: t('betasettingdarkmap'),
+                            title: betasetting,
+                            message: betasettingdarkmap,
                             buttons: {
-                                primary: t('understood'),
+                                primary: understood,
                                 primaryAction: () => {
                                     localStorage.setItem('darkmap', 'true');
                                     localStorage.setItem('darkmap-beta-warning-shown', 'true');
@@ -2274,7 +2278,7 @@ tarteaucitron.init({
                                     mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
                                     fluentPopupManager.close();
                                 },
-                                secondary: t('cancel'),
+                                secondary: cancel,
                                 secondaryAction: () => {
                                     const toggle = document.querySelector('[data-setting="darkmap"]');
                                     if (toggle) {
