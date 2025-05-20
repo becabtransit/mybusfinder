@@ -1852,420 +1852,327 @@ tarteaucitron.init({
     });
     }
 
-    /**
-     * Popup Fluent Design - Détection de DPI faible
-     * Ce script crée une popup dans le style Fluent Design qui s'affiche automatiquement
-     * lorsque le DPI de l'appareil est trop faible, et permet d'afficher n'importe quel message.
-     */
+    // Popup Fluent Design Windows 11
+// Style CSS injecté dans le document
+const fluentPopupStyles = `
+  .fluent-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
 
-    // Création et initialisation de la popup
-    const FluentPopup = (function() {
-    // Configuration par défaut
-    const defaults = {
-        minDpi: 96, // DPI minimum requis
-        title: "Résolution insuffisante", // Titre par défaut
-        message: "La résolution de votre appareil est trop faible pour une expérience optimale.", // Message par défaut
-        primaryButtonText: "Continuer quand même", // Texte du bouton principal
-        secondaryButtonText: "En savoir plus", // Texte du bouton secondaire
-        secondaryButtonUrl: "#", // URL pour le bouton secondaire
-        onClose: null, // Callback à l'événement de fermeture
-        showCloseButton: true, // Afficher le bouton de fermeture
-        autoClose: false, // Fermeture automatique
-        autoCloseDelay: 5000, // Délai avant fermeture automatique (ms)
-        animationDuration: 300, // Durée de l'animation (ms)
-    };
+  .fluent-popup {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    padding: 20px;
+    max-width: 400px;
+    width: 90%;
+    font-family: 'Segoe UI', sans-serif;
+    position: relative;
+    transform: translateY(20px);
+    transition: transform 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    color: #202020;
+  }
 
-    // Variables privées
-    let popup = null;
-    let backdrop = null;
-    let options = {};
-    let isOpen = false;
+  .fluent-popup.show {
+    transform: translateY(0);
+  }
 
-    // Fonction pour détecter le DPI de l'écran
-    function detectDpi() {
-        const div = document.createElement("div");
-        div.style.width = "1in";
-        div.style.visibility = "hidden";
-        document.body.appendChild(div);
-        const dpi = div.offsetWidth;
-        document.body.removeChild(div);
-        return dpi;
+  .fluent-popup-overlay.show {
+    opacity: 1;
+  }
+
+  .fluent-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .fluent-popup-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .fluent-popup-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #555;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+  }
+
+  .fluent-popup-close:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: #000;
+  }
+
+  .fluent-popup-content {
+    margin-bottom: 15px;
+    line-height: 1.5;
+  }
+
+  .fluent-popup-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .fluent-button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+
+  .fluent-button-primary {
+    background-color: #0078d4;
+    color: white;
+  }
+
+  .fluent-button-primary:hover {
+    background-color: #106ebe;
+  }
+
+  .fluent-button-secondary {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: #000;
+  }
+
+  .fluent-button-secondary:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .fluent-popup {
+      background-color: rgba(32, 32, 32, 0.95);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.1);
     }
 
-    // Créer les éléments de la popup
-    function createPopupElements() {
-        // Création du backdrop (fond semi-transparent)
-        backdrop = document.createElement("div");
-        backdrop.className = "fluent-popup-backdrop";
-        
-        // Création du container de la popup
-        popup = document.createElement("div");
-        popup.className = "fluent-popup";
-        popup.setAttribute("role", "dialog");
-        popup.setAttribute("aria-modal", "true");
-        
-        // En-tête avec titre et bouton de fermeture
-        const header = document.createElement("div");
-        header.className = "fluent-popup-header";
-        
-        const title = document.createElement("h2");
-        title.className = "fluent-popup-title";
-        title.textContent = options.title;
-        
-        header.appendChild(title);
-        
-        if (options.showCloseButton) {
-        const closeButton = document.createElement("button");
-        closeButton.className = "fluent-popup-close";
-        closeButton.innerHTML = "&#10005;";
-        closeButton.setAttribute("aria-label", "Fermer");
-        closeButton.addEventListener("click", close);
-        header.appendChild(closeButton);
-        }
-        
-        // Corps du message
-        const content = document.createElement("div");
-        content.className = "fluent-popup-content";
-        content.innerHTML = options.message;
-        
-        // Pied avec boutons d'action
-        const footer = document.createElement("div");
-        footer.className = "fluent-popup-footer";
-        
-        const primaryButton = document.createElement("button");
-        primaryButton.className = "fluent-popup-button primary";
-        primaryButton.textContent = options.primaryButtonText;
-        primaryButton.addEventListener("click", close);
-        
-        const secondaryButton = document.createElement("a");
-        secondaryButton.className = "fluent-popup-button secondary";
-        secondaryButton.textContent = options.secondaryButtonText;
-        secondaryButton.href = options.secondaryButtonUrl;
-        
-        footer.appendChild(secondaryButton);
-        footer.appendChild(primaryButton);
-        
-        // Assemblage de la popup
-        popup.appendChild(header);
-        popup.appendChild(content);
-        popup.appendChild(footer);
-        
-        // Ajout au DOM
-        backdrop.appendChild(popup);
-        document.body.appendChild(backdrop);
+    .fluent-popup-close {
+      color: #aaa;
     }
 
-    // Ajout des styles CSS
-    function addStyles() {
-        const styleElement = document.createElement("style");
-        styleElement.textContent = `
-        .fluent-popup-backdrop {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(10px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            opacity: 0;
-            transition: opacity ${options.animationDuration}ms ease;
-            pointer-events: none;
-        }
-        
-        .fluent-popup-backdrop.active {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        
-        .fluent-popup {
-            background-color: rgba(255, 255, 255, 0.95);
-            border-radius: 8px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-            width: 90%;
-            max-width: 420px;
-            padding: 20px;
-            transform: translateY(20px);
-            transition: transform ${options.animationDuration}ms ease;
-            overflow: hidden;
-            position: relative;
-        }
-        
-        .fluent-popup-backdrop.active .fluent-popup {
-            transform: translateY(0);
-        }
-        
-        .fluent-popup-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-        }
-        
-        .fluent-popup-title {
-            margin: 0;
-            font-size: 20px;
-            font-weight: 600;
-            color: #0078d4;
-        }
-        
-        .fluent-popup-close {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            color: #666;
-            padding: 5px;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.2s ease;
-        }
-        
-        .fluent-popup-close:hover {
-            background-color: rgba(0, 0, 0, 0.05);
-        }
-        
-        .fluent-popup-content {
-            margin-bottom: 20px;
-            line-height: 1.5;
-            color: #333;
-        }
-        
-        .fluent-popup-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-        
-        .fluent-popup-button {
-            min-width: 100px;
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: center;
-            text-decoration: none;
-        }
-        
-        .fluent-popup-button.primary {
-            background-color: #0078d4;
-            color: white;
-            border: none;
-        }
-        
-        .fluent-popup-button.primary:hover {
-            background-color: #106ebe;
-        }
-        
-        .fluent-popup-button.secondary {
-            background-color: transparent;
-            color: #0078d4;
-            border: 1px solid #0078d4;
-        }
-        
-        .fluent-popup-button.secondary:hover {
-            background-color: rgba(0, 120, 212, 0.08);
-        }
-        
-        @media (prefers-color-scheme: dark) {
-            .fluent-popup {
-            background-color: rgba(32, 32, 32, 0.95);
-            }
-            
-            .fluent-popup-title {
-            color: #60cdff;
-            }
-            
-            .fluent-popup-close {
-            color: #ccc;
-            }
-            
-            .fluent-popup-close:hover {
-            background-color: rgba(255, 255, 255, 0.05);
-            }
-            
-            .fluent-popup-content {
-            color: #e0e0e0;
-            }
-            
-            .fluent-popup-button.primary {
-            background-color: #60cdff;
-            color: #000;
-            }
-            
-            .fluent-popup-button.primary:hover {
-            background-color: #92d7ff;
-            }
-            
-            .fluent-popup-button.secondary {
-            color: #60cdff;
-            border: 1px solid #60cdff;
-            }
-            
-            .fluent-popup-button.secondary:hover {
-            background-color: rgba(96, 205, 255, 0.08);
-            }
-        }
-        `;
-        document.head.appendChild(styleElement);
+    .fluent-popup-close:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: #fff;
     }
 
-    // Ouvrir la popup
-    function open() {
-        if (isOpen) return;
-        
-        createPopupElements();
-        
-        // Activation après un court délai pour permettre l'animation
-        setTimeout(() => {
-        backdrop.classList.add("active");
-        isOpen = true;
-        
-        // Configuration de la fermeture automatique si activée
-        if (options.autoClose) {
-            setTimeout(close, options.autoCloseDelay);
-        }
-        }, 10);
+    .fluent-button-secondary {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: #fff;
     }
 
-    // Fermer la popup
-    function close() {
-        if (!isOpen || !backdrop) return;
-        
-        backdrop.classList.remove("active");
-        
-        // Attendre la fin de l'animation avant de supprimer du DOM
-        setTimeout(() => {
-        if (backdrop && backdrop.parentNode) {
-            backdrop.parentNode.removeChild(backdrop);
-            backdrop = null;
-            popup = null;
-        }
-        isOpen = false;
-        
-        // Appel du callback de fermeture s'il existe
-        if (typeof options.onClose === "function") {
-            options.onClose();
-        }
-        }, options.animationDuration);
+    .fluent-button-secondary:hover {
+      background-color: rgba(255, 255, 255, 0.15);
     }
+  }
+`;
 
-    // Fonction d'initialisation
-    function init(customOptions = {}) {
-        options = { ...defaults, ...customOptions };
-        addStyles();
-    }
+class FluentPopup {
+  constructor() {
+    this.initialized = false;
+    this.isOpen = false;
+    this.overlay = null;
+    this.popup = null;
+    this.styleElement = null;
+  }
 
-    // Vérifier si le DPI est trop faible et afficher la popup si nécessaire
-    function checkDpiAndShow() {
-        const dpi = detectDpi();
-        if (dpi < options.minDpi) {
-        open();
-        return true;
-        }
-        return false;
-    }
+  init() {
+    if (this.initialized) return;
 
-    // Mettre à jour le message de la popup
-    function updateMessage(newMessage) {
-        if (popup) {
-        const contentElement = popup.querySelector('.fluent-popup-content');
-        if (contentElement) {
-            contentElement.innerHTML = newMessage;
-        }
-        }
-    }
+    // Injecter les styles
+    this.styleElement = document.createElement('style');
+    this.styleElement.textContent = fluentPopupStyles;
+    document.head.appendChild(this.styleElement);
 
-    // Méthode pour afficher une popup avec un message personnalisé
-    function show(messageOptions = {}) {
-        // Fusion avec les options actuelles
-        const currentOptions = { ...options };
-        options = { ...currentOptions, ...messageOptions };
-        
-        // Si la popup est déjà ouverte, mettre à jour le message
-        if (isOpen && popup) {
-        if (messageOptions.title) {
-            const titleElement = popup.querySelector('.fluent-popup-title');
-            if (titleElement) {
-            titleElement.textContent = messageOptions.title;
-            }
-        }
-        
-        if (messageOptions.message) {
-            updateMessage(messageOptions.message);
-        }
-        
-        if (messageOptions.primaryButtonText) {
-            const primaryButton = popup.querySelector('.fluent-popup-button.primary');
-            if (primaryButton) {
-            primaryButton.textContent = messageOptions.primaryButtonText;
-            }
-        }
-        
-        if (messageOptions.secondaryButtonText) {
-            const secondaryButton = popup.querySelector('.fluent-popup-button.secondary');
-            if (secondaryButton) {
-            secondaryButton.textContent = messageOptions.secondaryButtonText;
-            
-            if (messageOptions.secondaryButtonUrl) {
-                secondaryButton.href = messageOptions.secondaryButtonUrl;
-            }
-            }
-        }
-        } else {
-        // Sinon, créer et afficher une nouvelle popup
-        open();
-        }
-    }
-
-    // API publique
-    return {
-        init,
-        checkDpiAndShow,
-        show,
-        close,
-        updateMessage
-    };
-    })();
-
-    // Initialisation de la popup lorsque le DOM est chargé
-    document.addEventListener('DOMContentLoaded', function() {
-    // Configuration personnalisée (optionnelle)
-    FluentPopup.init({
-        minDpi: 96, // Seuil DPI minimum
-        title: "Résolution insuffisante",
-        message: "La résolution de votre appareil est trop faible pour une expérience optimale. Certaines fonctionnalités pourraient ne pas s'afficher correctement.",
-        primaryButtonText: "Continuer quand même",
-        secondaryButtonText: "Optimiser l'affichage",
-        secondaryButtonUrl: "#display-settings",
-        showCloseButton: true
-    });
+    // Créer l'overlay et la popup
+    this.overlay = document.createElement('div');
+    this.overlay.className = 'fluent-popup-overlay';
     
-    // Vérifier le DPI et afficher la popup si nécessaire
-    FluentPopup.checkDpiAndShow();
+    this.popup = document.createElement('div');
+    this.popup.className = 'fluent-popup';
+    
+    this.overlay.appendChild(this.popup);
+    document.body.appendChild(this.overlay);
+
+    // Marquer comme initialisé
+    this.initialized = true;
+  }
+
+  /**
+   * Ouvre la popup avec un message personnalisé
+   * @param {Object} options - Options de configuration
+   * @param {string} options.title - Titre de la popup
+   * @param {string} options.message - Message à afficher
+   * @param {Object} options.buttons - Configuration des boutons
+   * @param {string} options.buttons.primary - Texte du bouton principal
+   * @param {Function} options.buttons.primaryAction - Action du bouton principal
+   * @param {string} options.buttons.secondary - Texte du bouton secondaire (optionnel)
+   * @param {Function} options.buttons.secondaryAction - Action du bouton secondaire (optionnel)
+   * @param {boolean} options.closeButton - Afficher le bouton de fermeture (par défaut: true)
+   */
+  open(options = {}) {
+    if (!this.initialized) this.init();
+    if (this.isOpen) return;
+
+    const {
+      title = 'Notification',
+      message = '',
+      buttons = {
+        primary: 'OK',
+        primaryAction: () => this.close()
+      },
+      closeButton = true
+    } = options;
+
+    // Structure de la popup
+    this.popup.innerHTML = `
+      <div class="fluent-popup-header">
+        <h3 class="fluent-popup-title">${title}</h3>
+        ${closeButton ? '<button class="fluent-popup-close">&times;</button>' : ''}
+      </div>
+      <div class="fluent-popup-content">
+        ${message}
+      </div>
+      <div class="fluent-popup-actions">
+        ${buttons.secondary ? `<button class="fluent-button fluent-button-secondary">${buttons.secondary}</button>` : ''}
+        <button class="fluent-button fluent-button-primary">${buttons.primary}</button>
+      </div>
+    `;
+
+    // Ajouter les événements
+    if (closeButton) {
+      const closeBtn = this.popup.querySelector('.fluent-popup-close');
+      closeBtn.addEventListener('click', () => this.close());
+    }
+
+    const primaryBtn = this.popup.querySelector('.fluent-button-primary');
+    primaryBtn.addEventListener('click', (e) => {
+      if (buttons.primaryAction) buttons.primaryAction(e);
     });
 
-    // Exemple d'utilisation pour afficher une popup avec un message personnalisé
-    
-    FluentPopup.show({
-    title: "Maintenance planifiée",
-    message: "Notre site sera en maintenance le 25 mai de 22h à 23h. Nous nous excusons pour la gêne occasionnée.",
-    primaryButtonText: "J'ai compris",
-    secondaryButtonText: "En savoir plus",
-    secondaryButtonUrl: "/maintenance-info",
-    autoClose: true,
-    autoCloseDelay: 10000
+    const secondaryBtn = this.popup.querySelector('.fluent-button-secondary');
+    if (secondaryBtn && buttons.secondaryAction) {
+      secondaryBtn.addEventListener('click', (e) => buttons.secondaryAction(e));
+    }
+
+    // Afficher la popup avec animation
+    requestAnimationFrame(() => {
+      this.overlay.classList.add('show');
+      this.popup.classList.add('show');
     });
+
+    this.isOpen = true;
+  }
+
+  close() {
+    if (!this.isOpen) return;
     
+    this.overlay.classList.remove('show');
+    this.popup.classList.remove('show');
+    
+    // Attendre la fin de l'animation avant de masquer complètement
+    setTimeout(() => {
+      this.isOpen = false;
+    }, 300);
+  }
+
+  /**
+   * Détruire complètement la popup et nettoyer les ressources
+   */
+  destroy() {
+    if (this.overlay && this.overlay.parentNode) {
+      this.overlay.parentNode.removeChild(this.overlay);
+    }
+    
+    if (this.styleElement && this.styleElement.parentNode) {
+      this.styleElement.parentNode.removeChild(this.styleElement);
+    }
+    
+    this.initialized = false;
+    this.isOpen = false;
+  }
+}
+
+// Fonction pour détecter un DPI trop faible
+function isLowDPI() {
+  // Détection du DPI - plusieurs méthodes
+  // 1. Via matchMedia pour les écrans à haute densité
+  const mediaQueryList = window.matchMedia('(resolution: 1dppx)');
+  
+  // 2. Calcul basé sur le devicePixelRatio
+  const dpr = window.devicePixelRatio || 1;
+  
+  // Considérer un DPI faible si le devicePixelRatio est inférieur à 1.25
+  // ou si le media query indique une résolution de 1dppx (96 DPI)
+  return dpr < 1.25 || mediaQueryList.matches;
+}
+
+// Popup principale utilisée pour l'application
+const fluentPopupManager = new FluentPopup();
+
+// Vérification du DPI à l'ouverture de la page
+document.addEventListener('DOMContentLoaded', () => {
+  if (isLowDPI()) {
+    fluentPopupManager.open({
+      title: 'Résolution d\'écran basse',
+      message: 'Votre appareil utilise une résolution d\'affichage basse. Certains éléments pourraient ne pas s\'afficher correctement. Pour une meilleure expérience, nous vous recommandons d\'utiliser un écran avec une résolution plus élevée.',
+      buttons: {
+        primary: 'Compris',
+        primaryAction: () => fluentPopupManager.close(),
+        secondary: 'Ne plus afficher',
+        secondaryAction: () => {
+          // Enregistrer la préférence dans le localStorage
+          localStorage.setItem('dpi-warning-dismissed', 'true');
+          fluentPopupManager.close();
+        }
+      }
+    });
+  }
+});
+
+// Fonction d'utilité pour afficher n'importe quel message dans la popup
+function showFluentPopup(options = {}) {
+  fluentPopupManager.open(options);
+}
+
+// Exemple d'utilisation de la popup pour d'autres messages
+
+showFluentPopup({
+  title: 'Mise à jour disponible',
+  message: 'Une nouvelle version du site est disponible. Voulez-vous rafraîchir la page pour l\'installer?',
+  buttons: {
+    primary: 'Rafraîchir maintenant',
+    primaryAction: () => window.location.reload(),
+    secondary: 'Plus tard',
+    secondaryAction: () => fluentPopupManager.close()
+  }
+});
+
 
     document.addEventListener('DOMContentLoaded', () => {
     i18n.init().then(() => {
