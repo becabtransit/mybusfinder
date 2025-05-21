@@ -433,6 +433,19 @@ visibility: hidden;
     }
 }
 
+@keyframes appearDepuisLAccueil {
+    0% {
+        transform: translateX(-50%); 
+        opacity: 0;
+        filter: blur(0px);
+        }
+    100% {
+        transform: translateX(0%); 
+        opacity: 1;
+        filter: blur(0px);
+    }
+}
+
 @keyframes slideInBounceInvMBlur {
     0% {
         filter: blur(0px);
@@ -459,9 +472,27 @@ visibility: hidden;
   animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
+#accueil {
+    width: 100%;
+    height: 100%;
+    z-index: 100000;
+}
+
+#accueil.hide {
+    animation: slideInBounceM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+}
+
+#accueil.hide {
+    animation: slideInBounceInvM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+}
+
+
 #map.appear {
     animation: slideInBounceM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+}
 
+#map.appeardelaccueil {
+    animation: appearDepuisLAccueil 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
 }
 
 #menu.hidden {
@@ -1657,7 +1688,7 @@ shape.bounce-down {
 
 	
 <div id="accueil">
-    <iframe id="webview-frameaccueil" src="https://www.mybusfinder.fr/mainmenu.html" frameborder="0"></iframe>
+    <iframe id="webview-frameaccueil" src="./mainmenu.html" frameborder="0"></iframe>
 </div>
 
 
@@ -8504,6 +8535,40 @@ setTimeout(() => {
         locateUser();
     } 
 }, 2000);
+
+
+
+
+window.addEventListener('message', function(event) {
+
+    if (event.data.type === 'schedule') {
+        showUpdatePopupPourHoraires()
+    }
+
+    if (event.data.type === 'news') {
+        showUpdatePopup('alerts.html');
+    }
+
+    if (event.data.type === 'settings') {
+        FluentSettingsMenu.open();
+    }
+
+    if (event.data.type === 'mbh') {
+        showUpdatePopup('histovec.html');
+    }
+
+    if (event.data.type === 'openmap') {
+        const map = document.getElementById('map');
+        const accueil = document.getElementById('accueil');
+
+        accueil.classList.add('hide');
+        map.classList.add('appeardelaccueil');
+    }
+});
+
+
+
+
 
 
 let lastTripUpdateTimestamp = 0;
