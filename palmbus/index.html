@@ -1743,6 +1743,46 @@ shape.bounce-down {
 
     <svg id="sun-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
 
+            <div class="fab" id="fab">
+            <svg class="fab-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        </div>
+        
+        <!-- Barre de navigation -->
+        <nav class="nav-bar">
+            <div class="nav-item active" data-tab="0">
+                <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span class="nav-label">Accueil</span>
+            </div>
+            
+            <div class="nav-item" data-tab="1">
+                <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <span class="nav-label">Recherche</span>
+            </div>
+            
+            <div class="nav-item" data-tab="2">
+                <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <span class="nav-label">Favoris</span>
+            </div>
+            
+            <div class="nav-item" data-tab="3">
+                <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span class="nav-label">Profil</span>
+            </div>
+        </nav>
 
 
     <div id="menu"></div>
@@ -1787,8 +1827,137 @@ shape.bounce-down {
      crossorigin="anonymous"></script>
  <script src="../js/tarteaucitron/tarteaucitron.min.js"></script>
  <script src="../build.js"></script>
+     <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const contentContainer = document.getElementById('content');
+            const navItems = document.querySelectorAll('.nav-item');
+            const fab = document.getElementById('fab');
+            const navBar = document.querySelector('.nav-bar');
+            let currentTab = 0;
+            let isNavBarHidden = false;
+            
+            // Fonctions pour la barre de navigation
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    const targetTab = parseInt(this.getAttribute('data-tab'));
+                    
+                    if (targetTab !== currentTab) {
+                        // Déterminer la direction de l'animation
+                        const direction = targetTab > currentTab ? 'left' : 'right';
+                        
+                        // Appliquer la transformation pour le déplacement
+                        contentContainer.style.transform = `translateX(-${targetTab * 25}%)`;
+                        
+                        // Mettre à jour la classe active
+                        navItems.forEach(navItem => navItem.classList.remove('active'));
+                        this.classList.add('active');
+                        
+                        // Mettre à jour l'onglet actuel
+                        currentTab = targetTab;
+                    }
+                });
+            });
+            
+            // Fonctions pour le FAB (Floating Action Button)
+            fab.addEventListener('click', function() {
+                // Fonction à exécuter lors du clic sur le FAB
+                executeCustomFunction();
+                
+                // Effet visuel pour le feedback utilisateur
+                this.classList.add('pulse');
+                setTimeout(() => {
+                    this.classList.remove('pulse');
+                }, 500);
+            });
+            
+            // Fonction personnalisée à exécuter lors du clic sur le FAB
+            function executeCustomFunction() {
+                // Remplacez cette fonction par votre propre code
+                console.log('FAB clicked - executing custom function!');
+                alert('Fonction FAB exécutée !');
+                // Ici, vous pouvez appeler n'importe quelle fonction JavaScript
+            }
+            
+            // Fonction pour afficher le FAB avec animation
+            window.showFAB = function() {
+                fab.classList.add('visible');
+                return "FAB affiché avec succès";
+            };
+            
+            // Fonction pour masquer le FAB avec animation
+            window.hideFAB = function() {
+                fab.classList.remove('visible');
+                return "FAB masqué avec succès";
+            };
+            
+            // Fonction pour remplacer l'icône SVG du FAB
+            window.setFABIcon = function(svgContent) {
+                fab.innerHTML = svgContent;
+                return "Icône FAB mise à jour avec succès";
+            };
+            
+            // Fonction pour changer la fonction exécutée par le FAB
+            window.setFABFunction = function(newFunctionString) {
+                try {
+                    // Créer une nouvelle fonction à partir de la chaîne
+                    executeCustomFunction = new Function(newFunctionString);
+                    return "Fonction FAB mise à jour avec succès";
+                } catch (error) {
+                    console.error("Erreur lors de la mise à jour de la fonction FAB:", error);
+                    return "Erreur: " + error.message;
+                }
+            };
+            
+            // Fonction pour masquer/afficher la barre de navigation
+            window.toggleNavBar = function(show) {
+                // Si 'show' est spécifié, on force l'état
+                if (show === true) {
+                    navBar.classList.remove('hidden');
+                    contentContainer.classList.remove('fullscreen');
+                    if (fab.classList.contains('visible')) {
+                        fab.classList.remove('nav-hidden');
+                    }
+                    isNavBarHidden = false;
+                    return "Barre de navigation affichée";
+                } else if (show === false) {
+                    navBar.classList.add('hidden');
+                    contentContainer.classList.add('fullscreen');
+                    if (fab.classList.contains('visible')) {
+                        fab.classList.add('nav-hidden');
+                    }
+                    isNavBarHidden = true;
+                    return "Barre de navigation masquée";
+                } else {
+                    // Basculer l'état actuel
+                    if (isNavBarHidden) {
+                        navBar.classList.remove('hidden');
+                        contentContainer.classList.remove('fullscreen');
+                        if (fab.classList.contains('visible')) {
+                            fab.classList.remove('nav-hidden');
+                        }
+                        isNavBarHidden = false;
+                        return "Barre de navigation affichée";
+                    } else {
+                        navBar.classList.add('hidden');
+                        contentContainer.classList.add('fullscreen');
+                        if (fab.classList.contains('visible')) {
+                            fab.classList.add('nav-hidden');
+                        }
+                        isNavBarHidden = true;
+                        return "Barre de navigation masquée";
+                    }
+                }
+            };
+            
+            // Fonction pour vérifier si la barre de navigation est visible
+            window.isNavBarVisible = function() {
+                return !isNavBarHidden;
+            };
+        });
+    </script>
 
  <script>
+
  /* tarteaucitron */
 tarteaucitron.init({
           "bodyPosition": "middle",
