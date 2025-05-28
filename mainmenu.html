@@ -6,26 +6,31 @@
     <title>My Bus Finder</title>
     <style>
         :root {
-            --background-color: #f9f9f9;
-            --card-background: #ffffff;
-            --text-primary: #202020;
-            --text-secondary: #616161;
-            --accent-color: #0078d7;
-            --hover-color: #005a9e;
+            --background-color: #f3f3f3;
+            --card-background: rgba(255, 255, 255, 0.7);
+            --text-primary: #323130;
+            --text-secondary: #605e5c;
+            --accent-color: #0078d4;
+            --hover-color: #106ebe;
             --border-radius: 8px;
-            --box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            --transition-standard: all 0.2s ease-in-out;
+            --box-shadow: 0 1.6px 3.6px 0 rgba(0, 0, 0, 0.132), 0 0.3px 0.9px 0 rgba(0, 0, 0, 0.108);
+            --transition-standard: all 0.167s cubic-bezier(0.1, 0.9, 0.2, 1);
+            --glass-background: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(255, 255, 255, 0.18);
+            --acrylic-noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
         }
 
         @media (prefers-color-scheme: dark) {
             :root {
                 --background-color: #202020;
-                --card-background: #2d2d2d;
+                --card-background: rgba(45, 45, 45, 0.8);
                 --text-primary: #ffffff;
-                --text-secondary: #b0b0b0;
+                --text-secondary: #c8c6c4;
                 --accent-color: #60cdff;
                 --hover-color: #8eddff;
-                --box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                --box-shadow: 0 1.6px 3.6px 0 rgba(0, 0, 0, 0.24), 0 0.3px 0.9px 0 rgba(0, 0, 0, 0.2);
+                --glass-background: rgba(45, 45, 45, 0.9);
+                --glass-border: rgba(255, 255, 255, 0.1);
             }
         }
 
@@ -38,35 +43,45 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'League Spartan', sans-serif;
+            font-family: 'Segoe UI', 'League Spartan', system-ui, -apple-system, sans-serif;
         }
 
         body {
-            background-color: var(--background-color);
+            background: var(--background-color);
+            background-image: 
+                radial-gradient(circle at 25% 25%, rgba(0, 120, 212, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(96, 205, 255, 0.1) 0%, transparent 50%),
+                var(--acrylic-noise);
             color: var(--text-primary);
             line-height: 1.6;
             padding-bottom: 2rem;
+            min-height: 100vh;
         }
 
         .top-bar {
             position: sticky;
             top: 0;
-            background-color: var(--card-background);
+            background: var(--glass-background);
+            backdrop-filter: blur(30px) saturate(125%);
+            border-bottom: 1px solid var(--glass-border);
             padding: 1rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
             box-shadow: var(--box-shadow);
             z-index: 100;
-            backdrop-filter: blur(10px);
             transition: var(--transition-standard);
         }
 
         .greeting-container {
             font-size: 1.25rem;
-            font-weight: 500;
+            font-weight: 600;
             opacity: 1;
-            transition: opacity 0.5s ease-in-out;
+            transition: opacity 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
+            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .logo-container {
@@ -74,7 +89,7 @@
             align-items: center;
             opacity: 0;
             position: absolute;
-            transition: opacity 0.5s ease-in-out;
+            transition: opacity 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
         }
 
         .logo-container img {
@@ -94,23 +109,48 @@
         }
 
         .weather-widget {
-            background-color: var(--card-background);
-            border-radius: var(--border-radius);
+            background: var(--glass-background);
+            backdrop-filter: blur(30px) saturate(125%);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
             padding: 1.5rem;
             margin-bottom: 2rem;
             box-shadow: var(--box-shadow);
             display: flex;
             align-items: center;
             gap: 1.5rem;
+            transition: var(--transition-standard);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .weather-widget::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--acrylic-noise);
+            pointer-events: none;
+        }
+
+        .weather-widget:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 120, 212, 0.15);
         }
 
         .weather-icon {
             font-size: 3rem;
+            position: relative;
+            z-index: 1;
         }
 
         .weather-details {
             display: flex;
             flex-direction: column;
+            position: relative;
+            z-index: 1;
         }
 
         .weather-temp {
@@ -120,6 +160,7 @@
 
         .weather-desc {
             color: var(--text-secondary);
+            text-transform: capitalize;
         }
 
         .weather-location {
@@ -127,24 +168,37 @@
         }
 
         .section-title {
-            font-size: 1.25rem;
+            font-size: 1.5rem;
             font-weight: 600;
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
             color: var(--text-primary);
+            position: relative;
+        }
+
+        .section-title::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            width: 40px;
+            height: 3px;
+            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+            border-radius: 2px;
         }
 
         .feature-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
             margin-bottom: 2rem;
         }
 
         .feature-button {
-            background-color: var(--card-background);
-            border: none;
-            border-radius: var(--border-radius);
-            padding: 1.5rem;
+            background: var(--glass-background);
+            backdrop-filter: blur(30px) saturate(125%);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 2rem;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -153,60 +207,100 @@
             box-shadow: var(--box-shadow);
             transition: var(--transition-standard);
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--acrylic-noise);
+            pointer-events: none;
         }
 
         .feature-button:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(0, 120, 212, 0.2);
+            border-color: var(--accent-color);
+        }
+
+        .feature-button:active {
+            transform: translateY(-2px) scale(1.01);
         }
 
         .feature-icon {
-            font-size: 2rem;
+            font-size: 2.5rem;
             color: var(--accent-color);
+            position: relative;
+            z-index: 1;
+            filter: drop-shadow(0 2px 4px rgba(0, 120, 212, 0.3));
         }
 
         .feature-title {
             font-weight: 600;
+            font-size: 1.1rem;
+            position: relative;
+            z-index: 1;
         }
 
         .feature-description {
             color: var(--text-secondary);
             font-size: 0.9rem;
+            position: relative;
+            z-index: 1;
         }
 
         .document-section {
-            background-color: var(--card-background);
-            border-radius: var(--border-radius);
+            background: var(--glass-background);
+            backdrop-filter: blur(30px) saturate(125%);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
             padding: 1.5rem;
             margin-bottom: 2rem;
             box-shadow: var(--box-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .document-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--acrylic-noise);
+            pointer-events: none;
         }
 
         .document-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 1rem;
+            position: relative;
+            z-index: 1;
         }
 
         .document-card {
             display: flex;
             align-items: center;
-            padding: 0.75rem;
-            border-radius: var(--border-radius);
+            padding: 1rem;
+            border-radius: 8px;
             transition: var(--transition-standard);
             cursor: pointer;
-            background-color: rgba(0, 0, 0, 0.03);
-        }
-
-        @media (prefers-color-scheme: dark) {
-            .document-card {
-                background-color: rgba(255, 255, 255, 0.05);
-            }
+            background: rgba(0, 120, 212, 0.05);
+            border: 1px solid rgba(0, 120, 212, 0.1);
         }
 
         .document-card:hover {
-            background-color: var(--accent-color);
+            background: var(--accent-color);
             color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
         }
 
         .document-icon {
@@ -219,29 +313,57 @@
         }
 
         .notepad {
-            background-color: var(--card-background);
-            border-radius: var(--border-radius);
+            background: var(--glass-background);
+            backdrop-filter: blur(30px) saturate(125%);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
             padding: 1.5rem;
             margin-bottom: 2rem;
             box-shadow: var(--box-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .notepad::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--acrylic-noise);
+            pointer-events: none;
+        }
+
+        .notepad .section-title {
+            position: relative;
+            z-index: 1;
         }
 
         .notepad textarea {
             width: 100%;
             min-height: 150px;
             padding: 1rem;
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            border-radius: var(--border-radius);
-            background-color: transparent;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
             color: var(--text-primary);
             font-family: 'Segoe UI', sans-serif;
             resize: vertical;
             transition: var(--transition-standard);
+            position: relative;
+            z-index: 1;
         }
 
         .notepad textarea:focus {
             outline: none;
             border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+        }
+
+        .notepad textarea::placeholder {
+            color: var(--text-secondary);
         }
 
         .save-indicator {
@@ -249,40 +371,61 @@
             font-size: 0.9rem;
             text-align: right;
             margin-top: 0.5rem;
+            position: relative;
+            z-index: 1;
         }
 
         .quick-links {
-            background-color: var(--card-background);
-            border-radius: var(--border-radius);
+            background: var(--glass-background);
+            backdrop-filter: blur(30px) saturate(125%);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
             padding: 1.5rem;
             box-shadow: var(--box-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .quick-links::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--acrylic-noise);
+            pointer-events: none;
+        }
+
+        .quick-links .section-title {
+            position: relative;
+            z-index: 1;
         }
 
         .links-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 1rem;
+            position: relative;
+            z-index: 1;
         }
 
         .link-item {
             display: flex;
             align-items: center;
-            padding: 0.75rem;
-            border-radius: var(--border-radius);
+            padding: 1rem;
+            border-radius: 8px;
             transition: var(--transition-standard);
             cursor: pointer;
-            background-color: rgba(0, 0, 0, 0.03);
-        }
-
-        @media (prefers-color-scheme: dark) {
-            .link-item {
-                background-color: rgba(255, 255, 255, 0.05);
-            }
+            background: rgba(0, 120, 212, 0.05);
+            border: 1px solid rgba(0, 120, 212, 0.1);
         }
 
         .link-item:hover {
-            background-color: var(--accent-color);
+            background: var(--accent-color);
             color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
         }
 
         .link-icon {
@@ -298,12 +441,43 @@
             .feature-grid {
                 grid-template-columns: 1fr;
             }
+            
+            .container {
+                padding: 0 0.5rem;
+            }
+            
+            .feature-button {
+                padding: 1.5rem;
+            }
         }
+
+        /* Animations d'entrée */
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .weather-widget,
+        .feature-button,
+        .notepad,
+        .quick-links {
+            animation: slideInUp 0.6s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+        }
+
+        .feature-button:nth-child(1) { animation-delay: 0.1s; }
+        .feature-button:nth-child(2) { animation-delay: 0.2s; }
+        .feature-button:nth-child(3) { animation-delay: 0.3s; }
     </style>
 </head>
 <body>
     <div class="top-bar">
-        <div class="greeting-container" id="greeting">Bienvenue sur My Bus Finder</div>
+        <div class="greeting-container" id="greeting" data-i18n="welcome">Bienvenue sur My Bus Finder</div>
         <div class="logo-container" id="logo">
             <img src="/api/placeholder/80/80" alt="My Bus Finder">
         </div>
@@ -314,7 +488,7 @@
             <div class="weather-icon">☀️</div>
             <div class="weather-details">
                 <div class="weather-temp">23°C</div>
-                <div class="weather-desc">Ensoleillé</div>
+                <div class="weather-desc" data-i18n="sunny">Ensoleillé</div>
                 <div class="weather-location">Cannes, France</div>
             </div>
         </div>
@@ -322,45 +496,45 @@
         <div class="feature-grid">
             <button id="bus" class="feature-button">
                 <div class="feature-icon">🚌</div>
-                <div class="feature-title">Rechercher un bus</div>
-                <div class="feature-description">Trouvez facilement votre bus et ses horaires en temps réel</div>
+                <div class="feature-title" data-i18n="search_bus">Rechercher un bus</div>
+                <div class="feature-description" data-i18n="search_bus_desc">Trouvez facilement votre bus et ses horaires en temps réel</div>
             </button>
             <button id="clock" class="feature-button">
                 <div class="feature-icon">⏲️</div>
-                <div class="feature-title">Horaires</div>
-                <div class="feature-description">Fiches horaires théoriques et temps-réel</div>
+                <div class="feature-title" data-i18n="schedules">Horaires</div>
+                <div class="feature-description" data-i18n="schedules_desc">Fiches horaires théoriques et temps-réel</div>
             </button>
             <button id="actu" class="feature-button">
                 <div class="feature-icon">📰</div>
-                <div class="feature-title">Actualités</div>
-                <div class="feature-description">Informations et déviations des transports par ligne</div>
+                <div class="feature-title" data-i18n="news">Actualités</div>
+                <div class="feature-description" data-i18n="news_desc">Informations et déviations des transports par ligne</div>
             </button>
         </div>
 
         <div class="notepad">
-            <h2 class="section-title">Bloc-notes</h2>
-            <textarea id="notepad" placeholder="Écrivez vos notes ici..."></textarea>
+            <h2 class="section-title" data-i18n="notepad">Bloc-notes</h2>
+            <textarea id="notepad" data-i18n-placeholder="notepad_placeholder" placeholder="Écrivez vos notes ici..."></textarea>
         </div>
 
         <div class="quick-links">
-            <h2 class="section-title">Liens rapides</h2>
+            <h2 class="section-title" data-i18n="quick_links">Liens rapides</h2>
             <div class="links-grid">
                 <div id="settings" class="link-item">
                     <div class="link-icon">⚙️</div>
-                    <div class="link-title">Paramètres</div>
+                    <div class="link-title" data-i18n="settings">Paramètres</div>
                 </div>
                 <div id="app" class="link-item">
                     <div class="link-icon">📱</div>
-                    <div class="link-title">Application mobile (à venir)</div>
+                    <div class="link-title" data-i18n="mobile_app">Application mobile (à venir)</div>
                 </div>
                 <div id="mbh" class="link-item">
                     <div class="link-icon">🚇</div>
-                    <div class="link-title">My Bus History</div>
+                    <div class="link-title" data-i18n="bus_history">My Bus History</div>
                 </div>
             </div>
         </div>
     </div>
-
+    
     <script>
     const i18n = {
     translations: {},
@@ -587,7 +761,7 @@
                 }, 500);
             }
         }
-        
+
         setInterval(toggleGreetingLogo, 4000);
         updateGreeting();
 
@@ -661,13 +835,13 @@ async function getLocationName(latitude, longitude) {
         );
         
         if (!response.ok) {
-            throw new Error('Impossible de récupérer le nom de la localisation');
+            throw new Error('Impossible de récup le nom de la localisation');
         }
         
         const data = await response.json();
         return data.address.city || data.address.town || data.address.village || data.address.hamlet || 'Localisation inconnue';
     } catch (error) {
-        console.error('Erreur de géocodage inverse:', error);
+        console.error('Erreur de geocodage inverse', error);
         return 'Localisation inconnue';
     }
 }
