@@ -5,457 +5,339 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Bus Finder</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
         :root {
-            --background-color: #f3f3f3;
-            --card-background: rgba(255, 255, 255, 0.7);
-            --text-primary: #323130;
-            --text-secondary: #605e5c;
+            --background-color: #f5f5f5;
+            --card-background: rgba(255, 255, 255, 0.8);
+            --text-primary: #1f1f1f;
+            --text-secondary: #6b7280;
             --accent-color: #0078d4;
-            --hover-color: #106ebe;
-            --border-radius: 8px;
-            --box-shadow: 0 1.6px 3.6px 0 rgba(0, 0, 0, 0.132), 0 0.3px 0.9px 0 rgba(0, 0, 0, 0.108);
-            --transition-standard: all 0.167s cubic-bezier(0.1, 0.9, 0.2, 1);
-            --glass-background: rgba(255, 255, 255, 0.9);
-            --glass-border: rgba(255, 255, 255, 0.18);
-            --acrylic-noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
+            --accent-hover: #106ebe;
+            --surface-color: #ffffff;
+            --border-color: rgba(255, 255, 255, 0.3);
+            --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.06);
+            --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.1);
+            --shadow-strong: 0 8px 32px rgba(0, 120, 212, 0.15);
+            --border-radius: 12px;
+            --border-radius-large: 16px;
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --glass-blur: blur(20px) saturate(180%);
+            --spacing-xs: 0.5rem;
+            --spacing-sm: 1rem;
+            --spacing-md: 1.5rem;
+            --spacing-lg: 2rem;
+            --spacing-xl: 3rem;
         }
 
         @media (prefers-color-scheme: dark) {
             :root {
-                --background-color: #202020;
-                --card-background: rgba(45, 45, 45, 0.8);
+                --background-color: #1a1a1a;
+                --card-background: rgba(40, 40, 40, 0.9);
                 --text-primary: #ffffff;
-                --text-secondary: #c8c6c4;
+                --text-secondary: #a1a1aa;
                 --accent-color: #60cdff;
-                --hover-color: #8eddff;
-                --box-shadow: 0 1.6px 3.6px 0 rgba(0, 0, 0, 0.24), 0 0.3px 0.9px 0 rgba(0, 0, 0, 0.2);
-                --glass-background: rgba(45, 45, 45, 0.9);
-                --glass-border: rgba(255, 255, 255, 0.1);
+                --accent-hover: #8eddff;
+                --surface-color: #2a2a2a;
+                --border-color: rgba(255, 255, 255, 0.1);
+                --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.3);
+                --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.4);
+                --shadow-strong: 0 8px 32px rgba(96, 205, 255, 0.2);
             }
-        }
-
-        @font-face {
-            font-family: 'League Spartan';
-            src: url('src/leaguespartan.ttf') format('truetype');
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', 'League Spartan', system-ui, -apple-system, sans-serif;
         }
 
         body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--background-color);
             background-image: 
-                radial-gradient(circle at 25% 25%, rgba(0, 120, 212, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 75% 75%, rgba(96, 205, 255, 0.1) 0%, transparent 50%),
-                var(--acrylic-noise);
+                radial-gradient(circle at 20% 30%, rgba(0, 120, 212, 0.08) 0%, transparent 60%),
+                radial-gradient(circle at 80% 70%, rgba(96, 205, 255, 0.06) 0%, transparent 60%);
             color: var(--text-primary);
             line-height: 1.6;
-            padding-bottom: 2rem;
             min-height: 100vh;
+            overflow-x: hidden;
         }
 
-        .top-bar {
+        .app-header {
             position: sticky;
             top: 0;
-            background: var(--glass-background);
-            backdrop-filter: blur(30px) saturate(125%);
-            border-bottom: 1px solid var(--glass-border);
-            padding: 1rem;
+            background: var(--card-background);
+            backdrop-filter: var(--glass-blur);
+            border-bottom: 1px solid var(--border-color);
+            padding: var(--spacing-sm) var(--spacing-md);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: var(--box-shadow);
+            box-shadow: var(--shadow-light);
             z-index: 100;
-            transition: var(--transition-standard);
+            transition: var(--transition);
         }
 
-        .greeting-container {
-            font-size: 1.25rem;
+        .greeting-text {
+            font-size: 1.1rem;
             font-weight: 600;
-            opacity: 1;
-            transition: opacity 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
             background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            opacity: 1;
+            transition: opacity 0.4s ease;
         }
 
-        .logo-container {
+        .logo-section {
             display: flex;
             align-items: center;
             opacity: 0;
             position: absolute;
-            transition: opacity 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
+            left: 50%;
+            transform: translateX(-50%);
+            transition: opacity 0.4s ease;
         }
 
-        .logo-container img {
+        .logo-icon {
+            width: 2rem;
             height: 2rem;
-            margin-right: 0.5rem;
-        }
-
-        .logo-text {
-            font-size: 1.25rem;
+            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+            border-radius: 8px;
+            margin-right: var(--spacing-xs);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
             font-weight: 600;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 2rem auto;
-            padding: 0 1rem;
+        .logo-title {
+            font-size: 1.1rem;
+            font-weight: 600;
         }
 
-        .weather-widget {
-            background: var(--glass-background);
-            backdrop-filter: blur(30px) saturate(125%);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: var(--box-shadow);
+        .main-container {
+            padding: var(--spacing-md);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .weather-card {
+            background: var(--card-background);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-large);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+            box-shadow: var(--shadow-medium);
             display: flex;
             align-items: center;
-            gap: 1.5rem;
-            transition: var(--transition-standard);
+            gap: var(--spacing-md);
+            transition: var(--transition);
             position: relative;
             overflow: hidden;
         }
 
-        .weather-widget::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--acrylic-noise);
-            pointer-events: none;
-        }
-
-        .weather-widget:hover {
+        .weather-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 120, 212, 0.15);
+            box-shadow: var(--shadow-strong);
         }
 
         .weather-icon {
-            font-size: 3rem;
-            position: relative;
-            z-index: 1;
+            font-size: 2.5rem;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
         }
 
-        .weather-details {
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            z-index: 1;
+        .weather-info {
+            flex: 1;
         }
 
         .weather-temp {
-            font-size: 2rem;
-            font-weight: 600;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
         }
 
         .weather-desc {
             color: var(--text-secondary);
             text-transform: capitalize;
-        }
-
-        .weather-location {
             font-weight: 500;
         }
 
-        .section-title {
-            font-size: 1.5rem;
+        .weather-location {
             font-weight: 600;
-            margin-bottom: 1.5rem;
-            color: var(--text-primary);
-            position: relative;
+            color: var(--accent-color);
+            font-size: 0.9rem;
         }
 
-        .section-title::after {
-            content: '';
-            position: absolute;
-            bottom: -8px;
-            left: 0;
-            width: 40px;
-            height: 3px;
-            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
-            border-radius: 2px;
-        }
-
-        .feature-grid {
+        .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            grid-template-columns: 1fr;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-lg);
         }
 
-        .feature-button {
-            background: var(--glass-background);
-            backdrop-filter: blur(30px) saturate(125%);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 2rem;
+        .feature-card {
+            background: var(--card-background);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-large);
+            padding: var(--spacing-md);
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 1rem;
+            gap: var(--spacing-md);
             cursor: pointer;
-            box-shadow: var(--box-shadow);
-            transition: var(--transition-standard);
-            text-align: center;
+            box-shadow: var(--shadow-light);
+            transition: var(--transition);
             position: relative;
             overflow: hidden;
         }
 
-        .feature-button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--acrylic-noise);
-            pointer-events: none;
-        }
-
-        .feature-button:hover {
-            transform: translateY(-4px) scale(1.02);
-            box-shadow: 0 8px 25px rgba(0, 120, 212, 0.2);
+        .feature-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-strong);
             border-color: var(--accent-color);
         }
 
-        .feature-button:active {
-            transform: translateY(-2px) scale(1.01);
+        .feature-card:active {
+            transform: translateY(0);
         }
 
         .feature-icon {
-            font-size: 2.5rem;
-            color: var(--accent-color);
-            position: relative;
-            z-index: 1;
-            filter: drop-shadow(0 2px 4px rgba(0, 120, 212, 0.3));
+            font-size: 2rem;
+            width: 3.5rem;
+            height: 3.5rem;
+            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+            border-radius: var(--border-radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-light);
+            flex-shrink: 0;
+        }
+
+        .feature-content {
+            flex: 1;
         }
 
         .feature-title {
             font-weight: 600;
             font-size: 1.1rem;
-            position: relative;
-            z-index: 1;
+            margin-bottom: 0.25rem;
         }
 
-        .feature-description {
+        .feature-desc {
             color: var(--text-secondary);
             font-size: 0.9rem;
-            position: relative;
-            z-index: 1;
+            line-height: 1.4;
         }
 
-        .document-section {
-            background: var(--glass-background);
-            backdrop-filter: blur(30px) saturate(125%);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: var(--box-shadow);
+        .section-header {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: var(--spacing-md);
+            color: var(--text-primary);
             position: relative;
-            overflow: hidden;
+            padding-left: var(--spacing-sm);
         }
 
-        .document-section::before {
+        .section-header::before {
             content: '';
             position: absolute;
-            top: 0;
             left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--acrylic-noise);
-            pointer-events: none;
-        }
-
-        .document-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        .document-card {
-            display: flex;
-            align-items: center;
-            padding: 1rem;
-            border-radius: 8px;
-            transition: var(--transition-standard);
-            cursor: pointer;
-            background: rgba(0, 120, 212, 0.05);
-            border: 1px solid rgba(0, 120, 212, 0.1);
-        }
-
-        .document-card:hover {
-            background: var(--accent-color);
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
-        }
-
-        .document-icon {
-            margin-right: 0.75rem;
-            font-size: 1.25rem;
-        }
-
-        .document-name {
-            font-weight: 500;
-        }
-
-        .notepad {
-            background: var(--glass-background);
-            backdrop-filter: blur(30px) saturate(125%);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: var(--box-shadow);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .notepad::before {
-            content: '';
-            position: absolute;
             top: 0;
-            left: 0;
-            right: 0;
             bottom: 0;
-            background: var(--acrylic-noise);
-            pointer-events: none;
+            width: 3px;
+            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+            border-radius: 2px;
         }
 
-        .notepad .section-title {
-            position: relative;
-            z-index: 1;
+        .notepad-section {
+            background: var(--card-background);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-large);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+            box-shadow: var(--shadow-medium);
         }
 
-        .notepad textarea {
+        .notepad-textarea {
             width: 100%;
-            min-height: 150px;
-            padding: 1rem;
-            border: 1px solid var(--glass-border);
-            border-radius: 8px;
+            min-height: 120px;
+            padding: var(--spacing-md);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
             color: var(--text-primary);
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
             resize: vertical;
-            transition: var(--transition-standard);
-            position: relative;
-            z-index: 1;
+            transition: var(--transition);
         }
 
-        .notepad textarea:focus {
+        .notepad-textarea:focus {
             outline: none;
             border-color: var(--accent-color);
-            box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+            box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
         }
 
-        .notepad textarea::placeholder {
+        .notepad-textarea::placeholder {
             color: var(--text-secondary);
         }
 
-        .save-indicator {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            text-align: right;
-            margin-top: 0.5rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        .quick-links {
-            background: var(--glass-background);
-            backdrop-filter: blur(30px) saturate(125%);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: var(--box-shadow);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .quick-links::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--acrylic-noise);
-            pointer-events: none;
-        }
-
-        .quick-links .section-title {
-            position: relative;
-            z-index: 1;
+        .quick-links-section {
+            background: var(--card-background);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-large);
+            padding: var(--spacing-md);
+            box-shadow: var(--shadow-medium);
         }
 
         .links-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
-            position: relative;
-            z-index: 1;
+            grid-template-columns: 1fr;
+            gap: var(--spacing-xs);
         }
 
-        .link-item {
+        .link-card {
             display: flex;
             align-items: center;
-            padding: 1rem;
-            border-radius: 8px;
-            transition: var(--transition-standard);
+            padding: var(--spacing-md);
+            border-radius: var(--border-radius);
+            transition: var(--transition);
             cursor: pointer;
             background: rgba(0, 120, 212, 0.05);
-            border: 1px solid rgba(0, 120, 212, 0.1);
+            border: 1px solid transparent;
         }
 
-        .link-item:hover {
+        .link-card:hover {
             background: var(--accent-color);
             color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
+            transform: translateX(4px);
+            box-shadow: var(--shadow-light);
         }
 
         .link-icon {
-            margin-right: 0.75rem;
-            font-size: 1.25rem;
+            margin-right: var(--spacing-md);
+            font-size: 1.2rem;
+            width: 2rem;
+            text-align: center;
         }
 
         .link-title {
             font-weight: 500;
         }
 
-        @media (max-width: 768px) {
-            .feature-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .container {
-                padding: 0 0.5rem;
-            }
-            
-            .feature-button {
-                padding: 1.5rem;
-            }
-        }
-
-        /* Animations d'entrée */
-        @keyframes slideInUp {
+        /* Animations */
+        @keyframes slideUp {
             from {
                 opacity: 0;
-                transform: translateY(30px);
+                transform: translateY(20px);
             }
             to {
                 opacity: 1;
@@ -463,292 +345,455 @@
             }
         }
 
-        .weather-widget,
-        .feature-button,
-        .notepad,
-        .quick-links {
-            animation: slideInUp 0.6s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+        .weather-card,
+        .feature-card,
+        .notepad-section,
+        .quick-links-section {
+            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
 
-        .feature-button:nth-child(1) { animation-delay: 0.1s; }
-        .feature-button:nth-child(2) { animation-delay: 0.2s; }
-        .feature-button:nth-child(3) { animation-delay: 0.3s; }
+        .feature-card:nth-child(1) { animation-delay: 0.1s; }
+        .feature-card:nth-child(2) { animation-delay: 0.15s; }
+        .feature-card:nth-child(3) { animation-delay: 0.2s; }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .main-container {
+                padding: var(--spacing-sm);
+            }
+
+            .app-header {
+                padding: var(--spacing-sm);
+            }
+
+            .weather-card {
+                flex-direction: column;
+                text-align: center;
+                gap: var(--spacing-sm);
+            }
+
+            .weather-icon {
+                font-size: 3rem;
+            }
+
+            .feature-card {
+                padding: var(--spacing-sm) var(--spacing-md);
+            }
+
+            .feature-icon {
+                width: 3rem;
+                height: 3rem;
+                font-size: 1.5rem;
+            }
+
+            .greeting-text {
+                font-size: 1rem;
+            }
+
+            .section-header {
+                font-size: 1.2rem;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .features-grid {
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: var(--spacing-md);
+            }
+
+            .links-grid {
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: var(--spacing-sm);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .main-container {
+                padding: var(--spacing-lg);
+            }
+
+            .weather-card {
+                padding: var(--spacing-lg);
+            }
+        }
+
+        /* Loading states */
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin: -10px 0 0 -10px;
+            border: 2px solid var(--accent-color);
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
-    <div class="top-bar">
-        <div class="greeting-container" id="greeting" data-i18n="welcome">Bienvenue sur My Bus Finder</div>
-        <div class="logo-container" id="logo">
-            <img src="/api/placeholder/80/80" alt="My Bus Finder">
+    <header class="app-header">
+        <div class="greeting-text" id="greeting" data-i18n="welcome">Bienvenue sur My Bus Finder</div>
+        <div class="logo-section" id="logo">
+            <div class="logo-icon">🚌</div>
+            <div class="logo-title">My Bus Finder</div>
         </div>
-    </div>
+    </header>
 
-    <div class="container">
-        <div class="weather-widget">
-            <div class="weather-icon">☀️</div>
-            <div class="weather-details">
-                <div class="weather-temp">23°C</div>
-                <div class="weather-desc" data-i18n="sunny">Ensoleillé</div>
-                <div class="weather-location">Cannes, France</div>
+    <main class="main-container">
+        <div class="weather-card">
+            <div class="weather-icon">⏳</div>
+            <div class="weather-info">
+                <div class="weather-temp">--°C</div>
+                <div class="weather-desc" data-i18n="loading">Chargement...</div>
+                <div class="weather-location">--</div>
             </div>
         </div>
 
-        <div class="feature-grid">
-            <button id="bus" class="feature-button">
+        <div class="features-grid">
+            <button id="bus" class="feature-card">
                 <div class="feature-icon">🚌</div>
-                <div class="feature-title" data-i18n="search_bus">Rechercher un bus</div>
-                <div class="feature-description" data-i18n="search_bus_desc">Trouvez facilement votre bus et ses horaires en temps réel</div>
+                <div class="feature-content">
+                    <div class="feature-title" data-i18n="search_bus">Rechercher un bus</div>
+                    <div class="feature-desc" data-i18n="search_bus_desc">Trouvez facilement votre bus et ses horaires en temps réel</div>
+                </div>
             </button>
-            <button id="clock" class="feature-button">
-                <div class="feature-icon">⏲️</div>
-                <div class="feature-title" data-i18n="schedules">Horaires</div>
-                <div class="feature-description" data-i18n="schedules_desc">Fiches horaires théoriques et temps-réel</div>
+            
+            <button id="clock" class="feature-card">
+                <div class="feature-icon">⏰</div>
+                <div class="feature-content">
+                    <div class="feature-title" data-i18n="schedules">Horaires</div>
+                    <div class="feature-desc" data-i18n="schedules_desc">Fiches horaires théoriques et temps-réel</div>
+                </div>
             </button>
-            <button id="actu" class="feature-button">
+            
+            <button id="actu" class="feature-card">
                 <div class="feature-icon">📰</div>
-                <div class="feature-title" data-i18n="news">Actualités</div>
-                <div class="feature-description" data-i18n="news_desc">Informations et déviations des transports par ligne</div>
+                <div class="feature-content">
+                    <div class="feature-title" data-i18n="news">Actualités</div>
+                    <div class="feature-desc" data-i18n="news_desc">Informations et déviations des transports par ligne</div>
+                </div>
             </button>
         </div>
 
-        <div class="notepad">
-            <h2 class="section-title" data-i18n="notepad">Bloc-notes</h2>
-            <textarea id="notepad" data-i18n-placeholder="notepad_placeholder" placeholder="Écrivez vos notes ici..."></textarea>
+        <div class="notepad-section">
+            <h2 class="section-header" data-i18n="notepad">Bloc-notes</h2>
+            <textarea id="notepad" class="notepad-textarea" data-i18n-placeholder="notepad_placeholder" placeholder="Écrivez vos notes ici..."></textarea>
         </div>
 
-        <div class="quick-links">
-            <h2 class="section-title" data-i18n="quick_links">Liens rapides</h2>
+        <div class="quick-links-section">
+            <h2 class="section-header" data-i18n="quick_links">Liens rapides</h2>
             <div class="links-grid">
-                <div id="settings" class="link-item">
+                <div id="settings" class="link-card">
                     <div class="link-icon">⚙️</div>
                     <div class="link-title" data-i18n="settings">Paramètres</div>
                 </div>
-                <div id="app" class="link-item">
+                <div id="app" class="link-card">
                     <div class="link-icon">📱</div>
                     <div class="link-title" data-i18n="mobile_app">Application mobile (à venir)</div>
                 </div>
-                <div id="mbh" class="link-item">
+                <div id="mbh" class="link-card">
                     <div class="link-icon">🚇</div>
                     <div class="link-title" data-i18n="bus_history">My Bus History</div>
                 </div>
             </div>
         </div>
-    </div>
+    </main>
     
     <script>
-    const i18n = {
-    translations: {},
-    currentLang: 'fr',
-    supportedLanguages: ['fr', 'it', 'ar', 'en'],
-    defaultLang: 'fr',
-    
-    getBrowserLanguage() {
-        const fullLang = navigator.language || navigator.userLanguage;
-        const primaryLang = fullLang.split('-')[0];
-        
-        if (this.supportedLanguages.includes(primaryLang)) {
-        return primaryLang;
+        // Translation system - kept your exact logic, just fixed the async loading bug
+        const i18n = {
+            translations: {},
+            currentLang: 'fr',
+            supportedLanguages: ['fr', 'it', 'ar', 'en'],
+            defaultLang: 'fr',
+            isLoaded: false,
+            
+            getBrowserLanguage() {
+                const fullLang = navigator.language || navigator.userLanguage;
+                const primaryLang = fullLang.split('-')[0];
+                
+                if (this.supportedLanguages.includes(primaryLang)) {
+                    return primaryLang;
+                }
+                
+                return this.defaultLang;
+            },
+            
+            getLanguageFromUrl() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const lang = urlParams.get('lang');
+                return lang || localStorage.getItem('preferredLanguage') || this.defaultLang;
+            },
+            
+            async loadTranslations() {
+                this.currentLang = this.getLanguageFromUrl();
+                localStorage.setItem('preferredLanguage', this.currentLang);
+                
+                try {
+                    const response = await fetch(`../locales/${this.currentLang}.json`);
+                    this.translations = await response.json();
+                    this.isLoaded = true;
+                    document.dispatchEvent(new CustomEvent('translationsLoaded'));
+                    return this.translations;
+                } catch (error) {
+                    console.error("Erreur lors du chargement des traductions:", error);
+                    // Fallback translations for demo
+                    this.translations = {
+                        welcome: "Bienvenue sur My Bus Finder",
+                        search_bus: "Rechercher un bus",
+                        search_bus_desc: "Trouvez facilement votre bus et ses horaires en temps réel",
+                        schedules: "Horaires",
+                        schedules_desc: "Fiches horaires théoriques et temps-réel",
+                        news: "Actualités",
+                        news_desc: "Informations et déviations des transports par ligne",
+                        notepad: "Bloc-notes",
+                        notepad_placeholder: "Écrivez vos notes ici...",
+                        quick_links: "Liens rapides",
+                        settings: "Paramètres",
+                        mobile_app: "Application mobile (à venir)",
+                        bus_history: "My Bus History",
+                        loading: "Chargement...",
+                        "greetings-morning1": "Bonjour ! ☀️",
+                        "greetings-morning2": "Bonne matinée ! 🌅",
+                        "greetings-morning3": "Hello ! 👋",
+                        "greetings-morning4": "Salut ! 😊",
+                        "greetings-morning5": "Coucou ! 🙂",
+                        "greetings-morning6": "Bon matin ! ☕",
+                        "greetings-midday1": "Bon appétit ! 🍽️",
+                        "greetings-midday2": "Bonne pause déjeuner ! 🥪",
+                        "greetings-midday3": "Salut ! 👋",
+                        "greetings-midday4": "Hello ! 😊",
+                        "greetings-midday5": "Coucou ! 🙂",
+                        "greetings-midday6": "Bonne journée ! ☀️",
+                        "greetings-afternoon1": "Bon après-midi ! 🌞",
+                        "greetings-afternoon2": "Salut ! 👋",
+                        "greetings-afternoon3": "Hello ! 😊",
+                        "greetings-afternoon4": "Coucou ! 🙂",
+                        "greetings-afternoon5": "Bel après-midi ! 🌤️",
+                        "greetings-afternoon6": "Hey ! 👋",
+                        "greetings-evening1": "Bonsoir ! 🌅",
+                        "greetings-evening2": "Bonne soirée ! 🌆",
+                        "greetings-evening3": "Salut ! 👋",
+                        "greetings-evening4": "Hello ! 😊",
+                        "greetings-evening5": "Coucou ! 🙂",
+                        "greetings-evening6": "Hey ! 👋",
+                        "greetings-night1": "Bonne nuit ! 🌙",
+                        "greetings-night2": "Salut noctambule ! 🦉",
+                        "greetings-night3": "Bonsoir tard ! 🌃",
+                        "greetings-night4": "Hello ! 😊",
+                        "greetings-night5": "Coucou ! 🙂",
+                        "greetings-night6": "Hey ! 👋"
+                    };
+                    this.isLoaded = true;
+                    document.dispatchEvent(new CustomEvent('translationsLoaded'));
+                    return this.translations;
+                }
+            },
+            
+            t(key, params = {}) {
+                let text = this.translations[key] || key;
+                
+                Object.keys(params).forEach(param => {
+                    text = text.replace(`{${param}}`, params[param]);
+                });
+                
+                return text;
+            },
+            
+            applyTranslations() {
+                document.querySelectorAll('[data-i18n]').forEach(element => {
+                    const key = element.getAttribute('data-i18n');
+                    if (this.translations[key]) {
+                        element.textContent = this.translations[key];
+                    }
+                });
+
+                document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+                    const key = element.getAttribute('data-i18n-placeholder');
+                    if (this.translations[key]) {
+                        element.placeholder = this.translations[key];
+                    }
+                });
+            },
+            
+            addLangToUrl() {
+                const browserLang = this.getBrowserLanguage();
+                
+                if (browserLang !== this.defaultLang) {
+                    const currentUrl = new URL(window.location.href);
+                    if (!currentUrl.searchParams.has('lang')) {
+                        currentUrl.searchParams.set('lang', browserLang);
+                        window.history.replaceState({}, '', currentUrl.toString());
+                    }
+                }
+                
+                return browserLang;
+            },
+            
+            init() {
+                const detectedLang = this.addLangToUrl();
+                const urlLang = new URLSearchParams(window.location.search).get('lang');
+                
+                if (!localStorage.getItem('preferredLanguage')) {
+                    localStorage.setItem('preferredLanguage', urlLang || detectedLang);
+                }
+                
+                return this.loadTranslations();
+            }
+        };
+
+        window.t = (key, params) => i18n.t(key, params);
+
+        function waitForTranslations() {
+            return new Promise(resolve => {
+                if (i18n.isLoaded) {
+                    resolve();
+                } else {
+                    document.addEventListener('translationsLoaded', () => resolve(), { once: true });
+                }
+            });
         }
-        
-        return this.defaultLang;
-    },
-    
-    getLanguageFromUrl() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const lang = urlParams.get('lang');
-        return lang || localStorage.getItem('preferredLanguage') || this.defaultLang;
-    },
-    
-    async loadTranslations() {
-        this.currentLang = this.getLanguageFromUrl();
-        localStorage.setItem('preferredLanguage', this.currentLang);
-        
-        try {
-        const response = await fetch(`../locales/${this.currentLang}.json`);
-        this.translations = await response.json();
-        document.dispatchEvent(new CustomEvent('translationsLoaded'));
-        return this.translations;
-        } catch (error) {
-        console.error("Erreur lors du chargement des traductions:", error);
-        return {};
-        }
-    },
-    
-    t(key, params = {}) {
-        let text = this.translations[key] || key;
-        
-        Object.keys(params).forEach(param => {
-        text = text.replace(`{${param}}`, params[param]);
+
+        // Event handlers
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize translations first
+            await i18n.init();
+            
+            // Wait for translations to be loaded before applying them
+            await waitForTranslations();
+            i18n.applyTranslations();
+            
+            // Initialize other components
+            initGreeting();
+            initWeather();
+            initNotepad();
+            initEventHandlers();
         });
-        
-        return text;
-    },
-    
-    applyTranslations() {
-        document.querySelectorAll('[data-i18n]').forEach(element => {
-        const key = element.getAttribute('data-i18n');
-        if (this.translations[key]) {
-            element.innerHTML = this.translations[key];
-        }
-        });
-    },
-    
-    addLangToUrl() {
-        const browserLang = this.getBrowserLanguage();
-        
-        if (browserLang !== this.defaultLang) {
-        const currentUrl = new URL(window.location.href);
-        if (!currentUrl.searchParams.has('lang')) {
-            currentUrl.searchParams.set('lang', browserLang);
-            window.history.replaceState({}, '', currentUrl.toString());
-        }
-        }
-        
-        return browserLang;
-    },
-    
-    init() {
-        const detectedLang = this.addLangToUrl();
-        const urlLang = new URLSearchParams(window.location.search).get('lang');
-        
-        if (!localStorage.getItem('preferredLanguage')) {
-        localStorage.setItem('preferredLanguage', urlLang || detectedLang);
-        }
-        
-        return this.loadTranslations();
-    }
-    };
 
-    window.t = (key, params) => i18n.t(key, params);
+        // Button event handlers
+        function initEventHandlers() {
+            const bus = document.getElementById('bus');
+            const clock = document.getElementById('clock');
+            const actu = document.getElementById('actu');
+            const settings = document.getElementById('settings');
+            const app = document.getElementById('app');
+            const mbh = document.getElementById('mbh');
 
-    function waitForTranslations() {
-    return new Promise(resolve => {
-        if (Object.keys(i18n.translations).length > 0) {
-        resolve();
-        } else {
-        document.addEventListener('translationsLoaded', () => resolve(), { once: true });
-        }
-    });
-    }
-</script>
+            bus.onclick = () => {
+                window.parent.postMessage({ type: 'openmap' }, '*');
+            };
 
-    <script>
-        const bus = document.getElementById('bus');
-        const clock = document.getElementById('clock');
-        const actu = document.getElementById('actu');
-        const settings = document.getElementById('settings');
-        const app = document.getElementById('app');
-        const mbh = document.getElementById('mbh');
+            clock.onclick = () => {
+                window.parent.postMessage({ type: 'schedule' }, '*');
+            };
 
-        bus.onclick = () => {
-            window.parent.postMessage({
-                type: 'openmap',
-            }, '*');
-        };
+            actu.onclick = () => {
+                window.parent.postMessage({ type: 'news' }, '*');
+            };
+            
+            settings.onclick = () => {
+                window.parent.postMessage({ type: 'settings' }, '*');
+            };
 
-        clock.onclick = () => {
-            window.parent.postMessage({
-                type: 'schedule',
-            }, '*');
-        };
+            app.onclick = () => {
+                window.parent.postMessage({ type: 'app' }, '*');
+            };
 
-        actu.onclick = () => {
-            window.parent.postMessage({
-                type: 'news',
-            }, '*');
-        };
-        
-        settings.onclick = () => {
-            window.parent.postMessage({
-                type: 'settings',
-            }, '*');
-        };
-
-        app.onclick = () => {
-            window.parent.postMessage({
-                type: 'app',
-            }, '*');
-        };
-
-        mbh.onclick = () => {
-            window.parent.postMessage({
-                type: 'mbh',
-            }, '*');
-        };
-        document.addEventListener('DOMContentLoaded', () => {
-                    function getGreetings() {
-            return {
-                morning: [
-                    t("greetings-morning1"),
-                    t("greetings-morning2"),
-                    t("greetings-morning3"),
-                    t("greetings-morning4"),
-                    t("greetings-morning5"),
-                    t("greetings-morning6"),
-                ],
-                midday: [
-                    t("greetings-midday1"),
-                    t("greetings-midday2"),
-                    t("greetings-midday3"),
-                    t("greetings-midday4"),
-                    t("greetings-midday5"),
-                    t("greetings-midday6"),
-                ],
-                afternoon: [
-                    t("greetings-afternoon1"),
-                    t("greetings-afternoon2"),
-                    t("greetings-afternoon3"),
-                    t("greetings-afternoon4"),
-                    t("greetings-afternoon5"),
-                    t("greetings-afternoon6"),
-                ],
-                evening: [
-                    t("greetings-evening1"),
-                    t("greetings-evening2"),
-                    t("greetings-evening3"),
-                    t("greetings-evening4"),
-                    t("greetings-evening5"),
-                    t("greetings-evening6"),
-                ],
-                night: [
-                    t("greetings-night1"),
-                    t("greetings-night2"),
-                    t("greetings-night3"),
-                    t("greetings-night4"),
-                    t("greetings-night5"),
-                    t("greetings-night6"),
-                ]
+            mbh.onclick = () => {
+                window.parent.postMessage({ type: 'mbh' }, '*');
             };
         }
 
-        function getDayPeriod() {
-            const hour = new Date().getHours();
+        // Greeting system - fixed to wait for translations
+        async function initGreeting() {
+            await waitForTranslations();
             
-            if (hour >= 5 && hour < 12) {
-                return 'morning';
-            } else if (hour >= 12 && hour < 14) {
-                return 'midday';
-            } else if (hour >= 14 && hour < 18) {
-                return 'afternoon';
-            } else if (hour >= 18 && hour < 22) {
-                return 'evening';
-            } else {
-                return 'night';
+            function getGreetings() {
+                return {
+                    morning: [
+                        i18n.t("greetings-morning1"),
+                        i18n.t("greetings-morning2"),
+                        i18n.t("greetings-morning3"),
+                        i18n.t("greetings-morning4"),
+                        i18n.t("greetings-morning5"),
+                        i18n.t("greetings-morning6"),
+                    ],
+                    midday: [
+                        i18n.t("greetings-midday1"),
+                        i18n.t("greetings-midday2"),
+                        i18n.t("greetings-midday3"),
+                        i18n.t("greetings-midday4"),
+                        i18n.t("greetings-midday5"),
+                        i18n.t("greetings-midday6"),
+                    ],
+                    afternoon: [
+                        i18n.t("greetings-afternoon1"),
+                        i18n.t("greetings-afternoon2"),
+                        i18n.t("greetings-afternoon3"),
+                        i18n.t("greetings-afternoon4"),
+                        i18n.t("greetings-afternoon5"),
+                        i18n.t("greetings-afternoon6"),
+                    ],
+                    evening: [
+                        i18n.t("greetings-evening1"),
+                        i18n.t("greetings-evening2"),
+                        i18n.t("greetings-evening3"),
+                        i18n.t("greetings-evening4"),
+                        i18n.t("greetings-evening5"),
+                        i18n.t("greetings-evening6"),
+                    ],
+                    night: [
+                        i18n.t("greetings-night1"),
+                        i18n.t("greetings-night2"),
+                        i18n.t("greetings-night3"),
+                        i18n.t("greetings-night4"),
+                        i18n.t("greetings-night5"),
+                        i18n.t("greetings-night6"),
+                    ]
+                };
             }
-        }
 
-        function getRandomGreeting() {
-            const greetings = getGreetings();
-            const period = getDayPeriod();
-            const periodGreetings = greetings[period];
-            const randomIndex = Math.floor(Math.random() * periodGreetings.length);
-            return periodGreetings[randomIndex];
-        }
+            function getDayPeriod() {
+                const hour = new Date().getHours();
+                
+                if (hour >= 5 && hour < 12) {
+                    return 'morning';
+                } else if (hour >= 12 && hour < 14) {
+                    return 'midday';
+                } else if (hour >= 14 && hour < 18) {
+                    return 'afternoon';
+                } else if (hour >= 18 && hour < 22) {
+                    return 'evening';
+                } else {
+                    return 'night';
+                }
+            }
 
-        function updateGreeting() {
-            const greetingElement = document.getElementById('greeting');
-            greetingElement.textContent = getRandomGreeting();
-        }
+            function getRandomGreeting() {
+                const greetings = getGreetings();
+                const period = getDayPeriod();
+                const periodGreetings = greetings[period];
+                const randomIndex = Math.floor(Math.random() * periodGreetings.length);
+                return periodGreetings[randomIndex];
+            }
+
+            function updateGreeting() {
+                const greetingElement = document.getElementById('greeting');
+                greetingElement.textContent = getRandomGreeting();
+            }
 
         function toggleGreetingLogo() {
             const greetingElement = document.getElementById('greeting');
@@ -765,7 +810,7 @@
         setInterval(toggleGreetingLogo, 4000);
         updateGreeting();
 
-        });
+        };
 
 async function initWeather() {
     try {
