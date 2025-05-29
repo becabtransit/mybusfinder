@@ -4006,329 +4006,404 @@ let selectedLines = [];
 
 
 
-let updateInterval;
-let routeNames = {}; // Cache pour les noms des lignes
+// === VARIABLES GLOBALES ===
+let selectedStopId = null;
+let popupUpdateInterval = null;
+let currentPopup = null;
+const POPUP_UPDATE_INTERVAL = 10000; // 10 secondes
 
-// Configuration des couleurs de lignes (à adapter selon vos données)
-
-
-// Styles CSS pour la popup Fluent Design
+// === STYLES CSS POUR LA POPUP (Fluent Design) ===
 const fluentStyles = `
 <style>
 .fluent-popup {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: rgba(243, 242, 241, 0.95);
+    background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(20px);
-    border-radius: 8px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    padding: 0;
-    margin: 0;
-    min-width: 300px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #323130;
+    min-width: 320px;
     max-width: 400px;
 }
 
 .fluent-popup-header {
-    background: linear-gradient(135deg, #0078d4, #106ebe);
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    background: linear-gradient(135deg, #0078d4 0%, #106ebe 100%);
+    border-radius: 12px 12px 0 0;
     color: white;
-    padding: 12px 16px;
-    border-radius: 8px 8px 0 0;
+}
+
+.fluent-popup-title {
+    font-size: 16px;
     font-weight: 600;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    margin: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.fluent-popup-subtitle {
+    font-size: 12px;
+    opacity: 0.9;
+    margin: 4px 0 0;
 }
 
 .fluent-popup-content {
-    padding: 16px;
+    padding: 16px 20px 20px;
     max-height: 300px;
     overflow-y: auto;
 }
 
-.route-section {
+.fluent-line-group {
     margin-bottom: 16px;
-    background: rgba(255, 255, 255, 0.8);
-    border-radius: 6px;
-    padding: 12px;
-    border-left: 4px solid #0078d4;
+    background: rgba(0, 120, 212, 0.04);
+    border-radius: 8px;
+    border-left: 4px solid var(--line-color, #0078d4);
+    overflow: hidden;
 }
 
-.route-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
+.fluent-line-header {
+    padding: 12px 16px 8px;
+    background: linear-gradient(90deg, var(--line-color, #0078d4), rgba(var(--line-color-rgb, 0, 120, 212), 0.8));
+    color: white;
     font-weight: 600;
-    color: #323130;
+    font-size: 14px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-.route-color {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.departure-item {
+.fluent-departure-item {
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    transition: background-color 0.2s ease;
 }
 
-.departure-item:last-child {
+.fluent-departure-item:hover {
+    background: rgba(0, 120, 212, 0.08);
+}
+
+.fluent-departure-item:last-child {
     border-bottom: none;
 }
 
-.departure-time {
+.fluent-time {
     font-weight: 600;
-    color: #0078d4;
-    font-size: 16px;
+    color: #323130;
+    font-size: 14px;
 }
 
-.departure-delay {
+.fluent-delay {
     font-size: 12px;
-    padding: 2px 6px;
+    padding: 2px 8px;
     border-radius: 12px;
-    font-weight: 600;
+    font-weight: 500;
 }
 
-.delay-positive {
-    background: #fef7f1;
-    color: #d83b01;
-}
-
-.delay-negative {
-    background: #f3f9f1;
+.fluent-delay.on-time {
+    background: #dff6dd;
     color: #107c10;
 }
 
-.delay-ontime {
+.fluent-delay.late {
+    background: #fde7e9;
+    color: #d13438;
+}
+
+.fluent-delay.early {
     background: #e1f5fe;
     color: #0078d4;
 }
 
-.no-data {
+.fluent-no-data {
     text-align: center;
+    padding: 20px;
     color: #605e5c;
     font-style: italic;
-    padding: 20px;
 }
 
-.loading {
+.fluent-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #605e5c;
+}
+
+.fluent-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e1dfdd;
+    border-top: 2px solid #0078d4;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.fluent-last-update {
     text-align: center;
-    color: #0078d4;
-    padding: 20px;
-}
-
-.last-update {
+    padding: 8px 16px;
     font-size: 11px;
     color: #605e5c;
-    text-align: center;
-    padding: 8px;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    margin-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    background: rgba(0, 0, 0, 0.02);
 }
+</style>
+`;
 
-.stop-icon {
-    width: 16px;
-    height: 16px;
-    fill: currentColor;
-}
-</style>`;
-
-// Ajouter les styles CSS au document
-if (!document.getElementById('fluent-popup-styles')) {
-    const styleElement = document.createElement('div');
-    styleElement.id = 'fluent-popup-styles';
-    styleElement.innerHTML = fluentStyles;
-    document.head.appendChild(styleElement);
-}
-
-// Fonction pour formater le délai
-function formatDelay(delaySeconds) {
-    if (!delaySeconds || Math.abs(delaySeconds) < 30) {
-        return { text: 'À l\'heure', class: 'delay-ontime' };
+// === FONCTION UTILITAIRES ===
+function formatDelayText(delaySeconds) {
+    if (delaySeconds === null || delaySeconds === undefined) {
+        return { text: "À l'heure", class: "on-time" };
     }
     
-    const minutes = Math.round(delaySeconds / 60);
-    if (minutes > 0) {
-        return { 
-            text: `+${minutes} min`, 
-            class: 'delay-positive' 
-        };
+    const delayMinutes = Math.round(delaySeconds / 60);
+    
+    if (Math.abs(delayMinutes) <= 1) {
+        return { text: "À l'heure", class: "on-time" };
+    } else if (delayMinutes > 0) {
+        return { text: `+${delayMinutes}min`, class: "late" };
     } else {
-        return { 
-            text: `${minutes} min`, 
-            class: 'delay-negative' 
-        };
+        return { text: `${delayMinutes}min`, class: "early" };
     }
 }
 
-// Fonction pour obtenir le nom de la ligne
-function getRouteName(routeId) {
-    if (routeNames[routeId]) {
-        return routeNames[routeId];
-    }
-    
-    // Essayer d'extraire le nom depuis les données GeoJSON
-    const routeLine = geoJsonLines.find(layer => 
-        layer.feature && layer.feature.properties.route_id === routeId
-    );
-    
-    if (routeLine && routeLine.feature.properties.route_short_name) {
-        routeNames[routeId] = routeLine.feature.properties.route_short_name;
-        return routeNames[routeId];
-    }
-    
-    return `Ligne ${routeId}`;
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : { r: 0, g: 120, b: 212 }; // Couleur par défaut
 }
 
-// Fonction pour obtenir les prochains passages pour un arrêt
-function getNextDeparturesForStop(stopId) {
-    const departures = [];
+function getNextDepartures(stopId, maxDepartures = 5) {
     const now = Date.now() / 1000;
+    const departures = [];
     
+    // Parcourir tous les trip updates
     Object.values(tripUpdates).forEach(tripUpdate => {
-        const stopUpdate = tripUpdate.stopUpdates.find(stop => 
-            stop.stopId === stopId || stop.stopId === `0:${stopId}`
-        );
+        if (!tripUpdate.stopUpdates) return;
         
-        if (stopUpdate) {
-            // Extraire le routeId depuis tripId ou utiliser les propriétés disponibles
-            let routeId = null;
-            
-            // Chercher dans les layers pour trouver le routeId correspondant
-            const matchingLayer = busStopLayers.find(layer => 
-                layer.feature && 
-                (layer.feature.properties.stop_id === stopId || 
-                 layer.feature.properties.stop_id === `0:${stopId}`)
-            );
-            
-            if (matchingLayer) {
-                routeId = matchingLayer.feature.properties.route_id;
+        // Chercher l'arrêt dans les mises à jour de ce trip
+        tripUpdate.stopUpdates.forEach(stopUpdate => {
+            if (stopUpdate.stopId === stopId) {
+                // Vérifier si le départ est dans le futur
+                const departureTimestamp = stopUpdate.departureTime !== "inconnue" ? 
+                    parseTimeToTimestamp(stopUpdate.departureTime) : null;
+                const arrivalTimestamp = stopUpdate.arrivalTime !== "inconnue" ? 
+                    parseTimeToTimestamp(stopUpdate.arrivalTime) : null;
+                
+                const timeToUse = departureTimestamp || arrivalTimestamp;
+                
+                if (timeToUse && timeToUse > now) {
+                    departures.push({
+                        time: stopUpdate.unifiedTime,
+                        timestamp: timeToUse,
+                        delay: stopUpdate.delay,
+                        routeId: tripUpdate.routeId || 'unknown',
+                        tripId: Object.keys(tripUpdates).find(key => tripUpdates[key] === tripUpdate)
+                    });
+                }
             }
-            
-            // Calculer le temps de passage
-            const departureTime = stopUpdate.departureTime;
-            const arrivalTime = stopUpdate.arrivalTime;
-            const displayTime = departureTime !== "inconnue" ? departureTime : arrivalTime;
-            
-            if (displayTime !== "inconnue") {
-                departures.push({
-                    routeId: routeId || 'unknown',
-                    time: displayTime,
-                    delay: stopUpdate.delay || 0,
-                    timestamp: stopUpdate.departureTime ? 
-                        parseTimeToTimestamp(stopUpdate.departureTime) : 
-                        parseTimeToTimestamp(stopUpdate.arrivalTime)
-                });
-            }
-        }
+        });
     });
     
-    // Trier par heure de passage
-    departures.sort((a, b) => a.timestamp - b.timestamp);
-    
-    // Grouper par ligne
-    const groupedDepartures = {};
-    departures.forEach(dep => {
-        if (!groupedDepartures[dep.routeId]) {
-            groupedDepartures[dep.routeId] = [];
-        }
-        groupedDepartures[dep.routeId].push(dep);
-    });
-    
-    return groupedDepartures;
+    // Trier par heure et limiter le nombre de résultats
+    return departures
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .slice(0, maxDepartures);
 }
 
-// Fonction utilitaire pour convertir l'heure en timestamp
-function parseTimeToTimestamp(timeString) {
-    if (timeString === "inconnue") return 0;
+function parseTimeToTimestamp(timeStr) {
+    if (!timeStr || timeStr === "inconnue") return null;
     
-    const [hours, minutes] = timeString.split(':').map(Number);
-    const now = new Date();
-    const timeDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+    const today = new Date();
+    const [hours, minutes] = timeStr.split(':').map(Number);
     
-    // Si l'heure est passée, c'est pour demain
-    if (timeDate < now) {
-        timeDate.setDate(timeDate.getDate() + 1);
+    const timestamp = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+    
+    // Si l'heure est déjà passée aujourd'hui, on considère que c'est demain
+    if (timestamp < new Date()) {
+        timestamp.setDate(timestamp.getDate() + 1);
     }
     
-    return timeDate.getTime();
+    return timestamp.getTime() / 1000;
 }
 
-// Fonction pour créer le contenu HTML de la popup
-function createPopupContent(stopId, stopName) {
-    const departures = getNextDeparturesForStop(stopId);
+function getDeparturesByLine(stopId) {
+    const departures = getNextDepartures(stopId, 15); // Plus de départs pour les grouper
+    const departuresByLine = {};
+    
+    departures.forEach(departure => {
+        const routeId = departure.routeId;
+        if (!departuresByLine[routeId]) {
+            departuresByLine[routeId] = [];
+        }
+        departuresByLine[routeId].push(departure);
+    });
+    
+    // Limiter à 3 départs par ligne
+    Object.keys(departuresByLine).forEach(routeId => {
+        departuresByLine[routeId] = departuresByLine[routeId].slice(0, 3);
+    });
+    
+    return departuresByLine;
+}
+
+// === GÉNÉRATION DU CONTENU DE LA POPUP ===
+function generatePopupContent(stopId) {
+    const stopName = stopNameMap[stopId] || `Arrêt ${stopId}`;
+    const departuresByLine = getDeparturesByLine(stopId);
     const lastUpdate = new Date().toLocaleTimeString('fr-FR', { 
         hour: '2-digit', 
         minute: '2-digit', 
         second: '2-digit' 
     });
     
-    let content = `
-        <div class="fluent-popup">
-            <div class="fluent-popup-header">
-                <svg class="stop-icon" viewBox="0 0 24 24">
-                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                </svg>
-                ${stopName || `Arrêt ${stopId}`}
-            </div>
-            <div class="fluent-popup-content">
-    `;
-    
-    if (Object.keys(departures).length === 0) {
-        content += `
-            <div class="no-data">
-                Aucun passage prévu dans les prochaines heures
+    if (Object.keys(departuresByLine).length === 0) {
+        return `
+            ${fluentStyles}
+            <div class="fluent-popup">
+                <div class="fluent-popup-header">
+                    <h3 class="fluent-popup-title">${stopName}</h3>
+                    <p class="fluent-popup-subtitle">Arrêt ${stopId}</p>
+                </div>
+                <div class="fluent-popup-content">
+                    <div class="fluent-no-data">
+                        <p>Aucun passage prévu dans les prochaines heures</p>
+                    </div>
+                </div>
+                <div class="fluent-last-update">
+                    Dernière mise à jour: ${lastUpdate}
+                </div>
             </div>
         `;
-    } else {
-        Object.entries(departures).forEach(([routeId, routeDepartures]) => {
-            const routeName = getRouteName(routeId);
-            const routeColor = lineColors[routeId] || '#0078d4';
-            
-            content += `
-                <div class="route-section">
-                    <div class="route-header">
-                        <div class="route-color" style="background-color: ${routeColor}"></div>
-                        ${routeName}
-                    </div>
-            `;
-            
-            // Afficher les 3 prochains passages maximum
-            routeDepartures.slice(0, 3).forEach(departure => {
-                const delayInfo = formatDelay(departure.delay);
-                
-                content += `
-                    <div class="departure-item">
-                        <span class="departure-time">${departure.time}</span>
-                        <span class="departure-delay ${delayInfo.class}">
-                            ${delayInfo.text}
-                        </span>
-                    </div>
-                `;
-            });
-            
-            content += `</div>`;
-        });
     }
     
-    content += `
-                <div class="last-update">
-                    Dernière mise à jour : ${lastUpdate}
+    let linesHtml = '';
+    
+    Object.keys(departuresByLine).forEach(routeId => {
+        const departures = departuresByLine[routeId];
+        const lineName = window.lineName[routeId] || `Ligne ${routeId}`;
+        const lineColor = window.lineColors[routeId] || '#0078d4';
+        const colorRgb = hexToRgb(lineColor);
+        
+        let departuresHtml = '';
+        departures.forEach(departure => {
+            const delayInfo = formatDelayText(departure.delay);
+            departuresHtml += `
+                <div class="fluent-departure-item">
+                    <span class="fluent-time">${departure.time}</span>
+                    <span class="fluent-delay ${delayInfo.class}">${delayInfo.text}</span>
+                </div>
+            `;
+        });
+        
+        linesHtml += `
+            <div class="fluent-line-group" style="--line-color: ${lineColor}; --line-color-rgb: ${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b};">
+                <div class="fluent-line-header">
+                    ${lineName}
+                </div>
+                ${departuresHtml}
+            </div>
+        `;
+    });
+    
+    return `
+        ${fluentStyles}
+        <div class="fluent-popup">
+            <div class="fluent-popup-header">
+                <h3 class="fluent-popup-title">${stopName}</h3>
+                <p class="fluent-popup-subtitle">Arrêt ${stopId}</p>
+            </div>
+            <div class="fluent-popup-content">
+                ${linesHtml}
+            </div>
+            <div class="fluent-last-update">
+                Dernière mise à jour: ${lastUpdate}
+            </div>
+        </div>
+    `;
+}
+
+function generateLoadingContent(stopId) {
+    const stopName = stopNameMap[stopId] || `Arrêt ${stopId}`;
+    
+    return `
+        ${fluentStyles}
+        <div class="fluent-popup">
+            <div class="fluent-popup-header">
+                <h3 class="fluent-popup-title">${stopName}</h3>
+                <p class="fluent-popup-subtitle">Arrêt ${stopId}</p>
+            </div>
+            <div class="fluent-popup-content">
+                <div class="fluent-loading">
+                    <div class="fluent-spinner"></div>
+                    <span>Chargement des horaires...</span>
                 </div>
             </div>
         </div>
     `;
-    
-    return content;
 }
 
-// Modification de la fonction loadGeoJsonLines pour ajouter les événements de clic
+// === GESTION DE LA POPUP ===
+function updatePopupContent(stopId) {
+    if (currentPopup && selectedStopId === stopId) {
+        const newContent = generatePopupContent(stopId);
+        currentPopup.setContent(newContent);
+    }
+}
+
+function showStopPopup(stopId, latlng) {
+    // Fermer la popup précédente s'il y en a une
+    if (currentPopup) {
+        map.closePopup(currentPopup);
+        clearInterval(popupUpdateInterval);
+    }
+    
+    selectedStopId = stopId;
+    
+    // Créer la popup avec le contenu de chargement
+    currentPopup = L.popup({
+        maxWidth: 400,
+        className: 'gtfs-popup',
+        closeButton: true,
+        autoClose: true,
+        autoPan: true
+    })
+    .setLatLng(latlng)
+    .setContent(generateLoadingContent(stopId))
+    .openOn(map);
+    
+    // Mettre à jour le contenu après un court délai
+    setTimeout(() => {
+        updatePopupContent(stopId);
+    }, 500);
+    
+    // Configurer la mise à jour automatique
+    popupUpdateInterval = setInterval(() => {
+        updatePopupContent(stopId);
+    }, POPUP_UPDATE_INTERVAL);
+    
+    // Nettoyer quand la popup est fermée
+    currentPopup.on('remove', () => {
+        selectedStopId = null;
+        currentPopup = null;
+        if (popupUpdateInterval) {
+            clearInterval(popupUpdateInterval);
+            popupUpdateInterval = null;
+        }
+    });
+}
+
+// === MODIFICATION DE LA FONCTION loadGeoJsonLines ===
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
@@ -4370,21 +4445,19 @@ async function loadGeoJsonLines() {
             });
         },
         onEachFeature: function(feature, layer) {
-            // Ajouter l'événement de clic sur chaque arrêt
+            // Ajouter l'événement de clic pour afficher la popup
             layer.on('click', function(e) {
                 const stopId = feature.properties.stop_id;
-                const stopName = feature.properties.stop_name;
-                
-                // Créer et afficher la popup
-                const popupContent = createPopupContent(stopId, stopName);
-                
-                layer.bindPopup(popupContent, {
-                    maxWidth: 400,
-                    className: 'fluent-popup-container'
-                }).openPopup();
-                
-                // Empêcher la propagation de l'événement
-                L.DomEvent.stopPropagation(e);
+                if (stopId) {
+                    // Nettoyer le stop_id (retirer le préfixe "0:" si présent)
+                    const cleanStopId = stopId.replace("0:", "");
+                    showStopPopup(cleanStopId, e.latlng);
+                }
+            });
+            
+            // Changer le curseur au survol
+            layer.on('mouseover', function() {
+                this._path.style.cursor = 'pointer';
             });
         }
     }).addTo(map);
@@ -4396,82 +4469,6 @@ async function loadGeoJsonLines() {
         }
     });
 }
-
-// Fonction pour démarrer la mise à jour automatique
-function startAutoUpdate() {
-    // Première récupération immédiate
-    fetchTripUpdates().catch(console.error);
-    
-    // Puis mise à jour toutes les 10 secondes
-    updateInterval = setInterval(async () => {
-        try {
-            await fetchTripUpdates();
-            
-            // Mettre à jour les popups ouvertes
-            updateOpenPopups();
-            
-        } catch (error) {
-            console.error('Erreur lors de la mise à jour automatique:', error);
-        }
-    }, 10000);
-}
-
-// Fonction pour arrêter la mise à jour automatique
-function stopAutoUpdate() {
-    if (updateInterval) {
-        clearInterval(updateInterval);
-        updateInterval = null;
-    }
-}
-
-// Fonction pour mettre à jour les popups ouvertes
-function updateOpenPopups() {
-    busStopLayers.forEach(layer => {
-        if (layer.isPopupOpen()) {
-            const stopId = layer.feature.properties.stop_id;
-            const stopName = layer.feature.properties.stop_name;
-            const newContent = createPopupContent(stopId, stopName);
-            
-            layer.getPopup().setContent(newContent);
-        }
-    });
-}
-
-// Initialisation au chargement de la page
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialiser le worker
-    initWorker();
-    
-    // Charger les données initiales
-    loadGeoJsonLines().then(() => {
-        console.log('GeoJSON chargé, démarrage de la mise à jour automatique');
-        startAutoUpdate();
-    }).catch(error => {
-        console.error('Erreur lors du chargement initial:', error);
-    });
-});
-
-// Nettoyage lors de la fermeture de la page
-window.addEventListener('beforeunload', function() {
-    stopAutoUpdate();
-    if (worker) {
-        worker.terminate();
-    }
-});
-
-// Gestion des erreurs globales
-window.addEventListener('error', function(e) {
-    console.error('Erreur globale:', e.error);
-});
-
-// Export des fonctions principales pour usage externe
-window.GTFSPopupIntegration = {
-    startAutoUpdate,
-    stopAutoUpdate,
-    updateOpenPopups,
-    getNextDeparturesForStop,
-    createPopupContent
-};
 
 
 
