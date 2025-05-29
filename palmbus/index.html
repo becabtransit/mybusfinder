@@ -5403,7 +5403,11 @@ if (!document.getElementById('minimal-tooltip-styles')) {
             display: none !important;
         }
         
-        .leaflet-tooltip-top::before {
+        .leaflet-tooltip-top::before,
+        .leaflet-tooltip-bottom::before,
+        .leaflet-tooltip-left::before,
+        .leaflet-tooltip-right::before,
+        .leaflet-tooltip-center::before {
             display: none !important;
         }
         
@@ -5413,13 +5417,13 @@ if (!document.getElementById('minimal-tooltip-styles')) {
             box-shadow: none !important;
         }
         
-        @keyframes tooltipAppear {
+        @keyframes popIn {
             0% {
-                transform: translateY(10px) scale(0);
+                transform: translateY(0) scale(0);
                 opacity: 0;
             }
             50% {
-                opacity: 0.8;
+                opacity: 1;
             }
             100% {
                 transform: translateY(0) scale(1);
@@ -5427,19 +5431,25 @@ if (!document.getElementById('minimal-tooltip-styles')) {
             }
         }
         
-        @keyframes tooltipDisappear {
-            0% {
-                transform: translateY(0) scale(1);
-                opacity: 1;
-            }
-            100% {
-                transform: translateY(-10px) scale(0);
-                opacity: 0;
-            }
+        .minimal-popup {
+            pointer-events: auto;
         }
     `;
     document.head.appendChild(styles);
 }
+
+// Fonction pour ouvrir la popup complète
+window.openFullPopup = function(markerId) {
+    if (markers[markerId] && markers[markerId].minimalPopup) {
+        // Fermer la vue minimale
+        map.removeLayer(markers[markerId].minimalPopup);
+        markers[markerId].minimalPopup = null;
+    }
+    
+    if (markers[markerId]) {
+        markers[markerId].openPopup();
+    }
+};
 
 // Fonction pour gérer l'affichage des vues minimales selon le zoom
 function updateMinimalPopups() {
@@ -5472,7 +5482,7 @@ function updateMinimalPopups() {
                     border: 1px solid ${lineColors[marker.line] || '#000000'}60;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                     transform: translateY(0) scale(0);
-                    animation: tooltipAppear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                    animation: popIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
                 " onclick="openFullPopup('${markerId}')" 
                 onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${lineColors[marker.line] || '#000000'}90, 0 4px 12px -2px ${lineColors[marker.line] || '#000000'}50';"
                 onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40';">
@@ -5511,12 +5521,12 @@ function updateMinimalPopups() {
                 </div>
             `;
             
-            // Créer un tooltip (qui ne prend pas le focus) au lieu d'une popup
+            // Créer un tooltip centré sur le marqueur
             const minimalTooltip = L.tooltip({
                 permanent: true,
-                direction: 'top',
+                direction: 'center',
                 className: 'minimal-tooltip-container',
-                offset: [0, -15],
+                offset: [0, 0],
                 opacity: 1
             })
             .setLatLng(marker.getLatLng())
@@ -5524,52 +5534,17 @@ function updateMinimalPopups() {
             .addTo(map);
             
             marker.minimalPopup = minimalTooltip;
+            marker.minimalPopup.isMinimal = true;
         }
         // Si on ne doit pas afficher la vue minimale et qu'elle existe
         else if (!showMinimal && marker.minimalPopup) {
-            // Animation de disparition avant suppression
-            const tooltipElement = marker.minimalPopup.getElement();
-            if (tooltipElement) {
-                const popupDiv = tooltipElement.querySelector('.minimal-popup');
-                if (popupDiv) {
-                    popupDiv.style.animation = 'tooltipDisappear 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards';
-                    setTimeout(() => {
-                        if (marker.minimalPopup) {
-                            map.removeLayer(marker.minimalPopup);
-                            marker.minimalPopup = null;
-                        }
-                    }, 200);
-                } else {
-                    map.removeLayer(marker.minimalPopup);
-                    marker.minimalPopup = null;
-                }
-            } else {
-                map.removeLayer(marker.minimalPopup);
-                marker.minimalPopup = null;
-            }
+            map.removeLayer(marker.minimalPopup);
+            marker.minimalPopup = null;
         }
         // Si une popup complète est ouverte, masquer la vue minimale
         else if (marker.isPopupOpen() && marker.minimalPopup) {
-            // Animation de disparition avant suppression
-            const tooltipElement = marker.minimalPopup.getElement();
-            if (tooltipElement) {
-                const popupDiv = tooltipElement.querySelector('.minimal-popup');
-                if (popupDiv) {
-                    popupDiv.style.animation = 'tooltipDisappear 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards';
-                    setTimeout(() => {
-                        if (marker.minimalPopup) {
-                            map.removeLayer(marker.minimalPopup);
-                            marker.minimalPopup = null;
-                        }
-                    }, 200);
-                } else {
-                    map.removeLayer(marker.minimalPopup);
-                    marker.minimalPopup = null;
-                }
-            } else {
-                map.removeLayer(marker.minimalPopup);
-                marker.minimalPopup = null;
-            }
+            map.removeLayer(marker.minimalPopup);
+            marker.minimalPopup = null;
         }
     });
 }
@@ -5619,39 +5594,21 @@ function getOptimalTextColor(color) {
 }
 
 if (markers[id]) {
-    animateMarker(markers[id], [latitude, longitude]);
+    // Animation du marqueur avec nouvelle position
+    const newLatLng = [latitude, longitude];
+    const currentLatLng = markers[id].getLatLng();
     
-    // Animer aussi le tooltip minimal s'il existe
-    if (markers[id].minimalPopup) {
-        const targetLatLng = L.latLng(latitude, longitude);
-        const currentLatLng = markers[id].minimalPopup.getLatLng();
+    // Vérifier si la position a changé pour éviter les animations inutiles
+    if (Math.abs(currentLatLng.lat - newLatLng[0]) > 0.00001 || 
+        Math.abs(currentLatLng.lng - newLatLng[1]) > 0.00001) {
         
-        // Animation fluide du tooltip
-        const animateTooltip = () => {
-            const startTime = Date.now();
-            const duration = 1000; // 1 seconde comme pour les marqueurs
-            
-            const animate = () => {
-                const elapsed = Date.now() - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-                
-                // Fonction d'easing pour une animation fluide
-                const easeProgress = 1 - Math.pow(1 - progress, 3);
-                
-                const lat = currentLatLng.lat + (targetLatLng.lat - currentLatLng.lat) * easeProgress;
-                const lng = currentLatLng.lng + (targetLatLng.lng - currentLatLng.lng) * easeProgress;
-                
-                markers[id].minimalPopup.setLatLng([lat, lng]);
-                
-                if (progress < 1) {
-                    requestAnimationFrame(animate);
-                }
-            };
-            
-            animate();
-        };
+        // Animer le marqueur
+        markers[id].setLatLng(newLatLng);
         
-        animateTooltip();
+        // Animer le tooltip s'il existe
+        if (markers[id].minimalPopup) {
+            markers[id].minimalPopup.setLatLng(newLatLng);
+        }
     }
     
     if (!markers[id].id) {
@@ -5810,11 +5767,20 @@ if (markers[id]) {
 
     // Gérer le clic sur le marqueur pour ouvrir la popup complète
     marker.on('click', function() {
-        if (markers[id].minimalPopup) {
-            map.removeLayer(markers[id].minimalPopup);
-            markers[id].minimalPopup = null;
-        }
-        marker.openPopup();
+        openFullPopup(id);
+    });
+    
+    // Ajouter un gestionnaire de clic sur le tooltip pour déclencher l'action du marqueur
+    marker.on('add', function() {
+        // Délai pour permettre au tooltip d'être ajouté au DOM
+        setTimeout(() => {
+            if (marker.minimalPopup && marker.minimalPopup._container) {
+                marker.minimalPopup._container.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    openFullPopup(id);
+                });
+            }
+        }, 100);
     });
 }
 
