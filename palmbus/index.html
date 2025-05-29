@@ -7803,15 +7803,24 @@ let worker;
 let fetchInProgress = false;
 const FETCH_INTERVAL = 8000; 
 
+let tripUpdatesRefreshTimer = null;
+
+
+initWorker();
+
 function initWorker() {
+    if (worker) worker.terminate();
     worker = new Worker('worker.js');
-    
     worker.onerror = (error) => {
         console.error('Erreur worker', error);
         setTimeout(() => {
             worker.terminate();
             initWorker();
         }, 1000);
+    };
+    worker.onmessage = (e) => {
+        tripUpdates = e.data.tripUpdates;
+        // Optionnel : tu peux rafraîchir toutes les popups ouvertes ici si besoin
     };
 }
 
