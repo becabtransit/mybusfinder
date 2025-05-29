@@ -5339,132 +5339,32 @@ const popupContent = `
         </div>   
     </div>
     </div>
-    `;
+`;
 
-// Créer le contenu de la vue minimale
-const createMinimalView = (line, vehicleLabel, destination, backgroundColor, textColor) => {
-    return `
-        <div style="
-            font-family: 'League Spartan', sans-serif; 
-            font-size: 12px; 
-            color: ${textColor}; 
-            border-radius: 8px; 
-            box-shadow: 0px 2px 8px 2px ${backgroundColor}9c; 
-            overflow: hidden; 
-            background-color: ${backgroundColor}9c; 
-            backdrop-filter: blur(8px); 
-            -webkit-backdrop-filter: blur(8px);
-            padding: 6px 10px;
-            white-space: nowrap;
-            pointer-events: none;
-            transform: translate(-50%, -100%);
-            margin-top: -10px;
-        ">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-weight: bold; font-size: 14px;">${t("line")} ${lineName[line] || t("unknownline")}</span>
-                <span style="
-                    padding: 2px 6px; 
-                    background: #00000077; 
-                    border-radius: 6px; 
-                    font-size: 11px;
-                    backdrop-filter: blur(4px);
-                    -webkit-backdrop-filter: blur(4px);
-                ">${(vehicleLabel || t("unknownparc")).toString().padStart(3, '0')}</span>
-            </div>
-            <div style="font-size: 11px; margin-top: 2px; opacity: 0.9;">➜ ${destination}</div>
+// Création du contenu de la vue minimale
+const minimalContent = `
+    <div style="
+        font-family: 'League Spartan', sans-serif; 
+        font-size: 12px; 
+        color: ${textColor}; 
+        background-color: ${backgroundColor}cc; 
+        backdrop-filter: blur(6px); 
+        -webkit-backdrop-filter: blur(6px);
+        border-radius: 8px; 
+        padding: 6px 10px; 
+        box-shadow: 0px 2px 10px 2px ${backgroundColor}77;
+        white-space: nowrap;
+        border: 1px solid ${backgroundColor}55;
+    ">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-weight: bold; font-size: 14px;">${t("line")} ${lineName[line] || t("unknownline")}</span>
+            <span style="opacity: 0.8;">•</span>
+            <span style="font-size: 11px;">#${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
+            <span style="opacity: 0.8;">•</span>
+            <span style="font-size: 11px; max-width: 120px; overflow: hidden; text-overflow: ellipsis;">➜ ${lastStopName}</span>
         </div>
-    `;
-};
-
-// Fonction pour créer ou mettre à jour la vue minimale flottante
-const updateMinimalView = (markerId, marker, line, vehicleLabel, destination, backgroundColor, textColor) => {
-    const zoom = map.getZoom();
-    const showMinimal = zoom >= 14; // Seuil de zoom pour afficher la vue minimale
-    
-    let minimalDiv = document.getElementById(`minimal-view-${markerId}`);
-    
-    if (showMinimal && !marker.isPopupOpen()) {
-        if (!minimalDiv) {
-            // Créer la div minimale
-            minimalDiv = document.createElement('div');
-            minimalDiv.id = `minimal-view-${markerId}`;
-            minimalDiv.style.cssText = `
-                position: absolute;
-                z-index: 1000;
-                pointer-events: none;
-                transition: opacity 0.3s ease;
-            `;
-            document.body.appendChild(minimalDiv);
-        }
-        
-        // Mettre à jour le contenu
-        minimalDiv.innerHTML = createMinimalView(line, vehicleLabel, destination, backgroundColor, textColor);
-        minimalDiv.style.opacity = '1';
-        
-        // Positionner la vue minimale
-        const updatePosition = () => {
-            if (map.hasLayer(marker)) {
-                const point = map.latLngToContainerPoint(marker.getLatLng());
-                minimalDiv.style.left = point.x + 'px';
-                minimalDiv.style.top = point.y + 'px';
-            }
-        };
-        
-        updatePosition();
-        marker._minimalViewUpdatePosition = updatePosition;
-        
-    } else if (minimalDiv) {
-        // Masquer ou supprimer la vue minimale
-        minimalDiv.style.opacity = '0';
-        setTimeout(() => {
-            if (minimalDiv && minimalDiv.parentNode) {
-                minimalDiv.parentNode.removeChild(minimalDiv);
-            }
-        }, 300);
-    }
-};
-
-// Fonction pour supprimer la vue minimale
-const removeMinimalView = (markerId) => {
-    const minimalDiv = document.getElementById(`minimal-view-${markerId}`);
-    if (minimalDiv && minimalDiv.parentNode) {
-        minimalDiv.style.opacity = '0';
-        setTimeout(() => {
-            if (minimalDiv && minimalDiv.parentNode) {
-                minimalDiv.parentNode.removeChild(minimalDiv);
-            }
-        }, 300);
-    }
-};
-
-// Ajouter un écouteur de zoom pour mettre à jour toutes les vues minimales
-map.on('zoomend moveend', () => {
-    Object.keys(markers).forEach(markerId => {
-        const marker = markers[markerId];
-        if (marker && marker._minimalViewUpdatePosition) {
-            marker._minimalViewUpdatePosition();
-        }
-        
-        // Vérifier si on doit afficher/masquer la vue minimale selon le zoom
-        const zoom = map.getZoom();
-        const showMinimal = zoom >= 14;
-        const minimalDiv = document.getElementById(`minimal-view-${markerId}`);
-        
-        if (!showMinimal && minimalDiv) {
-            removeMinimalView(markerId);
-        } else if (showMinimal && !minimalDiv && !marker.isPopupOpen()) {
-            // Récupérer les données du véhicule pour recréer la vue minimale
-            // (Cette partie devra être adaptée selon votre structure de données)
-            const line = marker.line;
-            const vehicleLabel = marker.vehicleLabel || '';
-            const destination = marker.destination || '';
-            const backgroundColor = lineColors[line] || '#000000';
-            const textColor = getOptimalTextColor(backgroundColor);
-            
-            updateMinimalView(markerId, marker, line, vehicleLabel, destination, backgroundColor, textColor);
-        }
-    });
-});
+    </div>
+`;
 
 if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
@@ -5472,10 +5372,6 @@ if (markers[id]) {
     if (!markers[id].id) {
         markers[id].id = id;
     }
-    
-    // Stocker les données nécessaires pour la vue minimale
-    markers[id].vehicleLabel = vehicle.vehicle.label;
-    markers[id].destination = lastStopName;
     
     if (markers[id].line !== line) {
         const oldLine = markers[id].line;
@@ -5592,12 +5488,33 @@ if (markers[id]) {
     const currentContent = existingPopup ? existingPopup.getContent() : '';
 
     if (existingPopup && currentContent === popupContent) {
-        // Mettre à jour la vue minimale même si le contenu de la popup n'a pas changé
-        updateMinimalView(id, markers[id], line, vehicle.vehicle.label, lastStopName, backgroundColor, textColor);
+        // Mettre à jour la vue minimale même si la popup n'a pas changé
+        if (!markers[id]._minimalPopup) {
+            markers[id]._minimalPopup = L.popup({
+                closeButton: false,
+                autoClose: false,
+                closeOnClick: false,
+                className: 'minimal-popup',
+                offset: [0, -10]
+            });
+        }
+        markers[id]._minimalPopup.setContent(minimalContent);
         return;
     }
 
     markers[id].setPopupContent(popupContent);
+
+    // Créer ou mettre à jour la vue minimale
+    if (!markers[id]._minimalPopup) {
+        markers[id]._minimalPopup = L.popup({
+            closeButton: false,
+            autoClose: false,
+            closeOnClick: false,
+            className: 'minimal-popup',
+            offset: [0, -10]
+        });
+    }
+    markers[id]._minimalPopup.setContent(minimalContent);
 
     if (markers[id].isPopupOpen()) {
         const popup = markers[id]._popup;
@@ -5610,9 +5527,6 @@ if (markers[id]) {
             }
         }
     }
-
-    // Mettre à jour la vue minimale
-    updateMinimalView(id, markers[id], line, vehicle.vehicle.label, lastStopName, backgroundColor, textColor);
 
     if (selectedLine && markers[id].line !== selectedLine) {
         if (map.hasLayer(markers[id])) {
@@ -5629,8 +5543,6 @@ if (markers[id]) {
     markers[id] = marker;
     markers[id].line = line;
     markers[id].id = id;
-    markers[id].vehicleLabel = vehicle.vehicle.label;
-    markers[id].destination = lastStopName;
 
     if (!selectedLine || selectedLine === line) {
         marker.addTo(map);
@@ -5638,9 +5550,21 @@ if (markers[id]) {
     
     marker.bindPopup(popupContent);
 
+    // Créer la vue minimale pour le nouveau marqueur
+    marker._minimalPopup = L.popup({
+        closeButton: false,
+        autoClose: false,
+        closeOnClick: false,
+        className: 'minimal-popup',
+        offset: [0, -10]
+    });
+    marker._minimalPopup.setContent(minimalContent);
+
     marker.on('popupopen', function (e) {
-        // Masquer la vue minimale quand la popup s'ouvre
-        removeMinimalView(id);
+        // Fermer la vue minimale quand la popup complète s'ouvre
+        if (e.target._minimalPopup && e.target._minimalPopup.isOpen()) {
+            e.target._minimalPopup.remove();
+        }
         
         if (e.popup && e.popup._contentNode) {
             const popupElement = e.popup._contentNode.parentElement;
@@ -5662,25 +5586,51 @@ if (markers[id]) {
                     if (e.popup) {
                         e.popup.remove(); 
                     }
+                    // Réafficher la vue minimale si le zoom est suffisant
+                    updateMinimalPopupsVisibility();
                 }, 200); 
             }
         }
-        
-        // Réafficher la vue minimale si le zoom est suffisant
-        const zoom = map.getZoom();
-        if (zoom >= 14) {
-            updateMinimalView(id, marker, line, vehicle.vehicle.label, lastStopName, backgroundColor, textColor);
+    });
+}
+
+// Fonction pour gérer la visibilité des vues minimales selon le zoom
+function updateMinimalPopupsVisibility() {
+    const currentZoom = map.getZoom();
+    const minZoomForMinimal = 16; // Seuil de zoom pour afficher les vues minimales
+    
+    Object.values(markers).forEach(marker => {
+        if (marker._minimalPopup) {
+            const shouldShowMinimal = currentZoom >= minZoomForMinimal && !marker.isPopupOpen();
+            
+            if (shouldShowMinimal && !marker._minimalPopup.isOpen()) {
+                marker._minimalPopup.setLatLng(marker.getLatLng());
+                map.addLayer(marker._minimalPopup);
+            } else if (!shouldShowMinimal && marker._minimalPopup.isOpen()) {
+                marker._minimalPopup.remove();
+            }
         }
     });
-    
-    // Créer la vue minimale pour le nouveau marqueur
-    updateMinimalView(id, marker, line, vehicle.vehicle.label, lastStopName, backgroundColor, textColor);
 }
+
+// Écouter les changements de zoom
+map.on('zoomend', updateMinimalPopupsVisibility);
+
+// Écouter les mouvements de la carte pour repositionner les vues minimales
+map.on('moveend', function() {
+    Object.values(markers).forEach(marker => {
+        if (marker._minimalPopup && marker._minimalPopup.isOpen()) {
+            marker._minimalPopup.setLatLng(marker.getLatLng());
+        }
+    });
+});
 
 Object.keys(markers).forEach(id => {
     if (!activeVehicleIds.has(id)) {
-        // Supprimer la vue minimale avant de supprimer le marqueur
-        removeMinimalView(id);
+        // Nettoyer aussi la vue minimale
+        if (markers[id]._minimalPopup) {
+            markers[id]._minimalPopup.remove();
+        }
         map.removeLayer(markers[id]); 
         delete markers[id]; 
     }
