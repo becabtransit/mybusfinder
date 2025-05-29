@@ -4094,37 +4094,41 @@ async function loadGeoJsonLines() {
 }
 
 function showFluentStopPopup(stopFeature, latlng, markerLayer) {
-    // 1. Récupère l'ID et le nom de l'arrêt
+    // 1. Récupération robuste de l'ID et du nom de l'arrêt
     const stopId = stopFeature.properties.id || stopFeature.properties.stop_id || stopFeature.id;
     const stopName = stopFeature.properties.name
-                  || stopFeature.properties.stop_name 
-                  || stopFeature.properties.NOM 
-                  || (stopId && stopNameMap[stopId])
-                  || "Arrêt inconnu";
+        || stopFeature.properties.stop_name
+        || stopFeature.properties.NOM
+        || (stopId && stopNameMap[stopId])
+        || "Arrêt inconnu";
 
-    // 2. Recherche toutes les lignes et prochains passages à ce stop
-    // On parcourt tous les tripUpdates pour trouver les bus à venir à cet arrêt
+    // 2. On va scanner tous les trips pour récupérer tous les passages à venir à cet arrêt
     const now = Math.floor(Date.now() / 1000);
+    // Pour chaque ligne, on stocke un tableau de passages à venir (bus pas encore passés)
     const linesAtStop = {};
 
     Object.keys(tripUpdates).forEach(tripId => {
         const tu = tripUpdates[tripId];
         if (!tu || !tu.nextStops || !Array.isArray(tu.nextStops)) return;
-        // Cherche dans nextStops ceux qui n'ont PAS ENCORE PASSÉ l'arrêt
         tu.nextStops.forEach(stop => {
-            // Nettoie l'id
-            const stopIdClean = stopId.replace(/^0:/, '');
-            const sId = (stop.stopId || '').replace(/^0:/, '');
-            // On veut uniquement les passages à venir
+            // Nettoyage des ID
+            const stopIdClean = stopId ? stopId.replace(/^0:/, '') : '';
+            const sId = (stop && stop.stopId) ? stop.stopId.replace(/^0:/, '') : '';
+            // On veut uniquement les passages à venir (horaire dans le futur)
             const sched = stop.departureTime || stop.arrivalTime;
             if (sId === stopIdClean && sched && sched > now) {
-                // On range par ligne/routeId
-                const routeId = tu.routeId || (tu.trip && tu.trip.routeId) || (stop.routeId) || tu.route_id;
+                // Recherche du routeId
+                const routeId = tu.routeId
+                    || (tu.trip && tu.trip.routeId)
+                    || stop.routeId
+                    || tu.route_id;
                 if (!routeId) return;
                 if (!linesAtStop[routeId]) linesAtStop[routeId] = [];
+                // Ajoute le passage à la liste
                 linesAtStop[routeId].push({
                     ...stop,
                     tripId,
+                    line: routeId,
                     directionId: tu.directionId,
                     destination: stopNameMap[tu.lastStopId] || tu.lastStopId || "Destination inconnue",
                     sched
@@ -4133,13 +4137,17 @@ function showFluentStopPopup(stopFeature, latlng, markerLayer) {
         });
     });
 
-    // 3. Génère le HTML popup
+    // 3. Génération HTML popup (Fluent, multi-lignes, multi-passages)
     let popupHTML = `
     <div style="font-family:'Segoe UI', 'League Spartan', Arial,sans-serif; min-width:260px; max-width:340px;">
         <div style="font-size:1.3rem; font-weight:bold; margin-bottom:4px;">${stopName}</div>
     `;
 
-    if (Object.keys(linesAtStop).length === 0) {
+    // S'il n'y a vraiment aucun passage à venir
+    if (
+        Object.keys(linesAtStop).length === 0 ||
+        !Object.values(linesAtStop).some(arr => (arr && arr.length > 0))
+    ) {
         popupHTML += `<div style="color:#b00; font-size:1rem;">Aucun passage à venir</div>`;
     } else {
         for (const routeId in linesAtStop) {
@@ -4155,8 +4163,7 @@ function showFluentStopPopup(stopFeature, latlng, markerLayer) {
                 box-shadow:0 2px 10px ${bg}46;
                 padding:8px 10px 7px 10px;
                 display:flex;
-                flex-direction:column;
-                ">
+                flex-direction:column;">
                 <div style="font-size:1.1em; font-weight:bold; letter-spacing:0.5px; margin-bottom:3px;">
                     ${t ? t("line") : "Ligne"} ${lineDisplay}
                 </div>
@@ -4165,37 +4172,42 @@ function showFluentStopPopup(stopFeature, latlng, markerLayer) {
                 </div>
                 <ul style="padding:0; margin:0; list-style:none;">
             `;
-            // Trie par horaire d'arrivée, n'affiche que les bus à venir
+            // Trie et affiche uniquement les bus à venir
             const upcoming = linesAtStop[routeId]
-                .filter(pass => pass.sched > now)
+                .filter(pass => pass.sched && pass.sched > now)
                 .sort((a, b) => a.sched - b.sched);
 
-            upcoming.forEach(stopPass => {
-                // Formatte l'heure SANS "invalid date"
-                let schedStr = "-";
-                if (stopPass.sched && !isNaN(stopPass.sched)) {
-                    const d = new Date(stopPass.sched * 1000);
-                    schedStr = d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-                }
-                // Délai
-                let delayStr = "";
-                if (typeof stopPass.delay !== 'undefined' && stopPass.delay !== null) {
-                    if (stopPass.delay > 60) delayStr = `<span style="color:#ffca1a;">+${Math.round(stopPass.delay/60)} min</span>`;
-                    else if (stopPass.delay < -60) delayStr = `<span style="color:#39e600;">-${Math.round(-stopPass.delay/60)} min</span>`;
-                    else delayStr = `<span style="color:#4af;">${t ? t("imminent") : "Imminent"}</span>`;
-                }
-                popupHTML += `
-                <li style="display:flex; align-items:center; justify-content:space-between; padding:3px 0;">
-                    <span style="font-size:1.08em;">${schedStr}</span>
-                    <span style="font-size:0.97em; margin-left:6px;">${delayStr}</span>
-                </li>`;
-            });
+            // Si aucun passage à venir pour cette ligne
+            if (upcoming.length === 0) {
+                popupHTML += `<li style="color:#b00; font-size:0.9em;">Aucun passage à venir sur cette ligne</li>`;
+            } else {
+                upcoming.forEach(stopPass => {
+                    // Heure prévue (pas d'"invalid date")
+                    let schedStr = "-";
+                    if (stopPass.sched && !isNaN(stopPass.sched)) {
+                        const d = new Date(stopPass.sched * 1000);
+                        schedStr = d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+                    }
+                    // Délai
+                    let delayStr = "";
+                    if (typeof stopPass.delay !== 'undefined' && stopPass.delay !== null) {
+                        if (stopPass.delay > 60) delayStr = `<span style="color:#ffca1a;">+${Math.round(stopPass.delay/60)} min</span>`;
+                        else if (stopPass.delay < -60) delayStr = `<span style="color:#39e600;">-${Math.round(-stopPass.delay/60)} min</span>`;
+                        else delayStr = `<span style="color:#4af;">${t ? t("imminent") : "Imminent"}</span>`;
+                    }
+                    popupHTML += `
+                    <li style="display:flex; align-items:center; justify-content:space-between; padding:3px 0;">
+                        <span style="font-size:1.08em;">${schedStr}</span>
+                        <span style="font-size:0.97em; margin-left:6px;">${delayStr}</span>
+                    </li>`;
+                });
+            }
             popupHTML += `</ul></div>`;
         }
     }
     popupHTML += `</div>`;
 
-    // 4. Affiche la popup sur la carte
+    // 4. Affichage de la popup sur la carte
     if (markerLayer && markerLayer.openPopup) {
         markerLayer.bindPopup(popupHTML, { maxWidth: 340 }).openPopup();
     } else {
