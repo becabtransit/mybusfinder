@@ -5386,7 +5386,7 @@ window.openFullPopup = function(markerId) {
     }
 };
 
-// Ajouter le CSS pour les tooltips minimaux (à ajouter une seule fois)
+// Ajouter le CSS pour les tooltips minimaux et animations (à ajouter une seule fois)
 if (!document.getElementById('minimal-tooltip-styles')) {
     const styles = document.createElement('style');
     styles.id = 'minimal-tooltip-styles';
@@ -5397,6 +5397,7 @@ if (!document.getElementById('minimal-tooltip-styles')) {
             box-shadow: none !important;
             padding: 0 !important;
             margin: 0 !important;
+            pointer-events: auto !important;
         }
         
         .minimal-tooltip-container::before {
@@ -5406,8 +5407,7 @@ if (!document.getElementById('minimal-tooltip-styles')) {
         .leaflet-tooltip-top::before,
         .leaflet-tooltip-bottom::before,
         .leaflet-tooltip-left::before,
-        .leaflet-tooltip-right::before,
-        .leaflet-tooltip-center::before {
+        .leaflet-tooltip-right::before {
             display: none !important;
         }
         
@@ -5415,51 +5415,59 @@ if (!document.getElementById('minimal-tooltip-styles')) {
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
+            pointer-events: auto !important;
         }
         
-        @keyframes popIn {
+        @keyframes tooltipAppear {
             0% {
-                transform: translateY(0) scale(0);
                 opacity: 0;
+                transform: translateY(10px) scale(0.8);
             }
-            50% {
-                opacity: 1;
+            60% {
+                transform: translateY(-2px) scale(1.05);
             }
             100% {
-                transform: translateY(0) scale(1);
                 opacity: 1;
+                transform: translateY(0) scale(1);
             }
         }
         
-        .minimal-popup {
-            pointer-events: auto;
+        @keyframes tooltipDisappear {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(5px) scale(0.9);
+            }
         }
     `;
     document.head.appendChild(styles);
 }
-
-// Fonction pour ouvrir la popup complète
-window.openFullPopup = function(markerId) {
-    if (markers[markerId] && markers[markerId].minimalPopup) {
-        // Fermer la vue minimale
-        map.removeLayer(markers[markerId].minimalPopup);
-        markers[markerId].minimalPopup = null;
-    }
-    
-    if (markers[markerId]) {
-        markers[markerId].openPopup();
-    }
-};
 
 // Fonction pour gérer l'affichage des vues minimales selon le zoom
 function updateMinimalPopups() {
     const currentZoom = map.getZoom();
     const showMinimal = currentZoom >= 14 && currentZoom < 16; // Afficher entre zoom 14 et 16
     
+    // Initialiser l'état des tooltips s'il n'existe pas
+    if (!window.tooltipStates) {
+        window.tooltipStates = {};
+    }
+    
     Object.keys(markers).forEach(markerId => {
         const marker = markers[markerId];
         
         if (!marker) return;
+        
+        const currentState = `${showMinimal}-${!marker.isPopupOpen()}`;
+        const previousState = window.tooltipStates[markerId];
+        
+        // Ne pas recréer si l'état n'a pas changé
+        if (previousState === currentState) return;
+        
+        window.tooltipStates[markerId] = currentState;
         
         // Si on doit afficher la vue minimale et qu'elle n'existe pas encore
         if (showMinimal && !marker.minimalPopup && !marker.isPopupOpen()) {
@@ -5481,9 +5489,10 @@ function updateMinimalPopups() {
                     cursor: pointer;
                     border: 1px solid ${lineColors[marker.line] || '#000000'}60;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                    transform: translateY(0) scale(0);
-                    animation: popIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
-                " onclick="openFullPopup('${markerId}')" 
+                    transform: translateY(0) scale(0.8);
+                    opacity: 0;
+                    animation: tooltipAppear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                " onclick="markers['${markerId}'].fire('click')" 
                 onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${lineColors[marker.line] || '#000000'}90, 0 4px 12px -2px ${lineColors[marker.line] || '#000000'}50';"
                 onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40';">
                     <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
@@ -5521,12 +5530,12 @@ function updateMinimalPopups() {
                 </div>
             `;
             
-            // Créer un tooltip centré sur le marqueur
+            // Créer un tooltip (qui ne prend pas le focus) au lieu d'une popup
             const minimalTooltip = L.tooltip({
                 permanent: true,
                 direction: 'center',
                 className: 'minimal-tooltip-container',
-                offset: [0, 0],
+                offset: [0, 0], // Centré sur le marqueur
                 opacity: 1
             })
             .setLatLng(marker.getLatLng())
@@ -5534,15 +5543,44 @@ function updateMinimalPopups() {
             .addTo(map);
             
             marker.minimalPopup = minimalTooltip;
-            marker.minimalPopup.isMinimal = true;
         }
         // Si on ne doit pas afficher la vue minimale et qu'elle existe
         else if (!showMinimal && marker.minimalPopup) {
+            // Animation de disparition
+            const tooltipElement = marker.minimalPopup._container;
+            if (tooltipElement) {
+                const popupDiv = tooltipElement.querySelector('.minimal-popup');
+                if (popupDiv) {
+                    popupDiv.style.animation = 'tooltipDisappear 0.2s cubic-bezier(0.4, 0, 1, 1) forwards';
+                    setTimeout(() => {
+                        if (marker.minimalPopup) {
+                            map.removeLayer(marker.minimalPopup);
+                            marker.minimalPopup = null;
+                        }
+                    }, 200);
+                    return;
+                }
+            }
             map.removeLayer(marker.minimalPopup);
             marker.minimalPopup = null;
         }
         // Si une popup complète est ouverte, masquer la vue minimale
         else if (marker.isPopupOpen() && marker.minimalPopup) {
+            // Animation de disparition
+            const tooltipElement = marker.minimalPopup._container;
+            if (tooltipElement) {
+                const popupDiv = tooltipElement.querySelector('.minimal-popup');
+                if (popupDiv) {
+                    popupDiv.style.animation = 'tooltipDisappear 0.2s cubic-bezier(0.4, 0, 1, 1) forwards';
+                    setTimeout(() => {
+                        if (marker.minimalPopup) {
+                            map.removeLayer(marker.minimalPopup);
+                            marker.minimalPopup = null;
+                        }
+                    }, 200);
+                    return;
+                }
+            }
             map.removeLayer(marker.minimalPopup);
             marker.minimalPopup = null;
         }
@@ -5594,20 +5632,42 @@ function getOptimalTextColor(color) {
 }
 
 if (markers[id]) {
-    // Animation du marqueur avec nouvelle position
+    // Animation du marqueur avec gestion des tooltips
+    const oldLatLng = markers[id].getLatLng();
     const newLatLng = [latitude, longitude];
-    const currentLatLng = markers[id].getLatLng();
     
-    // Vérifier si la position a changé pour éviter les animations inutiles
-    if (Math.abs(currentLatLng.lat - newLatLng[0]) > 0.00001 || 
-        Math.abs(currentLatLng.lng - newLatLng[1]) > 0.00001) {
-        
+    // Vérifier si la position a réellement changé
+    if (oldLatLng.lat !== newLatLng[0] || oldLatLng.lng !== newLatLng[1]) {
         // Animer le marqueur
-        markers[id].setLatLng(newLatLng);
+        animateMarker(markers[id], newLatLng);
         
         // Animer le tooltip s'il existe
         if (markers[id].minimalPopup) {
-            markers[id].minimalPopup.setLatLng(newLatLng);
+            const startLatLng = oldLatLng;
+            const endLatLng = L.latLng(newLatLng[0], newLatLng[1]);
+            const startTime = Date.now();
+            const duration = 1000; // Même durée que l'animation du marqueur
+            
+            function animateTooltip() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Fonction d'easing
+                const easeProgress = progress < 0.5 
+                    ? 2 * progress * progress 
+                    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                
+                const currentLat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * easeProgress;
+                const currentLng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * easeProgress;
+                
+                markers[id].minimalPopup.setLatLng([currentLat, currentLng]);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animateTooltip);
+                }
+            }
+            
+            animateTooltip();
         }
     }
     
@@ -5758,8 +5818,10 @@ if (markers[id]) {
                     if (e.popup) {
                         e.popup.remove(); 
                     }
-                    // Remettre la vue minimale si nécessaire
-                    updateMinimalPopups();
+                    // Remettre la vue minimale si nécessaire après un délai
+                    setTimeout(() => {
+                        updateMinimalPopups();
+                    }, 100);
                 }, 200); 
             }
         }
@@ -5767,20 +5829,27 @@ if (markers[id]) {
 
     // Gérer le clic sur le marqueur pour ouvrir la popup complète
     marker.on('click', function() {
-        openFullPopup(id);
-    });
-    
-    // Ajouter un gestionnaire de clic sur le tooltip pour déclencher l'action du marqueur
-    marker.on('add', function() {
-        // Délai pour permettre au tooltip d'être ajouté au DOM
-        setTimeout(() => {
-            if (marker.minimalPopup && marker.minimalPopup._container) {
-                marker.minimalPopup._container.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    openFullPopup(id);
-                });
+        if (markers[id].minimalPopup) {
+            // Animation de disparition avant ouverture de la popup
+            const tooltipElement = markers[id].minimalPopup._container;
+            if (tooltipElement) {
+                const popupDiv = tooltipElement.querySelector('.minimal-popup');
+                if (popupDiv) {
+                    popupDiv.style.animation = 'tooltipDisappear 0.2s cubic-bezier(0.4, 0, 1, 1) forwards';
+                    setTimeout(() => {
+                        if (markers[id].minimalPopup) {
+                            map.removeLayer(markers[id].minimalPopup);
+                            markers[id].minimalPopup = null;
+                        }
+                        marker.openPopup();
+                    }, 200);
+                    return;
+                }
             }
-        }, 100);
+            map.removeLayer(markers[id].minimalPopup);
+            markers[id].minimalPopup = null;
+        }
+        marker.openPopup();
     });
 }
 
@@ -5792,6 +5861,10 @@ updateMinimalPopups();
 
 Object.keys(markers).forEach(id => {
     if (!activeVehicleIds.has(id)) {
+        // Nettoyer l'état des tooltips
+        if (window.tooltipStates) {
+            delete window.tooltipStates[id];
+        }
         // Nettoyer la vue minimale avant de supprimer le marqueur
         if (markers[id].minimalPopup) {
             map.removeLayer(markers[id].minimalPopup);
