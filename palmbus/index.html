@@ -8326,9 +8326,73 @@ function addStopClickEvents() {
     console.log(`Événements ajoutés à ${busStopLayers.length} arrêts`);
 }
 
-// === MODIFICATION DE LA FONCTION loadGeoJsonLines (ne pas changer votre version actuelle) ===
-// Gardez votre fonction loadGeoJsonLines actuelle et ajoutez seulement ceci après :
-// Appelez addStopClickEvents() après avoir chargé les arrêts
+async function loadGeoJsonLines() {
+    const response = await fetch('proxy-cors/proxy_geojson.php');
+    const geoJsonData = await response.json();
+
+    const busLines = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry.type === 'LineString';
+        },
+        style: function(feature) {
+            return {
+                color: lineColors[feature.properties.route_id] || '#3388ff',
+                weight: 6,
+                opacity: 0.7,  
+                lineJoin: 'round',
+                lineCap: 'round',
+                className: 'bus-line', 
+                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
+            };
+        },
+        onEachFeature: function(feature, layer) {
+            if (feature.properties && feature.properties.route_id) {
+                geoJsonLines.push(layer);
+            }
+        }
+    }).addTo(map);
+
+    const busStops = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry && feature.geometry.type === 'Point';
+        },
+        pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 3,
+                fillColor: '#ffffff',
+                color: '#000000',
+                weight: 0.5,
+                opacity: 0.7,
+                fillOpacity: 0.6
+            });
+        },
+        onEachFeature: function(feature, layer) {
+            // Ajouter l'événement de clic pour afficher la popup
+            layer.on('click', function(e) {
+                const stopId = feature.properties.stop_id;
+                if (stopId) {
+                    // Nettoyer le stop_id (retirer le préfixe "0:" si présent)
+                    const cleanStopId = stopId.replace("0:", "");
+                    showStopPopup(cleanStopId, e.latlng);
+                }
+            });
+            
+            // Changer le curseur au survol
+            layer.on('mouseover', function() {
+                this._path.style.cursor = 'pointer';
+            });
+        }
+    }).addTo(map);
+    
+    busStops.eachLayer(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+            layer.busLine = layer.feature.properties.route_id || null;
+            busStopLayers.push(layer);
+        }
+    });
+}
+
+addStopClickEvents() 
 
 // === AMÉLIORATION DU WORKER POUR INCLURE L'ID DE ROUTE ===
 // Modifiez votre worker.js pour inclure l'ID de route dans les trip updates
