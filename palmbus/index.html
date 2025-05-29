@@ -3967,6 +3967,38 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     return marker;
 }
 
+function animateMarker(marker, newPosition) {
+    const startLatLng = marker.getLatLng();
+    const endLatLng = L.latLng(newPosition[0], newPosition[1]);
+    const duration = 1000; 
+    const startTime = performance.now();
+
+    if (marker.animationFrame) {
+        cancelAnimationFrame(marker.animationFrame);
+    }
+
+    function easeInOutQuad(t) {
+        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    }
+
+    function animate(time) {
+        const elapsed = time - startTime;
+        const linearProgress = Math.min(elapsed / duration, 1);
+        
+        const easedProgress = easeInOutQuad(linearProgress);
+        
+        const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * easedProgress;
+        const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * easedProgress;
+        
+        marker.setLatLng([lat, lng]);
+
+        if (linearProgress < 1) {
+            marker.animationFrame = requestAnimationFrame(animate);
+        }
+    }
+
+    marker.animationFrame = requestAnimationFrame(animate);
+}
 
 let busStopLayers = [];
 let selectedLines = [];
@@ -5619,49 +5651,8 @@ function getOptimalTextColor(color) {
     return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
 }
 
-
 if (markers[id]) {
-    function animateMarker(marker, newPosition) {
-    const startLatLng = marker.getLatLng();
-    const endLatLng = L.latLng(newPosition[0], newPosition[1]);
-    const duration = 1000; 
-    const startTime = performance.now();
-
-    if (marker.animationFrame) {
-        cancelAnimationFrame(marker.animationFrame);
-    }
-
-    function easeInOutQuad(t) {
-        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    }
-
-    function animate(time) {
-        const elapsed = time - startTime;
-        const linearProgress = Math.min(elapsed / duration, 1);
-        
-        const easedProgress = easeInOutQuad(linearProgress);
-        
-        const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * easedProgress;
-        const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * easedProgress;
-        const currentLatLng = [lat, lng];
-        
-        marker.setLatLng(currentLatLng);
-        
-        const currentZoom = map.getZoom();
-        const showMinimal = currentZoom >= 15 && currentZoom < 17; // Afficher entre zoom 14 et 16
-        
-        Object.keys(markers).forEach(markerId => {
-            const marker = markers[markerId];
-            if (!marker) return;
-            
-            const shouldShow = showMinimal && !markerId.isPopupOpen();
-            createOrUpdateMinimalTooltip(markerId, shouldShow);
-        });
-    }
-
-    marker.animationFrame = requestAnimationFrame(animate);
-}
-
+    
     if (!markers[id].id) {
         markers[id].id = id;
     }
@@ -5826,13 +5817,14 @@ animateMarker(markers[id], [latitude, longitude]);
         }
         marker.openPopup();
     });
+        animateMarker(markers[id], [latitude, longitude]);
 
 
     }
 
 
 // Gestionnaire d'événement pour le zoom
-map.on('zoomend', animateMarker(markers[id], [latitude, longitude]));
+map.on('zoomend', updateMinimalPopups);
 
                     }
             });
