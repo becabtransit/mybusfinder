@@ -8135,13 +8135,23 @@ function getDeparturesByLine(stopId) {
 
 // === GÉNÉRATION DU CONTENU DE LA POPUP ===
 function generatePopupContent(stopId) {
-    const stopName = stopNameMap[stopId] || `Arrêt ${stopId}`;
+    // Essayer de trouver le nom de l'arrêt avec différentes variations d'ID
+    let stopName = stopNameMap[stopId] || 
+                   stopNameMap[`0:${stopId}`] || 
+                   stopNameMap[`Station_${stopId}`] || 
+                   `Arrêt ${stopId}`;
+    
+    console.log('Recherche départs pour stopId:', stopId);
+    console.log('stopNameMap disponible:', Object.keys(stopNameMap).slice(0, 10)); // Afficher les 10 premiers
+    
     const departuresByLine = getDeparturesByLine(stopId);
     const lastUpdate = new Date().toLocaleTimeString('fr-FR', { 
         hour: '2-digit', 
         minute: '2-digit', 
         second: '2-digit' 
     });
+    
+    console.log('Départs trouvés pour', stopId, ':', departuresByLine);
     
     if (Object.keys(departuresByLine).length === 0) {
         return `
@@ -8154,6 +8164,7 @@ function generatePopupContent(stopId) {
                 <div class="fluent-popup-content">
                     <div class="fluent-no-data">
                         <p>Aucun passage prévu dans les prochaines heures</p>
+                        <p style="font-size: 11px; color: #888;">ID recherché: ${stopId}</p>
                     </div>
                 </div>
                 <div class="fluent-last-update">
@@ -8292,25 +8303,40 @@ function addStopClickEvents() {
             // Ajouter l'événement de clic
             layer.on('click', function(e) {
                 console.log('Clic sur arrêt détecté', layer.feature.properties);
-                const stopId = layer.feature.properties.stop_id;
+                
+                // Récupérer l'ID de l'arrêt (utiliser 'id' au lieu de 'stop_id')
+                let stopId = layer.feature.properties.id || layer.feature.properties.stop_id;
+                
                 if (stopId) {
+                    // Ignorer les stations parentes (qui commencent par "Station_")
+                    if (stopId.startsWith('Station_')) {
+                        console.log('Station parente ignorée:', stopId);
+                        return;
+                    }
+                    
                     // Nettoyer le stop_id (retirer le préfixe "0:" si présent)
                     const cleanStopId = stopId.replace("0:", "");
                     console.log('Affichage popup pour arrêt:', cleanStopId);
                     showStopPopup(cleanStopId, e.latlng);
+                } else {
+                    console.warn('Aucun ID d\'arrêt trouvé dans les propriétés:', layer.feature.properties);
                 }
             });
             
             // Changer le curseur au survol
             layer.on('mouseover', function() {
-                if (this._path) {
-                    this._path.style.cursor = 'pointer';
+                // Ne pas afficher le curseur pointer pour les stations parentes
+                const stopId = layer.feature.properties.id || layer.feature.properties.stop_id;
+                if (stopId && !stopId.startsWith('Station_')) {
+                    if (this._path) {
+                        this._path.style.cursor = 'pointer';
+                    }
+                    // Agrandir légèrement l'arrêt
+                    this.setStyle({
+                        radius: 5,
+                        fillOpacity: 0.8
+                    });
                 }
-                // Agrandir légèrement l'arrêt
-                this.setStyle({
-                    radius: 5,
-                    fillOpacity: 0.8
-                });
             });
             
             layer.on('mouseout', function() {
@@ -8419,7 +8445,6 @@ function initializeStopPopups() {
         });
     }, FETCH_INTERVAL);
 }
-
 
 async function main() {
     try {
