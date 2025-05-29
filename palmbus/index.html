@@ -479,42 +479,11 @@
         width: 100%;
         height: 100%;
         z-index: 9999;
-        transition: none;
-        z-index: 5;
-        will-change: transform, opacity, filter;
-        transform-origin: center center;
     }
 
     #accueil.hide {
-        animation: iosSpringClose 0.8s ease-in-out forwards;
+        animation: accueilCache 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
     }
-
-    @keyframes iosSpringClose {
-        0% {
-            opacity: 1;
-            filter: blur(0px);
-            transform: translate(0px, 0px) scale(1);
-        }
-
-        60% {
-            opacity: 0.4;
-            filter: blur(5px);
-            transform: var(--to-bounce1); /* sursaut */
-        }
-
-        85% {
-            opacity: 0.2;
-            filter: blur(8px);
-            transform: var(--to-bounce2); /* petit retour vers l'arrière */
-        }
-
-        100% {
-            opacity: 0;
-            filter: blur(10px);
-            transform: var(--to-transform); /* zoom-out total vers le logo */
-        }
-    }
-
 
     #accueil.affiche {
         animation: accueilAffiche 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
@@ -522,18 +491,16 @@
 
     @keyframes accueilCache {
         0% {
+            scale: 1;
             opacity: 1;
             filter: blur(0px);
-            transform: translateX(0%) translateY(0%) scale(1);
-        }
+            }
         100% {
+            scale: 0.2;
             opacity: 0;
             filter: blur(10px);
-            transform: translateX(-240%) translateY(450%) scale(0.1);
         }
     }
-
-
 
     @keyframes accueilAffiche {
         0% {
@@ -1802,7 +1769,6 @@
     document.addEventListener('gestureend', function (e) {
     e.preventDefault();
     });
-
 </script>
 
 
@@ -8620,28 +8586,7 @@ window.addEventListener('message', function(event) {
     }
 
     if (event.data.type === 'openmap') {
-    const accueil = document.getElementById('accueil');
-    const logo = document.getElementById('menuicon');
-
-    const accueilRect = accueil.getBoundingClientRect();
-    const logoRect = logo.getBoundingClientRect();
-
-    const dx = logoRect.left + logoRect.width / 2 - (accueilRect.left + accueilRect.width / 2);
-    const dy = logoRect.top + logoRect.height / 2 - (accueilRect.top + accueilRect.height / 2);
-
-    // Échelle finale
-    const finalScale = 0.1;
-
-    // Étapes du rebond (simulées avec variations autour du déplacement final)
-    const bounce1 = `translate(${dx * 0.8}px, ${dy * 0.8}px) scale(0.3)`;
-    const bounce2 = `translate(${dx * 0.95}px, ${dy * 0.95}px) scale(0.15)`;
-    const finalTransform = `translate(${dx}px, ${dy}px) scale(${finalScale})`;
-
-    // Appliquer les valeurs en CSS variables
-    accueil.style.setProperty('--to-bounce1', bounce1);
-    accueil.style.setProperty('--to-bounce2', bounce2);
-    accueil.style.setProperty('--to-transform', finalTransform);
-
+        const accueil = document.getElementById('accueil');
         accueil.classList.add('hide');
         accueil.classList.remove("affiche")
         const menubottom1 = document.getElementById('menubtm');
@@ -8678,7 +8623,7 @@ function afficherMenu() {
     
 }
 
-// afficherMenu()
+afficherMenu()
 
 
 let lastTripUpdateTimestamp = 0;
