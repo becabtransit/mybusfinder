@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Bus Finder</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+
+        @font-face {
+            font-family: 'League Spartan';
+            src: url('src/leaguespartan.ttf') format('truetype');
+        }
+        
+        :root {
+            --background-color: #f5f5f5;
+            --card-background: rgba(255, 255, 255, 0.8);
+            --text-primary: #1f1f1f;
+            --text-secondary: #6b7280;
+            --accent-color: #0078d4;
+            --accent-hover: #106ebe;
+            --surface-color: #ffffff;
+            --border-color: rgba(255, 255, 255, 0.3);
+            --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.06);
+            --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.1);
+            --shadow-strong: 0 8px 32px rgba(0, 120, 212, 0.15);
+            --border-radius: 12px;
+            --border-radius-large: 16px;
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --glass-blur: blur(20px) saturate(180%);
+            --spacing-xs: 0.5rem;
+            --spacing-sm: 1rem;
+            --spacing-md: 1.5rem;
+            --spacing-lg: 2rem;
+            --spacing-xl: 3rem;
+            --brightness: brightness(0);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background-color: #1a1a1a;
+                --card-background: rgba(40, 40, 40, 0.9);
+                --text-primary: #ffffff;
+                --text-secondary: #a1a1aa;
+                --accent-color: #60cdff;
+                --accent-hover: #8eddff;
+                --surface-color: #2a2a2a;
+                --border-color: rgba(255, 255, 255, 0.1);
+                --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.3);
+                --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.4);
+                --shadow-strong: 0 8px 32px rgba(96, 205, 255, 0.2);
+                --brightness: brightness(1);
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'League Spartan';
+        }
+
+        body, html {
+            font-family: 'League Spartan';
+            background: var(--background-color);
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(0, 120, 212, 0.08) 0%, transparent 60%),
+                radial-gradient(circle at 80% 70%, rgba(96, 205, 255, 0.06) 0%, transparent 60%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+            touch-action: manipulation; 
+            overscroll-behavior: none;
+        }
+
+        .app-header {
+            position: sticky;
+            top: 0;
+            background: var(--card-background);
+            backdrop-filter: var(--glass-blur);
+            border-bottom: 1px solid var(--border-color);
+            padding: var(--spacing-sm) var(--spacing-md);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-light);
+            z-index: 100;
+            transition: var(--transition);
+        }
+
+        .greeting-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            opacity: 1;
+            transition: opacity 0.4s ease;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: opacity 0.4s ease;
+        }
+
+        .logo-icon {
+            height: 4rem;
+            border-radius: 8px;
+            margin-right: var(--spacing-xs);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            padding: 12px;
+            filter: var(--brightness)
+        }
+
+        .logo-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .main-container {
+            padding: var(--spacing-md);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .weather-card {
+            background: var(--card-background);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-large);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+            box-shadow: var(--shadow-medium);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .weather-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-strong);
+        }
+
+        .weather-icon {
+            font-size: 2.5rem;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+
+        .weather-info {
+            flex: 1;
+        }
+
+        .weather-temp {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .weather-desc {
+            color: var(--text-secondary);
+            text-transform: capitalize;
+            font-weight: 500;
+        }
+
+        .weather-location {
+            font-weight: 600;
+            color: var(--accent-color);
+            font-size: 0.9rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .feature-card {
+            background: var(--card-background);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-large);
+            padding: var(--spacing-md);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            cursor: pointer;
+            box-shadow: var(--shadow-light);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card:hover {
+            box-shadow: var(--shadow-strong);
+            border-color: var(--accent-color);
+        }
+
+        .feature-card:active {
+            transform: translateY(0);
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            width: 3.5rem;
+            height: 3.5rem;
+            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+            border-radius: var(--border-radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-light);
+            flex-shrink: 0;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
+            text-align: right;
+            color: var(--text-primary);
+        }
+
+        .feature-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.4;
+            text-align: right;
+        }
+
+        .section-header {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: var(--spacing-md);
+            color: var(--text-primary);
+            position: relative;
+            padding-left: var(--spacing-sm);
+        }
+
+        .section-header::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+            border-radius: 2px;
+        }
+
+        .notepad-section {
+            background: var(--card-background);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-large);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .notepad-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: var(--spacing-md);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            color: var(--text-primary);
+            font-family: 'League Spartan';
+            font-size: 0.95rem;
+            resize: vertical;
+            transition: var(--transition);
+        }
+
+        .notepad-textarea:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+        }
+
+        .notepad-textarea::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .quick-links-section {
+            background: var(--card-background);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-large);
+            padding: var(--spacing-md);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .links-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: var(--spacing-xs);
+        }
+
+        .link-card {
+            align-items: center;
+            padding: var(--spacing-md);
+            border-radius: var(--border-radius);
+            transition: var(--transition);
+            cursor: pointer;
+            background: rgba(0, 120, 212, 0.05);
+            border: 1px solid transparent;
+        }
+
+        .link-card:hover {
+            background: var(--accent-color);
+            color: white;
+            box-shadow: var(--shadow-light);
+        }
+
+        .link-icon {
+            margin-right: var(--spacing-md);
+            font-size: 1.5rem;
+            width: 2rem;
+            text-align: center;
+        }
+
+        .link-title {
+            font-weight: 500;
+        }
+
+        /* Animations */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .weather-card,
+        .feature-card,
+        .notepad-section,
+        .quick-links-section {
+            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .feature-card:nth-child(1) { animation-delay: 0.1s; }
+        .feature-card:nth-child(2) { animation-delay: 0.15s; }
+        .feature-card:nth-child(3) { animation-delay: 0.2s; }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .main-container {
+                padding: var(--spacing-sm);
+            }
+
+            .app-header {
+                padding: var(--spacing-sm);
+            }
+
+            .weather-card {
+                text-align: center;
+                gap: var(--spacing-sm);
+            }
+
+            .weather-icon {
+                font-size: 3rem;
+            }
+
+            .feature-card {
+                padding: var(--spacing-sm) var(--spacing-md);
+            }
+
+            .feature-icon {
+                width: 3rem;
+                height: 3rem;
+                font-size: 1.5rem;
+            }
+
+            .greeting-text {
+                font-size: 1rem;
+            }
+
+            .section-header {
+                font-size: 1.2rem;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .features-grid {
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: var(--spacing-md);
+            }
+
+            .links-grid {
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: var(--spacing-sm);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .main-container {
+                padding: var(--spacing-lg);
+            }
+
+            .weather-card {
+                padding: var(--spacing-lg);
+            }
+        }
+
+        /* Loading states */
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin: -10px 0 0 -10px;
+            border: 2px solid var(--accent-color);
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <div class="greeting-text" id="greeting" data-i18n="welcome">Bienvenue sur My Bus Finder</div>
+        <div class="logo-section" id="logo">
+            <img src ="../src/logownoborder.png" alt="Logo My Bus Finder" class="logo-icon">
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="weather-card">
+            <div class="weather-icon">⏳</div>
+            <div class="weather-info">
+                <div class="weather-temp">--°C</div>
+                <div class="weather-desc" data-i18n="loading">Chargement...</div>
+                <div class="weather-location">--</div>
+            </div>
+        </div>
+
+        <div class="features-grid">
+            <button id="bus" class="feature-card">
+                <div class="feature-icon">🚌</div>
+                <div class="feature-content">
+                    <div class="feature-title" data-i18n="search_bus">Localiser un bus</div>
+                    <div class="feature-desc" data-i18n="search_bus_desc">Trouvez facilement votre bus et ses horaires en temps réel</div>
+                </div>
+            </button>
+            
+            <button id="clock" class="feature-card">
+                <div class="feature-icon">⏰</div>
+                <div class="feature-content">
+                    <div class="feature-title" data-i18n="schedules">Horaires</div>
+                    <div class="feature-desc" data-i18n="schedules_desc">Fiches horaires théoriques et temps-réel</div>
+                </div>
+            </button>
+            
+            <button id="actu" class="feature-card">
+                <div class="feature-icon">📰</div>
+                <div class="feature-content">
+                    <div class="feature-title" data-i18n="news">Actualités</div>
+                    <div class="feature-desc" data-i18n="news_desc">Informations et déviations des transports par ligne</div>
+                </div>
+            </button>
+        </div>
+
+        <div class="notepad-section">
+            <h2 class="section-header" data-i18n="notepad">Bloc-notes</h2>
+            <textarea id="notepad" class="notepad-textarea" data-i18n-placeholder="notepad_placeholder" placeholder="Écrivez vos notes ici..."></textarea>
+        </div>
+
+        <div class="quick-links-section">
+            <h2 class="section-header" data-i18n="quick_links">Accès rapides</h2>
+            <div class="links-grid">
+                <div id="settings" class="link-card">
+                    <div class="link-icon">⚙️</div>
+                    <div class="link-title" data-i18n="settings">Paramètres</div>
+                </div>
+                <div id="app" class="link-card">
+                    <div class="link-icon">📱</div>
+                    <div class="link-title" data-i18n="mobile_app">Application mobile (à venir)</div>
+                </div>
+                <div id="mbh" class="link-card">
+                    <div class="link-icon">🚇</div>
+                    <div class="link-title">My Bus History</div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+
+    document.addEventListener('gesturestart', function (e) {
+    e.preventDefault();
+    });
+    document.addEventListener('gesturechange', function (e) {
+    e.preventDefault();
+    });
+    document.addEventListener('gestureend', function (e) {
+    e.preventDefault();
+    });
+
+        const i18n = {
+            translations: {},
+            currentLang: 'fr',
+            supportedLanguages: ['fr', 'it', 'ar', 'en'],
+            defaultLang: 'fr',
+            isLoaded: false,
+            
+            getBrowserLanguage() {
+                const fullLang = navigator.language || navigator.userLanguage;
+                const primaryLang = fullLang.split('-')[0];
+                
+                if (this.supportedLanguages.includes(primaryLang)) {
+                    return primaryLang;
+                }
+                
+                return this.defaultLang;
+            },
+            
+            getLanguageFromUrl() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const lang = urlParams.get('lang');
+                return lang || localStorage.getItem('preferredLanguage') || this.defaultLang;
+            },
+            
+            async loadTranslations() {
+                this.currentLang = this.getLanguageFromUrl();
+                localStorage.setItem('preferredLanguage', this.currentLang);
+                
+                try {
+                    const response = await fetch(`../locales/${this.currentLang}.json`);
+                    this.translations = await response.json();
+                    this.isLoaded = true;
+                    document.dispatchEvent(new CustomEvent('translationsLoaded'));
+                    return this.translations;
+                } catch (error) {
+                    console.error("Erreur lors du chargement des traductions:", error);
+                    // Fallback translations for demo
+                    this.translations = {
+                        welcome: "Bienvenue sur My Bus Finder",
+                        search_bus: "Localiser mon bus",
+                        search_bus_desc: "Trouvez facilement votre bus et ses horaires en temps réel",
+                        schedules: "Horaires",
+                        schedules_desc: "Fiches horaires théoriques et temps-réel",
+                        news: "Actualités",
+                        news_desc: "Informations et déviations des transports par ligne",
+                        notepad: "Bloc-notes",
+                        notepad_placeholder: "Écrivez vos notes ici...",
+                        quick_links: "Accès rapides",
+                        settings: "Paramètres",
+                        mobile_app: "Application mobile (a venir)",
+                        bus_history: "My Bus History",
+                        loading: "Chargement...",
+                    };
+                    this.isLoaded = true;
+                    document.dispatchEvent(new CustomEvent('translationsLoaded'));
+                    return this.translations;
+                }
+            },
+            
+            t(key, params = {}) {
+                let text = this.translations[key] || key;
+                
+                Object.keys(params).forEach(param => {
+                    text = text.replace(`{${param}}`, params[param]);
+                });
+                
+                return text;
+            },
+            
+            applyTranslations() {
+                document.querySelectorAll('[data-i18n]').forEach(element => {
+                    const key = element.getAttribute('data-i18n');
+                    if (this.translations[key]) {
+                        element.textContent = this.translations[key];
+                    }
+                });
+
+                document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+                    const key = element.getAttribute('data-i18n-placeholder');
+                    if (this.translations[key]) {
+                        element.placeholder = this.translations[key];
+                    }
+                });
+            },
+            
+            addLangToUrl() {
+                const browserLang = this.getBrowserLanguage();
+                
+                if (browserLang !== this.defaultLang) {
+                    const currentUrl = new URL(window.location.href);
+                    if (!currentUrl.searchParams.has('lang')) {
+                        currentUrl.searchParams.set('lang', browserLang);
+                        window.history.replaceState({}, '', currentUrl.toString());
+                    }
+                }
+                
+                return browserLang;
+            },
+            
+            init() {
+                const detectedLang = this.addLangToUrl();
+                const urlLang = new URLSearchParams(window.location.search).get('lang');
+                
+                if (!localStorage.getItem('preferredLanguage')) {
+                    localStorage.setItem('preferredLanguage', urlLang || detectedLang);
+                }
+                
+                return this.loadTranslations();
+            }
+        };
+
+        window.t = (key, params) => i18n.t(key, params);
+
+        function waitForTranslations() {
+            return new Promise(resolve => {
+                if (i18n.isLoaded) {
+                    resolve();
+                } else {
+                    document.addEventListener('translationsLoaded', () => resolve(), { once: true });
+                }
+            });
+        }
+
+        // Event handlers
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize translations first
+            await i18n.init();
+            
+            // Wait for translations to be loaded before applying them
+            await waitForTranslations();
+            i18n.applyTranslations();
+            
+            // Initialize other components
+            initGreeting();
+            initWeather();
+            initNotepad();
+            initEventHandlers();
+        });
+
+        // Button event handlers
+        function initEventHandlers() {
+            const bus = document.getElementById('bus');
+            const clock = document.getElementById('clock');
+            const actu = document.getElementById('actu');
+            const settings = document.getElementById('settings');
+            const app = document.getElementById('app');
+            const mbh = document.getElementById('mbh');
+
+            bus.onclick = () => {
+                window.parent.postMessage({ type: 'openmap' }, '*');
+            };
+
+            clock.onclick = () => {
+                window.parent.postMessage({ type: 'schedule' }, '*');
+            };
+
+            actu.onclick = () => {
+                window.parent.postMessage({ type: 'news' }, '*');
+            };
+            
+            settings.onclick = () => {
+                window.parent.postMessage({ type: 'settings' }, '*');
+            };
+
+            app.onclick = () => {
+                window.parent.postMessage({ type: 'app' }, '*');
+            };
+
+            mbh.onclick = () => {
+                window.parent.postMessage({ type: 'mbh' }, '*');
+            };
+        }
+
+        // Greeting system - fixed to wait for translations
+        async function initGreeting() {
+            await waitForTranslations();
+            
+            function getGreetings() {
+                return {
+                    morning: [
+                        i18n.t("greetings-morning1"),
+                        i18n.t("greetings-morning2"),
+                        i18n.t("greetings-morning3"),
+                        i18n.t("greetings-morning4"),
+                        i18n.t("greetings-morning5"),
+                        i18n.t("greetings-morning6"),
+                    ],
+                    midday: [
+                        i18n.t("greetings-midday1"),
+                        i18n.t("greetings-midday2"),
+                        i18n.t("greetings-midday3"),
+                        i18n.t("greetings-midday4"),
+                        i18n.t("greetings-midday5"),
+                        i18n.t("greetings-midday6"),
+                    ],
+                    afternoon: [
+                        i18n.t("greetings-afternoon1"),
+                        i18n.t("greetings-afternoon2"),
+                        i18n.t("greetings-afternoon3"),
+                        i18n.t("greetings-afternoon4"),
+                        i18n.t("greetings-afternoon5"),
+                        i18n.t("greetings-afternoon6"),
+                    ],
+                    evening: [
+                        i18n.t("greetings-evening1"),
+                        i18n.t("greetings-evening2"),
+                        i18n.t("greetings-evening3"),
+                        i18n.t("greetings-evening4"),
+                        i18n.t("greetings-evening5"),
+                        i18n.t("greetings-evening6"),
+                    ],
+                    night: [
+                        i18n.t("greetings-night1"),
+                        i18n.t("greetings-night2"),
+                        i18n.t("greetings-night3"),
+                        i18n.t("greetings-night4"),
+                        i18n.t("greetings-night5"),
+                        i18n.t("greetings-night6"),
+                    ]
+                };
+            }
+
+            function getDayPeriod() {
+                const hour = new Date().getHours();
+                
+                if (hour >= 5 && hour < 12) {
+                    return 'morning';
+                } else if (hour >= 12 && hour < 14) {
+                    return 'midday';
+                } else if (hour >= 14 && hour < 18) {
+                    return 'afternoon';
+                } else if (hour >= 18 && hour < 22) {
+                    return 'evening';
+                } else {
+                    return 'night';
+                }
+            }
+
+            function getRandomGreeting() {
+                const greetings = getGreetings();
+                const period = getDayPeriod();
+                const periodGreetings = greetings[period];
+                const randomIndex = Math.floor(Math.random() * periodGreetings.length);
+                return periodGreetings[randomIndex];
+            }
+
+            function updateGreeting() {
+                const greetingElement = document.getElementById('greeting');
+                greetingElement.textContent = getRandomGreeting();
+            }
+
+        function toggleGreetingLogo() {
+            const greetingElement = document.getElementById('greeting');
+            const logoElement = document.getElementById('logo');
+            
+            if (greetingElement.style.opacity !== '0') {
+                greetingElement.style.opacity = '0';
+                setTimeout(() => {
+                    logoElement.style.opacity = '1';
+                }, 500);
+            }
+        }
+
+        setInterval(toggleGreetingLogo, 4000);
+        updateGreeting();
+
+        };
+
+async function initWeather() {
+    try {
+        updateWeatherUI('⏳', i18n.t("loading"), '', i18n.t("getting_location"));
+        
+        const position = await getCurrentPosition();
+        const { latitude, longitude } = position.coords;
+        
+        updateWeatherUI('⏳', i18n.t("loading"), '', ``);
+        
+        const weatherData = await fetchWeatherData(latitude, longitude);
+        
+        updateWeatherUI(
+            getWeatherIcon(weatherData.weather[0].id),
+            `${Math.round(weatherData.main.temp)}°C`,
+            weatherData.weather[0].description,
+            weatherData.name
+        );
+    } catch (error) {
+        console.error('Erreur', error);
+        updateWeatherUI('❌', i18n.t("error"), i18n.t("unablegetpos"), i18n.t("checkconnection"));  
+    }
+}
+
+function getCurrentPosition() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error('La géolocalisation n\'est pas supportée par votre navigateur'));
+            return;
+        }
+        
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+        });
+    });
+}
+
+async function fetchWeatherData(latitude, longitude) {
+    const response = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&hourly=temperature_2m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`
+    );
+    
+    if (!response.ok) {
+        throw new Error('Erreur lors de la récupération des données météo');
+    }
+    
+    const data = await response.json();
+    
+    return {
+        weather: [{
+            id: data.current.weather_code,
+            description: getWeatherDescription(data.current.weather_code)
+        }],
+        main: {
+            temp: data.current.temperature_2m
+        },
+        name: await getLocationName(latitude, longitude)
+    };
+}
+
+async function getLocationName(latitude, longitude) {
+    try {
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&accept-language=fr`
+        );
+        
+        if (!response.ok) {
+            throw new Error('Impossible de récup le nom de la localisation');
+        }
+        
+        const data = await response.json();
+        return data.address.city || data.address.town || data.address.village || data.address.hamlet || 'Localisation inconnue';
+    } catch (error) {
+        console.error('Erreur de geocodage inverse', error);
+        return 'Localisation inconnue';
+    }
+}
+
+function updateWeatherUI(icon, temperature, description, location) {
+    document.querySelector('.weather-icon').textContent = icon;
+    document.querySelector('.weather-temp').textContent = temperature;
+    document.querySelector('.weather-desc').textContent = description;
+    document.querySelector('.weather-location').textContent = location;
+}
+
+function getWeatherIcon(weatherCode) {
+    if (weatherCode === 0) return '☀️'; // Ciel clair
+    if (weatherCode <= 3) return '🌤️'; // Partiellement nuageux
+    if (weatherCode <= 48) return '☁️'; // Nuageux, brouillard
+    if (weatherCode <= 57) return '🌧️'; // Bruine
+    if (weatherCode <= 65) return '🌧️'; // Pluie
+    if (weatherCode <= 77) return '❄️'; // Neige
+    if (weatherCode <= 82) return '🌦️'; // Averses
+    if (weatherCode <= 86) return '🌨️'; // Neige
+    if (weatherCode <= 99) return '⛈️'; // Orage
+    return '🌡️'; 
+}
+
+function getWeatherDescription(weatherCode) {
+    if (weatherCode === 0) return i18n.t("clear") || 'Ciel dégagé';
+    if (weatherCode === 1) return i18n.t("partiallyclear") || 'Principalement dégagé';
+    if (weatherCode === 2) return i18n.t("partiallynudge") || 'Partiellement nuageux';
+    if (weatherCode === 3) return i18n.t("nudge") || 'Nuageux';
+    if (weatherCode <= 48) return i18n.t("fog") || 'Brouillard';
+    if (weatherCode <= 57) return i18n.t("bruine") || 'Bruine';
+    if (weatherCode <= 65) return i18n.t("rain") || 'Pluie';
+    if (weatherCode <= 77) return i18n.t("ice") || 'Neige';
+    if (weatherCode <= 82) return i18n.t("averses") || 'Averses';
+    if (weatherCode <= 86) return i18n.t("ice") || 'Neige';
+    if (weatherCode <= 99) return i18n.t("thunder") || 'Orage';
+    return i18n.t("unknownweather") || 'Météo inconnue';
+}
+
+document.addEventListener('DOMContentLoaded', initWeather);
+
+
+
+        function initNotepad() {
+            const notepadElement = document.getElementById('notepad');
+            let saveTimeout;
+            
+            const savedNotes = localStorage.getItem('myBusFinderNotes');
+            if (savedNotes) {
+                notepadElement.value = savedNotes;
+            }
+            
+            notepadElement.addEventListener('input', () => {
+                
+                clearTimeout(saveTimeout);
+                
+                saveTimeout = setTimeout(() => {
+                    localStorage.setItem('myBusFinderNotes', notepadElement.value);
+                }, 1000);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            initWeather();
+            
+            initNotepad();
+        });
+    </script>
+</body>
+</html>

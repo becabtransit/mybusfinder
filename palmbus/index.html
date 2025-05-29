@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 	<meta name="apple-mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-status-bar-style" content="default">
 	<meta name="apple-mobile-web-app-title" content="MyBusFinder">
@@ -13,1044 +13,1096 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
-<script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
     <meta name="google-adsense-account" content="ca-pub-5815761294049475">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-        <style>
-        html, body {
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0;
-            padding: 0;
-            font-family: 'League Spartan', sans-serif;
-            background-color: #c7c7c7; 
-            color: #333; 
-            transition: background-color 0.5s ease; 
-        }
+    <style>
+    html, body {
+        height: var(--app-height);
+        width: 100vw;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0;
+        padding: 0;
+        font-family: 'League Spartan', sans-serif;
+        background-color: #c7c7c7; 
+        color: #333; 
+        transition: background-color 0.5s ease; 
+        margin: 0;
+        overflow: hidden;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none; 
+        touch-action: manipulation; 
+        overscroll-behavior: none;
+    }
 
-        @font-face {
-            font-family: 'League Spartan';
-            src: url('src/fonts/leaguespartan.ttf') format('truetype');
-        }
+    @font-face {
+        font-family: 'League Spartan';
+        src: url('src/fonts/leaguespartan.ttf') format('truetype');
+    }
 
-        @font-face {
-            font-family: 'SegoeUIBoot';
-            src: url('src/fonts/SegoeUIBoot.woff2') format('woff2'),
-                url('src/fonts/SegoeUIBoot.woff') format('woff');
-            font-weight: normal;
-            font-style: normal;
-        }
+    @font-face {
+        font-family: 'SegoeUIBoot';
+        src: url('src/fonts/SegoeUIBoot.woff2') format('woff2'),
+            url('src/fonts/SegoeUIBoot.woff') format('woff');
+        font-weight: normal;
+        font-style: normal;
+    }
 
-        #map {
-            height: 100%;
-            width: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-			
-			
-        .update-popup {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: none; 
-    justify-content: center;
-    align-items: center;
-    z-index: 10001;
-	background-color: rgba(255, 255, 255, 0.5); 
+    #map {
+        height: 100%;
+        width: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+        
+        
+    .update-popup {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: none; 
+        justify-content: center;
+        align-items: center;
+        z-index: 10001;
+        background-color: rgba(255, 255, 255, 0.5); 
+        backdrop-filter: blur(8px); 
+        -webkit-backdrop-filter: blur(8px);
+        overflow-y: hidden;
+    }
+
+    .popup-content {
+        background: white;
+        width: 100%;
+        height: 100%;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        position: relative;
+    }
+
+    .time-popup {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: none; 
+        justify-content: center;
+        align-items: center;
+        z-index: 10001;
+        background-color: rgba(255, 255, 255, 0.5); 
+        backdrop-filter: blur(8px); 
+        -webkit-backdrop-filter: blur(8px);
+        overflow-y: hidden;
+    }
+
+    .time-content {
+        background: white;
+        width: 100%;
+        height: 100%;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        position: relative;
+    }
+
+
+    .timepopup {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        opacity: 95%;
+        height: 100%;
+        display: none; 
+        justify-content: center;
+        align-items: center;
+        z-index: 10001;
+        background-color: rgba(255, 255, 255, 0.5); 
+        backdrop-filter: blur(8px); 
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background-color: transparent;
+    border-radius: 15px;
+    box-shadow: none !important;
+    padding: 0px 0px 0px 0px;
+    transform: scale(0.8) translateY(20px); 
+    opacity: 0; 
+    filter: blur(13px); 
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+    transform-origin: center bottom;
+    }
+
+    .leaflet-popup-content-wrapper.show, .leaflet-popup-tip.show {
+    transform: scale(1) translateY(0); 
+    opacity: 1; 
+    filter: blur(0); 
     backdrop-filter: blur(8px); 
     -webkit-backdrop-filter: blur(8px);
-    overflow-y: hidden;
-}
-
-.popup-content {
-    background: white;
-    width: 100%;
-    height: 100%;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    position: relative;
-}
-
-.time-popup {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: none; 
-    justify-content: center;
-    align-items: center;
-    z-index: 10001;
-	background-color: rgba(255, 255, 255, 0.5); 
-    backdrop-filter: blur(8px); 
-    -webkit-backdrop-filter: blur(8px);
-    overflow-y: hidden;
-}
-
-.time-content {
-    background: white;
-    width: 100%;
-    height: 100%;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    position: relative;
-}
-
-
-.timepopup {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    opacity: 95%;
-    height: 100%;
-    display: none; 
-    justify-content: center;
-    align-items: center;
-    z-index: 10001;
-	background-color: rgba(255, 255, 255, 0.5); 
-    backdrop-filter: blur(8px); 
-    -webkit-backdrop-filter: blur(8px);
-}
-
-.leaflet-popup-content-wrapper, .leaflet-popup-tip {
-  background-color: transparent;
-  border-radius: 15px;
-  box-shadow: none !important;
-  padding: 0px 0px 0px 0px;
-  transform: scale(0.8) translateY(20px); 
-  opacity: 0; 
-  filter: blur(13px); 
-  transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
-  transform-origin: center bottom;
-}
-
-.leaflet-popup-content-wrapper.show, .leaflet-popup-tip.show {
-  transform: scale(1) translateY(0); 
-  opacity: 1; 
-  filter: blur(0); 
-  backdrop-filter: blur(8px); 
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.leaflet-popup-content-wrapper.hide, .leaflet-popup-tip.hide {
-  transform: scale(0.8) translateY(20px); 
-  opacity: 0; 
-  filter: blur(5px); 
-  transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
-}
-
-.leaflet-popup-content {
-  margin: 0px;
-  width: 400px;
-}
-
-
-.leaflet-popup-close-button {
-visibility: hidden;
-}
-
-.popup-zoom-in {
-    transform: scale(1) translateY(0px); 
-    opacity: 1;
-}
-
-.popup-zoom-out {
-    transform: scale(0.9) translateY(20px); 
-    opacity: 0;
-}
-
-#menubtm {
-    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out, background-color 0.5s ease;
-}
-
-
-
-
-@keyframes fadeInPopupSvc {
-    from {
-        opacity: 0;
-        transform: translate(-50%, -20%);
     }
-    to {
+
+    .leaflet-popup-content-wrapper.hide, .leaflet-popup-tip.hide {
+    transform: scale(0.8) translateY(20px); 
+    opacity: 0; 
+    filter: blur(5px); 
+    transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
+    }
+
+    .leaflet-popup-content {
+    margin: 0px;
+    width: 400px;
+    }
+
+
+    .leaflet-popup-close-button {
+    visibility: hidden;
+    }
+
+    .popup-zoom-in {
+        transform: scale(1) translateY(0px); 
         opacity: 1;
-        transform: translate(-50%, -50%);
     }
-}
 
-@keyframes fadeOutPopupSvc {
-    from {
-        opacity: 1;
-        transform: translate(-50%, -50%);
-    }
-    to {
+    .popup-zoom-out {
+        transform: scale(0.9) translateY(20px); 
         opacity: 0;
-        transform: translate(-50%, -20%);
     }
-}
 
-@keyframes fadeInPopup {
-    from {
-        opacity: 0;
-        transform: translate(0%, 30%);
+    #menubtm {
+        transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out, background-color 0.5s ease;
     }
-    to {
-        opacity: 1;
-        transform: translate(0%, 0%);
-    }
-}
-
-@keyframes fadeOutPopup {
-    from {
-        opacity: 1;
-        transform: translate(0%, -30%);
-    }
-    to {
-        opacity: 0;
-        transform: translate(0%, 0%);
-    }
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-    height: 8px; 
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: #888;
-    border-radius: 10px;
-    border: 2px solid #f1f1f1;
-}
-
-.custom-scrollbar {
-    -webkit-overflow-scrolling: touch;
-}
-
-			
-.popup-content h2 {
-    font-size: 24px;
-    font-family: 'League Spartan', sans-serif;
-    color: #333;
-    margin-bottom: 15px;
-}
-
-#update-notes {
-    font-family: 'League Spartan', sans-serif;
-    font-size: 16px;
-    color: #555;
-    line-height: 1;
-}
-
-#update-notes li {
-    margin-bottom: 10px;
-}
-
-
-
-#menu {
-    position: absolute;
-    top: 0px;
-    right: 0px;
-    border-radius: 0px 0px 0px 0px;
-    z-index: 1000;
-    height: -webkit-fill-available; 
-    width: -webkit-fill-available; 
-    overflow-y: auto;
-    transition: all 0.3s ease;
-    display: none;
-}
 
 
 
 
-
-        .ripple {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .ripple::after {
-            content: '';
-            position: absolute;
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 50%;
-            transform: scale(0);
+    @keyframes fadeInPopupSvc {
+        from {
             opacity: 0;
-            animation: ripple-animation 0.6s linear forwards;
+            transform: translate(-50%, -20%);
         }
+        to {
+            opacity: 1;
+            transform: translate(-50%, -50%);
+        }
+    }
 
-        @keyframes ripple-animation {
-            to {
-                transform: scale(4);
-                opacity: 1;
+    @keyframes fadeOutPopupSvc {
+        from {
+            opacity: 1;
+            transform: translate(-50%, -50%);
+        }
+        to {
+            opacity: 0;
+            transform: translate(-50%, -20%);
+        }
+    }
+
+    @keyframes fadeInPopup {
+        from {
+            opacity: 0;
+            transform: translate(0%, 30%);
+        }
+        to {
+            opacity: 1;
+            transform: translate(0%, 0%);
+        }
+    }
+
+    @keyframes fadeOutPopup {
+        from {
+            opacity: 1;
+            transform: translate(0%, -30%);
+        }
+        to {
+            opacity: 0;
+            transform: translate(0%, 0%);
+        }
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+        height: 8px; 
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: #888;
+        border-radius: 10px;
+        border: 2px solid #f1f1f1;
+    }
+
+    .custom-scrollbar {
+        -webkit-overflow-scrolling: touch;
+    }
+
+                
+    .popup-content h2 {
+        font-size: 24px;
+        font-family: 'League Spartan', sans-serif;
+        color: #333;
+        margin-bottom: 15px;
+    }
+
+    #update-notes {
+        font-family: 'League Spartan', sans-serif;
+        font-size: 16px;
+        color: #555;
+        line-height: 1;
+    }
+
+    #update-notes li {
+        margin-bottom: 10px;
+    }
+
+
+
+    #menu {
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        border-radius: 0px 0px 0px 0px;
+        z-index: 1000;
+        height: 100%;
+        width: 100%; 
+        overflow-y: auto;
+        transition: all 0.3s ease;
+        display: none;
+    }
+
+    @media screen and (min-width: 1024px) {
+        #menu {
+            width: auto;
+        }
+    }
+
+    .ripple {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .ripple::after {
+        content: '';
+        position: absolute;
+        background: rgba(255, 255, 255, 0.6);
+        border-radius: 50%;
+        transform: scale(0);
+        opacity: 0;
+        animation: ripple-animation 0.6s linear forwards;
+    }
+
+    @keyframes ripple-animation {
+        to {
+            transform: scale(4);
+            opacity: 1;
+        }
+    }
+
+    ul {
+        padding: 0;
+        margin: 0;
+        list-style-type: none;
+        padding-inline-start: 0;
+    }
+
+
+    .menu-item {
+        cursor: pointer;
+        padding: 6px;
+        transition: background-color 0.3s ease; 
+        border-radius: 5px;
+        z-index: 100000;
+    }
+
+    .menu-item:hover {
+        background-color: #0000001f; 
+        animation: jspcommentlappelercettekeyframe 0.1s linear forwards;
+    }
+
+    .linesection {
+        cursor: pointer;
+        backdrop-filter: blur(5px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+    }
+
+    @keyframes jspcommentlappelercettekeyframe {
+        to {
+            opacity: 0.9;
+        }
+    }
+
+    .popup-content {
+        font-family: 'League Spartan', sans-serif;
+        font-size: 12px;
+        line-height: 1.1;
+    }
+
+    .popup-header {
+        padding: 5px;
+        border-radius: 10px;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+
+
+
+
+
+    @keyframes textFadeIn {
+        0% {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0); 
+        }
+    }
+
+    .loading-animation {
+        font-family: 'League Spartan', sans-serif;
+        font-size: 50px;  
+        font-weight: bold;
+        background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0); 
+        -webkit-background-clip: text;
+        color: transparent;
+        animation: gradientTextAnimation 3s ease infinite; 
+    }
+
+
+    .share-btn, .donate-btn {
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+
+    @keyframes slideInBounce {
+        0% {
+            transform: translateX(50%); 
+            opacity: 0;
+        }
+        100% {
+            transform: translateX(0%); 
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideInBounceM {
+        0% {
+            transform: translateX(-50%); 
+            opacity: 0;
+        }
+        100% {
+            transform: translateX(0%); 
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideInBounceInv {
+        0% {
+            transform: translateX(0%); 
+            opacity: 1;
             }
+        100% {
+            transform: translateX(50%); 
+            opacity: 0;
         }
-
-        ul {
-    padding: 0;
-    margin: 0;
-    list-style-type: none;
-    padding-inline-start: 0;
-}
+    }
 
 
-        .menu-item {
-            cursor: pointer;
-            padding: 6px;
-            transition: background-color 0.3s ease; 
-            border-radius: 5px;
-            z-index: 100000;
-        }
 
-        .menu-item:hover {
-            background-color: #0000001f; 
-            animation: jspcommentlappelercettekeyframe 0.1s linear forwards;
-        }
-
-        .linesection {
-            cursor: pointer;
-            backdrop-filter: blur(5px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-        }
-
-        @keyframes jspcommentlappelercettekeyframe {
-            to {
-                opacity: 0.9;
+    @keyframes slideInBounceInvM {
+        0% {
+            transform: translateX(0%); 
+            opacity: 1;
+            filter: blur(0px);
             }
+        100% {
+            transform: translateX(-50%); 
+            opacity: 0;
+            filter: blur(0px);
         }
+    }
 
-        .popup-content {
-            font-family: 'League Spartan', sans-serif;
-            font-size: 12px;
-            line-height: 1.1;
+    @keyframes appearDepuisLAccueil {
+        0% {
+            transform: translateX(-50%); 
+            opacity: 0;
+            filter: blur(0px);
+            }
+        100% {
+            transform: translateX(0%); 
+            opacity: 1;
+            filter: blur(0px);
         }
+    }
 
-        .popup-header {
-            padding: 5px;
-            border-radius: 10px;
+    @keyframes slideInBounceInvMBlur {
+        0% {
+            filter: blur(0px);
+            scale: 1;
+            }
+        100% {
+            scale: 1.2;
+            filter: blur(2px);
         }
+    }
 
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+    @keyframes slideInBounceInvMBlurRev {
+        0% {
+            scale: 1.2;
+            filter: blur(2px);
+            }
+        100% {
+            filter: blur(0px);
+            scale: 1;
         }
+    }
+
+    #menu {
+    animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+    }
+
+    #accueil {
+        width: 100%;
+        height: 100%;
+        z-index: 9999;
+    }
+
+    #accueil.hide {
+        animation: accueilCache 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+    }
+
+    #accueil.affiche {
+        animation: accueilAffiche 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+    }
+
+    @keyframes accueilCache {
+        0% {
+            scale: 1;
+            opacity: 1;
+            filter: blur(0px);
+            }
+        100% {
+            scale: 0.8;
+            opacity: 0;
+            filter: blur(10px);
+        }
+    }
+
+    @keyframes accueilAffiche {
+        0% {
+            scale: 0.8;
+            opacity: 0;
+            filter: blur(10px);
+            }
+        100% {
+            scale: 1;
+            opacity: 1;
+            filter: blur(0px);
+        }
+    }
 
 
 
+    #map.appear {
+        animation: slideInBounceM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+    }
+
+    #map.appeardelaccueil {
+        animation: appearDepuisLAccueil 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+    }
+
+    #menu.hidden {
+    animation: slideInBounceInv 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+    }
+
+    #map.hidden {
+    animation: slideInBounceInvM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+    }
+
+    #map.hiddennotransition {
+    animation: slideInBounceInvMBlur 1.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+    }
+
+    #map.appearnotransition {
+    animation: slideInBounceInvMBlurRev 1.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+    }
+
+    @keyframes bounceIn {
+        0% {
+            transform: scale(0.9);
+            opacity: 0.7;
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .popup-content, .popup-content1, .time-content, .popup1 {
+        animation: zoomFadeIn 0.6s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
+    }
+
+    @keyframes zoomFadeIn {
+        0% {
+            opacity: 0;
+            transform: scale(0.8);
+            filter: blur(13px); 
+
+        }
+        100% {
+            opacity: 1;
+            transform: scale(1);
+            filter: blur(0); 
+        }
+    }
 
 
-@keyframes textFadeIn {
+    .marker-icon {
+        animation: zoomInOut 2s infinite;
+    }
+
+    @keyframes zoomInOut {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.13); }
+    }
+
+
+    span[style*="padding: 5px 10px;"] {
+        animation: badgePulse 1.5s infinite;
+    }
+    @keyframes badgePulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    #nextStopsContent div {
+        animation: fadeInScroll 0.3s ease-in;
+        display: inherit;
+    }
+    @keyframes fadeInScroll {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .marker-icon:hover {
+        animation: hoverBounce 0.3s ease-in-out;
+    }
+    @keyframes hoverBounce {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+
+    .glass-effect {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .glass-effect::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -140%;
+        width: 140%;
+        height: 100%;
+        background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
+        transform: skewX(-25deg);
+    }
+
+    .glass-effect.animate::before {
+        animation: glass-slide 1s ease forwards;
+    }
+
+    @keyframes glass-slide {
+        0% {
+            left: -100%;
+        }
+        100% {
+            left: 150%;
+        }
+    }
+                
+    @keyframes gradientTextAnimation {
+        0% {
+            background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0);
+        }
+        50% {
+            background: linear-gradient(45deg, #ffffff, #f0f0f0, #ffffff);
+        }
+        100% {
+            background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0);
+        }
+    }
+
+    :root {
+    --base_scale: 3vh;
+    --floor: 15vh;
+    --color: #836ee5;
+    }
+
+
+    input, textarea {
+    user-select: text;
+    }
+
+    #loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        45deg,
+        #000000,
+        #1a1a1a,
+        #242424
+    );
+    background-size: 200% 200%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    z-index: 10000;
+    animation: gradientAnimation 5s ease infinite;
+    }
+
+    @keyframes gradientAnimation {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+    }
+
+    .shapes-container {
+    width: 100%;
+    overflow: hidden;
+    }
+
+    shape {
+    position: absolute;
+    display: block;
+    left: 50%;
+    bottom: 0;
+    margin-left: calc(-1 * (var(--base_scale) / 2));
+    margin-bottom: var(--floor);
+    transform-origin: center;
+    }
+
+    shape.circle {
+    width: var(--base_scale);
+    height: var(--base_scale);
+    background: var(--color);
+    border-radius: 50%;
+    }
+
+    shape.semi-circle {
+    width: var(--base_scale);
+    height: calc(var(--base_scale) * 2);
+    background: var(--color);
+    border-bottom-right-radius: calc(var(--base_scale) * 2);
+    border-top-right-radius: calc(var(--base_scale) * 2);
+    }
+
+    shape.square {
+    width: var(--base_scale);
+    height: var(--base_scale);
+    background: var(--color);
+    }
+
+    shape.bounce-up {
+    animation: bounceUp 600ms cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+    }
+
+    shape.bounce-down {
+    animation: bounceDown 600ms cubic-bezier(0.6, 0.04, 0.98, 0.335) forwards;
+    }
+
+    @keyframes bounceUp {
+    0% {
+        transform: translateY(0) rotate(0deg);
+    }
+    100% {
+        transform: translateY(-30vh) rotate(180deg);
+    }
+    }
+
+    @keyframes bounceDown {
+    0% {
+        transform: translateY(-30vh) rotate(180deg);
+    }
+    100% {
+        transform: translateY(0) rotate(360deg);
+    }
+    }
+
+    #stop-suggestions li {
+        padding: 10px;
+        cursor: pointer;
+        border-bottom: 1px solid #ddd;
+    }
+
+    #stop-suggestions li:hover {
+        background-color: #f4f4f4;
+    }
+
+
+    #loading-text {
+    margin-top: 20px;
+    font-size: 18px;
+    color: black;
+    animation: fadeIn 1.5s ease forwards;
+    }
+
+    @keyframes fadeIn {
     0% {
         opacity: 0;
         transform: translateY(20px);
     }
     100% {
         opacity: 1;
-        transform: translateY(0); 
+        transform: translateY(0);
     }
-}
-
-.loading-animation {
-    font-family: 'League Spartan', sans-serif;
-    font-size: 50px;  
-    font-weight: bold;
-    background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0); 
-    -webkit-background-clip: text;
-    color: transparent;
-    animation: gradientTextAnimation 3s ease infinite; 
-}
-
-
-.share-btn, .donate-btn {
-    animation: pulse 2s infinite;
-}
-@keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-}
-
-@keyframes slideInBounce {
-    0% {
-        transform: translateX(50%); 
-        opacity: 0;
     }
-    100% {
-        transform: translateX(0%); 
-        opacity: 1;
-    }
-}
 
-@keyframes slideInBounceM {
-    0% {
-        transform: translateX(-50%); 
-        opacity: 0;
+    .filtre {
+        display: none;
+        position: absolute;
+        bottom: 10px;
+        left: 50%; 
+        transform: translateX(-50%) translateY(-100%);
+        opacity: 0; 
+        filter: blur(5px); 
+        transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+        padding: 10px 15px;
+        border: none;
+        list-style: none;
+        margin: 0;
+        z-index: 10000;
+        background-color: #0F056B9c;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5);
+        border-radius: 18px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        
     }
-    100% {
-        transform: translateX(0%); 
-        opacity: 1;
-    }
-}
 
-@keyframes slideInBounceInv {
-    0% {
-        transform: translateX(0%); 
-        opacity: 1;
+    .filtre-texte {
+        color: #ffffff;
+    }
+
+    .menubottom-ul {
+        display: flex;
+        position: absolute;
+        bottom: 10px;
+        left: 50%; 
+        transform: translateX(-50%);
+        border: none;
+        list-style: none;
+        margin: 0;
+        z-index: 10000;
+        padding: 0px 9px;
+        background-color: #0F056B9c;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); 
+        border-radius: 18px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        
+    }
+
+    .menubottom ul li {
+        margin: auto; 
+    }
+
+    .menubottom ul li a {
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        font-size: 20px;
+        font-family: League Spartan;
+        text-decoration: none;
+        height: 70px;
+        width: 70px;
+        position: relative;
+        cursor: pointer;
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+            }
+
+    .menubottom ul li a .icon {
+        position: relative;
+        font-size: 20px;
+        transition: transform 0.2s ease-in-out;
+        transition: .3s;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .menubottom ul li a .title {
+        margin-bottom: 8px; 
+        font-size: 14px;
+        text-align: center;
+        opacity: 1; 
+        transition: none; 
+    }
+
+    .menubottom ul li a:hover .icon {
+        transform: scale(0.8); 
+    }
+
+            .menubottom ul li a:active {
+        transform: scaleX(70%)scaleY(70%); 
+        background-color: rgba(255, 255, 255, 0); 
+    }
+
+
+    @keyframes barFadeIn {
+        0% {
+            opacity: 0;
+            transform: translateY(60px); 
         }
-    100% {
-        transform: translateX(50%); 
-        opacity: 0;
-    }
-}
-
-
-
-@keyframes slideInBounceInvM {
-    0% {
-        transform: translateX(0%); 
-        opacity: 1;
-        filter: blur(0px);
+        100% {
+            opacity: 1;
+            transform: translateY(0); 
         }
-    100% {
-        transform: translateX(-50%); 
-        opacity: 0;
-        filter: blur(0px);
     }
-}
 
-@keyframes slideInBounceInvMBlur {
-    0% {
-        filter: blur(0px);
-        scale: 1;
-        }
-    100% {
-        scale: 1.2;
-        filter: blur(2px);
+
+                
+    .next-stops-container {
+        max-height: 100px;
+        padding: 10px;
+        background: #f9f9f9;
+        border-top: 1px solid #ddd;
+        position: relative;
     }
-}
 
-@keyframes slideInBounceInvMBlurRev {
-    0% {
-        scale: 1.2;
-        filter: blur(2px);
-        }
-    100% {
-        filter: blur(0px);
-        scale: 1;
+    .next-stops-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
-}
 
-#menu {
-  animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-}
-
-#map.appear {
-    animation: slideInBounceM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
-
-}
-
-#menu.hidden {
-  animation: slideInBounceInv 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-}
-
-#map.hidden {
-  animation: slideInBounceInvM 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-}
-
-#map.hiddennotransition {
-  animation: slideInBounceInvMBlur 1.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-}
-
-#map.appearnotransition {
-  animation: slideInBounceInvMBlurRev 1.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-}
-
-@keyframes bounceIn {
-    0% {
-        transform: scale(0.9);
-        opacity: 0.7;
-    }
-    100% {
-        transform: scale(1);
+    .next-stops-content {
+        transition: max-height 0.3s ease, opacity 0.3s ease;
         opacity: 1;
+        padding-inline-start: 0;
+        list-style-type: none; 
+        overflow-y: auto;
     }
-}
 
-.popup-content, .popup-content1, .time-content, .popup1 {
-    animation: zoomFadeIn 0.6s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
-}
-
-@keyframes zoomFadeIn {
-    0% {
-        opacity: 0;
-        transform: scale(0.8);
-        filter: blur(13px); 
-
+    @media (max-width: 1024px) {
+    .next-stops-content {
+        scrollbar-width: none; 
     }
-    100% {
-        opacity: 1;
-        transform: scale(1);
-        filter: blur(0); 
+
+    .next-stops-content::-webkit-scrollbar {
+        display: none;
     }
-}
-
-
-.marker-icon {
-    animation: zoomInOut 2s infinite;
-}
-
-@keyframes zoomInOut {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.13); }
-}
-
-
-span[style*="padding: 5px 10px;"] {
-    animation: badgePulse 1.5s infinite;
-}
-@keyframes badgePulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-#nextStopsContent div {
-    animation: fadeInScroll 0.3s ease-in;
-	display: inherit;
-}
-@keyframes fadeInScroll {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-.marker-icon:hover {
-    animation: hoverBounce 0.3s ease-in-out;
-}
-@keyframes hoverBounce {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-}
-
-.glass-effect {
-    position: relative;
-    overflow: hidden;
-}
-
-.glass-effect::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -140%;
-    width: 140%;
-    height: 100%;
-    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
-    transform: skewX(-25deg);
-}
-
-.glass-effect.animate::before {
-    animation: glass-slide 1s ease forwards;
-}
-
-@keyframes glass-slide {
-    0% {
-        left: -100%;
     }
-    100% {
-        left: 150%;
+
+    .popup {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: fadeInPopup 0.5s forwards;
+        background-color: #ffffff; 
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(255, 255, 255, 0.5);
+        max-height: 80%;
+        width: 90%;
+        max-width: 500px;
+        z-index: 1001;
+        overflow-y: auto;
+        opacity: 0; 
     }
-}
-			
-@keyframes gradientTextAnimation {
-    0% {
-        background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0);
+
+    .popup-content {
+        text-align: center;
     }
-    50% {
-        background: linear-gradient(45deg, #ffffff, #f0f0f0, #ffffff);
+
+    .close-btn {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background-color: #333;
+        color: white;
+        border: none;
+        padding: 10px;
+        border-radius: 20px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 16px;
+        transition: background-color 0.3s;
     }
-    100% {
-        background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0);
+
+    .close-btn:hover {
+        background-color: #555;
     }
-}
 
-:root {
-  --base_scale: 3vh;
-  --floor: 15vh;
-  --color: #836ee5;
-}
+    .textpop h4 {
+        margin-bottom: 0.3rem;
+    }
 
-body {
-  margin: 0;
-  overflow: hidden;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none; 
-}
-
-input, textarea {
-  user-select: text;
-}
-
-#loading-screen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    45deg,
-    #000000,
-    #1a1a1a,
-    #242424
-  );
-  background-size: 200% 200%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  z-index: 10000;
-  animation: gradientAnimation 5s ease infinite;
-}
-
-@keyframes gradientAnimation {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.shapes-container {
-  width: 100%;
-  overflow: hidden;
-}
-
-shape {
-  position: absolute;
-  display: block;
-  left: 50%;
-  bottom: 0;
-  margin-left: calc(-1 * (var(--base_scale) / 2));
-  margin-bottom: var(--floor);
-  transform-origin: center;
-}
-
-shape.circle {
-  width: var(--base_scale);
-  height: var(--base_scale);
-  background: var(--color);
-  border-radius: 50%;
-}
-
-shape.semi-circle {
-  width: var(--base_scale);
-  height: calc(var(--base_scale) * 2);
-  background: var(--color);
-  border-bottom-right-radius: calc(var(--base_scale) * 2);
-  border-top-right-radius: calc(var(--base_scale) * 2);
-}
-
-shape.square {
-  width: var(--base_scale);
-  height: var(--base_scale);
-  background: var(--color);
-}
-
-shape.bounce-up {
-  animation: bounceUp 600ms cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
-}
-
-shape.bounce-down {
-  animation: bounceDown 600ms cubic-bezier(0.6, 0.04, 0.98, 0.335) forwards;
-}
-
-@keyframes bounceUp {
-  0% {
-    transform: translateY(0) rotate(0deg);
-  }
-  100% {
-    transform: translateY(-30vh) rotate(180deg);
-  }
-}
-
-@keyframes bounceDown {
-  0% {
-    transform: translateY(-30vh) rotate(180deg);
-  }
-  100% {
-    transform: translateY(0) rotate(360deg);
-  }
-}
-
-#stop-suggestions li {
-    padding: 10px;
-    cursor: pointer;
-    border-bottom: 1px solid #ddd;
-}
-
-#stop-suggestions li:hover {
-    background-color: #f4f4f4;
-}
+    .textpop h1 {
+        margin-top: 0;
+    }
 
 
-#loading-text {
-  margin-top: 20px;
-  font-size: 18px;
-  color: black;
-  animation: fadeIn 1.5s ease forwards;
-}
 
-@keyframes fadeIn {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+    .slide-down {
+    transform: translateY(0); 
+    opacity: 1; 
+    filter: blur(0); 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+    }
 
-.filtre {
-    display: none;
-    position: absolute;
-    bottom: 10px;
-    left: 50%; 
-    transform: translateX(-50%) translateY(-100%);
+    .logoscr {
+    transform: translateY(100px); 
     opacity: 0; 
     filter: blur(5px); 
     transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
-    padding: 10px 15px;
-    border: none;
-    list-style: none;
-    margin: 0;
-    z-index: 10000;
-    background-color: #0F056B9c;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5);
-    border-radius: 18px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-    
-}
-
-.filtre-texte {
-    color: #ffffff;
-}
-
-.menubottom-ul {
-    display: flex;
-    position: absolute;
-    bottom: 10px;
-    left: 50%; 
-    transform: translateX(-50%);
-    padding: 12px;
-    border: none;
-    list-style: none;
-    margin: 0;
-    z-index: 10000;
-    padding: 0;
-    background-color: #0F056B9c;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); 
-    border-radius: 18px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-    
-}
-
-.menubottom-ul.expanded {
-    width: 100%;
-    height: 50vh; /* Ajustable selon tes besoins */
-    bottom: 0;
-    border-radius: 18px 18px 0 0; /* Coins arrondis en haut seulement */
-    padding: 20px;
-}
-
-.menubottom ul li {
-    margin: 0 8px; 
-}
-
-        .menubottom ul li a {
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            font-size: 20px;
-            font-family: League Spartan;
-            text-decoration: none;
-            height: 70px;
-            width: 70px;
-            position: relative;
-            cursor: pointer;
-            transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
-                }
-
-        .menubottom ul li a .icon {
-            position: relative;
-            font-size: 20px;
-            transition: transform 0.2s ease-in-out;
-            transition: .3s;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .menubottom ul li a .title {
-    margin-bottom: 8px; 
-    font-size: 14px;
-    text-align: center;
-    opacity: 1; 
-    transition: none; 
-}
-
-.menubottom ul li a:hover .icon {
-    transform: scale(0.8); 
-}
-
-        .menubottom ul li a:active {
-    transform: scaleX(70%)scaleY(70%); 
-    background-color: rgba(255, 255, 255, 0); 
-}
-
-
-@keyframes barFadeIn {
-    0% {
-        opacity: 0;
-        transform: translateY(60px); 
     }
-    100% {
+
+    .popup-slide {
+        transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+        transform: translateX(0);
         opacity: 1;
-        transform: translateY(0); 
     }
-}
+
+    .popup-slide-hidden {
+        transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+        transform: translateX(-30%);
+        opacity: 0;
+    }
+
+    .popup-slide-right {
+        transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+        transform: translateX(30%);
+        opacity: 0;
+    }
+
+    .popup-slide-active {
+        transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+        transform: translateX(0);
+        opacity: 1;
+    }
 
 
-			
-.next-stops-container {
-	max-height: 100px;
-    padding: 10px;
-    background: #f9f9f9;
-    border-top: 1px solid #ddd;
-    position: relative;
-}
 
-.next-stops-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
+    .schedule-row {
+        display: flex;
+        justify-content: space-between;
+        margin: 5px 0;
+        padding: 5px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
 
-.next-stops-content {
-    transition: max-height 0.3s ease, opacity 0.3s ease;
-    opacity: 1;
-    padding-inline-start: 0;
-    list-style-type: none; 
-    overflow-y: auto;
-}
+    .schedule-row span {
+        font-weight: bold;
+        color: #333;
+    }
 
-@media (max-width: 1024px) {
-  .next-stops-content {
-    scrollbar-width: none; 
-  }
 
-  .next-stops-content::-webkit-scrollbar {
-    display: none;
-  }
-}
+    .logoscrapp {
+    transform: translateY(0); 
+    opacity: 1; 
+    filter: blur(0); 
+    }
 
-.popup {
-    display: none;
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: fadeInPopup 0.5s forwards;
-    background-color: #ffffff; 
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 10px rgba(255, 255, 255, 0.5);
-    max-height: 80%;
-    width: 90%;
-    max-width: 500px;
-    z-index: 1001;
-    overflow-y: auto;
+    .logoscrappp {
+    transform: scale(0.8); 
+    filter: blur(0); 
+    }
+
+    .logoscrapppp {
     opacity: 0; 
-        }
-
-        .popup-content {
-            text-align: center;
-        }
-
-        .close-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background-color: #333;
-    color: white;
-    border: none;
-    padding: 10px;
-    border-radius: 20px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 16px;
-    transition: background-color 0.3s;
-}
-
-.close-btn:hover {
-    background-color: #555;
-}
-
-        .textpop h4 {
-    margin-bottom: 0.3rem;
-}
-
-.textpop h1 {
-    margin-top: 0;
-}
-
-
-
-.slide-down {
-  transform: translateY(0); 
-  opacity: 1; 
-  filter: blur(0); 
-  backdrop-filter: blur(8px); 
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.logoscr {
-  transform: translateY(100px); 
-  opacity: 0; 
-  filter: blur(5px); 
-  transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
-}
-
-.popup-slide {
-    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
-    transform: translateX(0);
-    opacity: 1;
-}
-
-.popup-slide-hidden {
-    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
-    transform: translateX(-30%);
-    opacity: 0;
-}
-
-.popup-slide-right {
-    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
-    transform: translateX(30%);
-    opacity: 0;
-}
-
-.popup-slide-active {
-    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
-    transform: translateX(0);
-    opacity: 1;
-}
-
-
-
-.schedule-row {
-    display: flex;
-    justify-content: space-between;
-    margin: 5px 0;
-    padding: 5px;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-.schedule-row span {
-    font-weight: bold;
-    color: #333;
-}
-
-
-.logoscrapp {
-  transform: translateY(0); 
-  opacity: 1; 
-  filter: blur(0); 
-}
-
-.logoscrappp {
-  transform: scale(0.8); 
-  filter: blur(0); 
-}
-
-.logoscrapppp {
-  opacity: 0; 
-}
-
-@media (max-width: 600px) {
-    #logoscr {
-      width: 50%;  
-      max-width: 200px;  
     }
-  }
 
-  @media (min-width: 1200px) {
-    #logoscr {
-      width: 10%;  
-      max-width: 400px;  
+    @media (max-width: 600px) {
+        #logoscr {
+        width: 50%;  
+        max-width: 200px;  
+        }
     }
-  }
 
-.slide-up {
-  transform: translateY(-100%); 
-  opacity: 0; 
-  filter: blur(5px); 
-  transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
-}
+    @media (min-width: 1200px) {
+        #logoscr {
+        width: 10%;  
+        max-width: 400px;  
+        }
+    }
 
-.slide-downb {
-  transform: translateY(0) translateX(-50%);
-  opacity: 1; 
-  filter: blur(0); 
-  backdrop-filter: blur(8px); 
-  -webkit-backdrop-filter: blur(8px);
-}
+    .slide-up {
+    transform: translateY(-100%); 
+    opacity: 0; 
+    filter: blur(5px); 
+    transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
+    }
 
-.slide-upb {
-  transform: translateY(100%) translateX(-50%);
-  opacity: 0; 
-  filter: blur(5px); 
-  transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.2s ease-in, filter 0.2s ease-in;
-}
+    .slide-downb {
+    transform: translateY(0) translateX(-50%);
+    opacity: 1; 
+    filter: blur(0); 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+    }
+
+    .slide-upb {
+    transform: translateY(100%) translateX(-50%);
+    opacity: 0; 
+    filter: blur(5px); 
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.2s ease-in, filter 0.2s ease-in;
+    }
 
 
-.slide-downc {
-  transform: translateY(-220%) translateX(-50%);
-  opacity: 1; 
-  filter: blur(0); 
-  backdrop-filter: blur(8px); 
-  -webkit-backdrop-filter: blur(8px);
-}
+    .slide-downc {
+    transform: translateY(-220%) translateX(-50%);
+    opacity: 1; 
+    filter: blur(0); 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+    }
 
-.slide-upc {
-  transform: translateY(100%) translateX(-50%);
-  opacity: 0; 
-  filter: blur(5px); 
-  transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
-}
+    .slide-upc {
+    transform: translateY(100%) translateX(-50%);
+    opacity: 0; 
+    filter: blur(5px); 
+    transition: transform 0.2s ease-in, opacity 0.2s ease-in, filter 0.2s ease-in;
+    }
 
-#popup1::-webkit-scrollbar {
+    #popup1::-webkit-scrollbar {
         width: 8px;
     }
     #popup1::-webkit-scrollbar-track {
@@ -1066,550 +1118,533 @@ shape.bounce-down {
     }
 
 
-@keyframes loadingBarAnimation {
+    @keyframes loadingBarAnimation {
+        0% {
+            width: 0%;
+        }
+        50% {
+            width: 100%;
+        }
+        100% {
+            width: 100%;
+        }
+    }
+
+
+    .marker-icon:hover {
+    transform: scale(0.8);
+    transition: transform 0.2s ease;
+    }
+
+
+
+    @keyframes fadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+    }
+
+    @keyframes zoomOut {
+        from {
+            transform: scale(1);
+            opacity: 1;
+        }
+        to {
+            transform: scale(1.5);
+            opacity: 0;
+        }
+    }
+
+    @keyframes fadeColors {
+        0% { background-color: rgb(0, 0, 0); }
+        25% { background-color: rgb(0, 0, 168); }
+        50% { background-color: rgb(0, 158, 158); }
+        75% { background-color: rgb(155, 155, 0); }
+        100% { background-color: rgb(0, 0, 0); }
+    }
+
+    .logobkg {
+    transition: opacity 0.3s ease-out;
+    }
+    .loading-screen-fade {
+        animation: fadeColors 1s ease-in; 
+    }
+
+    #webview-frame, #webview-frame1 {
+        width: 100%;
+        height: 100%;
+    }
+
+    .vehicle-model {
+        display: flex;
+        align-items: right;
+        justify-content: flex-end;
+        flex-direction: column;
+    }
+
+    .light-beam {
+        position: absolute;
+        width: 100px;
+        height: 300px;
+        background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
+        transform-origin: top right;
+        transform: rotate(-45deg);
+        margin-top: -29%;
+    }
+
+    .beam1 {
+        width: 90px;
+        opacity: 0.9;
+    }
+
+    .beam2 {
+        width: 70px;
+        right: 60px;
+        opacity: 0.7;
+    }
+
+    .beam3 {
+        width: 40px;
+        right: 120px;
+        opacity: 0.5;
+    }
+
+    .title {
+        color: white;
+        font-size: 24px;
+        font-weight: 300;
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+
+    .shine {
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle at center, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 70%);
+        transform: rotate(45deg);
+        pointer-events: none;
+        opacity: 0.5;
+    }
+
+    .stops-timeline-menu {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.95);
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        width: 90%;
+        max-width: 400px;
+        z-index: 1000;
+        overflow: hidden;
+        max-height: 80vh;
+        display: none;
+        opacity: 0;
+        filter: blur(5px);
+        transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1),
+                    opacity 0.3s ease-out,
+                    filter 0.3s ease-out;
+    }
+
+    .stops-timeline-menu.visible {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+        filter: blur(0);
+    }
+
+    .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        display: none;
+        opacity: 0;
+        transition: opacity 0.3s ease-out;
+    }
+
+    .overlay.visible {
+        opacity: 1;
+    }
+
+    .show-in-map-btn {
+        margin: 20px;
+        padding: 12px;
+        background: #363636;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+        width: calc(100% - 40px);
+        position: sticky;
+        bottom: 0;
+        transition: transform 0.3s ease, background-color 0.3s ease;
+    }
+
+    .show-in-map-btn:hover {
+        background: #2c2c2c;
+        transform: scale(0.98);
+    }
+
+    .show-in-map-btn:active {
+        transform: scale(0.95);
+    }
+
+    .leaflet-control-locate a {
+    cursor: pointer;
+    }
+    .leaflet-control-locate a .leaflet-control-locate-location-arrow {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin: 7px;
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="black" d="M445 4 29 195c-48 23-32 93 19 93h176v176c0 51 70 67 93 19L508 67c16-38-25-79-63-63z"/></svg>');
+    }
+    .leaflet-control-locate a .leaflet-control-locate-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin: 7px;
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="black" d="M304 48a48 48 0 1 1-96 0 48 48 0 0 1 96 0zm-48 368a48 48 0 1 0 0 96 48 48 0 0 0 0-96zm208-208a48 48 0 1 0 0 96 48 48 0 0 0 0-96zM96 256a48 48 0 1 0-96 0 48 48 0 0 0 96 0zm13 99a48 48 0 1 0 0 96 48 48 0 0 0 0-96zm294 0a48 48 0 1 0 0 96 48 48 0 0 0 0-96zM109 61a48 48 0 1 0 0 96 48 48 0 0 0 0-96z"/></svg>');
+    animation: leaflet-control-locate-spin 2s linear infinite;
+    }
+    .leaflet-control-locate.active a .leaflet-control-locate-location-arrow {
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="rgb(32, 116, 182)" d="M445 4 29 195c-48 23-32 93 19 93h176v176c0 51 70 67 93 19L508 67c16-38-25-79-63-63z"/></svg>');
+    }
+    .leaflet-control-locate.following a .leaflet-control-locate-location-arrow {
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="rgb(252, 132, 40)" d="M445 4 29 195c-48 23-32 93 19 93h176v176c0 51 70 67 93 19L508 67c16-38-25-79-63-63z"/></svg>');
+    }
+
+    .leaflet-touch .leaflet-bar .leaflet-locate-text-active {
+    width: 100%;
+    max-width: 200px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    padding: 0 10px;
+    }
+    .leaflet-touch .leaflet-bar .leaflet-locate-text-active .leaflet-locate-icon {
+    padding: 0 5px 0 0;
+    }
+
+    .leaflet-control-locate-location circle {
+    animation: leaflet-control-locate-throb 4s ease infinite;
+    }
+
+    @keyframes leaflet-control-locate-throb {
     0% {
-        width: 0%;
+        stroke-width: 1;
     }
     50% {
-        width: 100%;
+        stroke-width: 3;
+        transform: scale(0.8, 0.8);
     }
     100% {
-        width: 100%;
+        stroke-width: 1;
     }
-}
+    }
+    @keyframes leaflet-control-locate-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+    }
+
+    .alerts-button {
+        display: flex;
+        align-items: center;
+        background-color: #000000;
+        color: #ffffff;
+        padding: 15px 18px;
+        margin-bottom: 8px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        cursor: pointer;
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), 
+                    box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1),
+                    background-color 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+        position: relative;
+        overflow: hidden;
+        animation: fadeInUp 0.3s ease-out forwards;
+    }
+
+    .alerts-button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -120%;
+        width: 120%;
+        height: 100%;
+        background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+        transform: skewX(-25deg);
+        transition: left 0.8s cubic-bezier(0.25, 1.5, 0.5, 1);
+        z-index: 1;
+        pointer-events: none;
+    }
+
+    .alerts-button:hover::before {
+        left: 120%;
+    }
+
+    .alerts-button:hover {
+        transform: scale(0.98);
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+        background-color: #222222;
+    }
+
+    .alerts-button:active {
+        transform: scale(0.95);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        background-color: #333333;
+        transition: all 0.1s cubic-bezier(0.25, 1.5, 0.5, 1);
+    }
+
+    .alerts-button:active .alerts-icon {
+        transform: scale(1.2) rotate(5deg);
+        transition: transform 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
+    }
+
+    .alerts-icon {
+        margin-right: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        z-index: 2;
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+    }
 
 
-        .marker-icon:hover {
-        transform: scale(0.8);
-        transition: transform 0.2s ease;
-        }
+    .alerts-button:hover .alerts-icon {
+        transform: scale(1.2);
+    }
 
-      
+    .alerts-content {
+        z-index: 2;
+    }
 
-        @keyframes fadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; }
-        }
+    .alerts-title {
+        font-weight: normal;
+        font-size: 20px;
+    }
 
-        @keyframes zoomOut {
-            from {
-                transform: scale(1);
-                opacity: 1;
-            }
-            to {
-                transform: scale(1.5);
-                opacity: 0;
-            }
-        }
+    .alerts-description {
+        font-size: 14px;
+        opacity: 0.8;
+    }
 
-@keyframes fadeColors {
-    0% { background-color: rgb(0, 0, 0); }
-    25% { background-color: rgb(0, 0, 168); }
-    50% { background-color: rgb(0, 158, 158); }
-    75% { background-color: rgb(155, 155, 0); }
-    100% { background-color: rgb(0, 0, 0); }
-}
+    @media (max-width: 1024px) {
+    .options {
+        scrollbar-width: none; 
+    }
 
-.logobkg {
-  transition: opacity 0.3s ease-out;
-}
-.loading-screen-fade {
-    animation: fadeColors 1s ease-in; 
-}
+    .options::-webkit-scrollbar {
+        display: none;
+    }
+    }
 
-#webview-frame, #webview-frame1 {
-    width: 100%;
-    height: 100%;
-}
+    .bus-stop-marker {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: white;
+        border: 1px solid black;
+    }
 
-.vehicle-model {
-    display: flex;
-    align-items: right;
-    justify-content: flex-end;
-    flex-direction: column;
-}
+    .line-popup, .stop-popup {
+        padding: 5px;
+    }
 
-.light-beam {
+    .line-popup h4, .stop-popup h4 {
+        margin: 0 0 5px 0;
+        font-weight: bold;
+    }
+
+
+    #map-container { 
+        height: 100%; 
+        width: 100%; 
+    }
+    #map { 
+        height: 100%; 
+        width: 100%; 
+    }
+
+    #sun-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 999;
+        opacity: 0;
+        transition: opacity 0.5s ease-in-out; 
+    }
+    .sun-line {
+        position: absolute;
+        stroke-width: 2;
+        fill: none;
+    }
+    .hour-circle {
+        position: absolute;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-weight: bold;
+        font-size: 18px;
+        opacity: 0.9;
+        color: white;
+        text-shadow: 1px 1px 2px black;
+        transform: translate(-50%, -50%);
+    }
+    #toggle-sun-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1001;
+        padding: 10px;
+        background-color: #f0f0f0;
+        border: 1px solid #ccc;
+        cursor: pointer;
+    }
+
+    .first-visit-tooltip {
+        position: absolute;
+        bottom: 80px;
+        left: 50%;
+        width: auto;
+        transform: translateX(-50%);
+        background-color: rgba(15, 5, 107, 0.384);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 15px;
+        z-index: 10001;
+        display: flex;
+        align-items: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .first-visit-tooltip.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .first-visit-tooltip .tooltip-content {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .first-visit-tooltip svg {
+        stroke: white;
+        animation: bounce 1s infinite;
+    }
+
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-5px); }
+    }
+
+    .logo-bottom {
+    display: block;
+    margin: 0 auto;
+    max-width: 50%;
+    height: auto;
     position: absolute;
-    width: 100px;
-    height: 300px;
-    background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
-    transform-origin: top right;
-    transform: rotate(-45deg);
-    margin-top: -29%;
-}
-
-.beam1 {
-    width: 90px;
-    opacity: 0.9;
-}
-
-.beam2 {
-    width: 70px;
-    right: 60px;
-    opacity: 0.7;
-}
-
-.beam3 {
-    width: 40px;
-    right: 120px;
-    opacity: 0.5;
-}
-
-.title {
-    color: white;
-    font-size: 24px;
-    font-weight: 300;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-}
-
-.shine {
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 70%);
-    transform: rotate(45deg);
-    pointer-events: none;
-    opacity: 0.5;
-}
-
-.stops-timeline-menu {
-    position: fixed;
-    top: 50%;
+    bottom: 50px; 
     left: 50%;
-    transform: translate(-50%, -50%) scale(0.95);
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    width: 90%;
-    max-width: 400px;
-    z-index: 1000;
-    overflow: hidden;
-    max-height: 80vh;
-    display: none;
+    transform: translateX(-50%);
+    }
+
+    .logo-bottom.logoscr {
+    transform: translateX(-50%) translateY(100px);
     opacity: 0;
     filter: blur(5px);
-    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1),
-                opacity 0.3s ease-out,
-                filter 0.3s ease-out;
-}
+    transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+    }
 
-.stops-timeline-menu.visible {
-    transform: translate(-50%, -50%) scale(1);
+    .logo-bottom.logoscrapp {
+    transform: translateX(-50%) translateY(0);
     opacity: 1;
     filter: blur(0);
-}
-
-.overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 999;
-    display: none;
-    opacity: 0;
-    transition: opacity 0.3s ease-out;
-}
-
-.overlay.visible {
-    opacity: 1;
-}
-
-.show-in-map-btn {
-    margin: 20px;
-    padding: 12px;
-    background: #363636;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: bold;
-    width: calc(100% - 40px);
-    position: sticky;
-    bottom: 0;
-    transition: transform 0.3s ease, background-color 0.3s ease;
-}
-
-.show-in-map-btn:hover {
-    background: #2c2c2c;
-    transform: scale(0.98);
-}
-
-.show-in-map-btn:active {
-    transform: scale(0.95);
-}
-
-.leaflet-control-locate a {
-  cursor: pointer;
-}
-.leaflet-control-locate a .leaflet-control-locate-location-arrow {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  margin: 7px;
-  background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="black" d="M445 4 29 195c-48 23-32 93 19 93h176v176c0 51 70 67 93 19L508 67c16-38-25-79-63-63z"/></svg>');
-}
-.leaflet-control-locate a .leaflet-control-locate-spinner {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  margin: 7px;
-  background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="black" d="M304 48a48 48 0 1 1-96 0 48 48 0 0 1 96 0zm-48 368a48 48 0 1 0 0 96 48 48 0 0 0 0-96zm208-208a48 48 0 1 0 0 96 48 48 0 0 0 0-96zM96 256a48 48 0 1 0-96 0 48 48 0 0 0 96 0zm13 99a48 48 0 1 0 0 96 48 48 0 0 0 0-96zm294 0a48 48 0 1 0 0 96 48 48 0 0 0 0-96zM109 61a48 48 0 1 0 0 96 48 48 0 0 0 0-96z"/></svg>');
-  animation: leaflet-control-locate-spin 2s linear infinite;
-}
-.leaflet-control-locate.active a .leaflet-control-locate-location-arrow {
-  background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="rgb(32, 116, 182)" d="M445 4 29 195c-48 23-32 93 19 93h176v176c0 51 70 67 93 19L508 67c16-38-25-79-63-63z"/></svg>');
-}
-.leaflet-control-locate.following a .leaflet-control-locate-location-arrow {
-  background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="rgb(252, 132, 40)" d="M445 4 29 195c-48 23-32 93 19 93h176v176c0 51 70 67 93 19L508 67c16-38-25-79-63-63z"/></svg>');
-}
-
-.leaflet-touch .leaflet-bar .leaflet-locate-text-active {
-  width: 100%;
-  max-width: 200px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  overflow: hidden;
-  padding: 0 10px;
-}
-.leaflet-touch .leaflet-bar .leaflet-locate-text-active .leaflet-locate-icon {
-  padding: 0 5px 0 0;
-}
-
-.leaflet-control-locate-location circle {
-  animation: leaflet-control-locate-throb 4s ease infinite;
-}
-
-@keyframes leaflet-control-locate-throb {
-  0% {
-    stroke-width: 1;
-  }
-  50% {
-    stroke-width: 3;
-    transform: scale(0.8, 0.8);
-  }
-  100% {
-    stroke-width: 1;
-  }
-}
-@keyframes leaflet-control-locate-spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.alerts-button {
-    display: flex;
-    align-items: center;
-    background-color: #000000;
-    color: #ffffff;
-    padding: 15px 18px;
-    margin-bottom: 8px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    cursor: pointer;
-    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), 
-                box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1),
-                background-color 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-    position: relative;
-    overflow: hidden;
-    animation: fadeInUp 0.3s ease-out forwards;
-}
-
-.alerts-button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -120%;
-    width: 120%;
-    height: 100%;
-    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transform: skewX(-25deg);
-    transition: left 0.8s cubic-bezier(0.25, 1.5, 0.5, 1);
-    z-index: 1;
-    pointer-events: none;
-}
-
-.alerts-button:hover::before {
-    left: 120%;
-}
-
-.alerts-button:hover {
-    transform: scale(0.98);
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
-    background-color: #222222;
-}
-
-.alerts-button:active {
-    transform: scale(0.95);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    background-color: #333333;
-    transition: all 0.1s cubic-bezier(0.25, 1.5, 0.5, 1);
-}
-
-.alerts-button:active .alerts-icon {
-    transform: scale(1.2) rotate(5deg);
-    transition: transform 0.2s cubic-bezier(0.25, 1.5, 0.5, 1);
-}
-
-.alerts-icon {
-    margin-right: 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    z-index: 2;
-    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-}
-
-
-.alerts-button:hover .alerts-icon {
-    transform: scale(1.2);
-}
-
-.alerts-content {
-    z-index: 2;
-}
-
-.alerts-title {
-    font-weight: normal;
-    font-size: 20px;
-}
-
-.alerts-description {
-    font-size: 14px;
-    opacity: 0.8;
-}
-
-@media (max-width: 1024px) {
-  .options {
-    scrollbar-width: none; 
-  }
-
-  .options::-webkit-scrollbar {
-    display: none;
-  }
-}
-
-.bus-stop-marker {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background-color: white;
-    border: 1px solid black;
-}
-
-.line-popup, .stop-popup {
-    padding: 5px;
-}
-
-.line-popup h4, .stop-popup h4 {
-    margin: 0 0 5px 0;
-    font-weight: bold;
-}
-
-#bottomsheetappearcss {
-    display: none; 
-}
-
-@media screen and (min-width: 1024px) {
-    #bottomsheetappearcss {
-        display: flex;
     }
-}
 
-#map-container { 
-    height: 100%; 
-    width: 100%; 
-}
-#map { 
-    height: 100%; 
-    width: 100%; 
-}
+    @media (max-width: 600px) {
+    .logo-bottom {
+        width: 50%;
+        max-width: 200px;
+    }
+    }
 
-#sun-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 999;
-    opacity: 0;
-    transition: opacity 0.5s ease-in-out; 
-}
-.sun-line {
-    position: absolute;
-    stroke-width: 2;
-    fill: none;
-}
-.hour-circle {
-    position: absolute;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-weight: bold;
-    font-size: 18px;
-    opacity: 0.9;
-    color: white;
-    text-shadow: 1px 1px 2px black;
-    transform: translate(-50%, -50%);
-}
-#toggle-sun-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 1001;
-    padding: 10px;
-    background-color: #f0f0f0;
-    border: 1px solid #ccc;
-    cursor: pointer;
-}
+    @media (min-width: 1200px) {
+    .logo-bottom {
+        width: 10%;
+        max-width: 400px;
+    }
+    }
 
-.first-visit-tooltip {
-    position: absolute;
-    bottom: 80px;
-    left: 50%;
-    width: auto;
-    transform: translateX(-50%);
-    background-color: rgba(15, 5, 107, 0.384);
-    color: white;
-    padding: 10px 15px;
-    border-radius: 15px;
-    z-index: 10001;
-    display: flex;
-    align-items: center;
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(8px);
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
+    @keyframes rainbowShadow {
+    0% { filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.7)); }  
+    16.6% { filter: drop-shadow(0 0 10px rgba(255, 165, 0, 0.7)); }  
+    33.3% { filter: drop-shadow(0 0 10px rgba(255, 255, 0, 0.7)); }  
+    50% { filter: drop-shadow(0 0 10px rgba(0, 255, 0, 0.7)); }  
+    66.6% { filter: drop-shadow(0 0 10px rgba(0, 0, 255, 0.7)); } 
+    83.3% { filter: drop-shadow(0 0 10px rgba(128, 0, 128, 0.7)); } 
+    100% { filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.7)); }  
+    }
 
-.first-visit-tooltip.show {
-    opacity: 1;
-    visibility: visible;
-}
+    .rainbow-shadow {
+    animation: rainbowShadow 3s infinite linear;
+    }
 
-.first-visit-tooltip .tooltip-content {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+    .vehicle-thumbnail {
+        background: #0000006b; 
+        font-weight: normal; 
+        white-space: nowrap; 
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-radius: 10px; 
+        display: inline-flex; 
+        align-items: center; 
+        gap: 6px;
+        padding: 0px 8px;
+    }
 
-.first-visit-tooltip svg {
-    stroke: white;
-    animation: bounce 1s infinite;
-}
+    .vehicle-thumbnaill {
+        font-weight: normal; 
+        white-space: nowrap; 
+        display: inline-flex; 
+        align-items: center; 
+        gap: 6px;
+    }
 
-@keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-}
+    #map {
+        transition: all 0.4s cubic-bezier(0.32, 0.64, 0.45, 1);
+    }
 
-.logo-bottom {
-  display: block;
-  margin: 0 auto;
-  max-width: 50%;
-  height: auto;
-  position: absolute;
-  bottom: 50px; 
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.logo-bottom.logoscr {
-  transform: translateX(-50%) translateY(100px);
-  opacity: 0;
-  filter: blur(5px);
-  transition: transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
-}
-
-.logo-bottom.logoscrapp {
-  transform: translateX(-50%) translateY(0);
-  opacity: 1;
-  filter: blur(0);
-}
-
-@media (max-width: 600px) {
-  .logo-bottom {
-    width: 50%;
-    max-width: 200px;
-  }
-}
-
-@media (min-width: 1200px) {
-  .logo-bottom {
-    width: 10%;
-    max-width: 400px;
-  }
-}
-
-@keyframes rainbowShadow {
-  0% { filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.7)); }  
-  16.6% { filter: drop-shadow(0 0 10px rgba(255, 165, 0, 0.7)); }  
-  33.3% { filter: drop-shadow(0 0 10px rgba(255, 255, 0, 0.7)); }  
-  50% { filter: drop-shadow(0 0 10px rgba(0, 255, 0, 0.7)); }  
-  66.6% { filter: drop-shadow(0 0 10px rgba(0, 0, 255, 0.7)); } 
-  83.3% { filter: drop-shadow(0 0 10px rgba(128, 0, 128, 0.7)); } 
-  100% { filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.7)); }  
-}
-
-.rainbow-shadow {
-  animation: rainbowShadow 3s infinite linear;
-}
-
-.vehicle-thumbnail {
-    background: #0000006b; 
-    font-weight: normal; 
-    white-space: nowrap; 
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-radius: 10px; 
-    display: inline-flex; 
-    align-items: center; 
-    gap: 6px;
-    padding: 0px 8px;
-}
-
-.vehicle-thumbnaill {
-    font-weight: normal; 
-    white-space: nowrap; 
-    display: inline-flex; 
-    align-items: center; 
-    gap: 6px;
-}
-
-#map {
-    transition: all 0.4s cubic-bezier(0.32, 0.64, 0.45, 1);
-}
-
-
-
-
-    </style>
+    #webview-frameaccueil {
+        width: 100%;
+        height: 100%;
+    }
+</style>
 
 </head>
 <body>
-<!--          _   __                         ________                                                                          -->
-<!--         //   ) )                __     /__  ___/                                                                          -->
-<!--        ((                  ___ / /       / /   __      ___       __      ___      ___      ___      __    __  ___  ___    -->
-<!--          \\     //   / / //   ) /       / /  //  ) ) //   ) ) //   ) ) ((   ) ) //   ) ) //   ) ) //  ) )  / /   ((   ) ) -->
-<!--            ) ) //   / / //   / /       / /  //      //   / / //   / /   \ \    //___/ / //   / / //       / /     \ \     -->
-<!--     ((___ / / ((___( ( ((___/ /       / /  //      ((___( ( //   / / //   ) ) //       ((___/ / //       / /   //   ) )   -->
-<!--                                                          Code ayant pour entière propriété Sud Transports/Bechir Abidi    -->
-<!--                                                                Réutilisation non autorisée sauf en cas de dérogation !    -->
-
 <div class="filtre" id="filtre">
     <span data-i18n="filtersreset" class="filtre-texte">Réinitialiser les filtres</span>
 </div>
@@ -1625,7 +1660,7 @@ shape.bounce-down {
  <div class="menubottom">
         <ul id="menubtm" class="menubottom-ul">
             <li>
-                <a href="https://mybusfinder.fr/"><span class="icon"><img src="src/menu.png" id="menuicon" style="width: 40px; height: 40px;"></img></span> <span
+                <a onclick="afficherMenu()"><span class="icon"><img src="src/menu.png" id="menuicon" style="width: 40px; height: 40px;"></img></span> <span
                     class="title" data-i18n="menu">Menu</span></a>
             </li>
             <li>
@@ -1640,15 +1675,13 @@ shape.bounce-down {
                 <a onclick="showUpdatePopup('alerts.html');" id="histovecbutton"><span class="icon"><img id="actuicon" src="src/newspaper.png" style="width: 40px; height: 40px;"></img></span> <span
                         class="title" data-i18n="news">Actualités</span></a>
             </li>
-            <li id="bottomsheetappearcss">
-                <a id="bottomsheetappear"><span class="icon"><img src="src/sandwichbtn.png" style="width: 40px; height: 40px;"></img></span> <span
-                        class="title" data-i18n="seemore">Voir plus</span></a>
-            </li>
         </ul>
 </div>
 
 	
-
+<div id="accueil">
+    <iframe id="webview-frameaccueil" src="../mainmenu.html" frameborder="0"></iframe>
+</div>
 
 
 	<amp-auto-ads type="adsense"
@@ -1702,6 +1735,28 @@ shape.bounce-down {
      crossorigin="anonymous"></script>
  <script src="../js/tarteaucitron/tarteaucitron.min.js"></script>
  <script src="../build.js"></script>
+
+ <script>
+  function setAppHeight() {
+    const doc = document.documentElement;
+    doc.style.setProperty('--app-height', `${window.innerHeight}px`);
+  }
+
+  window.addEventListener('resize', setAppHeight);
+  window.addEventListener('orientationchange', setAppHeight);
+  setAppHeight(); 
+  
+    document.addEventListener('gesturestart', function (e) {
+    e.preventDefault();
+    });
+    document.addEventListener('gesturechange', function (e) {
+    e.preventDefault();
+    });
+    document.addEventListener('gestureend', function (e) {
+    e.preventDefault();
+    });
+</script>
+
 
  <script>
  /* tarteaucitron */
@@ -2106,6 +2161,14 @@ tarteaucitron.init({
 
 
     document.addEventListener('DOMContentLoaded', () => {
+
+    if (localStorage.getItem('transparency') !== 'true') {
+        if (window.innerWidth > 1024) {
+            localStorage.setItem('transparency', true);
+            toastBottomRight.info('Pour votre confort à l\'utilisation de l\'app sur PC, My Bus Finder a automatiquement activé le mode transparence rétracté pour le menu Véhicules en service. Vous pourrez désactiver ce paramètre à tout moment. ')
+        }
+    }
+
     i18n.init().then(() => {
         i18n.applyTranslations();
         if (langSwitcher && langSwitcher.updateCurrentLanguage) {
@@ -2283,6 +2346,15 @@ tarteaucitron.init({
                 description: "build " + `${window.BUILD_VERSION}`,
                 onclick: function () {
                 showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html");
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("about", "erazecache", {
+                icon: "",
+                label: "For developers - erase cache",
+                description: "Do not use if you don't know what you are doing",
+                onclick: function () {
+                clearGTFSCache();
                 }
             });
         });
@@ -3484,7 +3556,7 @@ async function clearGTFSCache() {
             const request = store.clear();
 
             request.onsuccess = () => {
-                toastBottomRight.success('Cache effacé avec succès !');
+                toastBottomRight.success('MBF3 : Cache erased successfully !!');
                 resolve();
             };
             request.onerror = () => reject(request.error);
@@ -4495,7 +4567,6 @@ function safeVibrate(pattern, force = false) {
 
 
 let gtfsInitialized = false;
-window.isBottomSheetOpen = false;
 
 const langSwitcher = createLanguageSwitcher();
 
@@ -5162,7 +5233,7 @@ async function fetchVehiclePositions() {
                 
                 const popupContent = `
                     <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-                       
+                    
                 <button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
                     position: absolute;
                     top: 10px;
@@ -5182,7 +5253,7 @@ async function fetchVehiclePositions() {
                     <path d="M18.5 21C16.8431 21 15.5 19.6569 15.5 18C15.5 16.3431 16.8431 15 18.5 15C20.1569 15 21.5 16.3431 21.5 18" />
                     <path d="M20 13C20 10.6106 18.9525 8.46589 17.2916 7M4 13C4 10.6106 5.04752 8.46589 6.70838 7M10 20.748C10.6392 20.9125 11.3094 21 12 21C12.6906 21 13.3608 20.9125 14 20.748" />
                 </svg>
-                
+
                 </button>
 
 
@@ -5273,52 +5344,265 @@ async function fetchVehiclePositions() {
                 <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
                     <ul>
                     <div id="nextStopsContent" class="next-stops-content">
-                          ${nextStopsHTML}
+                        ${nextStopsHTML}
                     </div>   
                 </div>
                 </div>
                 `;
 
+                const minimalPopupContent = `
+                    <div class="minimal-popup" style="
+                        position: relative;
+                        font-family: 'League Spartan', sans-serif;
+                        font-size: 12px;
+                        color: ${textColor};
+                        background-color: ${backgroundColor}9c;
+                        backdrop-filter: blur(8px);
+                        -webkit-backdrop-filter: blur(8px);
+                        border-radius: 8px;
+                        padding: 8px 12px;
+                        box-shadow: 0px 2px 10px 2px ${backgroundColor}6c;
+                        min-width: 120px;
+                        cursor: pointer;
+                        border: 1px solid ${backgroundColor}cc;
+                    " onclick="openFullPopup('${id}')">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <div style="font-weight: bold; font-size: 14px;">
+                                ${t("line")} ${lineName[line] || t("unknownline")}
+                            </div>
+                            <div style="font-size: 11px; opacity: 0.9;">
+                                🚌 ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
+                            </div>
+                            <div style="font-size: 11px; opacity: 0.8;">
+                                ➜ ${lastStopName}
+                            </div>
+                        </div>
+                    </div>
+                `;
 
+                window.openFullPopup = function(markerId) {
+                    if (markers[markerId]) {
+                        markers[markerId].fire('click');
+                    }
+                };
 
-                
-    if (markers[id]) {
-        animateMarker(markers[id], [latitude, longitude]);
-        
-        if (!markers[id].id) {
-            markers[id].id = id;
-        }
-        
-        if (markers[id].line !== line) {
-            const oldLine = markers[id].line;
-            markers[id].line = line;
-            
-            const color = lineColors[line] || '#000000';
-            if (markers[id]._icon) {
-                const markerIcon = markers[id]._icon.querySelector('.marker-icon');
-                if (markerIcon) {
-                    markerIcon.style.transition = 'background-color 0.5s ease';
-                    markerIcon.style.backgroundColor = color;
+                if (typeof window.minimalTooltipStates === 'undefined') {
+                    window.minimalTooltipStates = {};
                 }
-                
-                const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
-                if (arrowElement) {
-                    arrowElement.style.transition = 'stroke 0.5s ease';
-                    arrowElement.setAttribute('stroke', color);
-                }
-            }
-            
-            if (markers[id].isPopupOpen()) {
-                const menubtm = document.getElementById('menubtm');
-                const filtre = document.getElementById('filtre');
-                if (menubtm) {
-                    lastActiveColor = color;
-                    
-                    menubtm.style.backgroundColor = `${color}9c`;
-                    filtre.style.backgroundColor = `${color}9c`;
 
+                if (!document.getElementById('minimal-tooltip-styles')) {
+                    const styles = document.createElement('style');
+                    styles.id = 'minimal-tooltip-styles';
+                    styles.textContent = `
+                        .minimal-tooltip-container {
+                            background: transparent !important;
+                            border: none !important;
+                            box-shadow: none !important;
+                            padding: 0 !important;
+                            margin: 0 !important;
+                        }
+                        
+                        .minimal-tooltip-container::before {
+                            display: none !important;
+                        }
+                        
+                        .leaflet-tooltip-top::before,
+                        .leaflet-tooltip-bottom::before,
+                        .leaflet-tooltip-left::before,
+                        .leaflet-tooltip-right::before,
+                        .leaflet-tooltip-center::before {
+                            display: none !important;
+                        }
+                        
+                        .leaflet-tooltip {
+                            background: transparent !important;
+                            border: none !important;
+                            box-shadow: none !important;
+                        }
+                        
+                        @keyframes popIn {
+                            0% {
+                                opacity: 0;
+                                transform: scale(0.3) translateY(10px);
+                            }
+                            50% {
+                                transform: scale(1.1) translateY(-2px);
+                            }
+                            100% {
+                                opacity: 1;
+                                transform: scale(1) translateY(0);
+                            }
+                        }
+                        
+                        @keyframes popOut {
+                            0% {
+                                opacity: 1;
+                                transform: scale(1) translateY(0);
+                            }
+                            100% {
+                                opacity: 0;
+                                transform: scale(0.3) translateY(10px);
+                            }
+                        }
+                        
+                        .minimal-popup-appear {
+                            animation: popIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+                        }
+                        
+                        .minimal-popup-disappear {
+                            animation: popOut 0.2s cubic-bezier(0.4, 0, 1, 1);
+                        }
+                    `;
+                    document.head.appendChild(styles);
+                }
+
+                function animateTooltip(tooltip, newLatLng, duration = 500) {
+                    if (!tooltip || !tooltip._container) return;
                     
-                    function getOptimalTextColor(color) {
+                    const container = tooltip._container;
+                    const startPos = map.latLngToContainerPoint(tooltip.getLatLng());
+                    const endPos = map.latLngToContainerPoint(newLatLng);
+                    
+                    const startTime = performance.now();
+                    
+                    function animate(currentTime) {
+                        const elapsed = currentTime - startTime;
+                        const progress = Math.min(elapsed / duration, 1);
+                        
+                        const easeProgress = 1 - Math.pow(1 - progress, 3);
+                        
+                        const currentX = startPos.x + (endPos.x - startPos.x) * easeProgress;
+                        const currentY = startPos.y + (endPos.y - startPos.y) * easeProgress;
+                        
+                        const currentLatLng = map.containerPointToLatLng([currentX, currentY]);
+                        tooltip.setLatLng(currentLatLng);
+                        
+                        if (progress < 1) {
+                            requestAnimationFrame(animate);
+                        }
+                    }
+                    
+                    requestAnimationFrame(animate);
+                }
+
+                function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
+                    const marker = markers[markerId];
+                    if (!marker) return;
+                    
+                    const currentState = window.minimalTooltipStates[markerId];
+                    
+                    if (shouldShow && !marker.isPopupOpen()) {
+                        if (!marker.minimalPopup) {
+                            const minimalContent = `
+                                <div class="minimal-popup minimal-popup-appear" style="
+                                    position: relative;
+                                    font-family: 'League Spartan', sans-serif;
+                                    font-size: 11px;
+                                    color: ${getOptimalTextColor(lineColors[marker.line] || '#000000')};
+                                    background: linear-gradient(135deg, ${lineColors[marker.line] || '#000000'}f0, ${lineColors[marker.line] || '#000000'}d0);
+                                    backdrop-filter: blur(12px);
+                                    -webkit-backdrop-filter: blur(12px);
+                                    border-radius: 12px;
+                                    padding: 6px 10px;
+                                    box-shadow: 0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40;
+                                    min-width: 80px;
+                                    max-width: 140px;
+                                    cursor: pointer;
+                                    border: 1px solid ${lineColors[marker.line] || '#000000'}60;
+                                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                                    transform: translateY(0);
+                                " onclick="event.stopPropagation(); markers['${markerId}'].fire('click');" 
+                                onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${lineColors[marker.line] || '#000000'}90, 0 4px 12px -2px ${lineColors[marker.line] || '#000000'}50';"
+                                onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40';">
+                                    <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                        <div style="
+                                            background: rgba(255,255,255,0.2);
+                                            border-radius: 6px;
+                                            padding: 2px 6px;
+                                            font-weight: 600;
+                                            font-size: 10px;
+                                            line-height: 1.2;
+                                        ">
+                                            ${lineName[marker.line] || t("unknownline")}
+                                        </div>
+                                        <div style="
+                                            background: rgba(0,0,0,0.3);
+                                            border-radius: 4px;
+                                            padding: 1px 4px;
+                                            font-size: 9px;
+                                            font-weight: 500;
+                                        ">
+                                            ${((marker.vehicleData && marker.vehicleData.vehicle.label) || t("unknownparc")).toString().padStart(3, '0')}
+                                        </div>
+                                    </div>
+                                    <div style="
+                                        font-size: 9px; 
+                                        opacity: 0.85; 
+                                        margin-top: 2px;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        white-space: nowrap;
+                                        font-weight: 400;
+                                    ">
+                                        ➜ ${marker.destination || t("unknowndestination")}
+                                    </div>
+                                </div>
+                            `;
+                            
+                            const minimalTooltip = L.tooltip({
+                                permanent: true,
+                                direction: 'center',
+                                className: 'minimal-tooltip-container',
+                                offset: [0, 0],
+                                opacity: 1
+                            })
+                            .setLatLng(marker.getLatLng())
+                            .setContent(minimalContent)
+                            .addTo(map);
+                            
+                            marker.minimalPopup = minimalTooltip;
+                            window.minimalTooltipStates[markerId] = 'visible';
+                        } else {
+                            const currentLatLng = marker.minimalPopup.getLatLng();
+                            const newLatLng = marker.getLatLng();
+                            
+                            if (currentLatLng.lat !== newLatLng.lat || currentLatLng.lng !== newLatLng.lng) {
+                                animateTooltip(marker.minimalPopup, newLatLng);
+                            }
+                        }
+                    } else if (!shouldShow && marker.minimalPopup) {
+                        const tooltipContainer = marker.minimalPopup._container;
+                        if (tooltipContainer) {
+                            const popupElement = tooltipContainer.querySelector('.minimal-popup');
+                            if (popupElement) {
+                                popupElement.classList.remove('minimal-popup-appear');
+                                popupElement.classList.add('minimal-popup-disappear');
+                                
+                                setTimeout(() => {
+                                    if (marker.minimalPopup) {
+                                        map.removeLayer(marker.minimalPopup);
+                                        marker.minimalPopup = null;
+                                        delete window.minimalTooltipStates[markerId];
+                                    }
+                                }, 200);
+                            }
+                        }
+                    }
+                }
+                function updateMinimalPopups() {
+                    const currentZoom = map.getZoom();
+                    const showMinimal = currentZoom >= 17 && currentZoom < 20; 
+                    
+                    Object.keys(markers).forEach(markerId => {
+                        const marker = markers[markerId];
+                        if (!marker) return;
+                        
+                        const shouldShow = showMinimal && !marker.isPopupOpen();
+                        createOrUpdateMinimalTooltip(markerId, shouldShow);
+                    });
+                }
+
+                function getOptimalTextColor(color) {
                     if (!color) return '#000000';
 
                     color = color.trim();
@@ -5359,130 +5643,202 @@ async function fetchVehiclePositions() {
                     const contrastWhite = 1.05 / (luminance + 0.05);
 
                     return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
+                }
+
+                if (markers[id]) {
+                    
+                    if (!markers[id].id) {
+                        markers[id].id = id;
+                    }
+                    
+                    markers[id].vehicleData = vehicle;
+                    markers[id].destination = lastStopName;
+                    
+                    if (markers[id].line !== line) {
+                        const oldLine = markers[id].line;
+                        markers[id].line = line;
+                        
+                        const color = lineColors[line] || '#000000';
+                        if (markers[id]._icon) {
+                            const markerIcon = markers[id]._icon.querySelector('.marker-icon');
+                            if (markerIcon) {
+                                markerIcon.style.transition = 'background-color 0.5s ease';
+                                markerIcon.style.backgroundColor = color;
+                            }
+                            
+                            const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
+                            if (arrowElement) {
+                                arrowElement.style.transition = 'stroke 0.5s ease';
+                                arrowElement.setAttribute('stroke', color);
+                            }
+                        }
+                        
+                        if (markers[id].isPopupOpen()) {
+                            const menubtm = document.getElementById('menubtm');
+                            const filtre = document.getElementById('filtre');
+                            if (menubtm) {
+                                lastActiveColor = color;
+                                
+                                menubtm.style.backgroundColor = `${color}9c`;
+                                filtre.style.backgroundColor = `${color}9c`;
+
+                                const textColor = getOptimalTextColor(color);
+                                
+                                const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+                                const styleSheet = document.createElement('style');
+                                styleSheet.id = styleId;
+                                styleSheet.classList.add('menu-color-style');
+                                
+                                styleSheet.textContent = `
+                                    #menubtm * {
+                                        color: ${textColor};
+                                        transition: color 0.5s ease;
+                                    }
+
+                                    #filtre * {
+                                        color: ${textColor};
+                                        transition: color 0.5s ease;
+                                    }
+                                `;
+                                
+                                document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
+                                document.head.appendChild(styleSheet);
+                                markers[id].styleId = styleId;
+                            }
+                        }
+                    }
+                    
+                    if (markers[id]._icon) {
+                        const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
+                        
+                        if (arrowElement) {
+                            const targetRotation = bearing - 90;
+                            arrowElement.style.transition = 'transform 0.5s ease';
+                            arrowElement.style.transform = `rotate(${targetRotation}deg)`;
+                            arrowElement._currentRotation = targetRotation;
+                        }
                     }
 
-                    const textColor = getOptimalTextColor(color);
-                    
-                    const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
-                    const styleSheet = document.createElement('style');
-                    styleSheet.id = styleId;
-                    styleSheet.classList.add('menu-color-style');
-                    
-                    styleSheet.textContent = `
-                        #menubtm * {
-                            color: ${textColor};
-                            transition: color 0.5s ease;
+                    updateLinesDisplay();
+
+                    const existingPopup = markers[id].getPopup();
+                    const currentContent = existingPopup ? existingPopup.getContent() : '';
+
+                    if (existingPopup && currentContent === popupContent) {
+                        return;
+                    }
+
+                    markers[id].setPopupContent(popupContent);
+
+                    if (markers[id].isPopupOpen()) {
+                        const popup = markers[id]._popup;
+                        if (popup && popup._contentNode) {
+                            const popupElement = popup._contentNode.parentElement;
+                            if (popupElement) {
+                                popupElement.classList.remove('hide'); 
+                                popupElement.classList.add('show'); 
+                                markers[id].openPopup();
+                            }
                         }
+                    }
 
-                        #filtre * {
-                            color: ${textColor};
-                            transition: color 0.5s ease;
+                    if (selectedLine && markers[id].line !== selectedLine) {
+                        if (map.hasLayer(markers[id])) {
+                            map.removeLayer(markers[id]);
                         }
-                    `;
+                    } else {
+                        if (!map.hasLayer(markers[id])) {
+                            map.addLayer(markers[id]);
+                        }
+                    }
+                animateMarker(markers[id], [latitude, longitude]);
+                setTimeout(() => {
+                    updateMinimalPopups();
+                }, 1000);
+                } else {
+                    const marker = createColoredMarker(latitude, longitude, line, bearing);
+                    updateLinesDisplay();
+                    markers[id] = marker;
+                    markers[id].line = line;
+                    markers[id].id = id;
+                    markers[id].vehicleData = vehicle;
+                    markers[id].destination = lastStopName;
+
+                    if (!selectedLine || selectedLine === line) {
+                        marker.addTo(map);
+                    }
                     
-                    document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
-                    document.head.appendChild(styleSheet);
-                    markers[id].styleId = styleId;
+                    marker.bindPopup(popupContent);
+
+                    marker.on('popupopen', function (e) {
+                        if (markers[id].minimalPopup) {
+                            createOrUpdateMinimalTooltip(id, false);
+                        }
+                        
+                        if (e.popup && e.popup._contentNode) {
+                            const popupElement = e.popup._contentNode.parentElement;
+                            if (popupElement) {
+                                popupElement.classList.remove('hide'); 
+                                popupElement.classList.add('show');  
+                            }
+                        }
+                    });
+
+                    marker.on('popupclose', function (e) {
+                        if (e.popup && e.popup._contentNode) {
+                            const popupElement = e.popup._contentNode.parentElement;
+                            if (popupElement) {
+                                popupElement.classList.remove('show');
+                                popupElement.classList.add('hide');
+
+                                setTimeout(() => {
+                                    if (e.popup) {
+                                        e.popup.remove(); 
+                                    }
+                                    setTimeout(() => {
+                                        updateMinimalPopups();
+                                    }, 100);
+                                }, 200); 
+                            }
+                        }
+                    });
+
+                    marker.on('click', function() {
+                        if (markers[id].minimalPopup) {
+                            createOrUpdateMinimalTooltip(id, false);
+                        }
+                        marker.openPopup();
+                    });
+                        animateMarker(markers[id], [latitude, longitude]);
+                        setTimeout(() => {
+                            updateMinimalPopups();
+                        }, 1000);
+
+                    }
+
+
+                map.on('zoomend', updateMinimalPopups);
+
                 }
-            }
-        }
-        
-        if (markers[id]._icon) {
-            const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
-            
-            if (arrowElement) {
-                const targetRotation = bearing - 90;
-                arrowElement.style.transition = 'transform 0.5s ease';
-                arrowElement.style.transform = `rotate(${targetRotation}deg)`;
-                arrowElement._currentRotation = targetRotation;
-            }
-        }
-
-        updateLinesDisplay();
-
-        const existingPopup = markers[id].getPopup();
-        const currentContent = existingPopup ? existingPopup.getContent() : '';
-
-        if (existingPopup && currentContent === popupContent) {
-            return;
-        }
-
-        markers[id].setPopupContent(popupContent);
-
-        if (markers[id].isPopupOpen()) {
-            const popup = markers[id]._popup;
-            if (popup && popup._contentNode) {
-                const popupElement = popup._contentNode.parentElement;
-                if (popupElement) {
-                    popupElement.classList.remove('hide'); 
-                    popupElement.classList.add('show'); 
-                    markers[id].openPopup();
-                }
-            }
-        }
-
-
-
-
-        if (selectedLine && markers[id].line !== selectedLine) {
-            if (map.hasLayer(markers[id])) {
-                map.removeLayer(markers[id]);
-            }
-        } else {
-            if (!map.hasLayer(markers[id])) {
-                map.addLayer(markers[id]);
-            }
-        }
-    } else {
-        const marker = createColoredMarker(latitude, longitude, line, bearing);
-        updateLinesDisplay();
-        markers[id] = marker;
-        markers[id].line = line;
-        markers[id].id = id;
-
-        if (!selectedLine || selectedLine === line) {
-            marker.addTo(map);
-        }
-        
-        marker.bindPopup(popupContent);
-
-        marker.on('popupopen', function (e) {
-            if (e.popup && e.popup._contentNode) {
-                const popupElement = e.popup._contentNode.parentElement;
-                if (popupElement) {
-                    popupElement.classList.remove('hide'); 
-                    popupElement.classList.add('show');  
-                }
-            }
         });
 
-        marker.on('popupclose', function (e) {
-            if (e.popup && e.popup._contentNode) {
-                const popupElement = e.popup._contentNode.parentElement;
-                if (popupElement) {
-                    popupElement.classList.remove('show');
-                    popupElement.classList.add('hide');
 
-                    setTimeout(() => {
-                        if (e.popup) {
-                            e.popup.remove(); 
-                        }
-                    }, 200); 
-                }
-            }
-        });
-    }}
+
+Object.keys(markers).forEach(id => {
+    if (!activeVehicleIds.has(id)) {
+        // Nettoyer la vue minimale avant de supprimer le marqueur
+        if (markers[id].minimalPopup) {
+            createOrUpdateMinimalTooltip(id, false);
+        }
+        // Nettoyer l'état global
+        delete window.minimalTooltipStates[id];
+        map.removeLayer(markers[id]); 
+        delete markers[id]; 
+    }
 });
 
-                Object.keys(markers).forEach(id => {
-            if (!activeVehicleIds.has(id)) {
-                map.removeLayer(markers[id]); 
-                delete markers[id]; 
-            }
-        });
-
-				
-        let isMenuVisible = true;
+        
+let isMenuVisible = true;
 
 const favoriteLines = new Set(JSON.parse(localStorage.getItem('favoriteLines') || '[]'));
 
@@ -6119,7 +6475,6 @@ function updateMenu() {
         position: sticky;
         top: 0;
         left: 0;
-        width: -webkit-fill-available;
         background-color: #1a1a1ab0;
         color: white;
         padding: 9px;
@@ -6163,30 +6518,6 @@ function updateMenu() {
         font-weight: 500;
     `;
     topBar.appendChild(title);
-
-    const settingsButton = document.createElement('div');
-    settingsButton.innerHTML = `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="3" stroke-width="1.5"></circle>
-            <path d="M3.661 10.639c.472.297.777.803.777 1.361s-.305 1.065-.777 1.362c-.322.202-.53.363-.677.555-.323.421-.465.953-.396 1.479.052.394.285.798.751 1.605.466.807.699 1.21 1.015 1.452.421.323.953.465 1.479.396.24-.032.483-.13.819-.308.494-.261 1.084-.27 1.567.009.483.279.769.795.79 1.353.014.38.05.64.143.864.203.49.592.88 1.082 1.083.368.152.834.152 1.766.152s1.398 0 1.766-.152c.49-.203.88-.593 1.083-1.083.093-.224.129-.484.143-.864.02-.558.306-1.074.79-1.353.483-.279 1.073-.27 1.566-.009.336.178.579.276.819.308.526.069 1.058-.073 1.479-.396.316-.242.549-.645 1.015-1.452.207-.359.368-.639.488-.873m-.81-2.766c-.472-.297-.776-.803-.776-1.361s.304-1.065.776-1.362c.322-.202.529-.364.677-.556.323-.42.466-.952.396-1.478-.052-.394-.285-.798-.751-1.605-.466-.807-.699-1.211-1.015-1.453-.421-.322-.953-.464-1.479-.395-.24.032-.483.129-.819.307-.494.261-1.084.27-1.567-.009-.483-.279-.769-.795-.79-1.353-.014-.38-.05-.64-.143-.864-.203-.49-.592-.88-1.082-1.083C13.398 2 12.932 2 12 2s-1.398 0-1.766.152c-.49.203-.88.593-1.083 1.083-.093.224-.129.484-.143.864-.02.558-.306 1.074-.79 1.353-.483.279-1.073.27-1.566.009a2.633 2.633 0 0 0-.819-.307c-.526-.069-1.058.073-1.479.395-.316.242-.549.646-1.015 1.453-.207.359-.368.639-.488.873" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-    `;
-    settingsButton.style.cssText = `
-        margin-left: auto;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        padding: 8px;
-        border-radius: 8px;
-        transition: background 0.2s ease;
-    `;
-    settingsButton.onmouseover = () => settingsButton.style.background = 'rgba(255, 255, 255, 0.1)';
-    settingsButton.onmouseout = () => settingsButton.style.background = 'transparent';
-
-    settingsButton.onclick = () => FluentSettingsMenu.open();
-    topBar.appendChild(settingsButton);
-
 
     
     const spacer = document.createElement('div');
@@ -6332,30 +6663,6 @@ menubtm.addEventListener('touchmove', (e) => {
     endX = e.touches[0].clientX;
 });
 
-menubtm.addEventListener('touchend', () => {
-    if (startX !== null && endX !== null && startY !== null && endY !== null) {
-        if (!isBottomSheetOpen && !isMenuShowed) {
-        const horizontalSwipeDistance = startX - endX;
-        const verticalSwipeDistance = startY - endY;
-        const minSwipeDistance = 50;
-        
-        if (Math.abs(horizontalSwipeDistance) > Math.abs(verticalSwipeDistance)) {
-            if (horizontalSwipeDistance > minSwipeDistance) {
-                showMenu();
-            }
-        } else {
-            if (verticalSwipeDistance > minSwipeDistance) {
-                showBottomSheet();
-            }
-        }
-    }
-}
-    
-    startX = null;
-    endX = null;
-    startY = null;
-    endY = null;
-});
 
 function isTouchNearRightEdge(x) {
     return window.innerWidth - x <= edgeThreshold;
@@ -6382,11 +6689,9 @@ document.addEventListener('touchend', function(e) {
         const touchEndX = e.changedTouches[0].clientX;
         const swipeDistance = touchStartX - touchEndX;
         const touchDuration = Date.now() - touchStartTime;
-        if (!isBottomSheetOpen) {
             if (swipeDistance > minSwipeDistance && touchDuration < 300) {
                 showMenu();
             }
-        }   
         
         isEdgeTouch = false;
         touchStartX = null;
@@ -6396,732 +6701,7 @@ document.addEventListener('touchend', function(e) {
 
 
 
-function createBottomSheet() {
-    const SNAP_POINTS = {
-        CLOSED: 100,  // 100% of height (fully closed)
-        PEEK: 60,    // 60% of height (partially open)
-        OPEN: 0      // 0% (fully open)
-        // By Becab Solutions - BottomSheetDisplay.js
-    };
-    const buildVersion = window.BUILD_VERSION || "unknown";
-    const bottomSheet = document.createElement('div');
-    bottomSheet.id = 'bottomSheet';
-    bottomSheet.style.cssText = `
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background-color: rgba(249, 249, 249, 0.7);
-        border-top-left-radius: 20px;
-        border-top-right-radius: 20px;
-        backdrop-filter: blur(20px);
-        box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.2);
-        transform: translateY(100%);
-        transition: transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1);
-        z-index: 1000;
-        max-height: 80vh;
-        overflow-y: auto;
-        padding-bottom: 20px;
-        touch-action: pan-y;
-        overscroll-behavior: contain;
-        -webkit-overflow-scrolling: touch;
-    `;
 
-    const dragHandle = document.createElement('div');
-    dragHandle.style.cssText = `
-        width: 40px;
-        height: 5px;
-        background-color: gray;
-        border-radius: 3px;
-        margin: 10px auto;
-        cursor: grab;
-    `;
-    bottomSheet.appendChild(dragHandle)
-
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinutes = now.getMinutes();
-    const totalMinutes = currentHour * 60 + currentMinutes;
-
-    let transportState = `${t("normal")}`;
-    if ((totalMinutes >= 420 && totalMinutes <= 510) || (totalMinutes >= 960 && totalMinutes <= 1050)) {
-        transportState = `${t("presquesature")}`; 
-    } else if ((totalMinutes > 510 && totalMinutes <= 570) || (totalMinutes > 1020 && totalMinutes <= 1110)) {
-        transportState = `${t("sature")}`;
-    }
-
-    function getTransportGreeting() {
-        const now = new Date();
-        const currentHour = now.getHours();
-
-        const greetings = {
-            morning: [
-                t("greetings-morning1"),
-                t("greetings-morning2"),
-                t("greetings-morning3"),
-                t("greetings-morning4"),
-                t("greetings-morning5"),
-                t("greetings-morning6"),
-            ],
-            midday: [
-                t("greetings-midday1"),
-                t("greetings-midday2"),
-                t("greetings-midday3"),
-                t("greetings-midday4"),
-                t("greetings-midday5"),
-                t("greetings-midday6"),
-            ],
-            afternoon: [
-                t("greetings-afternoon1"),
-                t("greetings-afternoon2"),
-                t("greetings-afternoon3"),
-                t("greetings-afternoon4"),
-                t("greetings-afternoon5"),
-                t("greetings-afternoon6"),
-            ],
-            evening: [
-                t("greetings-evening1"),
-                t("greetings-evening2"),
-                t("greetings-evening3"),
-                t("greetings-evening4"),
-                t("greetings-evening5"),
-                t("greetings-evening6"),
-            ],
-            night: [
-                t("greetings-night1"),
-                t("greetings-night2"),
-                t("greetings-night3"),
-                t("greetings-night4"),
-                t("greetings-night5"),
-                t("greetings-night6"),
-            ]
-        };
-
-        if (currentHour >= 5 && currentHour < 10) return greetings.morning[Math.floor(Math.random() * greetings.morning.length)];
-        if (currentHour >= 10 && currentHour < 14) return greetings.midday[Math.floor(Math.random() * greetings.midday.length)];
-        if (currentHour >= 14 && currentHour < 18) return greetings.afternoon[Math.floor(Math.random() * greetings.afternoon.length)];
-        if (currentHour >= 18 && currentHour < 23) return greetings.evening[Math.floor(Math.random() * greetings.evening.length)];
-        return greetings.night[Math.floor(Math.random() * greetings.night.length)];
-    }
-
-
-
-    const transportStateContainer = document.createElement('div');
-    transportStateContainer.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 15px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        backdrop-filter: blur(5px);
-        box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
-        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-        cursor: pointer;
-    `;
-
-    const transportImage = document.createElement('img');
-    transportImage.alt = t("transportstate");
-    transportImage.style.width = '50px';
-    transportImage.style.height = '36px';
-    transportImage.style.marginRight = '10px';
-
-    if (transportState === `${t("normal")}`) {
-        transportImage.src = 'src/1of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.success(t("statenormal"));
-        };
-    } else if (transportState === `${t("presquesature")}`) {
-        transportImage.src = 'src/2of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.warning(t("statemiddle"));
-        };
-    } else if (transportState === `${t("sature")}`) {
-        transportImage.src = 'src/3of3body.png';
-        transportStateContainer.onclick = () => {
-            toastBottomRight.error(t("statecrowded"));
-        };
-    }
-
-    transportStateContainer.onmouseover = () => {
-        transportStateContainer.style.transform = 'scale(0.98,0.98)';
-        transportStateContainer.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-    };
-    transportStateContainer.onmouseout = () => {
-        transportStateContainer.style.transform = 'scale(1,1)';
-        transportStateContainer.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-    };
-
-    const transportStateTextContainer = document.createElement('div');
-    transportStateTextContainer.style.textAlign = 'left';
-
-    const transportStateLabel = document.createElement('div');
-    transportStateLabel.textContent = t("transportstate");
-    transportStateLabel.style.fontSize = '14px';
-    transportStateLabel.style.marginTop = '7px';
-    transportStateLabel.style.color = '#000';
-
-    const transportStateText = document.createElement('div');
-    transportStateText.textContent = transportState.charAt(0).toUpperCase() + transportState.slice(1);
-    transportStateText.style.fontSize = '22px';
-    transportStateText.style.fontWeight = 'normal';
-    transportStateText.style.color = '#000';
-
-
-
-    transportStateTextContainer.appendChild(transportStateLabel);
-    transportStateTextContainer.appendChild(transportStateText);
-
-    transportStateContainer.appendChild(transportImage);
-    transportStateContainer.appendChild(transportStateTextContainer);
-
-
-    const actu = createStyledButton(
-        'Actualités', 
-        'Dernières informations sur les transports en commun.', 
-        `
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M9.23163 8.61762C7.26389 9.06284 6.28001 9.28545 6.04594 10.0382C5.81186 10.7909 6.4826 11.5753 7.82408 13.1439L8.17113 13.5498C8.55234 13.9955 8.74294 14.2184 8.82869 14.4942C8.91444 14.7699 8.88562 15.0673 8.82799 15.662L8.77552 16.2035C8.5727 18.2965 8.4713 19.343 9.08412 19.8082C9.69694 20.2734 10.6181 19.8492 12.4605 19.0009L12.9372 18.7815C13.4607 18.5404 13.7225 18.4199 14 18.4199C14.2775 18.4199 14.5393 18.5404 15.0628 18.7815L15.5395 19.0009C17.3819 19.8492 18.3031 20.2734 18.9159 19.8082C19.5287 19.343 19.4273 18.2965 19.2245 16.2035M20.1759 13.1439C21.5174 11.5753 22.1881 10.7909 21.9541 10.0382C21.72 9.28545 20.7361 9.06284 18.7684 8.61762L18.2593 8.50244C17.7001 8.37592 17.4205 8.31266 17.196 8.14225C16.9716 7.97183 16.8276 7.71355 16.5396 7.19699L16.2775 6.7267C15.2641 4.9089 14.7575 4 14 4C13.2425 4 12.7359 4.9089 11.7225 6.7267" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M2.08887 16C3.20445 15.121 4.68639 14.7971 6.08887 15.1257" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M2.08887 10.5C3.08887 10 3.37862 10.0605 4.08887 10" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M2 5.60867L2.20816 5.48676C4.41383 4.19506 6.75032 3.84687 8.95304 4.48161L9.16092 4.54152" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-        `,
-        () => showUpdatePopup("alerts.html")
-    );
-
-
-    const locationButton = createStyledButton(
-        t("position"), 
-        t("positiondesc"), 
-        `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <circle cx="12" cy="12" r="3"></circle>
-        </svg>
-        `,
-        locateUser
-    );
-
-
-
-    const histovecButton = createStyledButton(
-        t("histovec"), 
-        t("histovecdesc"), 
-        `
-        `,
-        () => showUpdatePopup("histovec.html")
-    );
-    
-
-
-    bottomSheet.appendChild(dragHandle);
-    const greetingText = document.createElement('div');
-    greetingText.style.cssText = `
-        text-align: center;
-        font-size: 27px;
-        color: black;
-        margin: 22px 20px 0 15px;
-        text-align: right;
-        justify-content: right;
-    `;
-    const createStyledBox = (text, elements) => {
-        const box = document.createElement('div');
-        
-        const title = document.createElement('div');
-        title.textContent = text;
-        title.style.cssText = `
-            font-size: 20px;
-            color: black;
-            margin-top: 17px;
-            margin-right: 15px;
-            text-align: right;
-            justify-content: right;
-        `;
-        
-        box.appendChild(title);
-        elements.forEach(el => box.appendChild(el));
-        
-        box.style.cssText = `
-            margin: 10px;
-            border-radius: 15px;
-        `;
-        return box;
-    };
-
-    greetingText.textContent = getTransportGreeting();
-    bottomSheet.appendChild(greetingText);
-
-    const sedeplacerBox = createStyledBox(t("tomove"), [transportStateContainer, locationButton]);
-    bottomSheet.appendChild(sedeplacerBox);
-
-    const allerplusloinBox = createStyledBox(t("gofurther"), [histovecButton]);
-    bottomSheet.appendChild(allerplusloinBox);
-
-    let startY, initialY, isDragging = false;
-    
-    function startDrag(e) {
-    if (e.type.includes('touch')) {
-        e.preventDefault();
-    }
-    isDragging = true;
-    startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-    initialY = startY;
-    
-    const transform = window.getComputedStyle(bottomSheet).transform;
-    const matrix = new DOMMatrix(transform);
-    currentTranslateY = matrix.m42;
-    
-    bottomSheet.style.transition = 'none';
-}
-
-function drag(e) {
-    if (!isDragging) return;
-    e.preventDefault();
-    
-    const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-    const deltaY = currentY - startY;
-    const newTranslateY = Math.max(0, currentTranslateY + deltaY);
-    
-    const maxTranslate = bottomSheet.offsetHeight;
-    const boundedTranslateY = Math.min(maxTranslate, newTranslateY);
-    
-    bottomSheet.style.transform = `translateY(${boundedTranslateY}px)`;
-}
-
-function stopDrag(e) {
-    if (!isDragging) return;
-    isDragging = false;
-    
-    const finalY = e.type.includes('mouse') ? e.clientY : e.changedTouches[0].clientY;
-    const deltaY = finalY - initialY;
-    const currentTranslate = getTranslateY(bottomSheet);
-    const sheetHeight = bottomSheet.offsetHeight;
-    
-    bottomSheet.style.transition = 'transform 0.3s ease-out';
-    
-    const percentageMoved = (currentTranslate / sheetHeight) * 100;
-    
-    if (deltaY > 0) { 
-        if (percentageMoved > 50) {
-            closeBottomSheet();
-        } else if (percentageMoved > 30) {
-            bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
-        } else {
-            bottomSheet.style.transform = 'translateY(0)';
-        }
-    } else { 
-        if (percentageMoved < 30) {
-            bottomSheet.style.transform = 'translateY(0)';
-        } else if (percentageMoved < 70) {
-            bottomSheet.style.transform = `translateY(${sheetHeight * (SNAP_POINTS.PEEK/100)}px)`;
-
-        } else {
-            closeBottomSheet();
-        }
-    }
-}
-
-
-    // Event listeners
-    bottomSheet.addEventListener('mousedown', startDrag);
-    document.addEventListener('mousemove', drag);
-    document.addEventListener('mouseup', stopDrag);
-
-    bottomSheet.addEventListener('touchstart', startDrag, { passive: false });
-    document.addEventListener('touchmove', drag, { passive: false });
-    document.addEventListener('touchend', stopDrag);
-    function getTranslateY(element) {
-    const style = window.getComputedStyle(element);
-    const matrix = new DOMMatrix(style.transform);
-    return matrix.m42;
-}
-
-    document.body.appendChild(bottomSheet);
-    return bottomSheet;
-}
-
-function createStyledButtonBeta(title, description, svgContent, onClickHandler) {
-    const button = document.createElement('div');
-    button.className = 'alerts-button';
-    button.style.cssText = `
-        display: flex;
-        align-items: center;
-        margin: 15px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        backdrop-filter: blur(5px);
-        box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
-        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-        cursor: pointer;
-    `;
-
-    const icon = document.createElement('div');
-    icon.className = 'alerts-icon';
-    icon.innerHTML = svgContent;
-    icon.style.color = 'black';
-    icon.style.marginRight = '10px';
-
-    const content = document.createElement('div');
-    content.className = 'alerts-content';
-    content.style.color = 'black';
-    content.style.display = 'flex';
-    content.style.alignItems = 'center';
-
-    const titleWrapper = document.createElement('div');
-    titleWrapper.style.display = 'flex';
-    titleWrapper.style.alignItems = 'center';
-
-    const titleElement = document.createElement('div');
-    titleElement.className = 'alerts-title';
-    titleElement.textContent = title;
-    titleElement.style.fontSize = '18px';
-    titleElement.style.marginRight = '10px';
-
-    const betaTag = document.createElement('div');
-    betaTag.textContent = 'beta';
-    betaTag.style.cssText = `
-        background-color: green;
-        color: black;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 12px;
-        text-transform: uppercase;
-        font-weight: bold;
-    `;
-
-    titleWrapper.appendChild(titleElement);
-    titleWrapper.appendChild(betaTag);
-
-    const descriptionElement = document.createElement('div');
-    descriptionElement.className = 'alerts-description';
-    descriptionElement.textContent = description;
-    descriptionElement.style.fontSize = '14px';
-    descriptionElement.style.opacity = '0.7';
-
-    content.appendChild(titleWrapper);
-    content.appendChild(descriptionElement);
-
-    button.appendChild(icon);
-    button.appendChild(content);
-
-    const handleAction = () => {
-        onClickHandler();
-        setTimeout(() => {
-            closeBottomSheet();
-        }, 50);
-    };
-
-    let touchStartY = 0;
-    let touchMoved = false;
-    const touchThreshold = 5;
-
-    const handleButtonAction = () => {
-        onClickHandler();
-        setTimeout(() => {
-            closeBottomSheet();
-        }, 50);
-    };
-
-    if ('ontouchstart' in window) {
-        button.addEventListener('touchstart', (e) => {
-            touchStartY = e.touches[0].clientY;
-            touchMoved = false;
-            button.style.transform = 'scale(0.98,0.98)';
-            button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-        }, { passive: true });
-
-        button.addEventListener('touchmove', (e) => {
-            const touchCurrentY = e.touches[0].clientY;
-            if (Math.abs(touchCurrentY - touchStartY) > touchThreshold) {
-                touchMoved = true;
-                button.style.transform = 'scale(1,1)';
-                button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-            }
-        }, { passive: true });
-
-        button.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            button.style.transform = 'scale(1,1)';
-            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-            
-            if (!touchMoved) {
-                handleButtonAction();
-                setTimeout(() => {
-                    closeBottomSheet();
-                }, 50);
-            }
-        });
-
-        button.addEventListener('touchcancel', () => {
-            button.style.transform = 'scale(1,1)';
-            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-        });
-    } else {
-        button.addEventListener('click', () => {
-            handleButtonAction();
-            setTimeout(() => {
-                closeBottomSheet();
-            }, 50);
-        });
-    }
-
-    button.onmouseover = () => {
-        button.style.transform = 'scale(0.98,0.98)';
-        button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-    };
-
-    button.onmouseout = () => {
-        button.style.transform = 'scale(1,1)';
-        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-    };
-
-    return button;
-}
-
-function createStyledButton(title, description, svgContent, onClickHandler) {
-    const button = document.createElement('div');
-    button.className = 'alerts-button';
-    button.style.cssText = `
-        display: flex;
-        align-items: center;
-        margin: 15px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        backdrop-filter: blur(5px);
-        box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
-        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
-        cursor: pointer;
-    `;
-
-    const icon = document.createElement('div');
-    icon.className = 'alerts-icon';
-    icon.innerHTML = svgContent;
-    icon.style.color = 'black';
-    icon.style.marginRight = '10px';
-
-    const content = document.createElement('div');
-    content.className = 'alerts-content';
-    content.style.color = 'black';
-
-    const titleElement = document.createElement('div');
-    titleElement.className = 'alerts-title';
-    titleElement.textContent = title;
-    titleElement.style.fontSize = '18px';
-
-    const descriptionElement = document.createElement('div');
-    descriptionElement.className = 'alerts-description';
-    descriptionElement.textContent = description;
-    descriptionElement.style.fontSize = '14px';
-    descriptionElement.style.opacity = '0.7';
-
-    content.appendChild(titleElement);
-    content.appendChild(descriptionElement);
-
-    button.appendChild(icon);
-    button.appendChild(content);
-
-    const handleAction = () => {
-        onClickHandler();
-        setTimeout(() => {
-            closeBottomSheet();
-        }, 50);
-
-    };
-
-    let touchStartY = 0;
-    let touchMoved = false;
-    const touchThreshold = 5;
-
-    const handleButtonAction = () => {
-        onClickHandler();
-        setTimeout(() => {
-            closeBottomSheet();
-        }, 50);
-    };
-
-    if ('ontouchstart' in window) {
-        button.addEventListener('touchstart', (e) => {
-            touchStartY = e.touches[0].clientY;
-            touchMoved = false;
-            button.style.transform = 'scale(0.98,0.98)';
-            button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-        }, { passive: true });
-
-        button.addEventListener('touchmove', (e) => {
-            const touchCurrentY = e.touches[0].clientY;
-            if (Math.abs(touchCurrentY - touchStartY) > touchThreshold) {
-                touchMoved = true;
-                button.style.transform = 'scale(1,1)';
-                button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-            }
-        }, { passive: true });
-
-        button.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            button.style.transform = 'scale(1,1)';
-            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-            
-            if (!touchMoved) {
-                handleButtonAction();
-                setTimeout(() => {
-                    closeBottomSheet();
-                }, 50);
-            }
-        });
-
-        button.addEventListener('touchcancel', () => {
-            button.style.transform = 'scale(1,1)';
-            button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-        });
-    } else {
-        button.addEventListener('click', () => {
-            handleButtonAction();
-            setTimeout(() => {
-                closeBottomSheet();
-            }, 50);
-        });
-    }
-
-    button.onmouseover = () => {
-        button.style.transform = 'scale(0.98,0.98)';
-        button.style.boxShadow = '0 6px 12px rgba(255, 255, 255, 0.15)';
-    };
-
-    button.onmouseout = () => {
-        button.style.transform = 'scale(1,1)';
-        button.style.boxShadow = '0 4px 6px rgba(255, 255, 255, 0.1)';
-    };
-
-    return button;
-}
-
-window.isMenuShowed = false;
-
-function showBottomSheet() {
-    const mapp1 = document.getElementById('map');
-    const bottomSheet = document.getElementById('bottomSheet') || createBottomSheet();
-    const menu = document.getElementById('menu');
-    mapp1.style.scale = '0.9';
-    mapp1.style.setProperty('opacity', '0.5', 'important');
-    mapp1.style.borderRadius = '20px';
-    mapp1.style.transform = 'translateY(-13px)';
-
-    safeVibrate(50);
-    // Hide menu
-    const map = document.getElementById('map');
-    menu.classList.add('hidden');
-
-    if (localStorage.getItem('transparency') === 'true') {
-        const map = document.getElementById('map');
-        map.classList.remove('hiddennotransition');
-        map.classList.add('appearnotransition');
-        map.classList.remove('hidden');
-        map.classList.remove('appear');
-    } else {
-        const map = document.getElementById('map');
-        map.classList.remove('hidden');
-        map.classList.add('appear');
-        map.classList.remove('hiddennotransition');
-        map.classList.remove('appearnotransition');
-    }
-    window.isMenuShowed = false;
-    menu.addEventListener('animationend', function onAnimationEnd(event) {
-        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
-            menu.style.display = 'none';
-        }
-    });
-    isMenuVisible = false;
-
-    const menubotom = document.getElementById('menubottom');
-
-    menubottom1.classList.remove('slide-downb');
-    menubottom1.classList.add('slide-upb');
-    if (selectedLine) {
-        const filtre = document.getElementById('filtre');
-        filtre.classList.add('slide-upc');
-        filtre.classList.remove('slide-downc');
-        filtre.addEventListener('animationend', () => {
-            filtre.style.display = 'none';
-        });
-    }
-
-    menubottom1.addEventListener('transitionend', () => {
-    if (menubottom1.classList.contains('slide-up')) {
-    menubottom1.style.display = 'none';
-    }
-    }, { once: true });
-
-    // Show bottom sheet with animation
-    bottomSheet.style.opacity = '1';
-    bottomSheet.style.transform = 'translateY(100%)';
-
-    bottomSheet.style.display = 'block';
-    
-    // Trigger reflow
-    bottomSheet.offsetHeight;
-    
-    // Animate in
-    bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0,.74,.28,.99), opacity 0.3s ease-out';
-    bottomSheet.style.transform = 'translateY(0)';
-    
-    // Set state to open
-    window.isBottomSheetOpen = true;
-
-}
-
-function closeBottomSheet() {
-    const bottomSheet = document.getElementById('bottomSheet');
-
-    const mapp = document.getElementById('map');
-
-
-    mapp.style.scale = '1';
-    mapp.style.removeProperty('opacity');
-    mapp.style.borderRadius = '0px';
-    mapp.style.transform = 'translateY(0px)';
-
-
-    safeVibrate(50);
-
-    if (bottomSheet) {
-        bottomSheet.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.64, 0.45, 1), opacity 0.3s ease-out';
-        
-        bottomSheet.style.transform = 'translateY(100%)';
-        bottomSheet.style.opacity = '0';
-        
-        bottomSheet.addEventListener('transitionend', function onTransitionEnd(e) {
-            if (e.propertyName === 'transform') {
-                bottomSheet.style.display = 'none';
-                bottomSheet.removeEventListener('transitionend', onTransitionEnd);
-            }
-        });
-        menubottom1.style.display = 'flex';
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-            if (selectedLine) {
-            const filtre = document.getElementById('filtre');
-            filtre.classList.remove('slide-upc');
-            filtre.classList.add('slide-downc');
-            filtre.style.display = 'flex';
-            
-            }
-        }, 10);
-
-
-        setTimeout(() => {
-            if (bottomSheet.style.display !== 'none') {
-                bottomSheet.style.display = 'none';
-            }
-            setTimeout(() => {
-                window.isBottomSheetOpen = false;
-            }, 200);
-        }, 500);
-    }
-}
-
-document.getElementById('bottomsheetappear').addEventListener('click', function() {
-showBottomSheet();
-});
 
 function getNextStopInfo(vehicleId) {
     const vehicle = markers[vehicleId];
@@ -7531,6 +7111,7 @@ sortedLines.forEach(line => {
                     selectedLine = lineId;
                     filterByLine(lineId);
                     const map = document.getElementById('map');
+                    map.style.opacity = '1';
                     menu.classList.add('hidden');
                     if (localStorage.getItem('transparency') === 'true') {
                         const map = document.getElementById('map');
@@ -7667,6 +7248,7 @@ const menubottom1 = document.getElementById('menubtm');
         closeMap.onclick = () => {
             const menu = document.getElementById('menu');
             const map = document.getElementById('map');
+            map.style.opacity = '1';
             menu.classList.add('hidden');
             if (localStorage.getItem('transparency') === 'true') {
                 const map = document.getElementById('map');
@@ -7688,19 +7270,6 @@ const menubottom1 = document.getElementById('menubtm');
                 }
             });
             isMenuVisible = false; 
-            if (!isBottomSheetOpen) {
-                menubottom1.style.display = 'flex';
-                setTimeout(() => {
-                    menubottom1.classList.remove('slide-upb');
-                    menubottom1.classList.add('slide-downb');
-                    if (selectedLine) {
-                    const filtre = document.getElementById('filtre');
-                    filtre.classList.remove('slide-upc');
-                    filtre.classList.add('slide-downc');
-                    filtre.style.display = 'flex';
-                    }
-                }, 10);
-            }
         };
         
 
@@ -8487,6 +8056,69 @@ setTimeout(() => {
 }, 2000);
 
 
+
+
+window.addEventListener('message', function(event) {
+
+    if (event.data.type === 'schedule') {
+        showUpdatePopupPourHoraires()
+    }
+
+    if (event.data.type === 'news') {
+        showUpdatePopup('alerts.html');
+    }
+
+    if (event.data.type === 'settings') {
+        FluentSettingsMenu.open();
+    }
+
+    if (event.data.type === 'mbh') {
+        showUpdatePopup('histovec.html');
+    }
+
+    if (event.data.type === 'openmap') {
+        const accueil = document.getElementById('accueil');
+        accueil.classList.add('hide');
+        accueil.classList.remove("affiche")
+        const menubottom1 = document.getElementById('menubtm');
+        menubottom1.style.display = 'flex';
+        window.isMenuShowed = false;
+    
+        setTimeout(() => {
+            menubottom1.classList.remove('slide-upb');
+            menubottom1.classList.add('slide-downb');
+            setTimeout(() => {
+                accueil.style.display = 'none';
+            }, 500);
+        }, 10);
+
+    }
+});
+
+function afficherMenu() {
+    const accueil = document.getElementById('accueil');
+    accueil.classList.remove('hide');
+    accueil.classList.add("affiche")
+    accueil.style.display = 'block';
+    window.isMenuShowed = true;
+
+    const menubottom1 = document.getElementById('menubtm');
+
+    setTimeout(() => {
+        menubottom1.classList.add('slide-upb');
+        menubottom1.classList.remove('slide-downb');
+        setTimeout(() => {
+            menubottom1.style.display = 'none';
+            accueil.style.display = 'block';
+        }, 500);
+    }, 10);
+
+    
+}
+
+afficherMenu()
+
+
 let lastTripUpdateTimestamp = 0;
 let worker;
 let fetchInProgress = false;
@@ -8529,7 +8161,6 @@ async function fetchTripUpdates() {
         const data = await decodeProtobuf(buffer);
         
         const fetchTime = performance.now() - fetchStartTime;
-        console.debug(`Téléchargement gtfs en ${fetchTime.toFixed(2)}ms`);
         
         return new Promise((resolve, reject) => {
             const workerTimeoutId = setTimeout(() => {
