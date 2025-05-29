@@ -4006,9 +4006,149 @@ let selectedLines = [];
 
 
 
+async function loadGeoJsonLines() {
+    const response = await fetch('proxy-cors/proxy_geojson.php');
+    const geoJsonData = await response.json();
 
+    const busLines = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry.type === 'LineString';
+        },
+        style: function(feature) {
+            return {
+                color: lineColors[feature.properties.route_id] || '#3388ff',
+                weight: 6,
+                opacity: 0.7,  
+                lineJoin: 'round',
+                lineCap: 'round',
+                className: 'bus-line', 
+                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
+            };
+        },
+        onEachFeature: function(feature, layer) {
+            
+            if (feature.properties && feature.properties.route_id) {
+                geoJsonLines.push(layer);
+            }
+        }
+    }).addTo(map);
 
+    const busStops = L.geoJSON(geoJsonData, {
+        filter: feature => feature.geometry && feature.geometry.type === 'Point',
+        pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+            radius: 5,
+            fillColor: '#ffffff',
+            color: '#000000',
+            weight: 1,
+            opacity: 0.8,
+            fillOpacity: 0.8
+        }),
+        onEachFeature: function(feature, layer) {
+            layer.on('click', function(e) {
+                showFluentStopPopup(layer.feature, layer.getLatLng(), layer);
+            });
+        }
+    }).addTo(map);
+    
+    busStops.eachLayer(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+            layer.busLine = layer.feature.properties.route_id || null;
+            busStopLayers.push(layer);
+        }
+    });
+    
+}
 
+function showFluentStopPopup(stopFeature, latlng, markerLayer) {
+    // Récupération du nom d'arrêt et de son ID
+    const stopId = stopFeature.properties.stop_id || stopFeature.id;
+    const stopName = stopFeature.properties.stop_name || stopNameMap[stopId] || "Arrêt inconnu";
+
+    // On recherche toutes les lignes qui passent par cet arrêt
+    // Il faut que tripUpdates contienne pour chaque tripId un .nextStops = [{ stopId, delay, ... }]
+    // On va parcourir tous les trips pour trouver ceux qui passent par cet arrêt
+    const linesAtStop = {};
+    for (const tripId in tripUpdates) {
+        const tu = tripUpdates[tripId];
+        if (!tu || !tu.nextStops) continue;
+        // Y a-t-il un passage sur cet arrêt ?
+        const stopIdx = tu.nextStops.findIndex(s => (s.stopId || '').replace(/^0:/, '') === stopId.replace(/^0:/, ''));
+        if (stopIdx !== -1) {
+            const routeId = tu.routeId; // à adapter selon ton GTFS
+            if (!linesAtStop[routeId]) linesAtStop[routeId] = [];
+            // On ajoute ce passage
+            linesAtStop[routeId].push({
+                ...tu.nextStops[stopIdx],
+                tripId,
+                directionId: tu.directionId,
+                destination: stopNameMap[tu.lastStopId] || tu.lastStopId || "Destination inconnue"
+            });
+        }
+    }
+
+    // Génération du HTML pour chaque ligne
+    let popupHTML = `
+    <div style="font-family:'Segoe UI', 'League Spartan', Arial,sans-serif; min-width: 260px; max-width: 340px;">
+        <div style="font-size: 1.3rem; font-weight: bold; margin-bottom: 4px;">${stopName}</div>
+    `;
+
+    if (Object.keys(linesAtStop).length === 0) {
+        popupHTML += `<div style="color:#b00; font-size:1rem;">${t ? t("nostrip") : "Aucun passage à venir"}</div>`;
+    } else {
+        for (const routeId in linesAtStop) {
+            const bg = lineColors[routeId] || "#222";
+            const fg = getTextColorForBackground(bg);
+            const lineDisplay = lineName && lineName[routeId] ? lineName[routeId] : routeId;
+            popupHTML += `
+            <div style="
+                background: ${bg}cc;
+                color: ${fg};
+                border-radius: 9px;
+                margin-bottom: 7px;
+                box-shadow: 0 2px 10px ${bg}46;
+                padding: 8px 10px 7px 10px;
+                display: flex;
+                flex-direction: column;
+                ">
+                <div style="font-size: 1.1em; font-weight: bold; letter-spacing:0.5px; margin-bottom:3px;">
+                    ${t ? t("line") : "Ligne"} ${lineDisplay}
+                </div>
+                <div style="font-size: 0.98em; margin-bottom:6px;">
+                    ➜ ${linesAtStop[routeId][0].destination || (t ? t("unknownline") : "Terminus inconnu")}
+                </div>
+                <ul style="padding:0; margin:0; list-style:none;">
+            `;
+            // Tri par heure d'arrivée
+            const now = Math.floor(Date.now() / 1000);
+            linesAtStop[routeId].sort((a, b) => (a.arrivalTime || a.departureTime || 0) - (b.arrivalTime || b.departureTime || 0));
+            linesAtStop[routeId].forEach(stopPass => {
+                // On cherche le temps restant
+                const sched = stopPass.departureTime || stopPass.arrivalTime;
+                let schedStr = sched ? new Date(sched * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : "-";
+                let delayStr = "";
+                if (typeof stopPass.delay !== 'undefined' && stopPass.delay !== null) {
+                    if (stopPass.delay > 60) delayStr = `<span style="color:#ffca1a;">+${Math.round(stopPass.delay/60)} min</span>`;
+                    else if (stopPass.delay < -60) delayStr = `<span style="color:#39e600;">-${Math.round(-stopPass.delay/60)} min</span>`;
+                    else delayStr = `<span style="color:#4af;">${t ? t("imminent") : "Imminent"}</span>`;
+                }
+                popupHTML += `
+                <li style="display:flex; align-items:center; justify-content:space-between; padding:3px 0;">
+                    <span style="font-size:1.08em;">${schedStr}</span>
+                    <span style="font-size:0.97em; margin-left:6px;">${delayStr}</span>
+                </li>`;
+            });
+            popupHTML += `</ul></div>`;
+        }
+    }
+    popupHTML += `</div>`;
+
+    // Affichage popup
+    if (markerLayer && markerLayer.openPopup) {
+        markerLayer.bindPopup(popupHTML, { maxWidth: 340 }).openPopup();
+    } else {
+        L.popup({ maxWidth: 340 }).setLatLng(latlng).setContent(popupHTML).openOn(map);
+    }
+}
 
 function filterByLine(lineId) {
   const lineIndex = selectedLines.indexOf(lineId);
@@ -7847,9 +7987,11 @@ async function fetchTripUpdates() {
             }, 3000);
             
             worker.onmessage = (e) => {
-                tripUpdates = e.data.tripUpdates;
                 clearTimeout(workerTimeoutId);
                 const processTime = performance.now() - fetchStartTime;
+                
+                tripUpdates = e.data.tripUpdates;
+                
                 
                 resolve(e.data.tripUpdates);
                 fetchInProgress = false;
@@ -7880,718 +8022,6 @@ function scheduleFetchUpdates(timestamp) {
     requestAnimationFrame(scheduleFetchUpdates);
 }
 
-// Variables globales pour la gestion des popups et mises à jour
-let currentPopup = null;
-let currentStopId = null;
-let popupUpdateInterval = null;
-
-// Configuration pour la popup
-const POPUP_UPDATE_INTERVAL = 10000; // 10 secondes
-const MAX_DEPARTURES_DISPLAYED = 8;
-const TIME_HORIZON_MINUTES = 90; // Afficher les départs dans les 90 prochaines minutes
-
-/**
- * Fonction pour créer le contenu HTML de la popup avec style Fluent Design
- */
-function createPopupContent(stopId, stopName, departures) {
-    const now = new Date();
-    
-    // En-tête de la popup
-    let popupHTML = `
-        <div class="fluent-popup-container">
-            <div class="fluent-popup-header">
-                <div class="fluent-popup-title">
-                    <h3>${stopName || 'Arrêt de bus'}</h3>
-                    <span class="fluent-popup-subtitle">ID: ${stopId}</span>
-                </div>
-                <div class="fluent-popup-time">
-                    <span class="update-time">Mis à jour: ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                </div>
-            </div>
-            <div class="fluent-popup-content">
-    `;
-
-    if (!departures || departures.length === 0) {
-        popupHTML += `
-            <div class="no-departures">
-                <div class="fluent-icon">🚌</div>
-                <p>Aucun passage prévu dans les prochaines heures</p>
-            </div>
-        `;
-    } else {
-        popupHTML += '<div class="departures-list">';
-        
-        departures.slice(0, MAX_DEPARTURES_DISPLAYED).forEach((departure, index) => {
-            const delayClass = departure.delay > 60 ? 'delayed' : departure.delay < -60 ? 'early' : 'on-time';
-            const delayText = departure.delay > 60 ? `+${Math.floor(departure.delay / 60)}min` : 
-                             departure.delay < -60 ? `${Math.floor(departure.delay / 60)}min` : 'À l\'heure';
-            
-            const timeUntil = departure.minutesUntil;
-            let timeDisplay;
-            
-            if (timeUntil <= 0) {
-                timeDisplay = '<span class="time-now">Maintenant</span>';
-            } else if (timeUntil < 60) {
-                timeDisplay = `<span class="time-minutes">${timeUntil} min</span>`;
-            } else {
-                timeDisplay = `<span class="time-exact">${departure.time}</span>`;
-            }
-            
-            popupHTML += `
-                <div class="departure-item ${index === 0 ? 'next-departure' : ''}">
-                    <div class="departure-line">
-                        <span class="line-number" style="background-color: ${departure.lineColor || '#3388ff'}">
-                            ${departure.lineName || departure.routeId}
-                        </span>
-                        <div class="departure-details">
-                            <div class="departure-destination">${departure.destination || 'Destination inconnue'}</div>
-                            <div class="departure-info">
-                                ${timeDisplay}
-                                <span class="delay-info ${delayClass}">${delayText}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        popupHTML += '</div>';
-        
-        if (departures.length > MAX_DEPARTURES_DISPLAYED) {
-            popupHTML += `<div class="more-departures">... et ${departures.length - MAX_DEPARTURES_DISPLAYED} autres départs</div>`;
-        }
-    }
-
-    popupHTML += `
-            </div>
-            <div class="fluent-popup-footer">
-                <div class="auto-refresh-indicator">
-                    <span class="refresh-icon">🔄</span>
-                    <span>Mise à jour automatique toutes les 10s</span>
-                </div>
-            </div>
-        </div>
-    `;
-
-    return popupHTML;
-}
-
-/**
- * Styles CSS pour la popup avec design Fluent
- */
-function addFluentPopupStyles() {
-    if (document.getElementById('fluent-popup-styles')) return;
-    
-    const style = document.createElement('style');
-    style.id = 'fluent-popup-styles';
-    style.textContent = `
-        .fluent-popup-container {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            min-width: 320px;
-            max-width: 400px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            overflow: hidden;
-        }
-
-        .fluent-popup-header {
-            background: linear-gradient(135deg, #0078d4, #106ebe);
-            color: white;
-            padding: 16px;
-            position: relative;
-        }
-
-        .fluent-popup-title h3 {
-            margin: 0;
-            font-size: 18px;
-            font-weight: 600;
-            line-height: 1.2;
-        }
-
-        .fluent-popup-subtitle {
-            font-size: 12px;
-            opacity: 0.8;
-            font-weight: 400;
-        }
-
-        .fluent-popup-time {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            font-size: 11px;
-            opacity: 0.9;
-        }
-
-        .fluent-popup-content {
-            padding: 16px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .no-departures {
-            text-align: center;
-            padding: 24px;
-            color: #666;
-        }
-
-        .fluent-icon {
-            font-size: 32px;
-            margin-bottom: 12px;
-        }
-
-        .departures-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .departure-item {
-            background: rgba(255, 255, 255, 0.7);
-            border-radius: 8px;
-            padding: 12px;
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            transition: all 0.2s ease;
-        }
-
-        .departure-item:hover {
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .next-departure {
-            background: rgba(0, 120, 212, 0.1);
-            border-color: rgba(0, 120, 212, 0.2);
-        }
-
-        .departure-line {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .line-number {
-            background: #0078d4;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 16px;
-            font-weight: 600;
-            font-size: 12px;
-            min-width: 40px;
-            text-align: center;
-            flex-shrink: 0;
-        }
-
-        .departure-details {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .departure-destination {
-            font-weight: 500;
-            font-size: 14px;
-            color: #333;
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .departure-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
-        }
-
-        .time-now {
-            background: #d83b01;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 11px;
-        }
-
-        .time-minutes {
-            background: #107c10;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 11px;
-        }
-
-        .time-exact {
-            color: #666;
-            font-weight: 500;
-        }
-
-        .delay-info {
-            padding: 2px 6px;
-            border-radius: 8px;
-            font-size: 10px;
-            font-weight: 500;
-        }
-
-        .delay-info.on-time {
-            background: rgba(16, 124, 16, 0.1);
-            color: #107c10;
-        }
-
-        .delay-info.delayed {
-            background: rgba(216, 59, 1, 0.1);
-            color: #d83b01;
-        }
-
-        .delay-info.early {
-            background: rgba(0, 120, 212, 0.1);
-            color: #0078d4;
-        }
-
-        .more-departures {
-            text-align: center;
-            padding: 12px;
-            color: #666;
-            font-size: 12px;
-            font-style: italic;
-        }
-
-        .fluent-popup-footer {
-            background: rgba(0, 0, 0, 0.02);
-            padding: 12px 16px;
-            border-top: 1px solid rgba(0, 0, 0, 0.05);
-        }
-
-        .auto-refresh-indicator {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            font-size: 11px;
-            color: #666;
-        }
-
-        .refresh-icon {
-            animation: rotate 2s linear infinite;
-        }
-
-        @keyframes rotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        .leaflet-popup-content {
-            margin: 0 !important;
-        }
-
-        .leaflet-popup-content-wrapper {
-            padding: 0 !important;
-            border-radius: 12px !important;
-        }
-
-        .leaflet-popup-tip {
-            background: rgba(255, 255, 255, 0.95) !important;
-        }
-    `;
-    
-    document.head.appendChild(style);
-}
-
-/**
- * Fonction pour obtenir les prochains départs pour un arrêt donné
- */
-function getNextDepartures(stopId) {
-    const now = Date.now() / 1000;
-    const maxTime = now + (TIME_HORIZON_MINUTES * 60);
-    
-    const departures = [];
-    
-    // Debug
-    console.debug(`Recherche des départs pour l'arrêt: ${stopId}`);
-    console.debug(`Trip updates disponibles: ${Object.keys(tripUpdates).length}`);
-    
-    // Parcourir tous les trip updates
-    Object.values(tripUpdates).forEach(tripUpdate => {
-        // Vérification de la structure correcte selon le format GTFS-RT
-        if (!tripUpdate.stopTimeUpdate || !Array.isArray(tripUpdate.stopTimeUpdate)) {
-            console.debug('Structure tripUpdate incorrecte:', tripUpdate);
-            return;
-        }
-        
-        // Chercher cet arrêt dans les mises à jour de ce trip
-        tripUpdate.stopTimeUpdate.forEach(stopTimeUpdate => {
-            // Comparaison flexible du stop_id (avec ou sans préfixe)
-            const updateStopId = stopTimeUpdate.stopId;
-            const cleanUpdateStopId = updateStopId ? updateStopId.replace(/^0:/, '') : '';
-            const cleanTargetStopId = stopId ? stopId.replace(/^0:/, '') : '';
-            
-            if (updateStopId === stopId || 
-                cleanUpdateStopId === cleanTargetStopId ||
-                updateStopId === `0:${stopId}` ||
-                stopId === `0:${updateStopId}`) {
-                
-                console.debug(`Correspondance trouvée: ${updateStopId} <-> ${stopId}`);
-                console.debug('TripUpdate complet:', tripUpdate);
-                
-                // Calculer le temps de départ à partir du timestamp GTFS-RT
-                let departureTimestamp = null;
-                let departureTime = null;
-                
-                if (stopTimeUpdate.departure && stopTimeUpdate.departure.time) {
-                    // Le timestamp est en secondes Unix
-                    departureTimestamp = parseInt(stopTimeUpdate.departure.time);
-                    const departureDate = new Date(departureTimestamp * 1000);
-                    departureTime = departureDate.toLocaleTimeString('fr-FR', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                    });
-                } else if (stopTimeUpdate.arrival && stopTimeUpdate.arrival.time) {
-                    // Utiliser l'heure d'arrivée si pas de départ
-                    departureTimestamp = parseInt(stopTimeUpdate.arrival.time);
-                    const departureDate = new Date(departureTimestamp * 1000);
-                    departureTime = departureDate.toLocaleTimeString('fr-FR', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                    });
-                }
-                
-                // Vérifier si le départ est dans notre fenêtre de temps
-                if (departureTimestamp && departureTimestamp <= maxTime && departureTimestamp >= now - 60) {
-                    const minutesUntil = Math.max(0, Math.floor((departureTimestamp - now) / 60));
-                    
-                    // Extraire les informations de la ligne depuis la structure trip
-                    const routeId = tripUpdate.trip ? tripUpdate.trip.routeId : null;
-                    const tripId = tripUpdate.trip ? tripUpdate.trip.tripId : null;
-                    
-                    // Utiliser les données GTFS statiques pour les couleurs et noms
-                    const lineColor = (window.lineColors && window.lineColors[routeId]) || '#3388ff';
-                    const lineName = (window.lineName && window.lineName[routeId]) || routeId || 'Ligne inconnue';
-                    
-                    // Obtenir la destination depuis les données GTFS statiques ou le dernier arrêt
-                    const destination = getDestinationForTrip(tripUpdate, tripId, routeId);
-                    
-                    // Calculer le retard (si disponible)
-                    let delay = 0;
-                    if (stopTimeUpdate.departure && stopTimeUpdate.departure.delay) {
-                        delay = stopTimeUpdate.departure.delay;
-                    } else if (stopTimeUpdate.arrival && stopTimeUpdate.arrival.delay) {
-                        delay = stopTimeUpdate.arrival.delay;
-                    }
-                    
-                    departures.push({
-                        time: departureTime,
-                        timestamp: departureTimestamp,
-                        minutesUntil: minutesUntil,
-                        delay: delay,
-                        routeId: routeId,
-                        lineName: lineName,
-                        lineColor: lineColor,
-                        destination: destination,
-                        tripId: tripId
-                    });
-                    
-                    console.debug(`Départ ajouté: ${departureTime} - Ligne ${lineName} vers ${destination}`);
-                }
-            }
-        });
-    });
-    
-    // Trier par heure de départ
-    departures.sort((a, b) => a.timestamp - b.timestamp);
-    
-    console.debug(`${departures.length} départs trouvés pour l'arrêt ${stopId}`);
-    return departures;
-}
-
-/**
- * Fonction améliorée pour obtenir la destination d'un trip
- */
-function getDestinationForTrip(tripUpdate, tripId, routeId) {
-    // Méthode 1: Chercher dans une map des destinations par trip (si elle existe)
-    if (window.tripDestinations && window.tripDestinations[tripId]) {
-        return window.tripDestinations[tripId];
-    }
-    
-    // Méthode 2: Chercher le dernier arrêt de ce trip dans les données GTFS-RT
-    if (tripUpdate.stopTimeUpdate && tripUpdate.stopTimeUpdate.length > 0) {
-        // Prendre le dernier arrêt de la liste
-        const lastStopUpdate = tripUpdate.stopTimeUpdate[tripUpdate.stopTimeUpdate.length - 1];
-        if (lastStopUpdate.stopId && window.stopNameMap && window.stopNameMap[lastStopUpdate.stopId]) {
-            return window.stopNameMap[lastStopUpdate.stopId];
-        }
-    }
-    
-    // Méthode 3: Utiliser une destination par défaut basée sur la ligne et la direction
-    if (routeId && tripUpdate.trip && tripUpdate.trip.directionId !== undefined) {
-        const direction = tripUpdate.trip.directionId;
-        const destinationKey = `${routeId}_${direction}`;
-        
-        if (window.routeDestinations && window.routeDestinations[destinationKey]) {
-            return window.routeDestinations[destinationKey];
-        }
-    }
-    
-    // Méthode 4: Chercher dans les données de trip statiques si disponibles
-    if (window.tripHeadsigns && window.tripHeadsigns[tripId]) {
-        return window.tripHeadsigns[tripId];
-    }
-    
-    // Fallback: destination générique
-    return `Ligne ${routeId || 'inconnue'}`;
-}
-
-/**
- * Fonction pour mettre à jour le contenu de la popup
- */
-function updatePopupContent() {
-    if (!currentPopup || !currentStopId) return;
-    
-    try {
-        // Récupérer le nom de l'arrêt depuis stopNameMap
-        const stopName = (window.stopNameMap && window.stopNameMap[currentStopId]) ? 
-                        window.stopNameMap[currentStopId] : 
-                        (window.stopNameMap && window.stopNameMap[`0:${currentStopId}`]) ?
-                        window.stopNameMap[`0:${currentStopId}`] :
-                        `Arrêt ${currentStopId}`;
-        
-        const departures = getNextDepartures(currentStopId);
-        const newContent = createPopupContent(currentStopId, stopName, departures);
-        
-        currentPopup.setContent(newContent);
-        
-        console.debug(`Popup mise à jour pour l'arrêt ${currentStopId} (${stopName}) - ${departures.length} départs trouvés`);
-    } catch (error) {
-        console.error('Erreur lors de la mise à jour de la popup:', error);
-    }
-}
-
-/**
- * Fonction pour gérer le clic sur un arrêt
- */
-function onBusStopClick(layer) {
-    // Essayer différentes propriétés possibles pour le stop_id
-    const properties = layer.feature.properties;
-    let stopId = properties.stop_id || 
-                 properties.stopId || 
-                 properties.id || 
-                 properties.stop_code ||
-                 properties.code;
-    
-    // Debug : afficher toutes les propriétés disponibles
-    console.debug('Propriétés de l\'arrêt:', properties);
-    
-    if (!stopId) {
-        console.warn('Stop ID non trouvé pour cet arrêt. Propriétés disponibles:', Object.keys(properties));
-        
-        // Fallback: utiliser les coordonnées comme identifiant temporaire
-        const latlng = layer.getLatLng();
-        stopId = `temp_${latlng.lat.toFixed(6)}_${latlng.lng.toFixed(6)}`;
-        console.warn(`Utilisation d'un ID temporaire: ${stopId}`);
-    }
-    
-    // Nettoyer l'ID si nécessaire (enlever les préfixes comme "0:")
-    if (typeof stopId === 'string' && stopId.includes(':')) {
-        stopId = stopId.split(':').pop();
-    }
-    
-    // Nettoyer l'ancien interval si nécessaire
-    if (popupUpdateInterval) {
-        clearInterval(popupUpdateInterval);
-        popupUpdateInterval = null;
-    }
-    
-    // Mettre à jour les variables globales
-    currentStopId = stopId;
-    
-    // Créer le contenu initial de la popup avec nom correct
-    const stopName = (window.stopNameMap && window.stopNameMap[stopId]) ? 
-                    window.stopNameMap[stopId] : 
-                    (window.stopNameMap && window.stopNameMap[`0:${stopId}`]) ?
-                    window.stopNameMap[`0:${stopId}`] :
-                    properties.stop_name || properties.name || `Arrêt ${stopId}`;
-    
-    const departures = getNextDepartures(stopId);
-    const popupContent = createPopupContent(stopId, stopName, departures);
-    
-    // Créer et afficher la popup
-    currentPopup = L.popup({
-        maxWidth: 420,
-        className: 'fluent-bus-popup'
-    })
-    .setLatLng(layer.getLatLng())
-    .setContent(popupContent)
-    .openOn(map);
-    
-    // Gérer la fermeture de la popup
-    currentPopup.on('remove', function() {
-        if (popupUpdateInterval) {
-            clearInterval(popupUpdateInterval);
-            popupUpdateInterval = null;
-        }
-        currentPopup = null;
-        currentStopId = null;
-    });
-    
-    // Démarrer la mise à jour automatique
-    popupUpdateInterval = setInterval(updatePopupContent, POPUP_UPDATE_INTERVAL);
-    
-    console.debug(`Popup ouverte pour l'arrêt ${stopId} (${stopName}) - ${departures.length} départs trouvés`);
-}
-
-/**
- * Version améliorée pour les arrêts avec gestion des clics et debug
- */
-async function enhancedLoadGeoJsonLines() {
-    const response = await fetch('proxy-cors/proxy_geojson.php');
-    const geoJsonData = await response.json();
-    // Ajouter les styles CSS
-    addFluentPopupStyles();
-    
-    // Votre code existant pour les lignes (inchangé)
-    const busLines = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry.type === 'LineString';
-        },
-        style: function(feature) {
-            return {
-                color: lineColors[feature.properties.route_id] || '#3388ff',
-                weight: 6,
-                opacity: 0.7,  
-                lineJoin: 'round',
-                lineCap: 'round',
-                className: 'bus-line', 
-                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
-            };
-        },
-        onEachFeature: function(feature, layer) {
-            if (feature.properties && feature.properties.route_id) {
-                geoJsonLines.push(layer);
-            }
-        }
-    }).addTo(map);
-    
-    // Version améliorée pour les arrêts avec debug et gestion des clics
-    const busStops = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry && feature.geometry.type === 'Point';
-        },
-        pointToLayer: function(feature, latlng) {
-            // Debug : afficher les propriétés du premier arrêt pour comprendre la structure
-            if (!window.debugStopPropertiesShown) {
-                console.log('Structure des propriétés d\'arrêt (premier arrêt):', feature.properties);
-                window.debugStopPropertiesShown = true;
-            }
-            
-            return L.circleMarker(latlng, {
-                radius: 4,
-                fillColor: '#ffffff',
-                color: '#000000',
-                weight: 1,
-                opacity: 0.8,
-                fillOpacity: 0.7,
-                className: 'bus-stop-marker'
-            });
-        },
-        onEachFeature: function(feature, layer) {
-            // Ajouter le gestionnaire de clic
-            layer.on('click', function(e) {
-                onBusStopClick(layer);
-            });
-            
-            // Effet de survol avec nom d'arrêt si disponible
-            layer.on('mouseover', function(e) {
-                layer.setStyle({
-                    radius: 6,
-                    weight: 2,
-                    fillOpacity: 1
-                });
-                
-                // Afficher un tooltip temporaire avec le nom si disponible
-                const properties = feature.properties;
-                const stopId = properties.stop_id || properties.stopId || properties.id;
-                const stopName = (window.stopNameMap && stopId && window.stopNameMap[stopId]) || 
-                               properties.stop_name || properties.name || 'Arrêt de bus';
-                
-                layer.bindTooltip(stopName, {
-                    permanent: false,
-                    direction: 'top',
-                    offset: [0, -10]
-                }).openTooltip();
-            });
-            
-            layer.on('mouseout', function(e) {
-                layer.setStyle({
-                    radius: 4,
-                    weight: 1,
-                    fillOpacity: 0.7
-                });
-                layer.closeTooltip();
-            });
-        }
-    }).addTo(map);
-    
-    // Votre code existant pour busStopLayers
-    busStops.eachLayer(function(layer) {
-        if (layer.feature && layer.feature.properties) {
-            layer.busLine = layer.feature.properties.route_id || null;
-            busStopLayers.push(layer);
-        }
-    });
-    
-    console.log(`Chargé ${busStops.getLayers().length} arrêts de bus`);
-}
-
-/**
- * Fonction pour démarrer le système de mise à jour automatique des trip updates
- */
-function startTripUpdatesSystem() {
-    // Première récupération
-    fetchTripUpdates().then(() => {
-        console.log('Système de trip updates initialisé');
-    }).catch(error => {
-        console.error('Erreur lors de l\'initialisation des trip updates:', error);
-    });
-    
-    // Mise à jour périodique (toutes les 8 secondes comme dans votre code existant)
-    setInterval(() => {
-        fetchTripUpdates().catch(error => {
-            console.error('Erreur lors de la mise à jour des trip updates:', error);
-        });
-    }, FETCH_INTERVAL);
-}
-
-/**
- * Fonction d'initialisation principale à appeler après le chargement des données GTFS
- */
-function initializeBusStopPopupSystem() {
-    console.log('Initialisation du système de popup des arrêts de bus...');
-    
-    // Démarrer le système de trip updates
-    startTripUpdatesSystem();
-    
-    console.log('Système de popup des arrêts initialisé avec succès');
-}
-
-/**
- * Fonction utilitaire pour créer une map des destinations par ligne et direction
- * À appeler après le chargement des données GTFS statiques
- */
-function buildRouteDestinationsMap() {
-    if (!window.stopNameMap) {
-        console.warn('stopNameMap non disponible pour construire les destinations');
-        return;
-    }
-    
-    // Cette fonction peut être enrichie avec les données de trips.txt et stop_times.txt
-    // Pour l'instant, on peut utiliser une approche basique
-    window.routeDestinations = window.routeDestinations || {};
-    
-    console.log('Map des destinations des lignes construite');
-}
-
 
 async function main() {
     try {
@@ -8600,12 +8030,11 @@ async function main() {
         const gtfsData = await initializeGTFS();
         gtfsInitialized = true;
         
-        await enhancedLoadGeoJsonLines();
+        await loadGeoJsonLines();
         
         await Promise.all([
             fetchTripUpdates().catch(console.error),
             fetchVehiclePositions(),
-            initializeBusStopPopupSystem(),
             hideLoadingScreen()
         ]);
         
