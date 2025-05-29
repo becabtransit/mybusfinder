@@ -4049,137 +4049,159 @@ async function loadGeoJsonLines() {
         }
     }).addTo(map);
     
-    busStops.eachLayer(function(layer) {
-        if (layer.feature && layer.feature.properties) {
-            layer.busLine = layer.feature.properties.route_id || null;
-            busStopLayers.push(layer);
+busStops.eachLayer(function(layer) {
+    if (layer.feature && layer.feature.properties) {
+        layer.busLine = layer.feature.properties.route_id || null;
+        busStopLayers.push(layer);
 
-            // Ajout de la popup dynamique sur chaque arrêt
-            layer.on('click', async function(e) {
+        layer.on('click', async function(e) {
+            const stopFeature = layer.feature;
+            const stopId = stopFeature.properties.stop_id?.replace(/^0:/, "") || null;
+            const stopName = stopFeature.properties.stop_name || stopNameMap?.[stopId] || stopId || "Arrêt inconnu";
+            let popupContent = "";
+            let linesAtStop = new Set();
+            let arrivalsByLine = {};
 
-                const stopFeature = layer.feature;
-                const stopId = stopFeature.properties.id;
-                const normStopId = (stopId || "").replace(/^0:/, "");
-                let stopName = "";
-                if (stopFeature.properties && stopFeature.properties.stop_name) {
-                    stopName = stopFeature.properties.stop_name;
-                } else if (typeof stopNameMap !== "undefined" && stopNameMap[normStopId]) {
-                    stopName = stopNameMap[normStopId];
-                } else if (typeof stopNameMap !== "undefined" && stopNameMap[stopId]) {
-                    stopName = stopNameMap[stopId];
-                } else {
-                    stopName = stopId;
+            // Fallbacks multi-niveaux
+            function fallback(value, ...fallbacks) {
+                if (value !== undefined && value !== null && value !== "") return value;
+                for (const fb of fallbacks) {
+                    if (fb !== undefined && fb !== null && fb !== "") return fb;
                 }
-                let popupContent = "";
+                return null;
+            }
 
-                // Trouver les lignes qui passent par cet arrêt
-                // Suppose que tu as un mapping stopId -> [routeIds] à générer au chargement, sinon parcours toutes les trips dynamiquement :
-                let linesAtStop = new Set();
-                let arrivalsByLine = {};
-
-                // On parcourt tous les trips actifs pour trouver les passages à cet arrêt
+            // 1. Essayer de récupérer via tripUpdates (temps réel)
+            if (window.tripUpdates && Object.keys(tripUpdates).length > 0) {
                 for (const tripId in tripUpdates) {
                     const update = tripUpdates[tripId];
                     if (!update || !update.routeId || !update.nextStops) continue;
-
-                    // nextStops = liste d'arrêts à venir pour ce trip
-                    const stopInfo = update.nextStops.find(st => (st.stopId||"").replace(/^0:/, "") === stopId.replace(/^0:/, ""));
-                    if (stopInfo) {
+                    // Fallback sur stopId
+                    const nextStopObj = update.nextStops.find(st => st.stopId?.replace(/^0:/, "") === stopId);
+                    if (nextStopObj) {
                         if (!arrivalsByLine[update.routeId]) arrivalsByLine[update.routeId] = [];
                         arrivalsByLine[update.routeId].push({
-                            ...stopInfo,
+                            ...nextStopObj,
                             tripId,
                             trip: update,
-                            vehicleId: update.vehicleId // optionnel si dispo
+                            vehicleId: update.vehicleId
                         });
                         linesAtStop.add(update.routeId);
                     }
                 }
+            }
 
-                // Construction du HTML de la popup
-                popupContent += `
-                <div style="font-family: 'League Spartan', sans-serif; font-size: 15px; width: 320px;">
-                    <div style="font-size: 22px; font-weight: 700; margin-bottom: 4px; text-align: center;">
-                        🛑 ${stopName}
-                    </div>
-                `;
+            // 2. Fallback si tripUpdates vide : chercher dans une map statique GTFS stop_times si dispo
+            // suppose une variable globale stopTimesByStopId: { [stopId]: [ {tripId, routeId, arrivalTime, departureTime} ] }
+            if (linesAtStop.size === 0 && window.stopTimesByStopId && stopTimesByStopId[stopId]) {
+                stopTimesByStopId[stopId].forEach(st => {
+                    if (!arrivalsByLine[st.routeId]) arrivalsByLine[st.routeId] = [];
+                    arrivalsByLine[st.routeId].push(st);
+                    linesAtStop.add(st.routeId);
+                });
+            }
 
-                if (linesAtStop.size === 0) {
-                    popupContent += `<div style="text-align:center; margin-top: 10px;">${t("nopassage") || "Aucun passage prévu prochainement."}</div>`;
-                } else {
-                    // Affichage par ligne
-                    linesAtStop.forEach(routeId => {
-                        const color = lineColors[routeId] || "#3388ff";
-                        const dest = (arrivalsByLine[routeId][0]?.trip?.lastStopId && stopNameMap[arrivalsByLine[routeId][0].trip.lastStopId])
-                            ? stopNameMap[arrivalsByLine[routeId][0].trip.lastStopId]
-                            : (arrivalsByLine[routeId][0]?.trip?.headsign || t("unknownline"));
-
-                        // Trier les prochains passages par heure (croissante)
-                        const sortedArrivals = arrivalsByLine[routeId].sort((a, b) => {
-                            const tA = a.departureTime || a.arrivalTime || 0;
-                            const tB = b.departureTime || b.arrivalTime || 0;
-                            return tA - tB;
+            // 3. Fallback extrême: si rien, essayer de matcher par nom d’arrêt (attention : non unique !)
+            if (linesAtStop.size === 0 && window.stopTimesByStopId) {
+                for (const sid in stopTimesByStopId) {
+                    const arr = stopTimesByStopId[sid];
+                    if (arr && arr.length && (stopNameMap?.[sid] === stopName || arr[0]?.stop_name === stopName)) {
+                        arr.forEach(st => {
+                            if (!arrivalsByLine[st.routeId]) arrivalsByLine[st.routeId] = [];
+                            arrivalsByLine[st.routeId].push(st);
+                            linesAtStop.add(st.routeId);
                         });
-
-                        popupContent += `
-                        <div style="margin-top: 8px; margin-bottom: 2px; border-radius: 8px; background:${color}22; padding: 7px 8px;">
-                            <div style="font-size:17px; font-weight: bold; margin-bottom:2px; color:${color};">
-                                ${t("line") || "Ligne"} ${lineName[routeId] || routeId}
-                            </div>
-                            <div style="font-size:13px; margin-bottom:3px; color:#555;">
-                                ➜ ${dest}
-                            </div>
-                            <ul style="padding-left: 10px; margin: 0; list-style: none;">
-                        `;
-                        // Limite à 4 prochains passages
-                        sortedArrivals.slice(0, 4).forEach(arrival => {
-                            // Calcul du temps restant
-                            const now = Math.floor(Date.now() / 1000);
-                            let eta = "";
-                            if (arrival.delay !== null && arrival.delay !== undefined) {
-                                eta = arrival.delay <= 0 ? t("imminent") || "Imminent" : `${Math.ceil(arrival.delay / 60)} min`;
-                            } else if (arrival.departureTime) {
-                                const mins = Math.max(0, Math.round((arrival.departureTime - now) / 60));
-                                eta = mins === 0 ? t("imminent") || "Imminent" : `${mins} min`;
-                            } else {
-                                eta = t("unknown") || "?";
-                            }
-                            // Heure prévue
-                            let sched = "";
-                            if (arrival.departureTime) {
-                                const date = new Date(arrival.departureTime * 1000);
-                                sched = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                            } else if (arrival.arrivalTime) {
-                                const date = new Date(arrival.arrivalTime * 1000);
-                                sched = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                            }
-
-                            popupContent += `
-                            <li style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-                                <span style="max-width: 60%;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;">
-                                    <b>${sched}</b>
-                                </span>
-                                <span style="font-variant-numeric: tabular-nums; margin-left: 10px; color:#222;">
-                                    ${eta}
-                                </span>
-                            </li>
-                            `;
-                        });
-
-                        popupContent += `
-                            </ul>
-                        </div>`;
-                    });
+                    }
                 }
+            }
 
-                popupContent += `</div>`;
+            // 4. Construction du HTML
+            popupContent += `
+            <div style="font-family: 'League Spartan', sans-serif; font-size: 15px; width: 320px;">
+                <div style="font-size: 22px; font-weight: 700; margin-bottom: 4px; text-align: center;">
+                    🛑 ${stopName}
+                </div>
+            `;
 
-                // Affiche la popup
-                layer.bindPopup(popupContent, {maxWidth: 350, minWidth: 210, autoPan: true}).openPopup();
-            });
-        }
-    });
-    
+            if (linesAtStop.size === 0) {
+                popupContent += `<div style="text-align:center; margin-top: 10px;">Aucun passage prévu ou données horaires indisponibles.</div>`;
+            } else {
+                linesAtStop.forEach(routeId => {
+                    const color = fallback(lineColors?.[routeId], "#3388ff");
+                    const lineLabel = fallback(lineName?.[routeId], routeId, "Ligne ?");
+                    // Destination la plus fréquente ou via trip/headsign
+                    let dest = null;
+                    if (arrivalsByLine[routeId][0]?.trip?.lastStopId) {
+                        dest = fallback(stopNameMap?.[arrivalsByLine[routeId][0].trip.lastStopId], arrivalsByLine[routeId][0].trip.headsign, "Terminus inconnu");
+                    } else {
+                        dest = fallback(arrivalsByLine[routeId][0]?.headsign, "Terminus inconnu");
+                    }
+
+                    // Trier les passages par heure prévue (croissante)
+                    const sortedArrivals = arrivalsByLine[routeId].sort((a, b) => {
+                        const tA = fallback(a.departureTime, a.arrivalTime, 0);
+                        const tB = fallback(b.departureTime, b.arrivalTime, 0);
+                        return tA - tB;
+                    });
+
+                    popupContent += `
+                    <div style="margin-top: 8px; margin-bottom: 2px; border-radius: 8px; background:${color}22; padding: 7px 8px;">
+                        <div style="font-size:17px; font-weight: bold; margin-bottom:2px; color:${color};">
+                            ${t("line") || "Ligne"} ${lineLabel}
+                        </div>
+                        <div style="font-size:13px; margin-bottom:3px; color:#555;">
+                            ➜ ${dest}
+                        </div>
+                        <ul style="padding-left: 10px; margin: 0; list-style: none;">
+                    `;
+                    // Afficher jusqu'à 5 passages
+                    sortedArrivals.slice(0, 5).forEach(arrival => {
+                        // Heure prévue et ETA
+                        const now = Math.floor(Date.now() / 1000);
+                        let sched = "";
+                        let eta = "";
+                        const baseTime = fallback(arrival.departureTime, arrival.arrivalTime, null);
+                        if (baseTime) {
+                            const date = new Date(baseTime * 1000);
+                            sched = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                            const mins = Math.max(0, Math.round((baseTime - now) / 60));
+                            eta = mins === 0 ? t("imminent") || "Imminent" : `${mins} min`;
+                        } else {
+                            sched = "?";
+                            eta = t("unknown") || "?";
+                        }
+                        // Si delay dispo (temps réel), prioritaire
+                        if (arrival.delay !== undefined && arrival.delay !== null) {
+                            eta = arrival.delay <= 0 ? t("imminent") || "Imminent" : `${Math.ceil(arrival.delay / 60)} min`;
+                        }
+                        let veh = "";
+                        if (arrival.trip?.vehicleId || arrival.vehicleId || arrival.vehicle?.id) {
+                            veh = `<span class="veh-id" style="background:#3331;color:#333;font-size:11px;border-radius:5px;padding:1px 5px; margin-left:7px;">#${arrival.trip?.vehicleId || arrival.vehicleId || arrival.vehicle?.id}</span>`;
+                        }
+                        popupContent += `
+                        <li style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                            <span style="max-width: 60%;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;">
+                                <b>${sched}</b>
+                                ${veh}
+                            </span>
+                            <span style="font-variant-numeric: tabular-nums; margin-left: 10px; color:#222;">
+                                ${eta}
+                            </span>
+                        </li>
+                        `;
+                    });
+
+                    popupContent += `
+                        </ul>
+                    </div>`;
+                });
+            }
+
+            popupContent += `</div>`;
+            layer.bindPopup(popupContent, {maxWidth: 350, minWidth: 210, autoPan: true}).openPopup();
+        });
+    }
+});    
 }
 
 
