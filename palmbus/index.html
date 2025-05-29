@@ -5222,6 +5222,124 @@ async function fetchVehiclePositions() {
                 }
 
 
+// Configuration du zoom pour la vue minimale
+const MINIMAL_VIEW_ZOOM_THRESHOLD = 15; // Seuil de zoom pour afficher la vue minimale
+let currentZoomLevel = map.getZoom();
+
+// Fonction pour créer la popup minimale
+function createMinimalPopup(vehicle, line, lastStopName) {
+    const backgroundColor = lineColors[line] || '#000000';
+    const textColor = getOptimalTextColor(backgroundColor);
+    
+    return `
+        <div class="minimal-popup" style="
+            font-family: 'League Spartan', sans-serif; 
+            font-size: 12px; 
+            color: ${textColor}; 
+            background-color: ${backgroundColor}cc; 
+            backdrop-filter: blur(4px); 
+            -webkit-backdrop-filter: blur(4px);
+            border-radius: 8px; 
+            padding: 8px 12px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            cursor: pointer;
+            white-space: nowrap;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        ">
+            <div style="font-weight: bold; font-size: 14px; margin-bottom: 2px;">
+                ${t("line")} ${lineName[line] || t("unknownline")} • ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
+            </div>
+            <div style="font-size: 11px; opacity: 0.9;">
+                ➜ ${lastStopName}
+            </div>
+        </div>
+    `;
+}
+
+// Fonction pour gérer l'affichage des popups selon le zoom
+function updatePopupDisplay() {
+    currentZoomLevel = map.getZoom();
+    const showMinimal = currentZoomLevel >= MINIMAL_VIEW_ZOOM_THRESHOLD;
+    
+    Object.values(markers).forEach(marker => {
+        if (!marker.minimalPopup && showMinimal && !marker.isPopupOpen()) {
+            // Créer et afficher la popup minimale
+            const vehicleData = marker.vehicleData;
+            if (vehicleData) {
+                const minimalContent = createMinimalPopup(
+                    vehicleData.vehicle, 
+                    marker.line, 
+                    vehicleData.lastStopName
+                );
+                
+                marker.minimalPopup = L.popup({
+                    closeButton: false,
+                    autoClose: false,
+                    closeOnClick: false,
+                    closeOnEscapeKey: false,
+                    className: 'minimal-popup-container',
+                    offset: [0, -10]
+                }).setContent(minimalContent);
+                
+                marker.bindPopup(marker.minimalPopup);
+                marker.openPopup();
+            }
+        } else if (marker.minimalPopup && (!showMinimal || marker.isPopupOpen())) {
+            // Masquer la popup minimale
+            if (marker.isPopupOpen() && marker.getPopup() === marker.minimalPopup) {
+                marker.closePopup();
+            }
+            marker.minimalPopup = null;
+        }
+    });
+}
+
+// Fonction utilitaire pour calculer la couleur de texte optimale (déplacée ici pour éviter la duplication)
+function getOptimalTextColor(color) {
+    if (!color) return '#000000';
+    
+    color = color.trim();
+    let r, g, b, a = 1;
+    
+    if (/^#([a-f\d])([a-f\d])([a-f\d])$/i.test(color)) {
+        color = color.replace(/^#([a-f\d])([a-f\d])([a-f\d])$/i,
+        (_, r, g, b) => '#' + r + r + g + g + b + b);
+    }
+    
+    const hexMatch = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i);
+    
+    if (!hexMatch) return '#000000'; 
+    
+    r = parseInt(hexMatch[1], 16);
+    g = parseInt(hexMatch[2], 16);
+    b = parseInt(hexMatch[3], 16);
+    
+    if (hexMatch[4]) {
+        a = parseInt(hexMatch[4], 16) / 255;
+    }
+    
+    if (a < 1) {
+        r = Math.round((1 - a) * 255 + a * r);
+        g = Math.round((1 - a) * 255 + a * g);
+        b = Math.round((1 - a) * 255 + a * b);
+    }
+    
+    const srgb = [r, g, b].map(c => {
+        const v = c / 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    
+    const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+    
+    const contrastBlack = (luminance + 0.05) / 0.05;
+    const contrastWhite = 1.05 / (luminance + 0.05);
+    
+    return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
+}
+
+// Code principal modifié
 const popupContent = `
     <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
        
@@ -5341,98 +5459,18 @@ const popupContent = `
     </div>
 `;
 
-// Vue minimale - économe en mémoire
-const minimalPopupContent = `
-    <div style="
-        font-family: 'League Spartan', sans-serif; 
-        font-size: 12px; 
-        color: ${textColor}; 
-        background: ${backgroundColor}cc; 
-        backdrop-filter: blur(6px); 
-        -webkit-backdrop-filter: blur(6px);
-        border-radius: 8px; 
-        padding: 6px 10px; 
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        cursor: pointer;
-        min-width: 120px;
-        text-align: center;
-    " onclick="openFullPopup_${id}()">
-        <div style="font-weight: bold; font-size: 14px; margin-bottom: 2px;">
-            ${t("line")} ${lineName[line] || t("unknownline")}
-        </div>
-        <div style="font-size: 11px; opacity: 0.9; margin-bottom: 2px;">
-            ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
-        </div>
-        <div style="font-size: 10px; opacity: 0.8;">
-            ➜ ${lastStopName}
-        </div>
-    </div>
-`;
-
-// Fonction pour ouvrir la popup complète (ajoutée globalement)
-window[`openFullPopup_${id}`] = function() {
-    if (markers[id]) {
-        // Fermer la vue minimale
-        if (markers[id]._minimalPopup) {
-            markers[id]._minimalPopup.remove();
-            markers[id]._minimalPopup = null;
-        }
-        // Ouvrir la popup complète
-        markers[id].openPopup();
-    }
-};
-
-// Fonction pour gérer l'affichage des vues minimales selon le zoom
-function updateMinimalPopups() {
-    const currentZoom = map.getZoom();
-    const showMinimal = currentZoom >= 15; // Seuil de zoom pour afficher les vues minimales
-    
-    Object.keys(markers).forEach(markerId => {
-        const marker = markers[markerId];
-        if (!marker || !map.hasLayer(marker)) return;
-        
-        // Si la popup normale est ouverte, ne pas afficher la vue minimale
-        if (marker.isPopupOpen()) {
-            if (marker._minimalPopup) {
-                marker._minimalPopup.remove();
-                marker._minimalPopup = null;
-            }
-            return;
-        }
-        
-        if (showMinimal) {
-            // Créer ou mettre à jour la vue minimale
-            if (!marker._minimalPopup) {
-                marker._minimalPopup = L.popup({
-                    closeButton: false,
-                    autoClose: false,
-                    closeOnClick: false,
-                    className: 'minimal-popup',
-                    offset: [0, -10]
-                })
-                .setLatLng(marker.getLatLng())
-                .setContent(minimalPopupContent)
-                .openOn(map);
-            }
-        } else {
-            // Supprimer la vue minimale si le zoom est trop faible
-            if (marker._minimalPopup) {
-                marker._minimalPopup.remove();
-                marker._minimalPopup = null;
-            }
-        }
-    });
-}
-
-// Écouter les changements de zoom
-map.on('zoomend', updateMinimalPopups);
-
 if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
     
     if (!markers[id].id) {
         markers[id].id = id;
     }
+    
+    // Stocker les données du véhicule pour la popup minimale
+    markers[id].vehicleData = {
+        vehicle: vehicle,
+        lastStopName: lastStopName
+    };
     
     if (markers[id].line !== line) {
         const oldLine = markers[id].line;
@@ -5461,50 +5499,6 @@ if (markers[id]) {
                 
                 menubtm.style.backgroundColor = `${color}9c`;
                 filtre.style.backgroundColor = `${color}9c`;
-
-                
-                function getOptimalTextColor(color) {
-                if (!color) return '#000000';
-
-                color = color.trim();
-
-                let r, g, b, a = 1;
-
-                if (/^#([a-f\d])([a-f\d])([a-f\d])$/i.test(color)) {
-                    color = color.replace(/^#([a-f\d])([a-f\d])([a-f\d])$/i,
-                    (_, r, g, b) => '#' + r + r + g + g + b + b);
-                }
-
-                const hexMatch = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i);
-
-                if (!hexMatch) return '#000000'; 
-
-                r = parseInt(hexMatch[1], 16);
-                g = parseInt(hexMatch[2], 16);
-                b = parseInt(hexMatch[3], 16);
-
-                if (hexMatch[4]) {
-                    a = parseInt(hexMatch[4], 16) / 255;
-                }
-
-                if (a < 1) {
-                    r = Math.round((1 - a) * 255 + a * r);
-                    g = Math.round((1 - a) * 255 + a * g);
-                    b = Math.round((1 - a) * 255 + a * b);
-                }
-
-                const srgb = [r, g, b].map(c => {
-                    const v = c / 255;
-                    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-                });
-
-                const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
-
-                const contrastBlack = (luminance + 0.05) / 0.05;
-                const contrastWhite = 1.05 / (luminance + 0.05);
-
-                return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
-                }
 
                 const textColor = getOptimalTextColor(color);
                 
@@ -5549,24 +5543,33 @@ if (markers[id]) {
     const currentContent = existingPopup ? existingPopup.getContent() : '';
 
     if (existingPopup && currentContent === popupContent) {
-        // Mettre à jour la vue minimale si nécessaire
-        updateMinimalPopups();
         return;
     }
 
-    markers[id].setPopupContent(popupContent);
+    // Créer la popup complète mais ne pas l'assigner immédiatement
+    markers[id].fullPopupContent = popupContent;
 
-    if (markers[id].isPopupOpen()) {
-        const popup = markers[id]._popup;
-        if (popup && popup._contentNode) {
-            const popupElement = popup._contentNode.parentElement;
-            if (popupElement) {
-                popupElement.classList.remove('hide'); 
-                popupElement.classList.add('show'); 
-                markers[id].openPopup();
-            }
+    // Gestion des événements de clic pour basculer entre popup minimale et complète
+    markers[id].off('click'); // Retirer les anciens événements
+    markers[id].on('click', function() {
+        // Fermer la popup minimale si elle est ouverte
+        if (markers[id].minimalPopup && markers[id].isPopupOpen() && markers[id].getPopup() === markers[id].minimalPopup) {
+            markers[id].closePopup();
+            markers[id].minimalPopup = null;
         }
-    }
+        
+        // Ouvrir la popup complète
+        const fullPopup = L.popup({
+            closeButton: true,
+            autoClose: true,
+            closeOnClick: true,
+            closeOnEscapeKey: true,
+            className: 'full-popup-container'
+        }).setContent(markers[id].fullPopupContent);
+        
+        markers[id].bindPopup(fullPopup);
+        markers[id].openPopup();
+    });
 
     if (selectedLine && markers[id].line !== selectedLine) {
         if (map.hasLayer(markers[id])) {
@@ -5577,30 +5580,46 @@ if (markers[id]) {
             map.addLayer(markers[id]);
         }
     }
-    
-    // Mettre à jour les vues minimales
-    updateMinimalPopups();
-    
 } else {
     const marker = createColoredMarker(latitude, longitude, line, bearing);
     updateLinesDisplay();
     markers[id] = marker;
     markers[id].line = line;
     markers[id].id = id;
+    markers[id].fullPopupContent = popupContent;
+    
+    // Stocker les données du véhicule pour la popup minimale
+    markers[id].vehicleData = {
+        vehicle: vehicle,
+        lastStopName: lastStopName
+    };
 
     if (!selectedLine || selectedLine === line) {
         marker.addTo(map);
     }
     
-    marker.bindPopup(popupContent);
-
-    marker.on('popupopen', function (e) {
-        // Fermer la vue minimale quand la popup normale s'ouvre
-        if (markers[id]._minimalPopup) {
-            markers[id]._minimalPopup.remove();
-            markers[id]._minimalPopup = null;
+    // Gestion des événements de clic
+    marker.on('click', function() {
+        // Fermer la popup minimale si elle est ouverte
+        if (marker.minimalPopup && marker.isPopupOpen() && marker.getPopup() === marker.minimalPopup) {
+            marker.closePopup();
+            marker.minimalPopup = null;
         }
         
+        // Ouvrir la popup complète
+        const fullPopup = L.popup({
+            closeButton: true,
+            autoClose: true,
+            closeOnClick: true,
+            closeOnEscapeKey: true,
+            className: 'full-popup-container'
+        }).setContent(marker.fullPopupContent);
+        
+        marker.bindPopup(fullPopup);
+        marker.openPopup();
+    });
+
+    marker.on('popupopen', function (e) {
         if (e.popup && e.popup._contentNode) {
             const popupElement = e.popup._contentNode.parentElement;
             if (popupElement) {
@@ -5621,73 +5640,73 @@ if (markers[id]) {
                     if (e.popup) {
                         e.popup.remove(); 
                     }
-                    // Réafficher la vue minimale si le zoom le permet
-                    updateMinimalPopups();
                 }, 200); 
             }
         }
     });
-    
-    // Mettre à jour les vues minimales pour le nouveau marqueur
-    updateMinimalPopups();
 }
 
-// Nettoyer les marqueurs supprimés
-Object.keys(markers).forEach(markerId => {
-    if (!activeVehicleIds.has(markerId)) {
-        // Nettoyer la vue minimale si elle existe
-        if (markers[markerId]._minimalPopup) {
-            markers[markerId]._minimalPopup.remove();
+// Mise à jour de l'affichage des popups selon le zoom
+updatePopupDisplay();
+
+// Nettoyer les marqueurs inactifs
+Object.keys(markers).forEach(id => {
+    if (!activeVehicleIds.has(id)) {
+        if (markers[id].minimalPopup) {
+            markers[id].closePopup();
+            markers[id].minimalPopup = null;
         }
-        // Nettoyer la fonction globale
-        if (window[`openFullPopup_${markerId}`]) {
-            delete window[`openFullPopup_${markerId}`];
-        }
-        map.removeLayer(markers[markerId]); 
-        delete markers[markerId]; 
+        map.removeLayer(markers[id]); 
+        delete markers[id]; 
     }
 });
 
-// CSS pour la vue minimale (à ajouter une fois dans votre CSS)
-const minimalPopupCSS = `
-<style>
-.minimal-popup .leaflet-popup-content-wrapper {
-    background: transparent !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    padding: 0 !important;
-}
-.minimal-popup .leaflet-popup-tip {
-    background: transparent !important;
-    box-shadow: none !important;
-}
-.minimal-popup .leaflet-popup-content {
-    margin: 0 !important;
-    padding: 0 !important;
-}
-</style>
+// Événement de changement de zoom
+map.on('zoomend', function() {
+    updatePopupDisplay();
+});
+
+// CSS pour les animations (à ajouter dans votre feuille de style)
+const popupStyles = `
+    .minimal-popup-container .leaflet-popup-content-wrapper {
+        background: transparent;
+        box-shadow: none;
+        border-radius: 8px;
+    }
+    
+    .minimal-popup-container .leaflet-popup-content {
+        margin: 0;
+        padding: 0;
+    }
+    
+    .minimal-popup-container .leaflet-popup-tip {
+        background: rgba(0,0,0,0.8);
+    }
+    
+    .full-popup-container .leaflet-popup-content-wrapper {
+        background: transparent;
+        box-shadow: none;
+        border-radius: 15px;
+    }
+    
+    .show {
+        opacity: 1;
+        transform: scale(1);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    
+    .hide {
+        opacity: 0;
+        transform: scale(0.8);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+    }
 `;
 
-// Ajouter le CSS une seule fois
-if (!document.querySelector('#minimal-popup-styles')) {
+// Injecter les styles si ce n'est pas déjà fait
+if (!document.getElementById('popup-minimal-styles')) {
     const styleElement = document.createElement('style');
-    styleElement.id = 'minimal-popup-styles';
-    styleElement.textContent = `
-        .minimal-popup .leaflet-popup-content-wrapper {
-            background: transparent !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            padding: 0 !important;
-        }
-        .minimal-popup .leaflet-popup-tip {
-            background: transparent !important;
-            box-shadow: none !important;
-        }
-        .minimal-popup .leaflet-popup-content {
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-    `;
+    styleElement.id = 'popup-minimal-styles';
+    styleElement.textContent = popupStyles;
     document.head.appendChild(styleElement);
 }
                 }
