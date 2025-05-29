@@ -5475,8 +5475,9 @@ function animateTooltip(tooltip, newLatLng, duration = 500) {
         const currentLatLng = map.containerPointToLatLng([currentX, currentY]);
         tooltip.setLatLng(currentLatLng);
         
+        if (progress < 1) {
             requestAnimationFrame(animate);
-        
+        }
     }
     
     requestAnimationFrame(animate);
@@ -5568,7 +5569,9 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
             const currentLatLng = marker.minimalPopup.getLatLng();
             const newLatLng = marker.getLatLng();
             
-            animateTooltip(marker.minimalPopup, newLatLng);
+            if (currentLatLng.lat !== newLatLng.lat || currentLatLng.lng !== newLatLng.lng) {
+                animateTooltip(marker.minimalPopup, newLatLng);
+            }
         }
     } else if (!shouldShow && marker.minimalPopup) {
         // Le tooltip doit être masqué avec animation
@@ -5649,7 +5652,6 @@ function getOptimalTextColor(color) {
 }
 
 if (markers[id]) {
-    updateMinimalPopups();
     
     if (!markers[id].id) {
         markers[id].id = id;
@@ -5757,6 +5759,9 @@ if (markers[id]) {
         }
     }
 animateMarker(markers[id], [latitude, longitude]);
+setTimeout(() => {
+    updateMinimalPopups();
+}, 100);
 } else {
     const marker = createColoredMarker(latitude, longitude, line, bearing);
     updateLinesDisplay();
@@ -5815,7 +5820,9 @@ animateMarker(markers[id], [latitude, longitude]);
         marker.openPopup();
     });
         animateMarker(markers[id], [latitude, longitude]);
-        updateMinimalPopups();
+        setTimeout(() => {
+            updateMinimalPopups();
+        }, 100);
 
     }
 
