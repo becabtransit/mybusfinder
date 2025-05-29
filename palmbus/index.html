@@ -4004,40 +4004,7 @@ let busStopLayers = [];
 let selectedLines = [];
 
 
-function getTextColorForBackground(bgColor) {
-    let r, g, b, a = 1;
-    if (!bgColor) return '#000000';
-    bgColor = bgColor.trim();
-    if (/^#([a-f\d])([a-f\d])([a-f\d])$/i.test(bgColor)) {
-        bgColor = bgColor.replace(/^#([a-f\d])([a-f\d])([a-f\d])$/i,
-            (_, r, g, b) => '#' + r + r + g + g + b + b);
-    }
-    if (bgColor.length === 7) {
-        r = parseInt(bgColor.slice(1, 3), 16);
-        g = parseInt(bgColor.slice(3, 5), 16);
-        b = parseInt(bgColor.slice(5, 7), 16);
-    } else if (bgColor.length === 9) {
-        r = parseInt(bgColor.slice(1, 3), 16);
-        g = parseInt(bgColor.slice(3, 5), 16);
-        b = parseInt(bgColor.slice(5, 7), 16);
-        a = parseInt(bgColor.slice(7, 9), 16) / 255;
-    } else {
-        return '#000000';
-    }
-    if (a < 1) {
-        r = Math.round((1 - a) * 255 + a * r);
-        g = Math.round((1 - a) * 255 + a * g);
-        b = Math.round((1 - a) * 255 + a * b);
-    }
-    const srgb = [r, g, b].map(c => {
-        const val = c / 255;
-        return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4);
-    });
-    const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
-    const contrastBlack = (luminance + 0.05) / 0.05;
-    const contrastWhite = 1.05 / (luminance + 0.05);
-    return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
-}
+
 
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
@@ -4067,20 +4034,18 @@ async function loadGeoJsonLines() {
     }).addTo(map);
 
     const busStops = L.geoJSON(geoJsonData, {
-        filter: feature => feature.geometry && feature.geometry.type === 'Point',
-        pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
-            radius: 5,
-            fillColor: '#ffffff',
-            color: '#000000',
-            weight: 1,
-            opacity: 0.8,
-            fillOpacity: 0.8
-        }),
-        onEachFeature: function(feature, layer) {
-        layer.on('click', function(e) {
-            console.log('Propriétés de l\'arrêt GeoJSON:', layer.feature.properties);
-            showFluentStopPopup(layer.feature, layer.getLatLng(), layer);
-        });
+        filter: function(feature) {
+            return feature.geometry && feature.geometry.type === 'Point';
+        },
+        pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 3,
+                fillColor: '#ffffff',
+                color: '#000000',
+                weight: 0.5,
+                opacity: 0.7,
+                fillOpacity: 0.6
+            });
         }
     }).addTo(map);
     
@@ -4088,61 +4053,125 @@ async function loadGeoJsonLines() {
         if (layer.feature && layer.feature.properties) {
             layer.busLine = layer.feature.properties.route_id || null;
             busStopLayers.push(layer);
+
+            // Ajout de la popup dynamique sur chaque arrêt
+            layer.on('click', async function(e) {
+                const stopFeature = layer.feature;
+                const stopId = stopFeature.properties.stop_id;
+                const stopName = stopFeature.properties.stop_name || stopNameMap[stopId] || stopId;
+                let popupContent = "";
+
+                // Trouver les lignes qui passent par cet arrêt
+                // Suppose que tu as un mapping stopId -> [routeIds] à générer au chargement, sinon parcours toutes les trips dynamiquement :
+                let linesAtStop = new Set();
+                let arrivalsByLine = {};
+
+                // On parcourt tous les trips actifs pour trouver les passages à cet arrêt
+                for (const tripId in tripUpdates) {
+                    const update = tripUpdates[tripId];
+                    if (!update || !update.routeId || !update.nextStops) continue;
+
+                    // nextStops = liste d'arrêts à venir pour ce trip
+                    const stopInfo = update.nextStops.find(st => (st.stopId||"").replace(/^0:/, "") === stopId.replace(/^0:/, ""));
+                    if (stopInfo) {
+                        if (!arrivalsByLine[update.routeId]) arrivalsByLine[update.routeId] = [];
+                        arrivalsByLine[update.routeId].push({
+                            ...stopInfo,
+                            tripId,
+                            trip: update,
+                            vehicleId: update.vehicleId // optionnel si dispo
+                        });
+                        linesAtStop.add(update.routeId);
+                    }
+                }
+
+                // Construction du HTML de la popup
+                popupContent += `
+                <div style="font-family: 'League Spartan', sans-serif; font-size: 15px; width: 320px;">
+                    <div style="font-size: 22px; font-weight: 700; margin-bottom: 4px; text-align: center;">
+                        🛑 ${stopName}
+                    </div>
+                `;
+
+                if (linesAtStop.size === 0) {
+                    popupContent += `<div style="text-align:center; margin-top: 10px;">${t("nopassage") || "Aucun passage prévu prochainement."}</div>`;
+                } else {
+                    // Affichage par ligne
+                    linesAtStop.forEach(routeId => {
+                        const color = lineColors[routeId] || "#3388ff";
+                        const dest = (arrivalsByLine[routeId][0]?.trip?.lastStopId && stopNameMap[arrivalsByLine[routeId][0].trip.lastStopId])
+                            ? stopNameMap[arrivalsByLine[routeId][0].trip.lastStopId]
+                            : (arrivalsByLine[routeId][0]?.trip?.headsign || t("unknownline"));
+
+                        // Trier les prochains passages par heure (croissante)
+                        const sortedArrivals = arrivalsByLine[routeId].sort((a, b) => {
+                            const tA = a.departureTime || a.arrivalTime || 0;
+                            const tB = b.departureTime || b.arrivalTime || 0;
+                            return tA - tB;
+                        });
+
+                        popupContent += `
+                        <div style="margin-top: 8px; margin-bottom: 2px; border-radius: 8px; background:${color}22; padding: 7px 8px;">
+                            <div style="font-size:17px; font-weight: bold; margin-bottom:2px; color:${color};">
+                                ${t("line") || "Ligne"} ${lineName[routeId] || routeId}
+                            </div>
+                            <div style="font-size:13px; margin-bottom:3px; color:#555;">
+                                ➜ ${dest}
+                            </div>
+                            <ul style="padding-left: 10px; margin: 0; list-style: none;">
+                        `;
+                        // Limite à 4 prochains passages
+                        sortedArrivals.slice(0, 4).forEach(arrival => {
+                            // Calcul du temps restant
+                            const now = Math.floor(Date.now() / 1000);
+                            let eta = "";
+                            if (arrival.delay !== null && arrival.delay !== undefined) {
+                                eta = arrival.delay <= 0 ? t("imminent") || "Imminent" : `${Math.ceil(arrival.delay / 60)} min`;
+                            } else if (arrival.departureTime) {
+                                const mins = Math.max(0, Math.round((arrival.departureTime - now) / 60));
+                                eta = mins === 0 ? t("imminent") || "Imminent" : `${mins} min`;
+                            } else {
+                                eta = t("unknown") || "?";
+                            }
+                            // Heure prévue
+                            let sched = "";
+                            if (arrival.departureTime) {
+                                const date = new Date(arrival.departureTime * 1000);
+                                sched = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                            } else if (arrival.arrivalTime) {
+                                const date = new Date(arrival.arrivalTime * 1000);
+                                sched = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                            }
+
+                            popupContent += `
+                            <li style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                                <span style="max-width: 60%;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;">
+                                    <b>${sched}</b>
+                                </span>
+                                <span style="font-variant-numeric: tabular-nums; margin-left: 10px; color:#222;">
+                                    ${eta}
+                                </span>
+                            </li>
+                            `;
+                        });
+
+                        popupContent += `
+                            </ul>
+                        </div>`;
+                    });
+                }
+
+                popupContent += `</div>`;
+
+                // Affiche la popup
+                layer.bindPopup(popupContent, {maxWidth: 350, minWidth: 210, autoPan: true}).openPopup();
+            });
         }
     });
     
 }
 
-function showFluentStopPopup(stopFeature, latlng, markerLayer) {
-    // 1. Récupère le contenu HTML déjà généré pour cet arrêt
-    // Ici tu dois avoir un moyen de retrouver popupContent pour cet arrêt (stopId)
-    // Adapte cette ligne selon ta logique de stockage !
-    const stopId = stopFeature.properties.id || stopFeature.properties.stop_id || stopFeature.id;
-    let popupContent = getPopupContentForStop(stopId); // À adapter !
 
-    if (!popupContent) {
-        // fallback
-        markerLayer.bindPopup(`<div style="color:#b00;">Aucun passage à venir</div>`).openPopup();
-        return;
-    }
-
-    // 2. Parse l'en-tête horaire (prochains passages) via regex
-    let headerMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
-    let horairesHeader = headerMatch ? headerMatch[1] : '';
-
-    // 3. Parse le bloc des passages <ul> (dans le div .next-stops-content ou autre)
-    let nextStopsMatch = popupContent.match(/<div id="nextStopsContent"[^>]*>([\s\S]*?)<\/div>/);
-    let nextStopsHtml = nextStopsMatch ? nextStopsMatch[1] : '';
-
-    // 4. Parse le nom de la ligne, terminus, couleur, etc.
-    // Exemple pour le nom de la ligne (adapte la regex si besoin)
-    let lineMatch = popupContent.match(/<p style="margin: 0; font-size: 24px; ">(.*?)<\/p>/);
-    let lineName = lineMatch ? lineMatch[1] : '';
-
-    let terminusMatch = popupContent.match(/<strong style="margin: 0; font-size: 14px;">➜ (.*?)<\/strong>/);
-    let terminus = terminusMatch ? terminusMatch[1] : '';
-
-    // Exemple pour la couleur de fond (adapte selon ton HTML généré)
-    let bgColorMatch = popupContent.match(/background-color:\s*([^;]+);/);
-    let bgColor = bgColorMatch ? bgColorMatch[1] : "#222";
-    let textColor = getTextColorForBackground(bgColor);
-
-    // 5. Compose la popup finale
-    let popupHTML = `
-        <div style="background:${bgColor}; color:${textColor}; border-radius:14px; min-width:240px; max-width:340px; font-family:'Segoe UI', 'League Spartan', Arial,sans-serif; box-shadow:0 2px 10px ${bgColor}55;">
-            <div style="padding:12px 12px 3px 12px;">
-                <div style="font-size:1.2em; font-weight:bold; margin-bottom:4px;">${stopFeature.properties.name || "Arrêt"}</div>
-                <div style="font-size:1.06em; margin-bottom:4px;">${lineName}</div>
-                <div style="font-size:1em; margin-bottom:4px;">${terminus}</div>
-                <div style="font-size:1em; color:${textColor};">${horairesHeader}</div>
-                <div style="margin-top:7px;">${nextStopsHtml}</div>
-            </div>
-        </div>
-    `;
-
-    // 6. Affiche la popup sur la carte
-    markerLayer.bindPopup(popupHTML, { maxWidth: 340 }).openPopup();
-}
 
 function filterByLine(lineId) {
   const lineIndex = selectedLines.indexOf(lineId);
