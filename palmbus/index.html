@@ -4006,571 +4006,7 @@ let selectedLines = [];
 
 
 
-// Variables globales pour la gestion des popups et mises à jour
-let currentPopup = null;
-let popupUpdateInterval = null;
-let currentStopId = null;
 
-// Fonction pour créer le HTML de la popup avec style Fluent Design
-function createPopupHTML(stopId, stopName, nextDepartures) {
-    const stopDisplayName = stopName || stopNameMap[stopId] || `Arrêt ${stopId}`;
-    
-    let departuresHTML = '';
-    
-    if (!nextDepartures || nextDepartures.length === 0) {
-        departuresHTML = `
-            <div class="no-departures">
-                <div class="no-departures-icon">🚌</div>
-                <div class="no-departures-text">Aucun passage prévu</div>
-            </div>
-        `;
-    } else {
-        nextDepartures.forEach(departure => {
-            const delayClass = departure.delay > 60 ? 'delayed' : departure.delay < -60 ? 'early' : 'on-time';
-            const delayText = departure.delay > 60 ? `+${Math.floor(departure.delay / 60)}min` : 
-                            departure.delay < -60 ? `${Math.floor(departure.delay / 60)}min` : '';
-            
-            departuresHTML += `
-                <div class="departure-item ${delayClass}">
-                    <div class="departure-header">
-                        <div class="line-info">
-                            <div class="line-badge" style="background-color: ${departure.lineColor}">
-                                ${departure.lineName}
-                            </div>
-                            <div class="destination">${departure.destination}</div>
-                        </div>
-                        <div class="time-info">
-                            <div class="departure-time">${departure.time}</div>
-                            ${delayText ? `<div class="delay-indicator">${delayText}</div>` : ''}
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-    }
-    
-    return `
-        <div class="fluent-popup">
-            <div class="popup-header">
-                <div class="stop-icon">🚏</div>
-                <div class="stop-info">
-                    <div class="stop-name">${stopDisplayName}</div>
-                    <div class="stop-id">ID: ${stopId}</div>
-                </div>
-                <div class="refresh-indicator" id="refresh-indicator">
-                    <div class="refresh-dot"></div>
-                </div>
-            </div>
-            <div class="departures-container">
-                <div class="section-title">Prochains passages</div>
-                <div class="departures-list">
-                    ${departuresHTML}
-                </div>
-            </div>
-            <div class="popup-footer">
-                <div class="last-update">Mise à jour : ${new Date().toLocaleTimeString()}</div>
-            </div>
-        </div>
-        
-        <style>
-            .fluent-popup {
-                min-width: 320px;
-                max-width: 400px;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: rgba(243, 243, 243, 0.95);
-                backdrop-filter: blur(20px);
-                border-radius: 12px;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                overflow: hidden;
-            }
-            
-            .popup-header {
-                background: linear-gradient(135deg, #0078d4, #106ebe);
-                color: white;
-                padding: 16px;
-                display: flex;
-                align-items: center;
-                gap: 12px;
-            }
-            
-            .stop-icon {
-                font-size: 24px;
-                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
-            }
-            
-            .stop-info {
-                flex: 1;
-            }
-            
-            .stop-name {
-                font-size: 18px;
-                font-weight: 600;
-                margin-bottom: 2px;
-                text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-            }
-            
-            .stop-id {
-                font-size: 12px;
-                opacity: 0.9;
-            }
-            
-            .refresh-indicator {
-                width: 24px;
-                height: 24px;
-                position: relative;
-            }
-            
-            .refresh-dot {
-                width: 8px;
-                height: 8px;
-                background: #fff;
-                border-radius: 50%;
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                animation: refreshPulse 2s infinite;
-            }
-            
-            @keyframes refreshPulse {
-                0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
-                50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-            }
-            
-            .departures-container {
-                padding: 16px;
-            }
-            
-            .section-title {
-                font-size: 14px;
-                font-weight: 600;
-                color: #323130;
-                margin-bottom: 12px;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            
-            .departures-list {
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-            }
-            
-            .departure-item {
-                background: white;
-                border-radius: 8px;
-                padding: 12px;
-                border-left: 4px solid #0078d4;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-                transition: all 0.2s ease;
-            }
-            
-            .departure-item:hover {
-                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-                transform: translateY(-1px);
-            }
-            
-            .departure-item.delayed {
-                border-left-color: #d13438;
-            }
-            
-            .departure-item.early {
-                border-left-color: #107c10;
-            }
-            
-            .departure-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
-            
-            .line-info {
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-                flex: 1;
-            }
-            
-            .line-badge {
-                display: inline-block;
-                padding: 4px 8px;
-                border-radius: 4px;
-                color: white;
-                font-size: 12px;
-                font-weight: 600;
-                max-width: fit-content;
-                text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-            }
-            
-            .destination {
-                font-size: 13px;
-                color: #605e5c;
-                font-weight: 500;
-            }
-            
-            .time-info {
-                display: flex;
-                flex-direction: column;
-                align-items: flex-end;
-                gap: 2px;
-            }
-            
-            .departure-time {
-                font-size: 16px;
-                font-weight: 600;
-                color: #323130;
-            }
-            
-            .delay-indicator {
-                font-size: 11px;
-                padding: 2px 6px;
-                border-radius: 12px;
-                font-weight: 500;
-            }
-            
-            .departure-item.delayed .delay-indicator {
-                background: #fde7e9;
-                color: #d13438;
-            }
-            
-            .departure-item.early .delay-indicator {
-                background: #dff6dd;
-                color: #107c10;
-            }
-            
-            .no-departures {
-                text-align: center;
-                padding: 24px;
-                color: #605e5c;
-            }
-            
-            .no-departures-icon {
-                font-size: 32px;
-                margin-bottom: 8px;
-                opacity: 0.6;
-            }
-            
-            .no-departures-text {
-                font-size: 14px;
-                font-weight: 500;
-            }
-            
-            .popup-footer {
-                background: rgba(0, 0, 0, 0.02);
-                padding: 8px 16px;
-                border-top: 1px solid rgba(0, 0, 0, 0.06);
-            }
-            
-            .last-update {
-                font-size: 11px;
-                color: #605e5c;
-                text-align: center;
-            }
-        </style>
-    `;
-}
-
-// Fonction pour obtenir les prochains passages pour un arrêt donné
-function getNextDeparturesForStop(stopId) {
-    if (!tripUpdates || Object.keys(tripUpdates).length === 0) {
-        return [];
-    }
-    
-    const now = Date.now() / 1000;
-    const departures = [];
-    
-    // Parcourir tous les trip updates
-    Object.values(tripUpdates).forEach(tripUpdate => {
-        if (!tripUpdate.stopUpdates) return;
-        
-        // Chercher l'arrêt dans les mises à jour de ce voyage
-        tripUpdate.stopUpdates.forEach(stopUpdate => {
-            if (stopUpdate.stopId === stopId || stopUpdate.stopId === `0:${stopId}`) {
-                // Calculer le temps de départ
-                const departureTimestamp = stopUpdate.departureTime !== UNKNOWN_TIME ? 
-                    parseTimeToTimestamp(stopUpdate.departureTime) : null;
-                
-                if (departureTimestamp && departureTimestamp > now) {
-                    // Obtenir les informations de la ligne depuis les trip updates
-                    const routeId = getTripRouteId(tripUpdate);
-                    const destination = getDestinationName(tripUpdate);
-                    
-                    departures.push({
-                        time: stopUpdate.departureTime,
-                        timestamp: departureTimestamp,
-                        delay: stopUpdate.delay || 0,
-                        routeId: routeId,
-                        lineName: lineName[routeId] || routeId,
-                        lineColor: lineColors[routeId] || '#0078d4',
-                        destination: destination
-                    });
-                }
-            }
-        });
-    });
-    
-    // Trier par heure de départ et prendre les 5 prochains
-    return departures
-        .sort((a, b) => a.timestamp - b.timestamp)
-        .slice(0, 5);
-}
-
-// Fonction utilitaire pour convertir l'heure en timestamp
-function parseTimeToTimestamp(timeString) {
-    if (!timeString || timeString === UNKNOWN_TIME) return null;
-    
-    const today = new Date();
-    const [hours, minutes] = timeString.split(':').map(num => parseInt(num));
-    
-    const timestamp = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
-    
-    // Si l'heure est déjà passée aujourd'hui, c'est pour demain
-    if (timestamp.getTime() < Date.now()) {
-        timestamp.setDate(timestamp.getDate() + 1);
-    }
-    
-    return timestamp.getTime() / 1000;
-}
-
-// Fonction pour obtenir l'ID de route depuis un trip update
-function getTripRouteId(tripUpdate) {
-    // Ici, vous devriez avoir accès aux données GTFS statiques pour faire le lien
-    // Pour l'instant, on utilise une approche basique
-    if (tripUpdate.lastStopId && stopNameMap[tripUpdate.lastStopId]) {
-        // Logique pour déterminer la route basée sur la destination
-        // Cette partie dépend de votre structure de données GTFS
-        return Object.keys(lineColors)[0]; // Placeholder
-    }
-    return 'unknown';
-}
-
-// Fonction pour obtenir le nom de destination
-function getDestinationName(tripUpdate) {
-    if (tripUpdate.lastStopId && stopNameMap[tripUpdate.lastStopId]) {
-        return stopNameMap[tripUpdate.lastStopId];
-    }
-    return 'Destination inconnue';
-}
-
-// Fonction pour mettre à jour le contenu de la popup
-function updatePopupContent(stopId) {
-    if (!currentPopup) return;
-    
-    const nextDepartures = getNextDeparturesForStop(stopId);
-    const stopName = stopNameMap[stopId];
-    
-    const newContent = createPopupHTML(stopId, stopName, nextDepartures);
-    currentPopup.setContent(newContent);
-    
-    // Animation de l'indicateur de refresh
-    const refreshIndicator = document.getElementById('refresh-indicator');
-    if (refreshIndicator) {
-        refreshIndicator.style.animation = 'none';
-        setTimeout(() => {
-            refreshIndicator.style.animation = 'refreshPulse 2s infinite';
-        }, 10);
-    }
-}
-
-// Fonction pour afficher la popup sur un arrêt
-function showStopPopup(stopId, latlng) {
-    // Fermer la popup précédente si elle existe
-    if (currentPopup) {
-        map.closePopup(currentPopup);
-        clearInterval(popupUpdateInterval);
-    }
-    
-    currentStopId = stopId;
-    
-    // Obtenir les prochains passages
-    const nextDepartures = getNextDeparturesForStop(stopId);
-    const stopName = stopNameMap[stopId];
-    
-    // Créer le contenu de la popup
-    const popupContent = createPopupHTML(stopId, stopName, nextDepartures);
-    
-    // Créer et afficher la popup
-    currentPopup = L.popup({
-        maxWidth: 400,
-        className: 'custom-popup',
-        closeButton: true,
-        autoClose: true,
-        autoPan: true
-    })
-    .setLatLng(latlng)
-    .setContent(popupContent)
-    .openOn(map);
-    
-    // Configurer la mise à jour automatique toutes les 10 secondes
-    popupUpdateInterval = setInterval(() => {
-        updatePopupContent(stopId);
-    }, 10000);
-    
-    // Nettoyer quand la popup est fermée
-    currentPopup.on('remove', () => {
-        if (popupUpdateInterval) {
-            clearInterval(popupUpdateInterval);
-            popupUpdateInterval = null;
-        }
-        currentPopup = null;
-        currentStopId = null;
-    });
-}
-
-// Modifier votre fonction loadGeoJsonLines existante pour ajouter les événements de clic
-async function loadGeoJsonLines() {
-    const response = await fetch('proxy-cors/proxy_geojson.php');
-    const geoJsonData = await response.json();
-
-    const busLines = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry.type === 'LineString';
-        },
-        style: function(feature) {
-            return {
-                color: lineColors[feature.properties.route_id] || '#3388ff',
-                weight: 6,
-                opacity: 0.7,  
-                lineJoin: 'round',
-                lineCap: 'round',
-                className: 'bus-line', 
-                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
-            };
-        },
-        onEachFeature: function(feature, layer) {
-            if (feature.properties && feature.properties.route_id) {
-                geoJsonLines.push(layer);
-            }
-        }
-    }).addTo(map);
-
-    const busStops = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry && feature.geometry.type === 'Point';
-        },
-        pointToLayer: function(feature, latlng) {
-            return L.circleMarker(latlng, {
-                radius: 3,
-                fillColor: '#ffffff',
-                color: '#000000',
-                weight: 0.5,
-                opacity: 0.7,
-                fillOpacity: 0.6
-            });
-        },
-        // NOUVEAU: Ajouter l'événement de clic sur chaque arrêt
-        onEachFeature: function(feature, layer) {
-            layer.on('click', function(e) {
-                const stopId = feature.properties.stop_id || feature.properties.id;
-                if (stopId) {
-                    showStopPopup(stopId, e.latlng);
-                }
-            });
-            
-            // Changer le curseur au survol
-            layer.on('mouseover', function() {
-                this.setStyle({
-                    radius: 5,
-                    fillOpacity: 0.8
-                });
-                map.getContainer().style.cursor = 'pointer';
-            });
-            
-            layer.on('mouseout', function() {
-                this.setStyle({
-                    radius: 3,
-                    fillOpacity: 0.6
-                });
-                map.getContainer().style.cursor = '';
-            });
-        }
-    }).addTo(map);
-    
-    busStops.eachLayer(function(layer) {
-        if (layer.feature && layer.feature.properties) {
-            layer.busLine = layer.feature.properties.route_id || null;
-            busStopLayers.push(layer);
-        }
-    });
-}
-
-// Fonction pour déclencher manuellement une mise à jour des données temps réel
-async function refreshRealTimeData() {
-    try {
-        await fetchTripUpdates();
-        
-        // Si une popup est ouverte, la mettre à jour immédiatement
-        if (currentPopup && currentStopId) {
-            updatePopupContent(currentStopId);
-        }
-        
-        console.log('Données temps réel mises à jour');
-    } catch (error) {
-        console.error('Erreur lors de la mise à jour des données temps réel:', error);
-    }
-}
-
-// Initialiser le système de mise à jour automatique des données GTFS-RT
-function initializeRealTimeUpdates() {
-    // Première récupération
-    fetchTripUpdates().catch(console.error);
-    
-    // Mise à jour automatique toutes les 8 secondes (comme dans votre FETCH_INTERVAL)
-    setInterval(() => {
-        refreshRealTimeData();
-    }, FETCH_INTERVAL);
-}
-
-// CSS supplémentaire pour les popups personnalisées
-const additionalCSS = `
-<style>
-    .custom-popup .leaflet-popup-content-wrapper {
-        padding: 0;
-        border-radius: 12px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-    }
-    
-    .custom-popup .leaflet-popup-content {
-        margin: 0;
-    }
-    
-    .custom-popup .leaflet-popup-tip {
-        background: rgba(243, 243, 243, 0.95);
-        box-shadow: none;
-    }
-    
-    /* Animation pour les éléments de départ */
-    .departure-item {
-        animation: slideInUp 0.3s ease-out;
-    }
-    
-    @keyframes slideInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-</style>
-`;
-
-// Ajouter le CSS au document
-document.head.insertAdjacentHTML('beforeend', additionalCSS);
-
-// Initialiser le système au chargement de la page
-document.addEventListener('DOMContentLoaded', function() {
-    // S'assurer que les données GTFS sont initialisées avant de démarrer les mises à jour temps réel
-    initializeGTFS().then(() => {
-        initializeRealTimeUpdates();
-        console.log('Système de popup temps réel initialisé');
-    }).catch(error => {
-        console.error('Erreur lors de l\'initialisation:', error);
-    });
-});
 
 
 
@@ -8446,6 +7882,589 @@ function scheduleFetchUpdates(timestamp) {
     requestAnimationFrame(scheduleFetchUpdates);
 }
 
+// Variables globales pour la gestion des popups et mises à jour
+let currentPopup = null;
+let currentStopId = null;
+let popupUpdateInterval = null;
+
+// Configuration pour la popup
+const POPUP_UPDATE_INTERVAL = 10000; // 10 secondes
+const MAX_DEPARTURES_DISPLAYED = 8;
+const TIME_HORIZON_MINUTES = 90; // Afficher les départs dans les 90 prochaines minutes
+
+/**
+ * Fonction pour créer le contenu HTML de la popup avec style Fluent Design
+ */
+function createPopupContent(stopId, stopName, departures) {
+    const now = new Date();
+    
+    // En-tête de la popup
+    let popupHTML = `
+        <div class="fluent-popup-container">
+            <div class="fluent-popup-header">
+                <div class="fluent-popup-title">
+                    <h3>${stopName || 'Arrêt de bus'}</h3>
+                    <span class="fluent-popup-subtitle">ID: ${stopId}</span>
+                </div>
+                <div class="fluent-popup-time">
+                    <span class="update-time">Mis à jour: ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                </div>
+            </div>
+            <div class="fluent-popup-content">
+    `;
+
+    if (!departures || departures.length === 0) {
+        popupHTML += `
+            <div class="no-departures">
+                <div class="fluent-icon">🚌</div>
+                <p>Aucun passage prévu dans les prochaines heures</p>
+            </div>
+        `;
+    } else {
+        popupHTML += '<div class="departures-list">';
+        
+        departures.slice(0, MAX_DEPARTURES_DISPLAYED).forEach((departure, index) => {
+            const delayClass = departure.delay > 60 ? 'delayed' : departure.delay < -60 ? 'early' : 'on-time';
+            const delayText = departure.delay > 60 ? `+${Math.floor(departure.delay / 60)}min` : 
+                             departure.delay < -60 ? `${Math.floor(departure.delay / 60)}min` : 'À l\'heure';
+            
+            const timeUntil = departure.minutesUntil;
+            let timeDisplay;
+            
+            if (timeUntil <= 0) {
+                timeDisplay = '<span class="time-now">Maintenant</span>';
+            } else if (timeUntil < 60) {
+                timeDisplay = `<span class="time-minutes">${timeUntil} min</span>`;
+            } else {
+                timeDisplay = `<span class="time-exact">${departure.time}</span>`;
+            }
+            
+            popupHTML += `
+                <div class="departure-item ${index === 0 ? 'next-departure' : ''}">
+                    <div class="departure-line">
+                        <span class="line-number" style="background-color: ${departure.lineColor || '#3388ff'}">
+                            ${departure.lineName || departure.routeId}
+                        </span>
+                        <div class="departure-details">
+                            <div class="departure-destination">${departure.destination || 'Destination inconnue'}</div>
+                            <div class="departure-info">
+                                ${timeDisplay}
+                                <span class="delay-info ${delayClass}">${delayText}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        popupHTML += '</div>';
+        
+        if (departures.length > MAX_DEPARTURES_DISPLAYED) {
+            popupHTML += `<div class="more-departures">... et ${departures.length - MAX_DEPARTURES_DISPLAYED} autres départs</div>`;
+        }
+    }
+
+    popupHTML += `
+            </div>
+            <div class="fluent-popup-footer">
+                <div class="auto-refresh-indicator">
+                    <span class="refresh-icon">🔄</span>
+                    <span>Mise à jour automatique toutes les 10s</span>
+                </div>
+            </div>
+        </div>
+    `;
+
+    return popupHTML;
+}
+
+/**
+ * Styles CSS pour la popup avec design Fluent
+ */
+function addFluentPopupStyles() {
+    if (document.getElementById('fluent-popup-styles')) return;
+    
+    const style = document.createElement('style');
+    style.id = 'fluent-popup-styles';
+    style.textContent = `
+        .fluent-popup-container {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-width: 320px;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+        }
+
+        .fluent-popup-header {
+            background: linear-gradient(135deg, #0078d4, #106ebe);
+            color: white;
+            padding: 16px;
+            position: relative;
+        }
+
+        .fluent-popup-title h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .fluent-popup-subtitle {
+            font-size: 12px;
+            opacity: 0.8;
+            font-weight: 400;
+        }
+
+        .fluent-popup-time {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            font-size: 11px;
+            opacity: 0.9;
+        }
+
+        .fluent-popup-content {
+            padding: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .no-departures {
+            text-align: center;
+            padding: 24px;
+            color: #666;
+        }
+
+        .fluent-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+
+        .departures-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .departure-item {
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .departure-item:hover {
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .next-departure {
+            background: rgba(0, 120, 212, 0.1);
+            border-color: rgba(0, 120, 212, 0.2);
+        }
+
+        .departure-line {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .line-number {
+            background: #0078d4;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-weight: 600;
+            font-size: 12px;
+            min-width: 40px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .departure-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .departure-destination {
+            font-weight: 500;
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .departure-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .time-now {
+            background: #d83b01;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .time-minutes {
+            background: #107c10;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .time-exact {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .delay-info {
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 500;
+        }
+
+        .delay-info.on-time {
+            background: rgba(16, 124, 16, 0.1);
+            color: #107c10;
+        }
+
+        .delay-info.delayed {
+            background: rgba(216, 59, 1, 0.1);
+            color: #d83b01;
+        }
+
+        .delay-info.early {
+            background: rgba(0, 120, 212, 0.1);
+            color: #0078d4;
+        }
+
+        .more-departures {
+            text-align: center;
+            padding: 12px;
+            color: #666;
+            font-size: 12px;
+            font-style: italic;
+        }
+
+        .fluent-popup-footer {
+            background: rgba(0, 0, 0, 0.02);
+            padding: 12px 16px;
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .auto-refresh-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .refresh-icon {
+            animation: rotate 2s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .leaflet-popup-content {
+            margin: 0 !important;
+        }
+
+        .leaflet-popup-content-wrapper {
+            padding: 0 !important;
+            border-radius: 12px !important;
+        }
+
+        .leaflet-popup-tip {
+            background: rgba(255, 255, 255, 0.95) !important;
+        }
+    `;
+    
+    document.head.appendChild(style);
+}
+
+/**
+ * Fonction pour obtenir les prochains départs pour un arrêt donné
+ */
+function getNextDepartures(stopId) {
+    const now = Date.now() / 1000;
+    const nowMinutes = Math.floor(now / 60);
+    const maxTime = now + (TIME_HORIZON_MINUTES * 60);
+    
+    const departures = [];
+    
+    // Parcourir tous les trip updates
+    Object.values(tripUpdates).forEach(tripUpdate => {
+        if (!tripUpdate.stopUpdates || !Array.isArray(tripUpdate.stopUpdates)) return;
+        
+        // Chercher cet arrêt dans les mises à jour de ce trip
+        tripUpdate.stopUpdates.forEach(stopUpdate => {
+            if (stopUpdate.stopId === stopId) {
+                // Calculer le temps de départ
+                let departureTimestamp = null;
+                let departureTime = null;
+                
+                if (stopUpdate.departureTime && stopUpdate.departureTime !== 'inconnue') {
+                    // Convertir l'heure formatée en timestamp
+                    const today = new Date();
+                    const [hours, minutes] = stopUpdate.departureTime.split(':').map(Number);
+                    const departureDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+                    
+                    // Si l'heure est passée, c'est pour demain
+                    if (departureDate < new Date()) {
+                        departureDate.setDate(departureDate.getDate() + 1);
+                    }
+                    
+                    departureTimestamp = departureDate.getTime() / 1000;
+                    departureTime = stopUpdate.departureTime;
+                } else if (stopUpdate.arrivalTime && stopUpdate.arrivalTime !== 'inconnue') {
+                    // Utiliser l'heure d'arrivée si pas de départ
+                    const today = new Date();
+                    const [hours, minutes] = stopUpdate.arrivalTime.split(':').map(Number);
+                    const departureDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+                    
+                    if (departureDate < new Date()) {
+                        departureDate.setDate(departureDate.getDate() + 1);
+                    }
+                    
+                    departureTimestamp = departureDate.getTime() / 1000;
+                    departureTime = stopUpdate.arrivalTime;
+                }
+                
+                // Vérifier si le départ est dans notre fenêtre de temps
+                if (departureTimestamp && departureTimestamp <= maxTime && departureTimestamp >= now - 60) {
+                    const minutesUntil = Math.max(0, Math.floor((departureTimestamp - now) / 60));
+                    
+                    // Trouver les informations de la ligne
+                    const routeId = extractRouteIdFromTripUpdate(tripUpdate);
+                    const lineColor = lineColors[routeId] || '#3388ff';
+                    const lineName = window.lineName && window.lineName[routeId] ? window.lineName[routeId] : routeId;
+                    const destination = getDestinationForTrip(tripUpdate);
+                    
+                    departures.push({
+                        time: departureTime,
+                        timestamp: departureTimestamp,
+                        minutesUntil: minutesUntil,
+                        delay: stopUpdate.delay || 0,
+                        routeId: routeId,
+                        lineName: lineName,
+                        lineColor: lineColor,
+                        destination: destination,
+                        tripId: extractTripIdFromTripUpdate(tripUpdate)
+                    });
+                }
+            }
+        });
+    });
+    
+    // Trier par heure de départ
+    departures.sort((a, b) => a.timestamp - b.timestamp);
+    
+    return departures;
+}
+
+/**
+ * Fonctions utilitaires pour extraire les informations des trip updates
+ */
+function extractRouteIdFromTripUpdate(tripUpdate) {
+    // Chercher le route_id dans les propriétés du trip ou des stops
+    if (tripUpdate.stopUpdates && tripUpdate.stopUpdates.length > 0) {
+        // Parcourir les stops pour trouver un route_id
+        for (const stop of tripUpdate.stopUpdates) {
+            if (stop.routeId) return stop.routeId;
+        }
+    }
+    return 'inconnu';
+}
+
+function extractTripIdFromTripUpdate(tripUpdate) {
+    return tripUpdate.tripId || 'inconnu';
+}
+
+function getDestinationForTrip(tripUpdate) {
+    if (tripUpdate.lastStopId && window.stopNameMap && window.stopNameMap[tripUpdate.lastStopId]) {
+        return window.stopNameMap[tripUpdate.lastStopId];
+    }
+    return 'Destination inconnue';
+}
+
+/**
+ * Fonction pour mettre à jour le contenu de la popup
+ */
+function updatePopupContent() {
+    if (!currentPopup || !currentStopId) return;
+    
+    try {
+        const stopName = window.stopNameMap && window.stopNameMap[currentStopId] ? 
+                        window.stopNameMap[currentStopId] : `Arrêt ${currentStopId}`;
+        
+        const departures = getNextDepartures(currentStopId);
+        const newContent = createPopupContent(currentStopId, stopName, departures);
+        
+        currentPopup.setContent(newContent);
+        
+        console.debug(`Popup mise à jour pour l'arrêt ${currentStopId} - ${departures.length} départs trouvés`);
+    } catch (error) {
+        console.error('Erreur lors de la mise à jour de la popup:', error);
+    }
+}
+
+/**
+ * Fonction pour gérer le clic sur un arrêt
+ */
+function onBusStopClick(layer) {
+    const stopId = layer.feature.properties.stop_id || layer.feature.properties.stopId;
+    
+    if (!stopId) {
+        console.warn('Stop ID non trouvé pour cet arrêt');
+        return;
+    }
+    
+    // Nettoyer l'ancien interval si nécessaire
+    if (popupUpdateInterval) {
+        clearInterval(popupUpdateInterval);
+        popupUpdateInterval = null;
+    }
+    
+    // Mettre à jour les variables globales
+    currentStopId = stopId;
+    
+    // Créer le contenu initial de la popup
+    const stopName = window.stopNameMap && window.stopNameMap[stopId] ? 
+                    window.stopNameMap[stopId] : `Arrêt ${stopId}`;
+    
+    const departures = getNextDepartures(stopId);
+    const popupContent = createPopupContent(stopId, stopName, departures);
+    
+    // Créer et afficher la popup
+    currentPopup = L.popup({
+        maxWidth: 420,
+        className: 'fluent-bus-popup'
+    })
+    .setLatLng(layer.getLatLng())
+    .setContent(popupContent)
+    .openOn(map);
+    
+    // Gérer la fermeture de la popup
+    currentPopup.on('remove', function() {
+        if (popupUpdateInterval) {
+            clearInterval(popupUpdateInterval);
+            popupUpdateInterval = null;
+        }
+        currentPopup = null;
+        currentStopId = null;
+    });
+    
+    // Démarrer la mise à jour automatique
+    popupUpdateInterval = setInterval(updatePopupContent, POPUP_UPDATE_INTERVAL);
+    
+    console.debug(`Popup ouverte pour l'arrêt ${stopId} - ${departures.length} départs trouvés`);
+}
+
+async function loadGeoJsonLines() {
+    const response = await fetch('proxy-cors/proxy_geojson.php');
+    const geoJsonData = await response.json();
+    addFluentPopupStyles();
+
+    const busLines = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry.type === 'LineString';
+        },
+        style: function(feature) {
+            return {
+                color: lineColors[feature.properties.route_id] || '#3388ff',
+                weight: 6,
+                opacity: 0.7,  
+                lineJoin: 'round',
+                lineCap: 'round',
+                className: 'bus-line', 
+                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
+            };
+        },
+        onEachFeature: function(feature, layer) {
+            
+            if (feature.properties && feature.properties.route_id) {
+                geoJsonLines.push(layer);
+            }
+        }
+    }).addTo(map);
+
+    const busStops = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry && feature.geometry.type === 'Point';
+        },
+        pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 4,
+                fillColor: '#ffffff',
+                color: '#000000',
+                weight: 1,
+                opacity: 0.8,
+                fillOpacity: 0.7,
+                className: 'bus-stop-marker'
+            });
+        },
+        onEachFeature: function(feature, layer) {
+            // Ajouter le gestionnaire de clic
+            layer.on('click', function(e) {
+                onBusStopClick(layer);
+            });
+            
+            // Effet de survol
+            layer.on('mouseover', function(e) {
+                layer.setStyle({
+                    radius: 6,
+                    weight: 2,
+                    fillOpacity: 1
+                });
+            });
+            
+            layer.on('mouseout', function(e) {
+                layer.setStyle({
+                    radius: 4,
+                    weight: 1,
+                    fillOpacity: 0.7
+                });
+            });
+        }
+    }).addTo(map);
+
+    busStops.eachLayer(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+            layer.busLine = layer.feature.properties.route_id || null;
+            busStopLayers.push(layer);
+        }
+    });
+    
+}
+
+function initializeBusStopPopupSystem() {
+    console.log('Initialisation du système de popup des arrêts de bus...');
+    
+    // Démarrer le système de trip updates
+    startTripUpdatesSystem();
+    
+    console.log('Système de popup des arrêts initialisé avec succès');
+}
 
 async function main() {
     try {
@@ -8459,6 +8478,7 @@ async function main() {
         await Promise.all([
             fetchTripUpdates().catch(console.error),
             fetchVehiclePositions(),
+            initializeBusStopPopupSystem(),
             hideLoadingScreen()
         ]);
         
