@@ -4093,126 +4093,55 @@ async function loadGeoJsonLines() {
     
 }
 
-function showFluentStopPopup(stopFeature, latlng, markerLayer) {
-    // 1. Récupération robuste de l'ID et du nom de l'arrêt
+function showFluentStopPopupFromHTML(stopFeature, latlng, markerLayer) {
+    // 1. Récupère le contenu HTML déjà généré pour cet arrêt
+    // Ici tu dois avoir un moyen de retrouver popupContent pour cet arrêt (stopId)
+    // Adapte cette ligne selon ta logique de stockage !
     const stopId = stopFeature.properties.id || stopFeature.properties.stop_id || stopFeature.id;
-    const stopName = stopFeature.properties.name
-        || stopFeature.properties.stop_name
-        || stopFeature.properties.NOM
-        || (stopId && stopNameMap[stopId])
-        || "Arrêt inconnu";
+    let popupContent = getPopupContentForStop(stopId); // À adapter !
 
-    // 2. On va scanner tous les trips pour récupérer tous les passages à venir à cet arrêt
-    const now = Math.floor(Date.now() / 1000);
-    // Pour chaque ligne, on stocke un tableau de passages à venir (bus pas encore passés)
-    const linesAtStop = {};
+    if (!popupContent) {
+        // fallback
+        markerLayer.bindPopup(`<div style="color:#b00;">Aucun passage à venir</div>`).openPopup();
+        return;
+    }
 
-    Object.keys(tripUpdates).forEach(tripId => {
-        const tu = tripUpdates[tripId];
-        if (!tu || !tu.nextStops || !Array.isArray(tu.nextStops)) return;
-        tu.nextStops.forEach(stop => {
-            // Nettoyage des ID
-            const stopIdClean = stopId ? stopId.replace(/^0:/, '') : '';
-            const sId = (stop && stop.stopId) ? stop.stopId.replace(/^0:/, '') : '';
-            // On veut uniquement les passages à venir (horaire dans le futur)
-            const sched = stop.departureTime || stop.arrivalTime;
-            if (sId === stopIdClean && sched && sched > now) {
-                // Recherche du routeId
-                const routeId = tu.routeId
-                    || (tu.trip && tu.trip.routeId)
-                    || stop.routeId
-                    || tu.route_id;
-                if (!routeId) return;
-                if (!linesAtStop[routeId]) linesAtStop[routeId] = [];
-                // Ajoute le passage à la liste
-                linesAtStop[routeId].push({
-                    ...stop,
-                    tripId,
-                    line: routeId,
-                    directionId: tu.directionId,
-                    destination: stopNameMap[tu.lastStopId] || tu.lastStopId || "Destination inconnue",
-                    sched
-                });
-            }
-        });
-    });
+    // 2. Parse l'en-tête horaire (prochains passages) via regex
+    let headerMatch = popupContent.match(/<p style="margin: 0; font-size: 18px; text-align: right;">(.*?)<\/p>/);
+    let horairesHeader = headerMatch ? headerMatch[1] : '';
 
-    // 3. Génération HTML popup (Fluent, multi-lignes, multi-passages)
+    // 3. Parse le bloc des passages <ul> (dans le div .next-stops-content ou autre)
+    let nextStopsMatch = popupContent.match(/<div id="nextStopsContent"[^>]*>([\s\S]*?)<\/div>/);
+    let nextStopsHtml = nextStopsMatch ? nextStopsMatch[1] : '';
+
+    // 4. Parse le nom de la ligne, terminus, couleur, etc.
+    // Exemple pour le nom de la ligne (adapte la regex si besoin)
+    let lineMatch = popupContent.match(/<p style="margin: 0; font-size: 24px; ">(.*?)<\/p>/);
+    let lineName = lineMatch ? lineMatch[1] : '';
+
+    let terminusMatch = popupContent.match(/<strong style="margin: 0; font-size: 14px;">➜ (.*?)<\/strong>/);
+    let terminus = terminusMatch ? terminusMatch[1] : '';
+
+    // Exemple pour la couleur de fond (adapte selon ton HTML généré)
+    let bgColorMatch = popupContent.match(/background-color:\s*([^;]+);/);
+    let bgColor = bgColorMatch ? bgColorMatch[1] : "#222";
+    let textColor = getTextColorForBackground(bgColor);
+
+    // 5. Compose la popup finale
     let popupHTML = `
-    <div style="font-family:'Segoe UI', 'League Spartan', Arial,sans-serif; min-width:260px; max-width:340px;">
-        <div style="font-size:1.3rem; font-weight:bold; margin-bottom:4px;">${stopName}</div>
+        <div style="background:${bgColor}; color:${textColor}; border-radius:14px; min-width:240px; max-width:340px; font-family:'Segoe UI', 'League Spartan', Arial,sans-serif; box-shadow:0 2px 10px ${bgColor}55;">
+            <div style="padding:12px 12px 3px 12px;">
+                <div style="font-size:1.2em; font-weight:bold; margin-bottom:4px;">${stopFeature.properties.name || "Arrêt"}</div>
+                <div style="font-size:1.06em; margin-bottom:4px;">${lineName}</div>
+                <div style="font-size:1em; margin-bottom:4px;">${terminus}</div>
+                <div style="font-size:1em; color:${textColor};">${horairesHeader}</div>
+                <div style="margin-top:7px;">${nextStopsHtml}</div>
+            </div>
+        </div>
     `;
 
-    // S'il n'y a vraiment aucun passage à venir
-    if (
-        Object.keys(linesAtStop).length === 0 ||
-        !Object.values(linesAtStop).some(arr => (arr && arr.length > 0))
-    ) {
-        popupHTML += `<div style="color:#b00; font-size:1rem;">Aucun passage à venir</div>`;
-    } else {
-        for (const routeId in linesAtStop) {
-            const bg = lineColors[routeId] || "#222";
-            const fg = getTextColorForBackground(bg);
-            const lineDisplay = (lineName && lineName[routeId]) ? lineName[routeId] : routeId || "indéfini";
-            popupHTML += `
-            <div style="
-                background:${bg}cc;
-                color:${fg};
-                border-radius:9px;
-                margin-bottom:7px;
-                box-shadow:0 2px 10px ${bg}46;
-                padding:8px 10px 7px 10px;
-                display:flex;
-                flex-direction:column;">
-                <div style="font-size:1.1em; font-weight:bold; letter-spacing:0.5px; margin-bottom:3px;">
-                    ${t ? t("line") : "Ligne"} ${lineDisplay}
-                </div>
-                <div style="font-size:0.98em; margin-bottom:6px;">
-                    ➜ ${(linesAtStop[routeId][0].destination || (t ? t("unknownline") : "Terminus inconnu"))}
-                </div>
-                <ul style="padding:0; margin:0; list-style:none;">
-            `;
-            // Trie et affiche uniquement les bus à venir
-            const upcoming = linesAtStop[routeId]
-                .filter(pass => pass.sched && pass.sched > now)
-                .sort((a, b) => a.sched - b.sched);
-
-            // Si aucun passage à venir pour cette ligne
-            if (upcoming.length === 0) {
-                popupHTML += `<li style="color:#b00; font-size:0.9em;">Aucun passage à venir sur cette ligne</li>`;
-            } else {
-                upcoming.forEach(stopPass => {
-                    // Heure prévue (pas d'"invalid date")
-                    let schedStr = "-";
-                    if (stopPass.sched && !isNaN(stopPass.sched)) {
-                        const d = new Date(stopPass.sched * 1000);
-                        schedStr = d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-                    }
-                    // Délai
-                    let delayStr = "";
-                    if (typeof stopPass.delay !== 'undefined' && stopPass.delay !== null) {
-                        if (stopPass.delay > 60) delayStr = `<span style="color:#ffca1a;">+${Math.round(stopPass.delay/60)} min</span>`;
-                        else if (stopPass.delay < -60) delayStr = `<span style="color:#39e600;">-${Math.round(-stopPass.delay/60)} min</span>`;
-                        else delayStr = `<span style="color:#4af;">${t ? t("imminent") : "Imminent"}</span>`;
-                    }
-                    popupHTML += `
-                    <li style="display:flex; align-items:center; justify-content:space-between; padding:3px 0;">
-                        <span style="font-size:1.08em;">${schedStr}</span>
-                        <span style="font-size:0.97em; margin-left:6px;">${delayStr}</span>
-                    </li>`;
-                });
-            }
-            popupHTML += `</ul></div>`;
-        }
-    }
-    popupHTML += `</div>`;
-
-    // 4. Affichage de la popup sur la carte
-    if (markerLayer && markerLayer.openPopup) {
-        markerLayer.bindPopup(popupHTML, { maxWidth: 340 }).openPopup();
-    } else {
-        L.popup({ maxWidth: 340 }).setLatLng(latlng).setContent(popupHTML).openOn(map);
-    }
+    // 6. Affiche la popup sur la carte
+    markerLayer.bindPopup(popupHTML, { maxWidth: 340 }).openPopup();
 }
 
 function filterByLine(lineId) {
