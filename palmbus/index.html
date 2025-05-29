@@ -5328,45 +5328,38 @@ function updateMinimalViews() {
         
         // Si une popup est ouverte, masquer la vue minimale
         if (marker.isPopupOpen()) {
-            if (marker.minimalTooltip) {
-                marker.minimalTooltip.close();
+            if (marker.getTooltip()) {
+                marker.unbindTooltip();
             }
             return;
         }
         
         if (showMinimalViews) {
             // Afficher la vue minimale si elle n'existe pas déjà
-            if (!marker.minimalTooltip) {
-                // Récupérer les données du marqueur (vous devrez adapter selon votre structure)
-                const vehicleData = marker.vehicleData;
-                if (vehicleData) {
-                    const minimalContent = createMinimalViewContent(
-                        vehicleData.vehicle,
-                        marker.line,
-                        vehicleData.lastStopName,
-                        vehicleData.lineName,
-                        vehicleData.lineColors,
-                        vehicleData.textColor,
-                        vehicleData.backgroundColor
-                    );
-                    
-                    marker.minimalTooltip = L.tooltip({
-                        permanent: true,
-                        direction: 'top',
-                        offset: [0, -15],
-                        className: 'minimal-tooltip',
-                        opacity: 1
-                    }).setContent(minimalContent);
-                    
-                    marker.bindTooltip(marker.minimalTooltip);
-                }
-            } else if (!marker.getTooltip()) {
-                // Réattacher le tooltip s'il a été supprimé
-                marker.bindTooltip(marker.minimalTooltip);
+            if (!marker.getTooltip() && marker.vehicleData) {
+                const minimalContent = createMinimalViewContent(
+                    marker.vehicleData.vehicle,
+                    marker.line,
+                    marker.vehicleData.lastStopName,
+                    marker.vehicleData.lineName,
+                    marker.vehicleData.lineColors,
+                    marker.vehicleData.textColor,
+                    marker.vehicleData.backgroundColor
+                );
+                
+                const tooltip = L.tooltip({
+                    permanent: true,
+                    direction: 'top',
+                    offset: [0, -15],
+                    className: 'minimal-tooltip',
+                    opacity: 1
+                }).setContent(minimalContent);
+                
+                marker.bindTooltip(tooltip);
             }
         } else {
             // Masquer la vue minimale
-            if (marker.minimalTooltip && marker.getTooltip()) {
+            if (marker.getTooltip()) {
                 marker.unbindTooltip();
             }
         }
@@ -5624,20 +5617,27 @@ if (markers[id]) {
     const existingPopup = markers[id].getPopup();
     const currentContent = existingPopup ? existingPopup.getContent() : '';
 
-    if (existingPopup && currentContent === popupContent) {
+    // Ne pas mettre à jour si le contenu est identique ET si la popup est ouverte
+    if (existingPopup && currentContent === popupContent && markers[id].isPopupOpen()) {
+        // Mettre à jour seulement les vues minimales si nécessaire
+        updateMinimalViews();
         return;
     }
 
+    // Conserver l'état de la popup avant la mise à jour
+    const wasPopupOpen = markers[id].isPopupOpen();
+
     markers[id].setPopupContent(popupContent);
 
-    if (markers[id].isPopupOpen()) {
+    // Rouvrir la popup si elle était ouverte avant la mise à jour
+    if (wasPopupOpen) {
+        markers[id].openPopup();
         const popup = markers[id]._popup;
         if (popup && popup._contentNode) {
             const popupElement = popup._contentNode.parentElement;
             if (popupElement) {
                 popupElement.classList.remove('hide'); 
                 popupElement.classList.add('show'); 
-                markers[id].openPopup();
             }
         }
     }
@@ -5676,7 +5676,7 @@ if (markers[id]) {
 
     marker.on('popupopen', function (e) {
         // Masquer la vue minimale quand la popup s'ouvre
-        if (e.target.minimalTooltip && e.target.getTooltip()) {
+        if (e.target.getTooltip()) {
             e.target.unbindTooltip();
         }
         
@@ -5692,8 +5692,26 @@ if (markers[id]) {
     marker.on('popupclose', function (e) {
         // Réafficher la vue minimale si le zoom le permet
         const currentZoom = map.getZoom();
-        if (currentZoom >= MINIMAL_VIEW_ZOOM_THRESHOLD && e.target.minimalTooltip) {
-            e.target.bindTooltip(e.target.minimalTooltip);
+        if (currentZoom >= MINIMAL_VIEW_ZOOM_THRESHOLD && e.target.vehicleData) {
+            const minimalContent = createMinimalViewContent(
+                e.target.vehicleData.vehicle,
+                e.target.line,
+                e.target.vehicleData.lastStopName,
+                e.target.vehicleData.lineName,
+                e.target.vehicleData.lineColors,
+                e.target.vehicleData.textColor,
+                e.target.vehicleData.backgroundColor
+            );
+            
+            const tooltip = L.tooltip({
+                permanent: true,
+                direction: 'top',
+                offset: [0, -15],
+                className: 'minimal-tooltip',
+                opacity: 1
+            }).setContent(minimalContent);
+            
+            e.target.bindTooltip(tooltip);
         }
         
         if (e.popup && e.popup._contentNode) {
@@ -5712,20 +5730,19 @@ if (markers[id]) {
     });
 }
 
-// Mettre à jour les vues minimales après chaque modification
-updateMinimalViews();
-
 Object.keys(markers).forEach(id => {
     if (!activeVehicleIds.has(id)) {
         // Nettoyer la vue minimale avant de supprimer le marqueur
-        if (markers[id].minimalTooltip) {
+        if (markers[id].getTooltip()) {
             markers[id].unbindTooltip();
-            markers[id].minimalTooltip = null;
         }
         map.removeLayer(markers[id]); 
         delete markers[id]; 
     }
 });
+
+// Mettre à jour les vues minimales seulement après le nettoyage
+updateMinimalViews();
 
 // Ajouter l'événement de zoom pour gérer les vues minimales
 map.on('zoomend', updateMinimalViews);
@@ -5741,6 +5758,12 @@ const minimalTooltipStyles = `
     box-shadow: none !important;
     padding: 0 !important;
     z-index: 1000 !important;
+    /* Empêcher le flash en haut à gauche */
+    visibility: hidden !important;
+}
+
+.minimal-tooltip.leaflet-tooltip-pane {
+    visibility: visible !important;
 }
 
 .minimal-tooltip .leaflet-tooltip-content {
@@ -5753,20 +5776,14 @@ const minimalTooltipStyles = `
     display: none !important;
 }
 
-/* Animation d'apparition */
+/* Animation d'apparition douce */
 .minimal-tooltip {
-    animation: fadeInUp 0.3s ease-out;
+    transition: opacity 0.2s ease-in-out !important;
 }
 
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(10px) scale(0.9);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
+.minimal-tooltip.show {
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 /* Responsive pour mobiles */
@@ -5788,7 +5805,6 @@ if (!document.querySelector('#minimal-tooltip-styles')) {
     styleElement.innerHTML = minimalTooltipStyles;
     document.head.appendChild(styleElement);
 }
-
         
 let isMenuVisible = true;
 
