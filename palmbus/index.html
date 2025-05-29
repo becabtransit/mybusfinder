@@ -480,25 +480,41 @@
         height: 100%;
         z-index: 9999;
         transition: none;
+        z-index: 5;
+        will-change: transform, opacity, filter;
         transform-origin: center center;
     }
 
     #accueil.hide {
-        animation: hideToLogo 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        animation: iosSpringClose 0.8s ease-in-out forwards;
     }
 
-    @keyframes hideToLogo {
+    @keyframes iosSpringClose {
         0% {
             opacity: 1;
-            filter: blur(0);
-            transform: translate(0, 0) scale(1);
+            filter: blur(0px);
+            transform: translate(0px, 0px) scale(1);
         }
+
+        60% {
+            opacity: 0.4;
+            filter: blur(5px);
+            transform: var(--to-bounce1); /* sursaut */
+        }
+
+        85% {
+            opacity: 0.2;
+            filter: blur(8px);
+            transform: var(--to-bounce2); /* petit retour vers l'arrière */
+        }
+
         100% {
             opacity: 0;
             filter: blur(10px);
-            transform: var(--to-transform);
+            transform: var(--to-transform); /* zoom-out total vers le logo */
         }
     }
+
 
     #accueil.affiche {
         animation: accueilAffiche 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
@@ -8613,9 +8629,19 @@ window.addEventListener('message', function(event) {
     const dx = logoRect.left + logoRect.width / 2 - (accueilRect.left + accueilRect.width / 2);
     const dy = logoRect.top + logoRect.height / 2 - (accueilRect.top + accueilRect.height / 2);
 
-    accueil.style.setProperty('--to-transform', `translate(${dx}px, ${dy}px) scale(0.1)`);
+    // Échelle finale
+    const finalScale = 0.1;
 
-    accueil.classList.add('hide');
+    // Étapes du rebond (simulées avec variations autour du déplacement final)
+    const bounce1 = `translate(${dx * 0.8}px, ${dy * 0.8}px) scale(0.3)`;
+    const bounce2 = `translate(${dx * 0.95}px, ${dy * 0.95}px) scale(0.15)`;
+    const finalTransform = `translate(${dx}px, ${dy}px) scale(${finalScale})`;
+
+    // Appliquer les valeurs en CSS variables
+    accueil.style.setProperty('--to-bounce1', bounce1);
+    accueil.style.setProperty('--to-bounce2', bounce2);
+    accueil.style.setProperty('--to-transform', finalTransform);
+
         accueil.classList.add('hide');
         accueil.classList.remove("affiche")
         const menubottom1 = document.getElementById('menubtm');
