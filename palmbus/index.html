@@ -5222,589 +5222,469 @@ async function fetchVehiclePositions() {
                 }
 
 
-// Configuration du zoom pour la vue minimale
-const MINIMAL_VIEW_ZOOM_THRESHOLD = 15; // Ajustez selon vos besoins
-
-// Fonction pour créer le contenu de la vue minimale
-function createMinimalViewContent(vehicle, line, lastStopName, lineName, lineColors, textColor, backgroundColor) {
-    const vehicleNumber = (vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0');
-    const truncatedDestination = lastStopName.length > 20 ? lastStopName.substring(0, 17) + '...' : lastStopName;
-    
-    return `
-        <div style="
-            position: relative; 
-            font-family: 'League Spartan', sans-serif; 
-            font-size: 12px; 
-            color: ${textColor}; 
-            border-radius: 12px; 
-            box-shadow: 0px 3px 12px 3px ${backgroundColor}8c; 
-            overflow: hidden; 
-            background: linear-gradient(135deg, ${backgroundColor}dd 0%, ${backgroundColor}bb 100%); 
-            backdrop-filter: blur(6px); 
-            -webkit-backdrop-filter: blur(6px);
-            padding: 8px 12px;
-            min-width: 140px;
-            max-width: 200px;
-            pointer-events: none;
-            border: 1px solid ${backgroundColor}4c;
-        ">
-            <!-- En-tête avec ligne -->
-            <div style="
-                display: flex; 
-                align-items: center; 
-                justify-content: center; 
-                margin-bottom: 6px;
-                padding: 4px 8px;
-                background: rgba(0,0,0,0.15);
-                border-radius: 8px;
-                backdrop-filter: blur(2px);
-            ">
-                <div style="
-                    font-size: 13px; 
-                    font-weight: bold; 
-                    letter-spacing: 0.5px;
-                    text-transform: uppercase;
-                ">
-                    ${t("line")} ${lineName[line] || t("unknownline")}
-                </div>
-            </div>
-            
-            <!-- Corps principal -->
-            <div style="display: flex; flex-direction: column; gap: 4px;">
-                <!-- Numéro de véhicule avec icône -->
-                <div style="
-                    display: flex; 
-                    align-items: center; 
-                    justify-content: center; 
-                    gap: 6px;
-                    padding: 3px 6px;
-                    background: rgba(255,255,255,0.1);
-                    border-radius: 6px;
-                ">
-                    <svg style="width: 14px; height: 14px;" viewBox="0 0 24 24" fill="none">
-                        <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round"/>
-                        <path d="M20 13H16M4 13H12" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M15.5 16H17M7 16H8.5" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span style="font-size: 12px; font-weight: 600;">${vehicleNumber}</span>
-                </div>
-                
-                <!-- Destination -->
-                <div style="
-                    text-align: center; 
-                    font-size: 10px; 
-                    opacity: 0.95;
-                    padding: 2px 4px;
-                    line-height: 1.3;
-                    font-weight: 500;
-                ">
-                    <span style="opacity: 0.8;">➜</span> ${truncatedDestination}
-                </div>
-            </div>
-            
-            <!-- Effet de brillance subtil -->
-            <div style="
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 40%;
-                background: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, transparent 100%);
-                border-radius: 12px 12px 0 0;
-                pointer-events: none;
-            "></div>
-        </div>
-    `;
-}
-
-// Fonction pour gérer l'affichage/masquage des vues minimales
-function updateMinimalViews() {
-    const currentZoom = map.getZoom();
-    const showMinimalViews = currentZoom >= MINIMAL_VIEW_ZOOM_THRESHOLD;
-    
-    Object.keys(markers).forEach(id => {
-        const marker = markers[id];
-        if (!marker) return;
-        
-        // Si une popup est ouverte, masquer la vue minimale
-        if (marker.isPopupOpen()) {
-            if (marker.getTooltip()) {
-                marker.unbindTooltip();
-            }
-            return;
-        }
-        
-        if (showMinimalViews) {
-            // Afficher la vue minimale si elle n'existe pas déjà
-            if (!marker.getTooltip() && marker.vehicleData) {
-                const minimalContent = createMinimalViewContent(
-                    marker.vehicleData.vehicle,
-                    marker.line,
-                    marker.vehicleData.lastStopName,
-                    marker.vehicleData.lineName,
-                    marker.vehicleData.lineColors,
-                    marker.vehicleData.textColor,
-                    marker.vehicleData.backgroundColor
-                );
-                
-                const tooltip = L.tooltip({
-                    permanent: true,
-                    direction: 'top',
-                    offset: [0, -15],
-                    className: 'minimal-tooltip',
-                    opacity: 1
-                }).setContent(minimalContent);
-                
-                marker.bindTooltip(tooltip);
-            }
-        } else {
-            // Masquer la vue minimale
-            if (marker.getTooltip()) {
-                marker.unbindTooltip();
-            }
-        }
-    });
-}
-
-// Votre code principal modifié
 const popupContent = `
-    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-       
-    <button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        background: none;
-        border: none;
-        padding: 4px;
-        cursor: pointer;
-        z-index: 3;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    ">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3C10.3431 3 9 4.34315 9 6C9 7.65685 10.3431 9 12 9C13.6569 9 15 7.65685 15 6" />
-        <path d="M5.5 15C3.84315 15 2.5 16.3431 2.5 18C2.5 19.6569 3.84315 21 5.5 21C7.15685 21 8.5 19.6569 8.5 18" />
-        <path d="M18.5 21C16.8431 21 15.5 19.6569 15.5 18C15.5 16.3431 16.8431 15 18.5 15C20.1569 15 21.5 16.3431 21.5 18" />
-        <path d="M20 13C20 10.6106 18.9525 8.46589 17.2916 7M4 13C4 10.6106 5.04752 8.46589 6.70838 7M10 20.748C10.6392 20.9125 11.3094 21 12 21C12.6906 21 13.3608 20.9125 14 20.748" />
-    </svg>
-    
-    </button>
-
-
-    <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
-    <div class="light-beam beam1"></div>
-    <div class="light-beam beam2"></div>
-    <div class="light-beam beam3"></div>
-
-        <!-- Texte principal -->
-        <div style="z-index: 2; text-align: left; width: 100%;">
-            <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
-            <strong style="margin: 0; font-size: 14px;">➜ ${lastStopName}</strong>
-    <div>
-        <div style="position: relative; display: flex; align-items: center; ">
-            <div style="
-                position: relative;
-                flex: 1;
-                overflow: hidden;
-                border-radius: 10px;
-            ">
-                <!-- Contenu défilant horizontalement -->
-                <div class="options" style="
+                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+                       
+                <button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    background: none;
+                    border: none;
+                    padding: 4px;
+                    cursor: pointer;
+                    z-index: 3;
                     display: flex;
-                    gap: 10px;
-                    padding: 0px;
-                    overflow-x: auto; 
-                    white-space: nowrap;
-                    scrollbar-width: thin; 
-                    scrollbar-color: #888 #f1f1f1;
-                    color: #ffffff;
-                " class="custom-scrollbar">
-                    <!-- Numéro de parc -->
-                    <span style="
-                        padding: 6px 10px; 
-                        background: #00000077; 
-                        font-weight: normal; 
-                        white-space: nowrap; 
-                        backdrop-filter: blur(8px);
-                        -webkit-backdrop-filter: blur(8px);
-                        border-radius: 10px; 
-                        display: inline-flex; 
-                        align-items: center; 
-                        gap: 6px;
-                        height: 20px;
-                    ">
+                    align-items: center;
+                    justify-content: center;
+                ">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3C10.3431 3 9 4.34315 9 6C9 7.65685 10.3431 9 12 9C13.6569 9 15 7.65685 15 6" />
+                    <path d="M5.5 15C3.84315 15 2.5 16.3431 2.5 18C2.5 19.6569 3.84315 21 5.5 21C7.15685 21 8.5 19.6569 8.5 18" />
+                    <path d="M18.5 21C16.8431 21 15.5 19.6569 15.5 18C15.5 16.3431 16.8431 15 18.5 15C20.1569 15 21.5 16.3431 21.5 18" />
+                    <path d="M20 13C20 10.6106 18.9525 8.46589 17.2916 7M4 13C4 10.6106 5.04752 8.46589 6.70838 7M10 20.748C10.6392 20.9125 11.3094 21 12 21C12.6906 21 13.3608 20.9125 14 20.748" />
+                </svg>
+                
+                </button>
 
-                    <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-                    <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
 
-                        
-                    </span>
-                    
-                    <!-- Badges des options du véhicule -->
-                    ${vehicleOptionsBadges}
+                <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
+                <div class="light-beam beam1"></div>
+                <div class="light-beam beam2"></div>
+                <div class="light-beam beam3"></div>
+
+                    <!-- Texte principal -->
+                    <div style="z-index: 2; text-align: left; width: 100%;">
+                        <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
+                        <strong style="margin: 0; font-size: 14px;">➜ ${lastStopName}</strong>
+                <div>
+                    <div style="position: relative; display: flex; align-items: center; ">
+                        <div style="
+                            position: relative;
+                            flex: 1;
+                            overflow: hidden;
+                            border-radius: 10px;
+                        ">
+                            <!-- Contenu défilant horizontalement -->
+                            <div class="options" style="
+                                display: flex;
+                                gap: 10px;
+                                padding: 0px;
+                                overflow-x: auto; 
+                                white-space: nowrap;
+                                scrollbar-width: thin; 
+                                scrollbar-color: #888 #f1f1f1;
+                                color: #ffffff;
+                            " class="custom-scrollbar">
+                                <!-- Numéro de parc -->
+                                <span style="
+                                    padding: 6px 10px; 
+                                    background: #00000077; 
+                                    font-weight: normal; 
+                                    white-space: nowrap; 
+                                    backdrop-filter: blur(8px);
+                                    -webkit-backdrop-filter: blur(8px);
+                                    border-radius: 10px; 
+                                    display: inline-flex; 
+                                    align-items: center; 
+                                    gap: 6px;
+                                    height: 20px;
+                                ">
+
+                                <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
+                                <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
+
+                                    
+                                </span>
+                                
+                                <!-- Badges des options du véhicule -->
+                                ${vehicleOptionsBadges}
+                            </div>
+                        </div>
+                    </div>
+                        <div style=" margin-top: 10px; text-align: right;">
+                            ${vehicleBrandHtml}
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-            <div style=" margin-top: 10px; text-align: right;">
-                ${vehicleBrandHtml}
-            </div>
-        </div>
-    </div>
 
 
-        <!-- Texte en arrière-plan -->
-        <div style="
-            position: absolute;
-            right: 10px;
-            top: 0;
-            z-index: 1;
-            opacity: 0.1;
-            font-size: 100px;
-            color: ${textColor};
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            white-space: nowrap;
-        ">
-            ${t("line")} ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
-        </div>
-    </div>
+                    <!-- Texte en arrière-plan -->
+                    <div style="
+                        position: absolute;
+                        right: 10px;
+                        top: 0;
+                        z-index: 1;
+                        opacity: 0.1;
+                        font-size: 100px;
+                        color: ${textColor};
+                        display: flex;
+                        align-items: center;
+                        justify-content: flex-end;
+                        white-space: nowrap;
+                    ">
+                        ${t("line")} ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
+                    </div>
+                </div>
 
 
 
 
 
-    <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
-    <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
-        <ul>
-        <div id="nextStopsContent" class="next-stops-content">
-              ${nextStopsHTML}
-        </div>   
-    </div>
-    </div>
-`;
+                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+                <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
+                    <ul>
+                    <div id="nextStopsContent" class="next-stops-content">
+                          ${nextStopsHTML}
+                    </div>   
+                </div>
+                </div>
+                `;
 
-if (markers[id]) {
-    animateMarker(markers[id], [latitude, longitude]);
-    
-    if (!markers[id].id) {
-        markers[id].id = id;
-    }
-    
-    // Stocker les données du véhicule pour la vue minimale
-    markers[id].vehicleData = {
-        vehicle: vehicle,
-        lastStopName: lastStopName,
-        lineName: lineName,
-        lineColors: lineColors,
-        textColor: textColor,
-        backgroundColor: backgroundColor
-    };
-    
-    if (markers[id].line !== line) {
-        const oldLine = markers[id].line;
-        markers[id].line = line;
-        
-        const color = lineColors[line] || '#000000';
-        if (markers[id]._icon) {
-            const markerIcon = markers[id]._icon.querySelector('.marker-icon');
-            if (markerIcon) {
-                markerIcon.style.transition = 'background-color 0.5s ease';
-                markerIcon.style.backgroundColor = color;
-            }
-            
-            const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
-            if (arrowElement) {
-                arrowElement.style.transition = 'stroke 0.5s ease';
-                arrowElement.setAttribute('stroke', color);
-            }
-        }
-        
-        if (markers[id].isPopupOpen()) {
-            const menubtm = document.getElementById('menubtm');
-            const filtre = document.getElementById('filtre');
-            if (menubtm) {
-                lastActiveColor = color;
+                // Vue minimale
+                const minimalContent = `
+                    <div style="
+                        position: relative; 
+                        font-family: 'League Spartan', sans-serif; 
+                        font-size: 12px; 
+                        color: ${textColor}; 
+                        border-radius: 10px; 
+                        box-shadow: 0px 2px 10px 2px ${backgroundColor}9c; 
+                        overflow: hidden; 
+                        background-color: ${backgroundColor}9c; 
+                        backdrop-filter: blur(8px); 
+                        -webkit-backdrop-filter: blur(8px);
+                        padding: 5px 8px;
+                        white-space: nowrap;
+                        pointer-events: none;
+                    ">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-weight: bold; font-size: 14px;">${t("line")} ${lineName[line] || t("unknownline")}</span>
+                            <span style="
+                                padding: 3px 6px; 
+                                background: #00000055; 
+                                border-radius: 6px; 
+                                font-size: 11px;
+                                backdrop-filter: blur(4px);
+                                -webkit-backdrop-filter: blur(4px);
+                            ">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
+                        </div>
+                        <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">➜ ${lastStopName}</div>
+                    </div>
+                `;
+
+                // Variables globales pour la gestion du zoom et des vues minimales
+                if (typeof window.minimalViews === 'undefined') {
+                    window.minimalViews = {};
+                    window.currentZoomLevel = map.getZoom();
+                    window.minimalViewThreshold = 15; // Seuil de zoom pour afficher la vue minimale
+                }
+
+                // Fonction pour créer/mettre à jour la vue minimale
+                const updateMinimalView = (marker, content, vehicleId) => {
+                    if (window.minimalViews[vehicleId]) {
+                        // Mise à jour du contenu existant
+                        window.minimalViews[vehicleId].setContent(content);
+                    } else {
+                        // Création nouvelle vue minimale
+                        const minimalTooltip = L.tooltip({
+                            permanent: true,
+                            direction: 'top',
+                            offset: [0, -40],
+                            className: 'minimal-vehicle-tooltip',
+                            opacity: 0.95
+                        }).setContent(content);
+                        
+                        marker.bindTooltip(minimalTooltip);
+                        window.minimalViews[vehicleId] = minimalTooltip;
+                    }
+                };
+
+                // Fonction pour gérer l'affichage basé sur le zoom
+                const manageMinimalViewDisplay = (marker, vehicleId) => {
+                    const currentZoom = map.getZoom();
+                    const hasMinimalView = window.minimalViews[vehicleId];
+                    const isPopupOpen = marker.isPopupOpen();
+                    
+                    if (currentZoom >= window.minimalViewThreshold && !isPopupOpen) {
+                        // Afficher la vue minimale si zoom suffisant et popup fermée
+                        if (hasMinimalView) {
+                            marker.openTooltip();
+                        }
+                    } else {
+                        // Masquer la vue minimale
+                        if (hasMinimalView) {
+                            marker.closeTooltip();
+                        }
+                    }
+                };
+  
+            if (markers[id]) {
+                animateMarker(markers[id], [latitude, longitude]);
                 
-                menubtm.style.backgroundColor = `${color}9c`;
-                filtre.style.backgroundColor = `${color}9c`;
-
+                if (!markers[id].id) {
+                    markers[id].id = id;
+                }
                 
-                function getOptimalTextColor(color) {
-                if (!color) return '#000000';
+                if (markers[id].line !== line) {
+                    const oldLine = markers[id].line;
+                    markers[id].line = line;
+                    
+                    const color = lineColors[line] || '#000000';
+                    if (markers[id]._icon) {
+                        const markerIcon = markers[id]._icon.querySelector('.marker-icon');
+                        if (markerIcon) {
+                            markerIcon.style.transition = 'background-color 0.5s ease';
+                            markerIcon.style.backgroundColor = color;
+                        }
+                        
+                        const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
+                        if (arrowElement) {
+                            arrowElement.style.transition = 'stroke 0.5s ease';
+                            arrowElement.setAttribute('stroke', color);
+                        }
+                    }
+                    
+                    if (markers[id].isPopupOpen()) {
+                        const menubtm = document.getElementById('menubtm');
+                        const filtre = document.getElementById('filtre');
+                        if (menubtm) {
+                            lastActiveColor = color;
+                            
+                            menubtm.style.backgroundColor = `${color}9c`;
+                            filtre.style.backgroundColor = `${color}9c`;
 
-                color = color.trim();
+                            
+                            function getOptimalTextColor(color) {
+                            if (!color) return '#000000';
 
-                let r, g, b, a = 1;
+                            color = color.trim();
 
-                if (/^#([a-f\d])([a-f\d])([a-f\d])$/i.test(color)) {
-                    color = color.replace(/^#([a-f\d])([a-f\d])([a-f\d])$/i,
-                    (_, r, g, b) => '#' + r + r + g + g + b + b);
+                            let r, g, b, a = 1;
+
+                            if (/^#([a-f\d])([a-f\d])([a-f\d])$/i.test(color)) {
+                                color = color.replace(/^#([a-f\d])([a-f\d])([a-f\d])$/i,
+                                (_, r, g, b) => '#' + r + r + g + g + b + b);
+                            }
+
+                            const hexMatch = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i);
+
+                            if (!hexMatch) return '#000000'; 
+
+                            r = parseInt(hexMatch[1], 16);
+                            g = parseInt(hexMatch[2], 16);
+                            b = parseInt(hexMatch[3], 16);
+
+                            if (hexMatch[4]) {
+                                a = parseInt(hexMatch[4], 16) / 255;
+                            }
+
+                            if (a < 1) {
+                                r = Math.round((1 - a) * 255 + a * r);
+                                g = Math.round((1 - a) * 255 + a * g);
+                                b = Math.round((1 - a) * 255 + a * b);
+                            }
+
+                            const srgb = [r, g, b].map(c => {
+                                const v = c / 255;
+                                return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+                            });
+
+                            const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+
+                            const contrastBlack = (luminance + 0.05) / 0.05;
+                            const contrastWhite = 1.05 / (luminance + 0.05);
+
+                            return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
+                            }
+
+                            const textColor = getOptimalTextColor(color);
+                            
+                            const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+                            const styleSheet = document.createElement('style');
+                            styleSheet.id = styleId;
+                            styleSheet.classList.add('menu-color-style');
+                            
+                            styleSheet.textContent = `
+                                #menubtm * {
+                                    color: ${textColor};
+                                    transition: color 0.5s ease;
+                                }
+
+                                #filtre * {
+                                    color: ${textColor};
+                                    transition: color 0.5s ease;
+                                }
+                            `;
+                            
+                            document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
+                            document.head.appendChild(styleSheet);
+                            markers[id].styleId = styleId;
+                        }
+                    }
+                }
+                
+                if (markers[id]._icon) {
+                    const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
+                    
+                    if (arrowElement) {
+                        const targetRotation = bearing - 90;
+                        arrowElement.style.transition = 'transform 0.5s ease';
+                        arrowElement.style.transform = `rotate(${targetRotation}deg)`;
+                        arrowElement._currentRotation = targetRotation;
+                    }
                 }
 
-                const hexMatch = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i);
+                updateLinesDisplay();
 
-                if (!hexMatch) return '#000000'; 
+                const existingPopup = markers[id].getPopup();
+                const currentContent = existingPopup ? existingPopup.getContent() : '';
 
-                r = parseInt(hexMatch[1], 16);
-                g = parseInt(hexMatch[2], 16);
-                b = parseInt(hexMatch[3], 16);
-
-                if (hexMatch[4]) {
-                    a = parseInt(hexMatch[4], 16) / 255;
+                if (existingPopup && currentContent === popupContent) {
+                    // Mise à jour de la vue minimale même si popup inchangée
+                    updateMinimalView(markers[id], minimalContent, id);
+                    manageMinimalViewDisplay(markers[id], id);
+                    return;
                 }
 
-                if (a < 1) {
-                    r = Math.round((1 - a) * 255 + a * r);
-                    g = Math.round((1 - a) * 255 + a * g);
-                    b = Math.round((1 - a) * 255 + a * b);
+                markers[id].setPopupContent(popupContent);
+
+                // Mise à jour de la vue minimale
+                updateMinimalView(markers[id], minimalContent, id);
+                manageMinimalViewDisplay(markers[id], id);
+
+                if (markers[id].isPopupOpen()) {
+                    const popup = markers[id]._popup;
+                    if (popup && popup._contentNode) {
+                        const popupElement = popup._contentNode.parentElement;
+                        if (popupElement) {
+                            popupElement.classList.remove('hide'); 
+                            popupElement.classList.add('show'); 
+                            markers[id].openPopup();
+                        }
+                    }
                 }
 
-                const srgb = [r, g, b].map(c => {
-                    const v = c / 255;
-                    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+                if (selectedLine && markers[id].line !== selectedLine) {
+                    if (map.hasLayer(markers[id])) {
+                        map.removeLayer(markers[id]);
+                    }
+                } else {
+                    if (!map.hasLayer(markers[id])) {
+                        map.addLayer(markers[id]);
+                    }
+                }
+            } else {
+                const marker = createColoredMarker(latitude, longitude, line, bearing);
+                updateLinesDisplay();
+                markers[id] = marker;
+                markers[id].line = line;
+                markers[id].id = id;
+
+                if (!selectedLine || selectedLine === line) {
+                    marker.addTo(map);
+                }
+                
+                marker.bindPopup(popupContent);
+
+                // Création de la vue minimale pour nouveau marker
+                updateMinimalView(marker, minimalContent, id);
+                manageMinimalViewDisplay(marker, id);
+
+                marker.on('popupopen', function (e) {
+                    // Fermer la vue minimale quand popup s'ouvre
+                    if (window.minimalViews[id]) {
+                        marker.closeTooltip();
+                    }
+                    
+                    if (e.popup && e.popup._contentNode) {
+                        const popupElement = e.popup._contentNode.parentElement;
+                        if (popupElement) {
+                            popupElement.classList.remove('hide'); 
+                            popupElement.classList.add('show');  
+                        }
+                    }
                 });
 
-                const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+                marker.on('popupclose', function (e) {
+                    // Réafficher la vue minimale si zoom approprié
+                    manageMinimalViewDisplay(marker, id);
+                    
+                    if (e.popup && e.popup._contentNode) {
+                        const popupElement = e.popup._contentNode.parentElement;
+                        if (popupElement) {
+                            popupElement.classList.remove('show');
+                            popupElement.classList.add('hide');
 
-                const contrastBlack = (luminance + 0.05) / 0.05;
-                const contrastWhite = 1.05 / (luminance + 0.05);
+                            setTimeout(() => {
+                                if (e.popup) {
+                                    e.popup.remove(); 
+                                }
+                            }, 200); 
+                        }
+                    }
+                });
+            }
+            }
+        });
+    
 
-                return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
+        // Nettoyage des markers supprimés
+        Object.keys(markers).forEach(id => {
+            if (!activeVehicleIds.has(id)) {
+                // Nettoyer la vue minimale
+                if (window.minimalViews[id]) {
+                    delete window.minimalViews[id];
                 }
-
-                const textColor = getOptimalTextColor(color);
-                
-                const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
-                const styleSheet = document.createElement('style');
-                styleSheet.id = styleId;
-                styleSheet.classList.add('menu-color-style');
-                
-                styleSheet.textContent = `
-                    #menubtm * {
-                        color: ${textColor};
-                        transition: color 0.5s ease;
-                    }
-
-                    #filtre * {
-                        color: ${textColor};
-                        transition: color 0.5s ease;
-                    }
-                `;
-                
-                document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
-                document.head.appendChild(styleSheet);
-                markers[id].styleId = styleId;
+                map.removeLayer(markers[id]); 
+                delete markers[id]; 
             }
-        }
-    }
+        });
     
-    if (markers[id]._icon) {
-        const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
-        
-        if (arrowElement) {
-            const targetRotation = bearing - 90;
-            arrowElement.style.transition = 'transform 0.5s ease';
-            arrowElement.style.transform = `rotate(${targetRotation}deg)`;
-            arrowElement._currentRotation = targetRotation;
-        }
-    }
 
-    updateLinesDisplay();
-
-    const existingPopup = markers[id].getPopup();
-    const currentContent = existingPopup ? existingPopup.getContent() : '';
-
-    // Ne pas mettre à jour si le contenu est identique ET si la popup est ouverte
-    if (existingPopup && currentContent === popupContent && markers[id].isPopupOpen()) {
-        // Mettre à jour seulement les vues minimales si nécessaire
-        updateMinimalViews();
-        return;
-    }
-
-    // Conserver l'état de la popup avant la mise à jour
-    const wasPopupOpen = markers[id].isPopupOpen();
-
-    markers[id].setPopupContent(popupContent);
-
-    // Rouvrir la popup si elle était ouverte avant la mise à jour
-    if (wasPopupOpen) {
-        markers[id].openPopup();
-        const popup = markers[id]._popup;
-        if (popup && popup._contentNode) {
-            const popupElement = popup._contentNode.parentElement;
-            if (popupElement) {
-                popupElement.classList.remove('hide'); 
-                popupElement.classList.add('show'); 
-            }
-        }
-    }
-
-    if (selectedLine && markers[id].line !== selectedLine) {
-        if (map.hasLayer(markers[id])) {
-            map.removeLayer(markers[id]);
-        }
-    } else {
-        if (!map.hasLayer(markers[id])) {
-            map.addLayer(markers[id]);
-        }
-    }
-} else {
-    const marker = createColoredMarker(latitude, longitude, line, bearing);
-    updateLinesDisplay();
-    markers[id] = marker;
-    markers[id].line = line;
-    markers[id].id = id;
-    
-    // Stocker les données du véhicule pour la vue minimale
-    markers[id].vehicleData = {
-        vehicle: vehicle,
-        lastStopName: lastStopName,
-        lineName: lineName,
-        lineColors: lineColors,
-        textColor: textColor,
-        backgroundColor: backgroundColor
-    };
-
-    if (!selectedLine || selectedLine === line) {
-        marker.addTo(map);
-    }
-    
-    marker.bindPopup(popupContent);
-
-    marker.on('popupopen', function (e) {
-        // Masquer la vue minimale quand la popup s'ouvre
-        if (e.target.getTooltip()) {
-            e.target.unbindTooltip();
-        }
-        
-        if (e.popup && e.popup._contentNode) {
-            const popupElement = e.popup._contentNode.parentElement;
-            if (popupElement) {
-                popupElement.classList.remove('hide'); 
-                popupElement.classList.add('show');  
-            }
-        }
-    });
-
-    marker.on('popupclose', function (e) {
-        // Réafficher la vue minimale si le zoom le permet
-        const currentZoom = map.getZoom();
-        if (currentZoom >= MINIMAL_VIEW_ZOOM_THRESHOLD && e.target.vehicleData) {
-            const minimalContent = createMinimalViewContent(
-                e.target.vehicleData.vehicle,
-                e.target.line,
-                e.target.vehicleData.lastStopName,
-                e.target.vehicleData.lineName,
-                e.target.vehicleData.lineColors,
-                e.target.vehicleData.textColor,
-                e.target.vehicleData.backgroundColor
-            );
-            
-            const tooltip = L.tooltip({
-                permanent: true,
-                direction: 'top',
-                offset: [0, -15],
-                className: 'minimal-tooltip',
-                opacity: 1
-            }).setContent(minimalContent);
-            
-            e.target.bindTooltip(tooltip);
-        }
-        
-        if (e.popup && e.popup._contentNode) {
-            const popupElement = e.popup._contentNode.parentElement;
-            if (popupElement) {
-                popupElement.classList.remove('show');
-                popupElement.classList.add('hide');
-
-                setTimeout(() => {
-                    if (e.popup) {
-                        e.popup.remove(); 
+        // Gestionnaire d'événement pour le zoom (à ajouter une seule fois)
+        if (!window.zoomHandlerAdded) {
+            map.on('zoomend', function() {
+                const newZoom = map.getZoom();
+                window.currentZoomLevel = newZoom;
+                
+                // Mettre à jour l'affichage de toutes les vues minimales
+                Object.keys(markers).forEach(id => {
+                    if (markers[id] && window.minimalViews[id]) {
+                        manageMinimalViewDisplay(markers[id], id);
                     }
-                }, 200); 
-            }
-        }
-    });
-}
-
-Object.keys(markers).forEach(id => {
-    if (!activeVehicleIds.has(id)) {
-        // Nettoyer la vue minimale avant de supprimer le marqueur
-        if (markers[id].getTooltip()) {
-            markers[id].unbindTooltip();
-        }
-        map.removeLayer(markers[id]); 
-        delete markers[id]; 
-    }
-});
-
-// Mettre à jour les vues minimales seulement après le nettoyage
-updateMinimalViews();
-
-// Ajouter l'événement de zoom pour gérer les vues minimales
-map.on('zoomend', updateMinimalViews);
-                }
+                });
             });
+            window.zoomHandlerAdded = true;
+        }
+    
+    
 
-// CSS pour les tooltips minimaux (à ajouter dans votre CSS)
-const minimalTooltipStyles = `
-<style>
-.minimal-tooltip {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    z-index: 1000 !important;
-    /* Empêcher le flash en haut à gauche */
-    visibility: hidden !important;
-}
-
-.minimal-tooltip.leaflet-tooltip-pane {
-    visibility: visible !important;
-}
-
-.minimal-tooltip .leaflet-tooltip-content {
-    margin: 0 !important;
-    padding: 0 !important;
-    background: transparent !important;
-}
-
-.minimal-tooltip::before {
-    display: none !important;
-}
-
-/* Animation d'apparition douce */
-.minimal-tooltip {
-    transition: opacity 0.2s ease-in-out !important;
-}
-
-.minimal-tooltip.show {
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
-/* Responsive pour mobiles */
-@media (max-width: 768px) {
-    .minimal-tooltip .leaflet-tooltip-content > div {
-        font-size: 11px !important;
-        min-width: 120px !important;
-        max-width: 160px !important;
-        padding: 6px 10px !important;
-    }
-}
-</style>
-`;
-
-// Injecter les styles si ce n'est pas déjà fait
-if (!document.querySelector('#minimal-tooltip-styles')) {
-    const styleElement = document.createElement('div');
-    styleElement.id = 'minimal-tooltip-styles';
-    styleElement.innerHTML = minimalTooltipStyles;
-    document.head.appendChild(styleElement);
-}
+        // CSS pour la vue minimale (à ajouter une seule fois)
+        if (!document.getElementById('minimal-view-styles')) {
+            const style = document.createElement('style');
+            style.id = 'minimal-view-styles';
+            style.textContent = `
+                .minimal-vehicle-tooltip {
+                    background: transparent !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+                
+                .minimal-vehicle-tooltip::before {
+                    display: none !important;
+                }
+                
+                .leaflet-tooltip-top .minimal-vehicle-tooltip::before {
+                    display: none !important;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    
+    
         
 let isMenuVisible = true;
 
