@@ -3967,38 +3967,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     return marker;
 }
 
-function animateMarker(marker, newPosition) {
-    const startLatLng = marker.getLatLng();
-    const endLatLng = L.latLng(newPosition[0], newPosition[1]);
-    const duration = 1000; 
-    const startTime = performance.now();
-
-    if (marker.animationFrame) {
-        cancelAnimationFrame(marker.animationFrame);
-    }
-
-    function easeInOutQuad(t) {
-        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    }
-
-    function animate(time) {
-        const elapsed = time - startTime;
-        const linearProgress = Math.min(elapsed / duration, 1);
-        
-        const easedProgress = easeInOutQuad(linearProgress);
-        
-        const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * easedProgress;
-        const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * easedProgress;
-        
-        marker.setLatLng([lat, lng]);
-
-        if (linearProgress < 1) {
-            marker.animationFrame = requestAnimationFrame(animate);
-        }
-    }
-
-    marker.animationFrame = requestAnimationFrame(animate);
-}
 
 let busStopLayers = [];
 let selectedLines = [];
@@ -5593,9 +5561,9 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
         }
     }
 }
-// Fonction pour gérer l'affichage des vues minimales selon le zoom
-function updateMinimalPopups() {
-    const currentZoom = map.getZoom();
+
+function animateMarker(marker, newPosition) {
+        const currentZoom = map.getZoom();
     const showMinimal = currentZoom >= 15 && currentZoom < 17; // Afficher entre zoom 14 et 16
     
     Object.keys(markers).forEach(markerId => {
@@ -5605,7 +5573,39 @@ function updateMinimalPopups() {
         const shouldShow = showMinimal && !marker.isPopupOpen();
         createOrUpdateMinimalTooltip(markerId, shouldShow);
     });
+
+    const startLatLng = marker.getLatLng();
+    const endLatLng = L.latLng(newPosition[0], newPosition[1]);
+    const duration = 1000; 
+    const startTime = performance.now();
+
+    if (marker.animationFrame) {
+        cancelAnimationFrame(marker.animationFrame);
+    }
+
+    function easeInOutQuad(t) {
+        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    }
+
+    function animate(time) {
+        const elapsed = time - startTime;
+        const linearProgress = Math.min(elapsed / duration, 1);
+        
+        const easedProgress = easeInOutQuad(linearProgress);
+        
+        const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * easedProgress;
+        const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * easedProgress;
+        
+        marker.setLatLng([lat, lng]);
+
+        if (linearProgress < 1) {
+            marker.animationFrame = requestAnimationFrame(animate);
+        }
+    }
+
+    marker.animationFrame = requestAnimationFrame(animate);
 }
+
 
 // Fonction pour obtenir la couleur de texte optimale (déjà présente dans votre code)
 function getOptimalTextColor(color) {
@@ -5758,7 +5758,6 @@ if (markers[id]) {
             map.addLayer(markers[id]);
         }
     }
-    updateMinimalPopups();
 animateMarker(markers[id], [latitude, longitude]);
 
 } else {
@@ -5804,7 +5803,7 @@ animateMarker(markers[id], [latitude, longitude]);
                     }
                     // Remettre la vue minimale si nécessaire avec animation
                     setTimeout(() => {
-                        updateMinimalPopups();
+                        animateMarker(markers[id], [latitude, longitude]);
                     }, 100);
                 }, 200); 
             }
@@ -5818,7 +5817,6 @@ animateMarker(markers[id], [latitude, longitude]);
         }
         marker.openPopup();
     });
-    updateMinimalPopups();
         animateMarker(markers[id], [latitude, longitude]);
 
 
@@ -5826,13 +5824,13 @@ animateMarker(markers[id], [latitude, longitude]);
 
 
 // Gestionnaire d'événement pour le zoom
-map.on('zoomend', updateMinimalPopups);
+map.on('zoomend', animateMarker(markers[id], [latitude, longitude]));
 
                     }
             });
 
-// Mettre à jour les vues minimales après création/mise à jour des marqueurs
-updateMinimalPopups();
+
+
 
 Object.keys(markers).forEach(id => {
     if (!activeVehicleIds.has(id)) {
