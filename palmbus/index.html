@@ -3376,57 +3376,57 @@ async function extractGTFSFiles() {
     }
 }
 
-const lineTextColors = {};
-const lineShortNames = {};
-const lineLongNames = {};
-
 async function loadLineColors(routesFileContent) {
     try {
-        if (!routesFileContent) return;
-
-        const lines = routesFileContent.split('\n');
-        const headers = lines[0].split(',');
-        const routeIdIdx = headers.indexOf('route_id');
-        const routeShortNameIdx = headers.indexOf('route_short_name');
-        const routeLongNameIdx = headers.indexOf('route_long_name');
-        const routeColorIdx = headers.indexOf('route_color');
-        const routeTextColorIdx = headers.indexOf('route_text_color');
-
-        if (
-            routeIdIdx === -1 ||
-            routeShortNameIdx === -1 ||
-            routeLongNameIdx === -1 ||
-            routeColorIdx === -1 ||
-            routeTextColorIdx === -1
-        ) {
-            console.error('Impossible de trouver tous les en-têtes requis dans routes.txt');
+        if (!routesFileContent) {
             return;
         }
-
-        lines.slice(1).forEach(line => {
+        
+        const data = await getSetvar();
+        if (!data) {
+            console.error('Échec récupération variables de config');
+            return;
+        }
+        
+        const lines = routesFileContent.split('\n');
+        
+        const headers = lines[0].split(',');
+        const routeIdIndex = headers.indexOf('route_id');
+        const routeLongNameIndex = headers.indexOf('route_short_name');
+        const routeColorIndex = headers.indexOf('route_color');
+        
+        if (routeIdIndex === -1 || routeLongNameIndex === -1 || routeColorIndex === -1) {
+            console.error('Impossible de trouver tous les entêttes requis dans fichier routes.txt');
+            return;
+        }
+        
+        const startIndex = data.slicelinecolor ? parseInt(data.slicelinecolor) : 1;
+        
+        lines.slice(startIndex).forEach(line => {
             if (!line.trim()) return;
-            const cols = line.split(',');
-
-            if (cols.length <= Math.max(routeIdIdx, routeShortNameIdx, routeLongNameIdx, routeColorIdx, routeTextColorIdx)) return;
-
-            const routeId = cols[routeIdIdx];
-            const shortName = cols[routeShortNameIdx];
-            const longName = cols[routeLongNameIdx];
-            let color = cols[routeColorIdx];
-            let textColor = cols[routeTextColorIdx];
-
-            if (color && !color.startsWith('#')) color = `#${color.trim()}`;
-            if (textColor && !textColor.startsWith('#')) textColor = `#${textColor.trim()}`;
-
+            
+            const columns = line.split(',');
+            
+            if (columns.length <= Math.max(routeIdIndex, routeLongNameIndex, routeColorIndex)) {
+                return;
+            }
+            
+            const routeId = columns[routeIdIndex];
+            const routeLongName = columns[routeLongNameIndex];
+            let routeColor = columns[routeColorIndex];
+            if (routeColor && !routeColor.startsWith('#') && routeColor.trim() !== '') {
+                routeColor = `#${routeColor}`;
+            }
+            
+            let cleanedLineName = routeLongName ? routeLongName.replace(/\"/g, '').trim() : '';
             if (routeId) {
-                lineColors[routeId] = color || "#2260b6";
-                lineTextColors[routeId] = textColor || "#fff";
-                lineShortNames[routeId] = shortName ? shortName.replace(/"/g, '').trim() : routeId;
-                lineLongNames[routeId] = longName ? longName.replace(/"/g, '').trim() : "";
+                lineColors[routeId] = routeColor;
+                lineName[routeId] = cleanedLineName;
             }
         });
+        
     } catch (error) {
-        console.error('Erreur dans loadLineColors', error);
+        console.error('Erreur', error);
     }
 }
 
@@ -4006,7 +4006,57 @@ let selectedLines = [];
 
 
 
+async function loadGeoJsonLines() {
+    const response = await fetch('proxy-cors/proxy_geojson.php');
+    const geoJsonData = await response.json();
 
+    const busLines = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry.type === 'LineString';
+        },
+        style: function(feature) {
+            return {
+                color: lineColors[feature.properties.route_id] || '#3388ff',
+                weight: 6,
+                opacity: 0.7,  
+                lineJoin: 'round',
+                lineCap: 'round',
+                className: 'bus-line', 
+                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
+            };
+        },
+        onEachFeature: function(feature, layer) {
+            
+            if (feature.properties && feature.properties.route_id) {
+                geoJsonLines.push(layer);
+            }
+        }
+    }).addTo(map);
+
+    const busStops = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry && feature.geometry.type === 'Point';
+        },
+        pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 3,
+                fillColor: '#ffffff',
+                color: '#000000',
+                weight: 0.5,
+                opacity: 0.7,
+                fillOpacity: 0.6
+            });
+        }
+    }).addTo(map);
+    
+    busStops.eachLayer(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+            layer.busLine = layer.feature.properties.route_id || null;
+            busStopLayers.push(layer);
+        }
+    });
+    
+}
 
 
 
@@ -7803,24 +7853,15 @@ let worker;
 let fetchInProgress = false;
 const FETCH_INTERVAL = 8000; 
 
-let tripUpdatesRefreshTimer = null;
-
-
-initWorker();
-
 function initWorker() {
-    if (worker) worker.terminate();
     worker = new Worker('worker.js');
+    
     worker.onerror = (error) => {
         console.error('Erreur worker', error);
         setTimeout(() => {
             worker.terminate();
             initWorker();
         }, 1000);
-    };
-    worker.onmessage = (e) => {
-        tripUpdates = e.data.tripUpdates;
-        // Optionnel : tu peux rafraîchir toutes les popups ouvertes ici si besoin
     };
 }
 
@@ -7873,227 +7914,6 @@ async function fetchTripUpdates() {
         fetchInProgress = false;
         throw error;
     }
-}
-
-async function fetchAndStoreTripUpdates() {
-    if (fetchInProgress) return;
-    fetchInProgress = true;
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        const response = await fetch('proxy-cors/proxy_tripupdate.php', {
-            signal: controller.signal,
-            cache: 'no-store'
-        });
-        clearTimeout(timeoutId);
-
-        if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-        const buffer = await response.arrayBuffer();
-        const data = await decodeProtobuf(buffer); // fournie par ta stack
-
-        return new Promise((resolve, reject) => {
-            const workerTimeoutId = setTimeout(() => {
-                reject(new Error('Worker timeout'));
-            }, 3000);
-            worker.onmessage = (e) => {
-                clearTimeout(workerTimeoutId);
-                tripUpdates = e.data.tripUpdates;
-                fetchInProgress = false;
-                resolve(e.data.tripUpdates);
-            };
-            worker.postMessage(data);
-        });
-    } catch (e) {
-        fetchInProgress = false;
-        console.error('Erreur récupération trip updates:', e);
-    }
-}
-
-// Mise à jour automatique
-function startTripUpdatesAutoRefresh() {
-    if (tripUpdatesRefreshTimer) clearInterval(tripUpdatesRefreshTimer);
-    fetchAndStoreTripUpdates();
-    tripUpdatesRefreshTimer = setInterval(fetchAndStoreTripUpdates, FETCH_INTERVAL);
-}
-startTripUpdatesAutoRefresh();
-
-// FLUENT DESIGN : mini style pour la popup
-function getFluentPopupCSS() {
-    return `
-    <style>
-        .fluent-popup { font-family: 'Segoe UI',Arial,sans-serif; background: #fff; border-radius:12px; box-shadow:0 4px 24px #0002; min-width:220px; padding: 8px 12px; }
-        .fluent-popup h4 { margin: 0 0 8px 0; font-weight:600; font-size:1.09em; color:#2260b6;}
-        .fluent-line { padding: 5px 0; border-bottom:1px solid #e5e5e5;}
-        .fluent-line:last-child { border-bottom: none; }
-        .fluent-line .route { font-weight: 500; color: #fff; background: #2260b6; border-radius: 4px; padding: 1px 7px; margin-right: 6px; font-size: 0.97em;}
-        .fluent-time { font-variant-numeric: tabular-nums; margin-left: 2px; }
-        .fluent-delayed { color: #ff3b3b; font-weight: 500; }
-        .fluent-on-time { color: #34c759; }
-        .fluent-passage { margin-left:4px; font-size:0.95em; }
-        .fluent-empty { color:#888; font-size:0.96em; }
-    </style>
-    `;
-}
-
-// Formate l'heure, gère l'affichage "dans X min" et le retard
-function formatPassageTime(unifiedTime, delaySec) {
-    if (!unifiedTime || unifiedTime === "inconnue") return `<span class="fluent-time">inconnue</span>`;
-    const now = new Date();
-    const passageDate = new Date(now);
-    const [h, m] = unifiedTime.split(':');
-    passageDate.setHours(parseInt(h,10), parseInt(m,10), 0, 0);
-    let minDiff = Math.round((passageDate - now) / 60000);
-    let absMin = Math.abs(minDiff);
-
-    let label = minDiff > 0 ? `dans ${absMin} min` : (minDiff < 0 ? `il y a ${absMin} min` : 'à l\'instant');
-    let delayLabel = '';
-    if (typeof delaySec === "number" && Math.abs(delaySec) > 60) {
-        let minDelay = Math.round(delaySec / 60);
-        delayLabel = minDelay > 0
-            ? ` <span class="fluent-delayed">+${minDelay} min</span>`
-            : ` <span class="fluent-on-time">- ${Math.abs(minDelay)} min</span>`;
-    }
-    return `<span class="fluent-time">${unifiedTime}</span> <span class="fluent-passage">${label}</span>${delayLabel}`;
-}
-
-function getNextPassagesForStopGroupedByTerminus(stopId) {
-    // { routeId: { terminusName: [stopUpdate, ...] } }
-    const byRouteAndTerminus = {};
-
-    for (const tripId in tripUpdates) {
-        const tripUpdate = tripUpdates[tripId];
-        if (!tripUpdate.stopUpdates || !Array.isArray(tripUpdate.stopUpdates)) continue;
-
-        // Cherche le passage à cet arrêt
-        const stopUpdate = tripUpdate.stopUpdates.find(s => s.stopId === stopId);
-        if (!stopUpdate) continue;
-
-        // Ligne (route_id)
-        const trip = tripUpdate.trip || {};
-        const routeId = trip.route_id || trip.routeId || (tripId.split('-')[0]);
-        if (!routeId) continue;
-
-        // Terminus : dernier stop_id du parcours
-        const stopUpdatesArr = tripUpdate.stopUpdates;
-        const lastStopId = stopUpdatesArr.length > 0 ? stopUpdatesArr[stopUpdatesArr.length - 1].stopId : null;
-        const terminusName = (lastStopId && stopNameMap[lastStopId]) ? stopNameMap[lastStopId] : 'Terminus inconnu';
-
-        // Init structure
-        if (!byRouteAndTerminus[routeId]) byRouteAndTerminus[routeId] = {};
-        if (!byRouteAndTerminus[routeId][terminusName]) byRouteAndTerminus[routeId][terminusName] = [];
-
-        byRouteAndTerminus[routeId][terminusName].push(stopUpdate);
-    }
-
-    // Trie chaque tableau d'horaires
-    for (const routeId in byRouteAndTerminus) {
-        for (const terminus in byRouteAndTerminus[routeId]) {
-            byRouteAndTerminus[routeId][terminus].sort((a, b) => {
-                if (a.unifiedTime && b.unifiedTime) return a.unifiedTime.localeCompare(b.unifiedTime);
-                return 0;
-            });
-        }
-    }
-    return byRouteAndTerminus;
-}
-
-function buildFluentPopupContentGroupedByTerminus(stopFeature) {
-    const stopId = stopFeature.properties.stop_id || stopFeature.properties.id;
-    const stopName = stopFeature.properties.stop_name || stopFeature.properties.name || 'Arrêt inconnu';
-    const lines = getNextPassagesForStopGroupedByTerminus(stopId);
-
-    let html = getFluentPopupCSS();
-    html += `<div class="fluent-popup"><h4>${stopName}</h4>`;
-
-    const routeIds = Object.keys(lines);
-    if (!routeIds.length) {
-        html += `<div class="fluent-empty">Aucun passage prévu à cet arrêt</div>`;
-    } else {
-        routeIds.forEach(routeId => {
-            const routesGroup = lines[routeId];
-            const lineShortName = lineShortNames[routeId] || routeId;
-            const bgColor = lineColors[routeId] || '#2260b6';
-            const fgColor = lineTextColors[routeId] || '#fff';
-
-            html += `<span class="route" style="background:${bgColor};color:${fgColor}">${lineShortName}</span>`;            Object.keys(routesGroup).forEach(terminusName => {
-                html += `<div class="fluent-dest" style="padding-left:13px; margin-bottom:2px;"><span style="color:#2260b6;font-weight:500;">${terminusName}</span> : `;
-                html += routesGroup[terminusName].slice(0,3).map(stop => formatPassageTime(stop.unifiedTime, stop.delay)).join(' | ');
-                html += '</div>';
-            });
-        });
-    }
-    html += `</div>`;
-    return html;
-}
-
-// Dans addBusStopPopups, utilise cette version :
-function addBusStopPopups(busStopsLayerGroup) {
-    busStopsLayerGroup.eachLayer(layer => {
-        if (layer.feature && layer.feature.properties) {
-            layer.on('click', function(e) {
-                map.closePopup();
-                L.popup({maxWidth: 340, closeButton:true, autoPan:true})
-                    .setLatLng(layer.getLatLng())
-                    .setContent(buildFluentPopupContentGroupedByTerminus(layer.feature))
-                    .openOn(map);
-            });
-        }
-    });
-}
-
-// --- Place ceci à la fin de ta fonction loadGeoJsonLines ---
-async function loadGeoJsonLines() {
-    const response = await fetch('proxy-cors/proxy_geojson.php');
-    const geoJsonData = await response.json();
-
-    const busLines = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry.type === 'LineString';
-        },
-        style: function(feature) {
-            return {
-                color: lineColors[feature.properties.route_id] || '#3388ff',
-                weight: 6,
-                opacity: 0.7,  
-                lineJoin: 'round',
-                lineCap: 'round',
-                className: 'bus-line', 
-                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
-            };
-        },
-        onEachFeature: function(feature, layer) {
-            if (feature.properties && feature.properties.route_id) {
-                geoJsonLines.push(layer);
-            }
-        }
-    }).addTo(map);
-
-    const busStops = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry && feature.geometry.type === 'Point';
-        },
-        pointToLayer: function(feature, latlng) {
-            return L.circleMarker(latlng, {
-                radius: 3,
-                fillColor: '#ffffff',
-                color: '#000000',
-                weight: 0.5,
-                opacity: 0.7,
-                fillOpacity: 0.6
-            });
-        }
-    }).addTo(map);
-
-    busStops.eachLayer(function(layer) {
-        if (layer.feature && layer.feature.properties) {
-            layer.busLine = layer.feature.properties.route_id || null;
-            busStopLayers.push(layer);
-        }
-    });
-
-    // Ajoute le handler pour les popups Fluent
-    addBusStopPopups(busStops);
 }
 
 let lastUpdateTime = 0;
