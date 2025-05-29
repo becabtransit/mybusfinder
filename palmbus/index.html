@@ -7957,61 +7957,85 @@ function formatPassageTime(unifiedTime, delaySec) {
     return `<span class="fluent-time">${unifiedTime}</span> <span class="fluent-passage">${label}</span>${delayLabel}`;
 }
 
-// Regroupe les prochains passages par ligne à cet arrêt
-function getNextPassagesForStop(stopId) {
-    const resultByRoute = {};
+function getNextPassagesForStopGrouped(stopId) {
+    // { routeId: { destinationName: [stopUpdate, ...] } }
+    const byRouteAndDest = {};
+
     for (const tripId in tripUpdates) {
-        const trip = tripUpdates[tripId];
-        if (!trip.stopUpdates || !Array.isArray(trip.stopUpdates)) continue;
-        // Cherche le prochain passage à l'arrêt
-        let nextStop = trip.stopUpdates.find(s => s.stopId === stopId);
-        if (!nextStop) continue;
-        // Identifie la ligne (route_id est souvent dans tripId ou autre, à ajuster si besoin)
-        const routeId = trip.route_id || trip.routeId || (trip.tripId || tripId).split('-')[0];
-        if (!resultByRoute[routeId]) resultByRoute[routeId] = [];
-        resultByRoute[routeId].push(nextStop);
+        const tripUpdate = tripUpdates[tripId];
+        if (!tripUpdate.stopUpdates) continue;
+
+        // Trouve le stopUpdate pour ce stop
+        const stopUpdate = tripUpdate.stopUpdates.find(s => s.stopId === stopId);
+        if (!stopUpdate) continue;
+
+        // Détermine la ligne (route_id)
+        // GTFS-RT TripUpdate doit contenir trip.route_id, sinon il faut faire une correspondance tripId->routeId avec trips.txt
+        const trip = tripUpdate.trip || {};
+        const routeId = trip.route_id || trip.routeId || (tripId.split('-')[0]); // adapter si besoin
+        if (!routeId) continue;
+
+        // Détermine la destination (headsign)
+        // GTFS-RT tripUpdate.trip.trip_headsign, sinon dans trips.txt (trip_headsign ou shape_id)
+        const headsign = trip.trip_headsign || tripUpdate.trip_headsign || tripUpdate.headsign || tripUpdate.destination || '';
+
+        // Nom lisible du terminus, sinon headsign brut
+        const destName = headsign || 'Terminus inconnu';
+
+        // Initialise la structure si besoin
+        if (!byRouteAndDest[routeId]) byRouteAndDest[routeId] = {};
+        if (!byRouteAndDest[routeId][destName]) byRouteAndDest[routeId][destName] = [];
+
+        byRouteAndDest[routeId][destName].push(stopUpdate);
     }
-    // Trie chaque tableau de passages par heure de passage
-    Object.values(resultByRoute).forEach(arr => arr.sort((a,b) => {
-        if (a.unifiedTime && b.unifiedTime) return a.unifiedTime.localeCompare(b.unifiedTime);
-        return 0;
-    }));
-    return resultByRoute;
+
+    // Trie chaque tableau d'horaires par heure/unifiedTime
+    for (const routeId in byRouteAndDest) {
+        for (const dest in byRouteAndDest[routeId]) {
+            byRouteAndDest[routeId][dest].sort((a, b) => {
+                if (a.unifiedTime && b.unifiedTime) return a.unifiedTime.localeCompare(b.unifiedTime);
+                return 0;
+            });
+        }
+    }
+    return byRouteAndDest;
 }
 
-// Génère le HTML du popup Fluent pour un arrêt donné
-function buildFluentPopupContent(stopFeature) {
+function buildFluentPopupContentGrouped(stopFeature) {
     const stopId = stopFeature.properties.stop_id || stopFeature.properties.id;
     const stopName = stopFeature.properties.stop_name || stopFeature.properties.name || 'Arrêt inconnu';
-    const lines = getNextPassagesForStop(stopId);
+    const lines = getNextPassagesForStopGrouped(stopId);
 
     let html = getFluentPopupCSS();
     html += `<div class="fluent-popup"><h4>${stopName}</h4>`;
-    const lineIds = Object.keys(lines);
-    if (!lineIds.length) {
+
+    const routeIds = Object.keys(lines);
+    if (!routeIds.length) {
         html += `<div class="fluent-empty">Aucun passage prévu à cet arrêt</div>`;
     } else {
-        lineIds.forEach(routeId => {
-            html += `<div class="fluent-line"><span class="route" style="background:${lineColors[routeId]||'#2260b6'}">${routeId}</span>`;
-            html += lines[routeId].slice(0,3).map(stop => formatPassageTime(stop.unifiedTime, stop.delay)).join(' | ');
-            html += '</div>';
+        routeIds.forEach(routeId => {
+            const routesGroup = lines[routeId];
+            const longName = lineName[routeId] ? ` <span style="opacity:0.7;font-size:0.93em;">${lineName[routeId]}</span>` : "";
+            html += `<div class="fluent-line"><span class="route" style="background:${lineColors[routeId]||'#2260b6'}">${routeId}</span>${longName}</div>`;
+            Object.keys(routesGroup).forEach(destName => {
+                html += `<div class="fluent-dest" style="padding-left:13px; margin-bottom:2px;"><span style="color:#2260b6;font-weight:500;">${destName}</span> : `;
+                html += routesGroup[destName].slice(0,3).map(stop => formatPassageTime(stop.unifiedTime, stop.delay)).join(' | ');
+                html += '</div>';
+            });
         });
     }
     html += `</div>`;
     return html;
 }
 
-// Ajoute le handler click aux arrêts (tu peux placer ce code à la fin de loadGeoJsonLines)
 function addBusStopPopups(busStopsLayerGroup) {
     busStopsLayerGroup.eachLayer(layer => {
         if (layer.feature && layer.feature.properties) {
             layer.on('click', function(e) {
-                // Ferme toutes les popups déjà ouvertes (optionnel)
                 map.closePopup();
-                // Ouvre la popup à la position de l'arrêt, contenu dynamique
-                L.popup({maxWidth: 320, closeButton:true, autoPan:true})
+                L.popup({maxWidth: 340, closeButton:true, autoPan:true})
                     .setLatLng(layer.getLatLng())
-                    .setContent(buildFluentPopupContent(layer.feature))
+                    .setContent(buildFluentPopupContentGrouped(layer.feature))
                     .openOn(map);
             });
         }
