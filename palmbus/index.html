@@ -5386,7 +5386,7 @@ window.openFullPopup = function(markerId) {
     }
 };
 
-// Ajouter le CSS pour les tooltips minimaux (à ajouter une seule fois)
+// Ajouter le CSS pour les tooltips minimaux et animations (à ajouter une seule fois)
 if (!document.getElementById('minimal-tooltip-styles')) {
     const styles = document.createElement('style');
     styles.id = 'minimal-tooltip-styles';
@@ -5411,6 +5411,20 @@ if (!document.getElementById('minimal-tooltip-styles')) {
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
+        }
+        
+        @keyframes shine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(200%) translateY(200%) rotate(45deg); }
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-2px); }
+        }
+        
+        .minimal-popup {
+            animation: float 4s ease-in-out infinite;
         }
     `;
     document.head.appendChild(styles);
@@ -5566,6 +5580,11 @@ if (markers[id]) {
     // Stocker les données du véhicule pour la vue minimale
     markers[id].vehicleData = vehicle;
     markers[id].destination = lastStopName;
+    
+    // Mettre à jour la position du tooltip minimal si il existe
+    if (markers[id].minimalPopup) {
+        markers[id].minimalPopup.setLatLng([latitude, longitude]);
+    }
     
     if (markers[id].line !== line) {
         const oldLine = markers[id].line;
