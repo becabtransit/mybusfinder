@@ -4056,9 +4056,20 @@ async function loadGeoJsonLines() {
 
             // Ajout de la popup dynamique sur chaque arrêt
             layer.on('click', async function(e) {
+
                 const stopFeature = layer.feature;
                 const stopId = stopFeature.properties.stop_id;
-                const stopName = stopFeature.properties.stop_name || stopNameMap[stopId] || stopId;
+                const normStopId = (stopId || "").replace(/^0:/, "");
+                let stopName = "";
+                if (stopFeature.properties && stopFeature.properties.stop_name) {
+                    stopName = stopFeature.properties.stop_name;
+                } else if (typeof stopNameMap !== "undefined" && stopNameMap[normStopId]) {
+                    stopName = stopNameMap[normStopId];
+                } else if (typeof stopNameMap !== "undefined" && stopNameMap[stopId]) {
+                    stopName = stopNameMap[stopId];
+                } else {
+                    stopName = stopId;
+                }
                 let popupContent = "";
 
                 // Trouver les lignes qui passent par cet arrêt
