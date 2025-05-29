@@ -93,13 +93,11 @@ function processTripUpdates(data) {
             (processedStops[stopsLength - 1]?.stopId || UNKNOWN_STOP) : 
             UNKNOWN_STOP;
 
-        const routeId = trip.routeId || trip.route_id || null;
         tripUpdates[trip.tripId] = {
             stopUpdates: processedStops,
             lastStopId,
             nextStops: processedStops,
-            arrivalDelays,
-            routeId    // Ajoute bien cette clé !
+            arrivalDelays
         };
     }
 
