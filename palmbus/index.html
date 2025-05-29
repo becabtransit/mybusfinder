@@ -4049,125 +4049,12 @@ async function loadGeoJsonLines() {
         }
     }).addTo(map);
     
-busStops.eachLayer(function(layer) {
-    if (layer.feature && layer.feature.properties) {
-        layer.busLine = layer.feature.properties.route_id || null;
-        busStopLayers.push(layer);
-
-        // Ajout de la popup dynamique sur chaque arrêt
-        layer.on('click', async function(e) {
-            const stopFeature = layer.feature;
-            const stopId = stopFeature.properties.stop_id;
-            const stopName = stopFeature.properties.stop_name || stopNameMap[stopId] || stopId;
-            let popupContent = "";
-
-            // Trouver les lignes qui passent par cet arrêt
-            // Suppose que tu as un mapping stopId -> [routeIds] à générer au chargement, sinon parcours toutes les trips dynamiquement :
-            let linesAtStop = new Set();
-            let arrivalsByLine = {};
-
-            // On parcourt tous les trips actifs pour trouver les passages à cet arrêt
-            for (const tripId in tripUpdates) {
-                const update = tripUpdates[tripId];
-                if (!update || !update.routeId || !update.nextStops) continue;
-
-                // nextStops = liste d'arrêts à venir pour ce trip
-                const stopInfo = update.nextStops.find(st => (st.stopId||"").replace(/^0:/, "") === stopId.replace(/^0:/, ""));
-                if (stopInfo) {
-                    if (!arrivalsByLine[update.routeId]) arrivalsByLine[update.routeId] = [];
-                    arrivalsByLine[update.routeId].push({
-                        ...stopInfo,
-                        tripId,
-                        trip: update,
-                        vehicleId: update.vehicleId // optionnel si dispo
-                    });
-                    linesAtStop.add(update.routeId);
-                }
-            }
-
-            // Construction du HTML de la popup
-            popupContent += `
-            <div style="font-family: 'League Spartan', sans-serif; font-size: 15px; width: 320px;">
-                <div style="font-size: 22px; font-weight: 700; margin-bottom: 4px; text-align: center;">
-                    🛑 ${stopName}
-                </div>
-            `;
-
-            if (linesAtStop.size === 0) {
-                popupContent += `<div style="text-align:center; margin-top: 10px;">${t("nopassage") || "Aucun passage prévu prochainement."}</div>`;
-            } else {
-                // Affichage par ligne
-                linesAtStop.forEach(routeId => {
-                    const color = lineColors[routeId] || "#3388ff";
-                    const dest = (arrivalsByLine[routeId][0]?.trip?.lastStopId && stopNameMap[arrivalsByLine[routeId][0].trip.lastStopId])
-                        ? stopNameMap[arrivalsByLine[routeId][0].trip.lastStopId]
-                        : (arrivalsByLine[routeId][0]?.trip?.headsign || t("unknownline"));
-
-                    // Trier les prochains passages par heure (croissante)
-                    const sortedArrivals = arrivalsByLine[routeId].sort((a, b) => {
-                        const tA = a.departureTime || a.arrivalTime || 0;
-                        const tB = b.departureTime || b.arrivalTime || 0;
-                        return tA - tB;
-                    });
-
-                    popupContent += `
-                    <div style="margin-top: 8px; margin-bottom: 2px; border-radius: 8px; background:${color}22; padding: 7px 8px;">
-                        <div style="font-size:17px; font-weight: bold; margin-bottom:2px; color:${color};">
-                            ${t("line") || "Ligne"} ${lineName[routeId] || routeId}
-                        </div>
-                        <div style="font-size:13px; margin-bottom:3px; color:#555;">
-                            ➜ ${dest}
-                        </div>
-                        <ul style="padding-left: 10px; margin: 0; list-style: none;">
-                    `;
-                    // Limite à 4 prochains passages
-                    sortedArrivals.slice(0, 4).forEach(arrival => {
-                        // Calcul du temps restant
-                        const now = Math.floor(Date.now() / 1000);
-                        let eta = "";
-                        if (arrival.delay !== null && arrival.delay !== undefined) {
-                            eta = arrival.delay <= 0 ? t("imminent") || "Imminent" : `${Math.ceil(arrival.delay / 60)} min`;
-                        } else if (arrival.departureTime) {
-                            const mins = Math.max(0, Math.round((arrival.departureTime - now) / 60));
-                            eta = mins === 0 ? t("imminent") || "Imminent" : `${mins} min`;
-                        } else {
-                            eta = t("unknown") || "?";
-                        }
-                        // Heure prévue
-                        let sched = "";
-                        if (arrival.departureTime) {
-                            const date = new Date(arrival.departureTime * 1000);
-                            sched = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                        } else if (arrival.arrivalTime) {
-                            const date = new Date(arrival.arrivalTime * 1000);
-                            sched = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                        }
-
-                        popupContent += `
-                        <li style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-                            <span style="max-width: 60%;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;">
-                                <b>${sched}</b>
-                            </span>
-                            <span style="font-variant-numeric: tabular-nums; margin-left: 10px; color:#222;">
-                                ${eta}
-                            </span>
-                        </li>
-                        `;
-                    });
-
-                    popupContent += `
-                        </ul>
-                    </div>`;
-                });
-            }
-
-            popupContent += `</div>`;
-
-            // Affiche la popup
-            layer.bindPopup(popupContent, {maxWidth: 350, minWidth: 210, autoPan: true}).openPopup();
-        });
-    }
-});
+    busStops.eachLayer(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+            layer.busLine = layer.feature.properties.route_id || null;
+            busStopLayers.push(layer);
+        }
+    });
     
 }
 
@@ -5335,330 +5222,420 @@ async function fetchVehiclePositions() {
                 }
 
 
-                
-                const popupContent = `
-                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-                       
-                <button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
-                    background: none;
-                    border: none;
-                    padding: 4px;
-                    cursor: pointer;
-                    z-index: 3;
+const popupContent = `
+    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+       
+    <button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: none;
+        border: none;
+        padding: 4px;
+        cursor: pointer;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    ">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3C10.3431 3 9 4.34315 9 6C9 7.65685 10.3431 9 12 9C13.6569 9 15 7.65685 15 6" />
+        <path d="M5.5 15C3.84315 15 2.5 16.3431 2.5 18C2.5 19.6569 3.84315 21 5.5 21C7.15685 21 8.5 19.6569 8.5 18" />
+        <path d="M18.5 21C16.8431 21 15.5 19.6569 15.5 18C15.5 16.3431 16.8431 15 18.5 15C20.1569 15 21.5 16.3431 21.5 18" />
+        <path d="M20 13C20 10.6106 18.9525 8.46589 17.2916 7M4 13C4 10.6106 5.04752 8.46589 6.70838 7M10 20.748C10.6392 20.9125 11.3094 21 12 21C12.6906 21 13.3608 20.9125 14 20.748" />
+    </svg>
+    
+    </button>
+
+
+    <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
+    <div class="light-beam beam1"></div>
+    <div class="light-beam beam2"></div>
+    <div class="light-beam beam3"></div>
+
+        <!-- Texte principal -->
+        <div style="z-index: 2; text-align: left; width: 100%;">
+            <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
+            <strong style="margin: 0; font-size: 14px;">➜ ${lastStopName}</strong>
+    <div>
+        <div style="position: relative; display: flex; align-items: center; ">
+            <div style="
+                position: relative;
+                flex: 1;
+                overflow: hidden;
+                border-radius: 10px;
+            ">
+                <!-- Contenu défilant horizontalement -->
+                <div class="options" style="
                     display: flex;
-                    align-items: center;
-                    justify-content: center;
-                ">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 3C10.3431 3 9 4.34315 9 6C9 7.65685 10.3431 9 12 9C13.6569 9 15 7.65685 15 6" />
-                    <path d="M5.5 15C3.84315 15 2.5 16.3431 2.5 18C2.5 19.6569 3.84315 21 5.5 21C7.15685 21 8.5 19.6569 8.5 18" />
-                    <path d="M18.5 21C16.8431 21 15.5 19.6569 15.5 18C15.5 16.3431 16.8431 15 18.5 15C20.1569 15 21.5 16.3431 21.5 18" />
-                    <path d="M20 13C20 10.6106 18.9525 8.46589 17.2916 7M4 13C4 10.6106 5.04752 8.46589 6.70838 7M10 20.748C10.6392 20.9125 11.3094 21 12 21C12.6906 21 13.3608 20.9125 14 20.748" />
-                </svg>
-                
-                </button>
-
-
-                <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
-                <div class="light-beam beam1"></div>
-                <div class="light-beam beam2"></div>
-                <div class="light-beam beam3"></div>
-
-                    <!-- Texte principal -->
-                    <div style="z-index: 2; text-align: left; width: 100%;">
-                        <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
-                        <strong style="margin: 0; font-size: 14px;">➜ ${lastStopName}</strong>
-                <div>
-                    <div style="position: relative; display: flex; align-items: center; ">
-                        <div style="
-                            position: relative;
-                            flex: 1;
-                            overflow: hidden;
-                            border-radius: 10px;
-                        ">
-                            <!-- Contenu défilant horizontalement -->
-                            <div class="options" style="
-                                display: flex;
-                                gap: 10px;
-                                padding: 0px;
-                                overflow-x: auto; 
-                                white-space: nowrap;
-                                scrollbar-width: thin; 
-                                scrollbar-color: #888 #f1f1f1;
-                                color: #ffffff;
-                            " class="custom-scrollbar">
-                                <!-- Numéro de parc -->
-                                <span style="
-                                    padding: 6px 10px; 
-                                    background: #00000077; 
-                                    font-weight: normal; 
-                                    white-space: nowrap; 
-                                    backdrop-filter: blur(8px);
-                                    -webkit-backdrop-filter: blur(8px);
-                                    border-radius: 10px; 
-                                    display: inline-flex; 
-                                    align-items: center; 
-                                    gap: 6px;
-                                    height: 20px;
-                                ">
-
-                                <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-                                <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
-
-                                    
-                                </span>
-                                
-                                <!-- Badges des options du véhicule -->
-                                ${vehicleOptionsBadges}
-                            </div>
-                        </div>
-                    </div>
-                        <div style=" margin-top: 10px; text-align: right;">
-                            ${vehicleBrandHtml}
-                        </div>
-                    </div>
-                </div>
-
-
-                    <!-- Texte en arrière-plan -->
-                    <div style="
-                        position: absolute;
-                        right: 10px;
-                        top: 0;
-                        z-index: 1;
-                        opacity: 0.1;
-                        font-size: 100px;
-                        color: ${textColor};
-                        display: flex;
-                        align-items: center;
-                        justify-content: flex-end;
-                        white-space: nowrap;
+                    gap: 10px;
+                    padding: 0px;
+                    overflow-x: auto; 
+                    white-space: nowrap;
+                    scrollbar-width: thin; 
+                    scrollbar-color: #888 #f1f1f1;
+                    color: #ffffff;
+                " class="custom-scrollbar">
+                    <!-- Numéro de parc -->
+                    <span style="
+                        padding: 6px 10px; 
+                        background: #00000077; 
+                        font-weight: normal; 
+                        white-space: nowrap; 
+                        backdrop-filter: blur(8px);
+                        -webkit-backdrop-filter: blur(8px);
+                        border-radius: 10px; 
+                        display: inline-flex; 
+                        align-items: center; 
+                        gap: 6px;
+                        height: 20px;
                     ">
-                        ${t("line")} ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
-                    </div>
+
+                    <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
+                    <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
+
+                        
+                    </span>
+                    
+                    <!-- Badges des options du véhicule -->
+                    ${vehicleOptionsBadges}
                 </div>
+            </div>
+        </div>
+            <div style=" margin-top: 10px; text-align: right;">
+                ${vehicleBrandHtml}
+            </div>
+        </div>
+    </div>
+
+
+        <!-- Texte en arrière-plan -->
+        <div style="
+            position: absolute;
+            right: 10px;
+            top: 0;
+            z-index: 1;
+            opacity: 0.1;
+            font-size: 100px;
+            color: ${textColor};
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            white-space: nowrap;
+        ">
+            ${t("line")} ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
+        </div>
+    </div>
 
 
 
 
 
-                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
-                <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
-                    <ul>
-                    <div id="nextStopsContent" class="next-stops-content">
-                          ${nextStopsHTML}
-                    </div>   
-                </div>
-                </div>
-                `;
+    <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+    <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
+        <ul>
+        <div id="nextStopsContent" class="next-stops-content">
+              ${nextStopsHTML}
+        </div>   
+    </div>
+    </div>
+`;
 
+// Création du contenu de la popup minimale
+const minimalPopupContent = `
+    <div style="
+        font-family: 'League Spartan', sans-serif; 
+        font-size: 12px; 
+        color: ${textColor}; 
+        background-color: ${backgroundColor}dd; 
+        border-radius: 8px; 
+        padding: 6px 10px; 
+        box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3); 
+        backdrop-filter: blur(4px); 
+        -webkit-backdrop-filter: blur(4px);
+        white-space: nowrap;
+        text-align: center;
+        min-width: 80px;
+    ">
+        <div style="font-weight: bold; margin-bottom: 2px;">
+            ${t("line")} ${lineName[line] || t("unknownline")}
+        </div>
+        <div style="font-size: 10px; opacity: 0.9;">
+            ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
+        </div>
+    </div>
+`;
 
-
-                
-    if (markers[id]) {
-        animateMarker(markers[id], [latitude, longitude]);
-        
-        if (!markers[id].id) {
-            markers[id].id = id;
-        }
-        
-        if (markers[id].line !== line) {
-            const oldLine = markers[id].line;
-            markers[id].line = line;
-            
-            const color = lineColors[line] || '#000000';
-            if (markers[id]._icon) {
-                const markerIcon = markers[id]._icon.querySelector('.marker-icon');
-                if (markerIcon) {
-                    markerIcon.style.transition = 'background-color 0.5s ease';
-                    markerIcon.style.backgroundColor = color;
+// Fonction pour gérer l'affichage des popups selon le zoom
+function updatePopupVisibility(marker, currentZoom) {
+    const ZOOM_THRESHOLD = 15; // Seuil de zoom pour afficher la popup minimale
+    
+    if (currentZoom >= ZOOM_THRESHOLD) {
+        // Zoom proche : afficher la popup minimale si pas de popup principale ouverte
+        if (!marker.isPopupOpen()) {
+            if (!marker._minimalPopup || !marker._minimalPopup.isOpen()) {
+                if (!marker._minimalPopup) {
+                    marker._minimalPopup = L.popup({
+                        closeButton: false,
+                        autoClose: false,
+                        closeOnClick: false,
+                        className: 'minimal-popup',
+                        offset: [0, -10]
+                    }).setContent(minimalPopupContent);
                 }
-                
-                const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
-                if (arrowElement) {
-                    arrowElement.style.transition = 'stroke 0.5s ease';
-                    arrowElement.setAttribute('stroke', color);
-                }
-            }
-            
-            if (markers[id].isPopupOpen()) {
-                const menubtm = document.getElementById('menubtm');
-                const filtre = document.getElementById('filtre');
-                if (menubtm) {
-                    lastActiveColor = color;
-                    
-                    menubtm.style.backgroundColor = `${color}9c`;
-                    filtre.style.backgroundColor = `${color}9c`;
-
-                    
-                    function getOptimalTextColor(color) {
-                    if (!color) return '#000000';
-
-                    color = color.trim();
-
-                    let r, g, b, a = 1;
-
-                    if (/^#([a-f\d])([a-f\d])([a-f\d])$/i.test(color)) {
-                        color = color.replace(/^#([a-f\d])([a-f\d])([a-f\d])$/i,
-                        (_, r, g, b) => '#' + r + r + g + g + b + b);
-                    }
-
-                    const hexMatch = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i);
-
-                    if (!hexMatch) return '#000000'; 
-
-                    r = parseInt(hexMatch[1], 16);
-                    g = parseInt(hexMatch[2], 16);
-                    b = parseInt(hexMatch[3], 16);
-
-                    if (hexMatch[4]) {
-                        a = parseInt(hexMatch[4], 16) / 255;
-                    }
-
-                    if (a < 1) {
-                        r = Math.round((1 - a) * 255 + a * r);
-                        g = Math.round((1 - a) * 255 + a * g);
-                        b = Math.round((1 - a) * 255 + a * b);
-                    }
-
-                    const srgb = [r, g, b].map(c => {
-                        const v = c / 255;
-                        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-                    });
-
-                    const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
-
-                    const contrastBlack = (luminance + 0.05) / 0.05;
-                    const contrastWhite = 1.05 / (luminance + 0.05);
-
-                    return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
-                    }
-
-                    const textColor = getOptimalTextColor(color);
-                    
-                    const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
-                    const styleSheet = document.createElement('style');
-                    styleSheet.id = styleId;
-                    styleSheet.classList.add('menu-color-style');
-                    
-                    styleSheet.textContent = `
-                        #menubtm * {
-                            color: ${textColor};
-                            transition: color 0.5s ease;
-                        }
-
-                        #filtre * {
-                            color: ${textColor};
-                            transition: color 0.5s ease;
-                        }
-                    `;
-                    
-                    document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
-                    document.head.appendChild(styleSheet);
-                    markers[id].styleId = styleId;
-                }
-            }
-        }
-        
-        if (markers[id]._icon) {
-            const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
-            
-            if (arrowElement) {
-                const targetRotation = bearing - 90;
-                arrowElement.style.transition = 'transform 0.5s ease';
-                arrowElement.style.transform = `rotate(${targetRotation}deg)`;
-                arrowElement._currentRotation = targetRotation;
-            }
-        }
-
-        updateLinesDisplay();
-
-        const existingPopup = markers[id].getPopup();
-        const currentContent = existingPopup ? existingPopup.getContent() : '';
-
-        if (existingPopup && currentContent === popupContent) {
-            return;
-        }
-
-        markers[id].setPopupContent(popupContent);
-
-        if (markers[id].isPopupOpen()) {
-            const popup = markers[id]._popup;
-            if (popup && popup._contentNode) {
-                const popupElement = popup._contentNode.parentElement;
-                if (popupElement) {
-                    popupElement.classList.remove('hide'); 
-                    popupElement.classList.add('show'); 
-                    markers[id].openPopup();
-                }
-            }
-        }
-
-
-
-
-        if (selectedLine && markers[id].line !== selectedLine) {
-            if (map.hasLayer(markers[id])) {
-                map.removeLayer(markers[id]);
-            }
-        } else {
-            if (!map.hasLayer(markers[id])) {
-                map.addLayer(markers[id]);
+                marker.bindPopup(marker._minimalPopup).openPopup();
             }
         }
     } else {
-        const marker = createColoredMarker(latitude, longitude, line, bearing);
-        updateLinesDisplay();
-        markers[id] = marker;
-        markers[id].line = line;
-        markers[id].id = id;
+        // Zoom éloigné : fermer la popup minimale
+        if (marker._minimalPopup && marker._minimalPopup.isOpen() && !marker.isPopupOpen()) {
+            marker.closePopup();
+        }
+    }
+}
 
-        if (!selectedLine || selectedLine === line) {
-            marker.addTo(map);
+if (markers[id]) {
+    animateMarker(markers[id], [latitude, longitude]);
+    
+    if (!markers[id].id) {
+        markers[id].id = id;
+    }
+    
+    if (markers[id].line !== line) {
+        const oldLine = markers[id].line;
+        markers[id].line = line;
+        
+        const color = lineColors[line] || '#000000';
+        if (markers[id]._icon) {
+            const markerIcon = markers[id]._icon.querySelector('.marker-icon');
+            if (markerIcon) {
+                markerIcon.style.transition = 'background-color 0.5s ease';
+                markerIcon.style.backgroundColor = color;
+            }
+            
+            const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
+            if (arrowElement) {
+                arrowElement.style.transition = 'stroke 0.5s ease';
+                arrowElement.setAttribute('stroke', color);
+            }
         }
         
-        marker.bindPopup(popupContent);
+        if (markers[id].isPopupOpen()) {
+            const menubtm = document.getElementById('menubtm');
+            const filtre = document.getElementById('filtre');
+            if (menubtm) {
+                lastActiveColor = color;
+                
+                menubtm.style.backgroundColor = `${color}9c`;
+                filtre.style.backgroundColor = `${color}9c`;
 
-        marker.on('popupopen', function (e) {
-            if (e.popup && e.popup._contentNode) {
-                const popupElement = e.popup._contentNode.parentElement;
-                if (popupElement) {
-                    popupElement.classList.remove('hide'); 
-                    popupElement.classList.add('show');  
+                
+                function getOptimalTextColor(color) {
+                if (!color) return '#000000';
+
+                color = color.trim();
+
+                let r, g, b, a = 1;
+
+                if (/^#([a-f\d])([a-f\d])([a-f\d])$/i.test(color)) {
+                    color = color.replace(/^#([a-f\d])([a-f\d])([a-f\d])$/i,
+                    (_, r, g, b) => '#' + r + r + g + g + b + b);
                 }
+
+                const hexMatch = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i);
+
+                if (!hexMatch) return '#000000'; 
+
+                r = parseInt(hexMatch[1], 16);
+                g = parseInt(hexMatch[2], 16);
+                b = parseInt(hexMatch[3], 16);
+
+                if (hexMatch[4]) {
+                    a = parseInt(hexMatch[4], 16) / 255;
+                }
+
+                if (a < 1) {
+                    r = Math.round((1 - a) * 255 + a * r);
+                    g = Math.round((1 - a) * 255 + a * g);
+                    b = Math.round((1 - a) * 255 + a * b);
+                }
+
+                const srgb = [r, g, b].map(c => {
+                    const v = c / 255;
+                    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+                });
+
+                const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+
+                const contrastBlack = (luminance + 0.05) / 0.05;
+                const contrastWhite = 1.05 / (luminance + 0.05);
+
+                return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
+                }
+
+                const textColor = getOptimalTextColor(color);
+                
+                const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+                const styleSheet = document.createElement('style');
+                styleSheet.id = styleId;
+                styleSheet.classList.add('menu-color-style');
+                
+                styleSheet.textContent = `
+                    #menubtm * {
+                        color: ${textColor};
+                        transition: color 0.5s ease;
+                    }
+
+                    #filtre * {
+                        color: ${textColor};
+                        transition: color 0.5s ease;
+                    }
+                `;
+                
+                document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
+                document.head.appendChild(styleSheet);
+                markers[id].styleId = styleId;
             }
-        });
+        }
+    }
+    
+    if (markers[id]._icon) {
+        const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
+        
+        if (arrowElement) {
+            const targetRotation = bearing - 90;
+            arrowElement.style.transition = 'transform 0.5s ease';
+            arrowElement.style.transform = `rotate(${targetRotation}deg)`;
+            arrowElement._currentRotation = targetRotation;
+        }
+    }
 
-        marker.on('popupclose', function (e) {
-            if (e.popup && e.popup._contentNode) {
-                const popupElement = e.popup._contentNode.parentElement;
-                if (popupElement) {
-                    popupElement.classList.remove('show');
-                    popupElement.classList.add('hide');
+    updateLinesDisplay();
 
+    const existingPopup = markers[id].getPopup();
+    const currentContent = existingPopup ? existingPopup.getContent() : '';
+
+    if (existingPopup && currentContent === popupContent) {
+        // Mettre à jour la visibilité selon le zoom
+        updatePopupVisibility(markers[id], map.getZoom());
+        return;
+    }
+
+    // Sauvegarder la popup principale
+    markers[id]._mainPopup = L.popup({
+        closeButton: true,
+        autoClose: true,
+        closeOnClick: false,
+        className: 'main-popup'
+    }).setContent(popupContent);
+
+    // Mettre à jour la visibilité selon le zoom
+    updatePopupVisibility(markers[id], map.getZoom());
+
+    if (selectedLine && markers[id].line !== selectedLine) {
+        if (map.hasLayer(markers[id])) {
+            map.removeLayer(markers[id]);
+        }
+    } else {
+        if (!map.hasLayer(markers[id])) {
+            map.addLayer(markers[id]);
+        }
+    }
+} else {
+    const marker = createColoredMarker(latitude, longitude, line, bearing);
+    updateLinesDisplay();
+    markers[id] = marker;
+    markers[id].line = line;
+    markers[id].id = id;
+
+    if (!selectedLine || selectedLine === line) {
+        marker.addTo(map);
+    }
+    
+    // Créer les deux popups
+    marker._mainPopup = L.popup({
+        closeButton: true,
+        autoClose: true,
+        closeOnClick: false,
+        className: 'main-popup'
+    }).setContent(popupContent);
+
+    marker._minimalPopup = L.popup({
+        closeButton: false,
+        autoClose: false,
+        closeOnClick: false,
+        className: 'minimal-popup',
+        offset: [0, -10]
+    }).setContent(minimalPopupContent);
+
+    // Event listener pour le clic sur le marqueur
+    marker.on('click', function(e) {
+        // Fermer la popup minimale si elle est ouverte
+        if (marker._minimalPopup && marker._minimalPopup.isOpen()) {
+            marker.closePopup();
+        }
+        // Ouvrir la popup principale
+        marker.bindPopup(marker._mainPopup).openPopup();
+    });
+
+    marker.on('popupopen', function (e) {
+        if (e.popup && e.popup._contentNode) {
+            const popupElement = e.popup._contentNode.parentElement;
+            if (popupElement) {
+                popupElement.classList.remove('hide'); 
+                popupElement.classList.add('show');  
+            }
+        }
+    });
+
+    marker.on('popupclose', function (e) {
+        if (e.popup && e.popup._contentNode) {
+            const popupElement = e.popup._contentNode.parentElement;
+            if (popupElement) {
+                popupElement.classList.remove('show');
+                popupElement.classList.add('hide');
+
+                setTimeout(() => {
+                    if (e.popup) {
+                        e.popup.remove(); 
+                    }
+                    // Réafficher la popup minimale si le zoom le permet
                     setTimeout(() => {
-                        if (e.popup) {
-                            e.popup.remove(); 
-                        }
-                    }, 200); 
-                }
+                        updatePopupVisibility(marker, map.getZoom());
+                    }, 100);
+                }, 200); 
+            }
+        }
+    });
+
+    // Mettre à jour la visibilité selon le zoom initial
+    updatePopupVisibility(marker, map.getZoom());
+}
+
+// Event listener pour les changements de zoom (à ajouter une seule fois)
+if (!map._zoomPopupHandlerAdded) {
+    map.on('zoomend', function() {
+        const currentZoom = map.getZoom();
+        Object.keys(markers).forEach(markerId => {
+            const marker = markers[markerId];
+            if (marker && map.hasLayer(marker)) {
+                updatePopupVisibility(marker, currentZoom);
             }
         });
-    }}
+    });
+    map._zoomPopupHandlerAdded = true;
+}
+
+Object.keys(markers).forEach(id => {
+    if (!activeVehicleIds.has(id)) {
+        map.removeLayer(markers[id]); 
+        delete markers[id]; 
+    }
 });
-
-                Object.keys(markers).forEach(id => {
-            if (!activeVehicleIds.has(id)) {
-                map.removeLayer(markers[id]); 
-                delete markers[id]; 
-            }
-        });
-
-				
-        let isMenuVisible = true;
+}
+});
+        
+let isMenuVisible = true;
 
 const favoriteLines = new Set(JSON.parse(localStorage.getItem('favoriteLines') || '[]'));
 
