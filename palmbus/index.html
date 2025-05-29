@@ -4072,8 +4072,13 @@ function showFluentStopPopup(stopFeature, latlng, markerLayer) {
         const tu = tripUpdates[tripId];
         if (!tu || !tu.nextStops) continue;
         // Y a-t-il un passage sur cet arrêt ?
-        const stopIdx = tu.nextStops.findIndex(s => (s.stopId || '').replace(/^0:/, '') === stopId.replace(/^0:/, ''));
-        if (stopIdx !== -1) {
+        const stopIdx = (tu.nextStops && Array.isArray(tu.nextStops)) ? 
+            tu.nextStops.findIndex(s => {
+                const sId = (s && s.stopId) ? s.stopId.replace(/^0:/, '') : '';
+                const stopIdClean = stopId ? stopId.replace(/^0:/, '') : '';
+                return sId === stopIdClean;
+            }) : -1;
+            if (stopIdx !== -1) {
             const routeId = tu.routeId; // à adapter selon ton GTFS
             if (!linesAtStop[routeId]) linesAtStop[routeId] = [];
             // On ajoute ce passage
