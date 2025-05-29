@@ -2349,6 +2349,15 @@ tarteaucitron.init({
                 showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html");
                 }
             });
+
+            FluentSettingsMenu.addSubmenu("about", "erazecache", {
+                icon: "",
+                label: "For developers - erase cache",
+                description: "Do not use if you don't know what you are doing",
+                onclick: function () {
+                clearGTFSCache();
+                }
+            });
         });
 
     });
@@ -3548,7 +3557,7 @@ async function clearGTFSCache() {
             const request = store.clear();
 
             request.onsuccess = () => {
-                toastBottomRight.success('Cache effacé avec succès !');
+                toastBottomRight.success('MBF3 : Cache erased successfully !!');
                 resolve();
             };
             request.onerror = () => reject(request.error);
@@ -5223,615 +5232,596 @@ async function fetchVehiclePositions() {
 
 
                 
-const popupContent = `
-    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-       
-<button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    padding: 4px;
-    cursor: pointer;
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-">
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 3C10.3431 3 9 4.34315 9 6C9 7.65685 10.3431 9 12 9C13.6569 9 15 7.65685 15 6" />
-    <path d="M5.5 15C3.84315 15 2.5 16.3431 2.5 18C2.5 19.6569 3.84315 21 5.5 21C7.15685 21 8.5 19.6569 8.5 18" />
-    <path d="M18.5 21C16.8431 21 15.5 19.6569 15.5 18C15.5 16.3431 16.8431 15 18.5 15C20.1569 15 21.5 16.3431 21.5 18" />
-    <path d="M20 13C20 10.6106 18.9525 8.46589 17.2916 7M4 13C4 10.6106 5.04752 8.46589 6.70838 7M10 20.748C10.6392 20.9125 11.3094 21 12 21C12.6906 21 13.3608 20.9125 14 20.748" />
-</svg>
-
-</button>
-
-
-<div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
-<div class="light-beam beam1"></div>
-<div class="light-beam beam2"></div>
-<div class="light-beam beam3"></div>
-
-    <!-- Texte principal -->
-    <div style="z-index: 2; text-align: left; width: 100%;">
-        <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
-        <strong style="margin: 0; font-size: 14px;">➜ ${lastStopName}</strong>
-<div>
-    <div style="position: relative; display: flex; align-items: center; ">
-        <div style="
-            position: relative;
-            flex: 1;
-            overflow: hidden;
-            border-radius: 10px;
-        ">
-            <!-- Contenu défilant horizontalement -->
-            <div class="options" style="
-                display: flex;
-                gap: 10px;
-                padding: 0px;
-                overflow-x: auto; 
-                white-space: nowrap;
-                scrollbar-width: thin; 
-                scrollbar-color: #888 #f1f1f1;
-                color: #ffffff;
-            " class="custom-scrollbar">
-                <!-- Numéro de parc -->
-                <span style="
-                    padding: 6px 10px; 
-                    background: #00000077; 
-                    font-weight: normal; 
-                    white-space: nowrap; 
-                    backdrop-filter: blur(8px);
-                    -webkit-backdrop-filter: blur(8px);
-                    border-radius: 10px; 
-                    display: inline-flex; 
-                    align-items: center; 
-                    gap: 6px;
-                    height: 20px;
-                ">
-
-                <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-                <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
-
+                const popupContent = `
+                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
                     
-                </span>
-                
-                <!-- Badges des options du véhicule -->
-                ${vehicleOptionsBadges}
-            </div>
-        </div>
-    </div>
-        <div style=" margin-top: 10px; text-align: right;">
-            ${vehicleBrandHtml}
-        </div>
-    </div>
-</div>
-
-
-    <!-- Texte en arrière-plan -->
-    <div style="
-        position: absolute;
-        right: 10px;
-        top: 0;
-        z-index: 1;
-        opacity: 0.1;
-        font-size: 100px;
-        color: ${textColor};
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        white-space: nowrap;
-    ">
-        ${t("line")} ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
-    </div>
-</div>
-
-
-
-
-
-<div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
-<p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
-    <ul>
-    <div id="nextStopsContent" class="next-stops-content">
-          ${nextStopsHTML}
-    </div>   
-</div>
-</div>
-`;
-
-// Créer le contenu de la vue minimale
-const minimalPopupContent = `
-    <div class="minimal-popup" style="
-        position: relative;
-        font-family: 'League Spartan', sans-serif;
-        font-size: 12px;
-        color: ${textColor};
-        background-color: ${backgroundColor}9c;
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border-radius: 8px;
-        padding: 8px 12px;
-        box-shadow: 0px 2px 10px 2px ${backgroundColor}6c;
-        min-width: 120px;
-        cursor: pointer;
-        border: 1px solid ${backgroundColor}cc;
-    " onclick="openFullPopup('${id}')">
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-            <div style="font-weight: bold; font-size: 14px;">
-                ${t("line")} ${lineName[line] || t("unknownline")}
-            </div>
-            <div style="font-size: 11px; opacity: 0.9;">
-                🚌 ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
-            </div>
-            <div style="font-size: 11px; opacity: 0.8;">
-                ➜ ${lastStopName}
-            </div>
-        </div>
-    </div>
-`;
-
-// Fonction pour ouvrir la popup complète (plus nécessaire mais gardée pour compatibilité)
-window.openFullPopup = function(markerId) {
-    if (markers[markerId]) {
-        markers[markerId].fire('click');
-    }
-};
-
-// Variables globales pour gérer l'état des tooltips
-if (typeof window.minimalTooltipStates === 'undefined') {
-    window.minimalTooltipStates = {};
-}
-
-// Ajouter le CSS pour les tooltips minimaux (à ajouter une seule fois)
-if (!document.getElementById('minimal-tooltip-styles')) {
-    const styles = document.createElement('style');
-    styles.id = 'minimal-tooltip-styles';
-    styles.textContent = `
-        .minimal-tooltip-container {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-        
-        .minimal-tooltip-container::before {
-            display: none !important;
-        }
-        
-        .leaflet-tooltip-top::before,
-        .leaflet-tooltip-bottom::before,
-        .leaflet-tooltip-left::before,
-        .leaflet-tooltip-right::before,
-        .leaflet-tooltip-center::before {
-            display: none !important;
-        }
-        
-        .leaflet-tooltip {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-        }
-        
-        @keyframes popIn {
-            0% {
-                opacity: 0;
-                transform: scale(0.3) translateY(10px);
-            }
-            50% {
-                transform: scale(1.1) translateY(-2px);
-            }
-            100% {
-                opacity: 1;
-                transform: scale(1) translateY(0);
-            }
-        }
-        
-        @keyframes popOut {
-            0% {
-                opacity: 1;
-                transform: scale(1) translateY(0);
-            }
-            100% {
-                opacity: 0;
-                transform: scale(0.3) translateY(10px);
-            }
-        }
-        
-        .minimal-popup-appear {
-            animation: popIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        }
-        
-        .minimal-popup-disappear {
-            animation: popOut 0.2s cubic-bezier(0.4, 0, 1, 1);
-        }
-    `;
-    document.head.appendChild(styles);
-}
-
-// Fonction pour animer le déplacement d'un tooltip
-function animateTooltip(tooltip, newLatLng, duration = 500) {
-    if (!tooltip || !tooltip._container) return;
-    
-    const container = tooltip._container;
-    const startPos = map.latLngToContainerPoint(tooltip.getLatLng());
-    const endPos = map.latLngToContainerPoint(newLatLng);
-    
-    const startTime = performance.now();
-    
-    function animate(currentTime) {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // Fonction d'easing
-        const easeProgress = 1 - Math.pow(1 - progress, 3);
-        
-        const currentX = startPos.x + (endPos.x - startPos.x) * easeProgress;
-        const currentY = startPos.y + (endPos.y - startPos.y) * easeProgress;
-        
-        const currentLatLng = map.containerPointToLatLng([currentX, currentY]);
-        tooltip.setLatLng(currentLatLng);
-        
-        if (progress < 1) {
-            requestAnimationFrame(animate);
-        }
-    }
-    
-    requestAnimationFrame(animate);
-}
-
-// Fonction pour créer ou mettre à jour un tooltip minimal avec animations
-function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
-    const marker = markers[markerId];
-    if (!marker) return;
-    
-    const currentState = window.minimalTooltipStates[markerId];
-    
-    if (shouldShow && !marker.isPopupOpen()) {
-        // Si le tooltip doit être affiché
-        if (!marker.minimalPopup) {
-            // Créer un nouveau tooltip
-            const minimalContent = `
-                <div class="minimal-popup minimal-popup-appear" style="
-                    position: relative;
-                    font-family: 'League Spartan', sans-serif;
-                    font-size: 11px;
-                    color: ${getOptimalTextColor(lineColors[marker.line] || '#000000')};
-                    background: linear-gradient(135deg, ${lineColors[marker.line] || '#000000'}f0, ${lineColors[marker.line] || '#000000'}d0);
-                    backdrop-filter: blur(12px);
-                    -webkit-backdrop-filter: blur(12px);
-                    border-radius: 12px;
-                    padding: 6px 10px;
-                    box-shadow: 0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40;
-                    min-width: 80px;
-                    max-width: 140px;
+                <button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    background: none;
+                    border: none;
+                    padding: 4px;
                     cursor: pointer;
-                    border: 1px solid ${lineColors[marker.line] || '#000000'}60;
-                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                    transform: translateY(0);
-                " onclick="event.stopPropagation(); markers['${markerId}'].fire('click');" 
-                onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${lineColors[marker.line] || '#000000'}90, 0 4px 12px -2px ${lineColors[marker.line] || '#000000'}50';"
-                onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40';">
-                    <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                    z-index: 3;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                ">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3C10.3431 3 9 4.34315 9 6C9 7.65685 10.3431 9 12 9C13.6569 9 15 7.65685 15 6" />
+                    <path d="M5.5 15C3.84315 15 2.5 16.3431 2.5 18C2.5 19.6569 3.84315 21 5.5 21C7.15685 21 8.5 19.6569 8.5 18" />
+                    <path d="M18.5 21C16.8431 21 15.5 19.6569 15.5 18C15.5 16.3431 16.8431 15 18.5 15C20.1569 15 21.5 16.3431 21.5 18" />
+                    <path d="M20 13C20 10.6106 18.9525 8.46589 17.2916 7M4 13C4 10.6106 5.04752 8.46589 6.70838 7M10 20.748C10.6392 20.9125 11.3094 21 12 21C12.6906 21 13.3608 20.9125 14 20.748" />
+                </svg>
+
+                </button>
+
+
+                <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
+                <div class="light-beam beam1"></div>
+                <div class="light-beam beam2"></div>
+                <div class="light-beam beam3"></div>
+
+                    <!-- Texte principal -->
+                    <div style="z-index: 2; text-align: left; width: 100%;">
+                        <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
+                        <strong style="margin: 0; font-size: 14px;">➜ ${lastStopName}</strong>
+                <div>
+                    <div style="position: relative; display: flex; align-items: center; ">
                         <div style="
-                            background: rgba(255,255,255,0.2);
-                            border-radius: 6px;
-                            padding: 2px 6px;
-                            font-weight: 600;
-                            font-size: 10px;
-                            line-height: 1.2;
+                            position: relative;
+                            flex: 1;
+                            overflow: hidden;
+                            border-radius: 10px;
                         ">
-                            ${lineName[marker.line] || t("unknownline")}
-                        </div>
-                        <div style="
-                            background: rgba(0,0,0,0.3);
-                            border-radius: 4px;
-                            padding: 1px 4px;
-                            font-size: 9px;
-                            font-weight: 500;
-                        ">
-                            ${((marker.vehicleData && marker.vehicleData.vehicle.label) || t("unknownparc")).toString().padStart(3, '0')}
+                            <!-- Contenu défilant horizontalement -->
+                            <div class="options" style="
+                                display: flex;
+                                gap: 10px;
+                                padding: 0px;
+                                overflow-x: auto; 
+                                white-space: nowrap;
+                                scrollbar-width: thin; 
+                                scrollbar-color: #888 #f1f1f1;
+                                color: #ffffff;
+                            " class="custom-scrollbar">
+                                <!-- Numéro de parc -->
+                                <span style="
+                                    padding: 6px 10px; 
+                                    background: #00000077; 
+                                    font-weight: normal; 
+                                    white-space: nowrap; 
+                                    backdrop-filter: blur(8px);
+                                    -webkit-backdrop-filter: blur(8px);
+                                    border-radius: 10px; 
+                                    display: inline-flex; 
+                                    align-items: center; 
+                                    gap: 6px;
+                                    height: 20px;
+                                ">
+
+                                <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
+                                <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
+
+                                    
+                                </span>
+                                
+                                <!-- Badges des options du véhicule -->
+                                ${vehicleOptionsBadges}
+                            </div>
                         </div>
                     </div>
-                    <div style="
-                        font-size: 9px; 
-                        opacity: 0.85; 
-                        margin-top: 2px;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        white-space: nowrap;
-                        font-weight: 400;
-                    ">
-                        ➜ ${marker.destination || t("unknowndestination")}
+                        <div style=" margin-top: 10px; text-align: right;">
+                            ${vehicleBrandHtml}
+                        </div>
                     </div>
                 </div>
-            `;
-            
-            // Créer un tooltip centré sur le marqueur
-            const minimalTooltip = L.tooltip({
-                permanent: true,
-                direction: 'center',
-                className: 'minimal-tooltip-container',
-                offset: [0, 0],
-                opacity: 1
-            })
-            .setLatLng(marker.getLatLng())
-            .setContent(minimalContent)
-            .addTo(map);
-            
-            marker.minimalPopup = minimalTooltip;
-            window.minimalTooltipStates[markerId] = 'visible';
-        } else {
-            // Mettre à jour la position du tooltip existant avec animation
-            const currentLatLng = marker.minimalPopup.getLatLng();
-            const newLatLng = marker.getLatLng();
-            
-            if (currentLatLng.lat !== newLatLng.lat || currentLatLng.lng !== newLatLng.lng) {
-                animateTooltip(marker.minimalPopup, newLatLng);
-            }
-        }
-    } else if (!shouldShow && marker.minimalPopup) {
-        // Le tooltip doit être masqué avec animation
-        const tooltipContainer = marker.minimalPopup._container;
-        if (tooltipContainer) {
-            const popupElement = tooltipContainer.querySelector('.minimal-popup');
-            if (popupElement) {
-                popupElement.classList.remove('minimal-popup-appear');
-                popupElement.classList.add('minimal-popup-disappear');
-                
-                setTimeout(() => {
-                    if (marker.minimalPopup) {
-                        map.removeLayer(marker.minimalPopup);
-                        marker.minimalPopup = null;
-                        delete window.minimalTooltipStates[markerId];
-                    }
-                }, 200);
-            }
-        }
-    }
-}
-// Fonction pour gérer l'affichage des vues minimales selon le zoom
-function updateMinimalPopups() {
-    const currentZoom = map.getZoom();
-    const showMinimal = currentZoom >= 16 && currentZoom < 19; // Afficher entre zoom 14 et 16
-    
-    Object.keys(markers).forEach(markerId => {
-        const marker = markers[markerId];
-        if (!marker) return;
-        
-        const shouldShow = showMinimal && !marker.isPopupOpen();
-        createOrUpdateMinimalTooltip(markerId, shouldShow);
-    });
-}
 
-// Fonction pour obtenir la couleur de texte optimale (déjà présente dans votre code)
-function getOptimalTextColor(color) {
-    if (!color) return '#000000';
 
-    color = color.trim();
-
-    let r, g, b, a = 1;
-
-    if (/^#([a-f\d])([a-f\d])([a-f\d])$/i.test(color)) {
-        color = color.replace(/^#([a-f\d])([a-f\d])([a-f\d])$/i,
-        (_, r, g, b) => '#' + r + r + g + g + b + b);
-    }
-
-    const hexMatch = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i);
-
-    if (!hexMatch) return '#000000'; 
-
-    r = parseInt(hexMatch[1], 16);
-    g = parseInt(hexMatch[2], 16);
-    b = parseInt(hexMatch[3], 16);
-
-    if (hexMatch[4]) {
-        a = parseInt(hexMatch[4], 16) / 255;
-    }
-
-    if (a < 1) {
-        r = Math.round((1 - a) * 255 + a * r);
-        g = Math.round((1 - a) * 255 + a * g);
-        b = Math.round((1 - a) * 255 + a * b);
-    }
-
-    const srgb = [r, g, b].map(c => {
-        const v = c / 255;
-        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-    });
-
-    const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
-
-    const contrastBlack = (luminance + 0.05) / 0.05;
-    const contrastWhite = 1.05 / (luminance + 0.05);
-
-    return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
-}
-
-if (markers[id]) {
-    
-    if (!markers[id].id) {
-        markers[id].id = id;
-    }
-    
-    // Stocker les données du véhicule pour la vue minimale
-    markers[id].vehicleData = vehicle;
-    markers[id].destination = lastStopName;
-    
-    if (markers[id].line !== line) {
-        const oldLine = markers[id].line;
-        markers[id].line = line;
-        
-        const color = lineColors[line] || '#000000';
-        if (markers[id]._icon) {
-            const markerIcon = markers[id]._icon.querySelector('.marker-icon');
-            if (markerIcon) {
-                markerIcon.style.transition = 'background-color 0.5s ease';
-                markerIcon.style.backgroundColor = color;
-            }
-            
-            const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
-            if (arrowElement) {
-                arrowElement.style.transition = 'stroke 0.5s ease';
-                arrowElement.setAttribute('stroke', color);
-            }
-        }
-        
-        if (markers[id].isPopupOpen()) {
-            const menubtm = document.getElementById('menubtm');
-            const filtre = document.getElementById('filtre');
-            if (menubtm) {
-                lastActiveColor = color;
-                
-                menubtm.style.backgroundColor = `${color}9c`;
-                filtre.style.backgroundColor = `${color}9c`;
-
-                const textColor = getOptimalTextColor(color);
-                
-                const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
-                const styleSheet = document.createElement('style');
-                styleSheet.id = styleId;
-                styleSheet.classList.add('menu-color-style');
-                
-                styleSheet.textContent = `
-                    #menubtm * {
+                    <!-- Texte en arrière-plan -->
+                    <div style="
+                        position: absolute;
+                        right: 10px;
+                        top: 0;
+                        z-index: 1;
+                        opacity: 0.1;
+                        font-size: 100px;
                         color: ${textColor};
-                        transition: color 0.5s ease;
-                    }
+                        display: flex;
+                        align-items: center;
+                        justify-content: flex-end;
+                        white-space: nowrap;
+                    ">
+                        ${t("line")} ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
+                    </div>
+                </div>
 
-                    #filtre * {
-                        color: ${textColor};
-                        transition: color 0.5s ease;
-                    }
+
+
+
+
+                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+                <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
+                    <ul>
+                    <div id="nextStopsContent" class="next-stops-content">
+                        ${nextStopsHTML}
+                    </div>   
+                </div>
+                </div>
                 `;
-                
-                document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
-                document.head.appendChild(styleSheet);
-                markers[id].styleId = styleId;
-            }
-        }
-    }
-    
-    if (markers[id]._icon) {
-        const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
-        
-        if (arrowElement) {
-            const targetRotation = bearing - 90;
-            arrowElement.style.transition = 'transform 0.5s ease';
-            arrowElement.style.transform = `rotate(${targetRotation}deg)`;
-            arrowElement._currentRotation = targetRotation;
-        }
-    }
 
-    updateLinesDisplay();
+                const minimalPopupContent = `
+                    <div class="minimal-popup" style="
+                        position: relative;
+                        font-family: 'League Spartan', sans-serif;
+                        font-size: 12px;
+                        color: ${textColor};
+                        background-color: ${backgroundColor}9c;
+                        backdrop-filter: blur(8px);
+                        -webkit-backdrop-filter: blur(8px);
+                        border-radius: 8px;
+                        padding: 8px 12px;
+                        box-shadow: 0px 2px 10px 2px ${backgroundColor}6c;
+                        min-width: 120px;
+                        cursor: pointer;
+                        border: 1px solid ${backgroundColor}cc;
+                    " onclick="openFullPopup('${id}')">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <div style="font-weight: bold; font-size: 14px;">
+                                ${t("line")} ${lineName[line] || t("unknownline")}
+                            </div>
+                            <div style="font-size: 11px; opacity: 0.9;">
+                                🚌 ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
+                            </div>
+                            <div style="font-size: 11px; opacity: 0.8;">
+                                ➜ ${lastStopName}
+                            </div>
+                        </div>
+                    </div>
+                `;
 
-    const existingPopup = markers[id].getPopup();
-    const currentContent = existingPopup ? existingPopup.getContent() : '';
+                window.openFullPopup = function(markerId) {
+                    if (markers[markerId]) {
+                        markers[markerId].fire('click');
+                    }
+                };
 
-    if (existingPopup && currentContent === popupContent) {
-        return;
-    }
+                if (typeof window.minimalTooltipStates === 'undefined') {
+                    window.minimalTooltipStates = {};
+                }
 
-    markers[id].setPopupContent(popupContent);
+                if (!document.getElementById('minimal-tooltip-styles')) {
+                    const styles = document.createElement('style');
+                    styles.id = 'minimal-tooltip-styles';
+                    styles.textContent = `
+                        .minimal-tooltip-container {
+                            background: transparent !important;
+                            border: none !important;
+                            box-shadow: none !important;
+                            padding: 0 !important;
+                            margin: 0 !important;
+                        }
+                        
+                        .minimal-tooltip-container::before {
+                            display: none !important;
+                        }
+                        
+                        .leaflet-tooltip-top::before,
+                        .leaflet-tooltip-bottom::before,
+                        .leaflet-tooltip-left::before,
+                        .leaflet-tooltip-right::before,
+                        .leaflet-tooltip-center::before {
+                            display: none !important;
+                        }
+                        
+                        .leaflet-tooltip {
+                            background: transparent !important;
+                            border: none !important;
+                            box-shadow: none !important;
+                        }
+                        
+                        @keyframes popIn {
+                            0% {
+                                opacity: 0;
+                                transform: scale(0.3) translateY(10px);
+                            }
+                            50% {
+                                transform: scale(1.1) translateY(-2px);
+                            }
+                            100% {
+                                opacity: 1;
+                                transform: scale(1) translateY(0);
+                            }
+                        }
+                        
+                        @keyframes popOut {
+                            0% {
+                                opacity: 1;
+                                transform: scale(1) translateY(0);
+                            }
+                            100% {
+                                opacity: 0;
+                                transform: scale(0.3) translateY(10px);
+                            }
+                        }
+                        
+                        .minimal-popup-appear {
+                            animation: popIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+                        }
+                        
+                        .minimal-popup-disappear {
+                            animation: popOut 0.2s cubic-bezier(0.4, 0, 1, 1);
+                        }
+                    `;
+                    document.head.appendChild(styles);
+                }
 
-    if (markers[id].isPopupOpen()) {
-        const popup = markers[id]._popup;
-        if (popup && popup._contentNode) {
-            const popupElement = popup._contentNode.parentElement;
-            if (popupElement) {
-                popupElement.classList.remove('hide'); 
-                popupElement.classList.add('show'); 
-                markers[id].openPopup();
-            }
-        }
-    }
+                function animateTooltip(tooltip, newLatLng, duration = 500) {
+                    if (!tooltip || !tooltip._container) return;
+                    
+                    const container = tooltip._container;
+                    const startPos = map.latLngToContainerPoint(tooltip.getLatLng());
+                    const endPos = map.latLngToContainerPoint(newLatLng);
+                    
+                    const startTime = performance.now();
+                    
+                    function animate(currentTime) {
+                        const elapsed = currentTime - startTime;
+                        const progress = Math.min(elapsed / duration, 1);
+                        
+                        const easeProgress = 1 - Math.pow(1 - progress, 3);
+                        
+                        const currentX = startPos.x + (endPos.x - startPos.x) * easeProgress;
+                        const currentY = startPos.y + (endPos.y - startPos.y) * easeProgress;
+                        
+                        const currentLatLng = map.containerPointToLatLng([currentX, currentY]);
+                        tooltip.setLatLng(currentLatLng);
+                        
+                        if (progress < 1) {
+                            requestAnimationFrame(animate);
+                        }
+                    }
+                    
+                    requestAnimationFrame(animate);
+                }
 
-    if (selectedLine && markers[id].line !== selectedLine) {
-        if (map.hasLayer(markers[id])) {
-            map.removeLayer(markers[id]);
-        }
-    } else {
-        if (!map.hasLayer(markers[id])) {
-            map.addLayer(markers[id]);
-        }
-    }
-animateMarker(markers[id], [latitude, longitude]);
-setTimeout(() => {
-    updateMinimalPopups();
-}, 1000);
-} else {
-    const marker = createColoredMarker(latitude, longitude, line, bearing);
-    updateLinesDisplay();
-    markers[id] = marker;
-    markers[id].line = line;
-    markers[id].id = id;
-    markers[id].vehicleData = vehicle;
-    markers[id].destination = lastStopName;
+                function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
+                    const marker = markers[markerId];
+                    if (!marker) return;
+                    
+                    const currentState = window.minimalTooltipStates[markerId];
+                    
+                    if (shouldShow && !marker.isPopupOpen()) {
+                        if (!marker.minimalPopup) {
+                            const minimalContent = `
+                                <div class="minimal-popup minimal-popup-appear" style="
+                                    position: relative;
+                                    font-family: 'League Spartan', sans-serif;
+                                    font-size: 11px;
+                                    color: ${getOptimalTextColor(lineColors[marker.line] || '#000000')};
+                                    background: linear-gradient(135deg, ${lineColors[marker.line] || '#000000'}f0, ${lineColors[marker.line] || '#000000'}d0);
+                                    backdrop-filter: blur(12px);
+                                    -webkit-backdrop-filter: blur(12px);
+                                    border-radius: 12px;
+                                    padding: 6px 10px;
+                                    box-shadow: 0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40;
+                                    min-width: 80px;
+                                    max-width: 140px;
+                                    cursor: pointer;
+                                    border: 1px solid ${lineColors[marker.line] || '#000000'}60;
+                                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                                    transform: translateY(0);
+                                " onclick="event.stopPropagation(); markers['${markerId}'].fire('click');" 
+                                onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${lineColors[marker.line] || '#000000'}90, 0 4px 12px -2px ${lineColors[marker.line] || '#000000'}50';"
+                                onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40';">
+                                    <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                        <div style="
+                                            background: rgba(255,255,255,0.2);
+                                            border-radius: 6px;
+                                            padding: 2px 6px;
+                                            font-weight: 600;
+                                            font-size: 10px;
+                                            line-height: 1.2;
+                                        ">
+                                            ${lineName[marker.line] || t("unknownline")}
+                                        </div>
+                                        <div style="
+                                            background: rgba(0,0,0,0.3);
+                                            border-radius: 4px;
+                                            padding: 1px 4px;
+                                            font-size: 9px;
+                                            font-weight: 500;
+                                        ">
+                                            ${((marker.vehicleData && marker.vehicleData.vehicle.label) || t("unknownparc")).toString().padStart(3, '0')}
+                                        </div>
+                                    </div>
+                                    <div style="
+                                        font-size: 9px; 
+                                        opacity: 0.85; 
+                                        margin-top: 2px;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        white-space: nowrap;
+                                        font-weight: 400;
+                                    ">
+                                        ➜ ${marker.destination || t("unknowndestination")}
+                                    </div>
+                                </div>
+                            `;
+                            
+                            const minimalTooltip = L.tooltip({
+                                permanent: true,
+                                direction: 'center',
+                                className: 'minimal-tooltip-container',
+                                offset: [0, 0],
+                                opacity: 1
+                            })
+                            .setLatLng(marker.getLatLng())
+                            .setContent(minimalContent)
+                            .addTo(map);
+                            
+                            marker.minimalPopup = minimalTooltip;
+                            window.minimalTooltipStates[markerId] = 'visible';
+                        } else {
+                            const currentLatLng = marker.minimalPopup.getLatLng();
+                            const newLatLng = marker.getLatLng();
+                            
+                            if (currentLatLng.lat !== newLatLng.lat || currentLatLng.lng !== newLatLng.lng) {
+                                animateTooltip(marker.minimalPopup, newLatLng);
+                            }
+                        }
+                    } else if (!shouldShow && marker.minimalPopup) {
+                        const tooltipContainer = marker.minimalPopup._container;
+                        if (tooltipContainer) {
+                            const popupElement = tooltipContainer.querySelector('.minimal-popup');
+                            if (popupElement) {
+                                popupElement.classList.remove('minimal-popup-appear');
+                                popupElement.classList.add('minimal-popup-disappear');
+                                
+                                setTimeout(() => {
+                                    if (marker.minimalPopup) {
+                                        map.removeLayer(marker.minimalPopup);
+                                        marker.minimalPopup = null;
+                                        delete window.minimalTooltipStates[markerId];
+                                    }
+                                }, 200);
+                            }
+                        }
+                    }
+                }
+                function updateMinimalPopups() {
+                    const currentZoom = map.getZoom();
+                    const showMinimal = currentZoom >= 18 && currentZoom < 20; 
+                    
+                    Object.keys(markers).forEach(markerId => {
+                        const marker = markers[markerId];
+                        if (!marker) return;
+                        
+                        const shouldShow = showMinimal && !marker.isPopupOpen();
+                        createOrUpdateMinimalTooltip(markerId, shouldShow);
+                    });
+                }
 
-    if (!selectedLine || selectedLine === line) {
-        marker.addTo(map);
-    }
-    
-    marker.bindPopup(popupContent);
+                function getOptimalTextColor(color) {
+                    if (!color) return '#000000';
 
-    marker.on('popupopen', function (e) {
-        // Fermer la vue minimale si elle existe avec animation
-        if (markers[id].minimalPopup) {
-            createOrUpdateMinimalTooltip(id, false);
-        }
-        
-        if (e.popup && e.popup._contentNode) {
-            const popupElement = e.popup._contentNode.parentElement;
-            if (popupElement) {
-                popupElement.classList.remove('hide'); 
-                popupElement.classList.add('show');  
-            }
-        }
-    });
+                    color = color.trim();
 
-    marker.on('popupclose', function (e) {
-        if (e.popup && e.popup._contentNode) {
-            const popupElement = e.popup._contentNode.parentElement;
-            if (popupElement) {
-                popupElement.classList.remove('show');
-                popupElement.classList.add('hide');
+                    let r, g, b, a = 1;
 
+                    if (/^#([a-f\d])([a-f\d])([a-f\d])$/i.test(color)) {
+                        color = color.replace(/^#([a-f\d])([a-f\d])([a-f\d])$/i,
+                        (_, r, g, b) => '#' + r + r + g + g + b + b);
+                    }
+
+                    const hexMatch = color.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i);
+
+                    if (!hexMatch) return '#000000'; 
+
+                    r = parseInt(hexMatch[1], 16);
+                    g = parseInt(hexMatch[2], 16);
+                    b = parseInt(hexMatch[3], 16);
+
+                    if (hexMatch[4]) {
+                        a = parseInt(hexMatch[4], 16) / 255;
+                    }
+
+                    if (a < 1) {
+                        r = Math.round((1 - a) * 255 + a * r);
+                        g = Math.round((1 - a) * 255 + a * g);
+                        b = Math.round((1 - a) * 255 + a * b);
+                    }
+
+                    const srgb = [r, g, b].map(c => {
+                        const v = c / 255;
+                        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+                    });
+
+                    const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+
+                    const contrastBlack = (luminance + 0.05) / 0.05;
+                    const contrastWhite = 1.05 / (luminance + 0.05);
+
+                    return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
+                }
+
+                if (markers[id]) {
+                    
+                    if (!markers[id].id) {
+                        markers[id].id = id;
+                    }
+                    
+                    markers[id].vehicleData = vehicle;
+                    markers[id].destination = lastStopName;
+                    
+                    if (markers[id].line !== line) {
+                        const oldLine = markers[id].line;
+                        markers[id].line = line;
+                        
+                        const color = lineColors[line] || '#000000';
+                        if (markers[id]._icon) {
+                            const markerIcon = markers[id]._icon.querySelector('.marker-icon');
+                            if (markerIcon) {
+                                markerIcon.style.transition = 'background-color 0.5s ease';
+                                markerIcon.style.backgroundColor = color;
+                            }
+                            
+                            const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
+                            if (arrowElement) {
+                                arrowElement.style.transition = 'stroke 0.5s ease';
+                                arrowElement.setAttribute('stroke', color);
+                            }
+                        }
+                        
+                        if (markers[id].isPopupOpen()) {
+                            const menubtm = document.getElementById('menubtm');
+                            const filtre = document.getElementById('filtre');
+                            if (menubtm) {
+                                lastActiveColor = color;
+                                
+                                menubtm.style.backgroundColor = `${color}9c`;
+                                filtre.style.backgroundColor = `${color}9c`;
+
+                                const textColor = getOptimalTextColor(color);
+                                
+                                const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+                                const styleSheet = document.createElement('style');
+                                styleSheet.id = styleId;
+                                styleSheet.classList.add('menu-color-style');
+                                
+                                styleSheet.textContent = `
+                                    #menubtm * {
+                                        color: ${textColor};
+                                        transition: color 0.5s ease;
+                                    }
+
+                                    #filtre * {
+                                        color: ${textColor};
+                                        transition: color 0.5s ease;
+                                    }
+                                `;
+                                
+                                document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
+                                document.head.appendChild(styleSheet);
+                                markers[id].styleId = styleId;
+                            }
+                        }
+                    }
+                    
+                    if (markers[id]._icon) {
+                        const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
+                        
+                        if (arrowElement) {
+                            const targetRotation = bearing - 90;
+                            arrowElement.style.transition = 'transform 0.5s ease';
+                            arrowElement.style.transform = `rotate(${targetRotation}deg)`;
+                            arrowElement._currentRotation = targetRotation;
+                        }
+                    }
+
+                    updateLinesDisplay();
+
+                    const existingPopup = markers[id].getPopup();
+                    const currentContent = existingPopup ? existingPopup.getContent() : '';
+
+                    if (existingPopup && currentContent === popupContent) {
+                        return;
+                    }
+
+                    markers[id].setPopupContent(popupContent);
+
+                    if (markers[id].isPopupOpen()) {
+                        const popup = markers[id]._popup;
+                        if (popup && popup._contentNode) {
+                            const popupElement = popup._contentNode.parentElement;
+                            if (popupElement) {
+                                popupElement.classList.remove('hide'); 
+                                popupElement.classList.add('show'); 
+                                markers[id].openPopup();
+                            }
+                        }
+                    }
+
+                    if (selectedLine && markers[id].line !== selectedLine) {
+                        if (map.hasLayer(markers[id])) {
+                            map.removeLayer(markers[id]);
+                        }
+                    } else {
+                        if (!map.hasLayer(markers[id])) {
+                            map.addLayer(markers[id]);
+                        }
+                    }
+                animateMarker(markers[id], [latitude, longitude]);
                 setTimeout(() => {
-                    if (e.popup) {
-                        e.popup.remove(); 
+                    updateMinimalPopups();
+                }, 1000);
+                } else {
+                    const marker = createColoredMarker(latitude, longitude, line, bearing);
+                    updateLinesDisplay();
+                    markers[id] = marker;
+                    markers[id].line = line;
+                    markers[id].id = id;
+                    markers[id].vehicleData = vehicle;
+                    markers[id].destination = lastStopName;
+
+                    if (!selectedLine || selectedLine === line) {
+                        marker.addTo(map);
                     }
-                    // Remettre la vue minimale si nécessaire avec animation
-                    setTimeout(() => {
-                        updateMinimalPopups();
-                    }, 100);
-                }, 200); 
-            }
-        }
-    });
+                    
+                    marker.bindPopup(popupContent);
 
-    // Gérer le clic sur le marqueur pour ouvrir la popup complète
-    marker.on('click', function() {
-        if (markers[id].minimalPopup) {
-            createOrUpdateMinimalTooltip(id, false);
-        }
-        marker.openPopup();
-    });
-        animateMarker(markers[id], [latitude, longitude]);
-        setTimeout(() => {
-            updateMinimalPopups();
-        }, 1000);
+                    marker.on('popupopen', function (e) {
+                        if (markers[id].minimalPopup) {
+                            createOrUpdateMinimalTooltip(id, false);
+                        }
+                        
+                        if (e.popup && e.popup._contentNode) {
+                            const popupElement = e.popup._contentNode.parentElement;
+                            if (popupElement) {
+                                popupElement.classList.remove('hide'); 
+                                popupElement.classList.add('show');  
+                            }
+                        }
+                    });
 
-    }
+                    marker.on('popupclose', function (e) {
+                        if (e.popup && e.popup._contentNode) {
+                            const popupElement = e.popup._contentNode.parentElement;
+                            if (popupElement) {
+                                popupElement.classList.remove('show');
+                                popupElement.classList.add('hide');
 
+                                setTimeout(() => {
+                                    if (e.popup) {
+                                        e.popup.remove(); 
+                                    }
+                                    setTimeout(() => {
+                                        updateMinimalPopups();
+                                    }, 100);
+                                }, 200); 
+                            }
+                        }
+                    });
 
-// Gestionnaire d'événement pour le zoom
-map.on('zoomend', updateMinimalPopups);
+                    marker.on('click', function() {
+                        if (markers[id].minimalPopup) {
+                            createOrUpdateMinimalTooltip(id, false);
+                        }
+                        marker.openPopup();
+                    });
+                        animateMarker(markers[id], [latitude, longitude]);
+                        setTimeout(() => {
+                            updateMinimalPopups();
+                        }, 1000);
 
                     }
-            });
+
+
+                map.on('zoomend', updateMinimalPopups);
+
+                }
+        });
 
 
 
@@ -6529,30 +6519,6 @@ function updateMenu() {
         font-weight: 500;
     `;
     topBar.appendChild(title);
-
-    const settingsButton = document.createElement('div');
-    settingsButton.innerHTML = `
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="3" stroke-width="1.5"></circle>
-            <path d="M3.661 10.639c.472.297.777.803.777 1.361s-.305 1.065-.777 1.362c-.322.202-.53.363-.677.555-.323.421-.465.953-.396 1.479.052.394.285.798.751 1.605.466.807.699 1.21 1.015 1.452.421.323.953.465 1.479.396.24-.032.483-.13.819-.308.494-.261 1.084-.27 1.567.009.483.279.769.795.79 1.353.014.38.05.64.143.864.203.49.592.88 1.082 1.083.368.152.834.152 1.766.152s1.398 0 1.766-.152c.49-.203.88-.593 1.083-1.083.093-.224.129-.484.143-.864.02-.558.306-1.074.79-1.353.483-.279 1.073-.27 1.566-.009.336.178.579.276.819.308.526.069 1.058-.073 1.479-.396.316-.242.549-.645 1.015-1.452.207-.359.368-.639.488-.873m-.81-2.766c-.472-.297-.776-.803-.776-1.361s.304-1.065.776-1.362c.322-.202.529-.364.677-.556.323-.42.466-.952.396-1.478-.052-.394-.285-.798-.751-1.605-.466-.807-.699-1.211-1.015-1.453-.421-.322-.953-.464-1.479-.395-.24.032-.483.129-.819.307-.494.261-1.084.27-1.567-.009-.483-.279-.769-.795-.79-1.353-.014-.38-.05-.64-.143-.864-.203-.49-.592-.88-1.082-1.083C13.398 2 12.932 2 12 2s-1.398 0-1.766.152c-.49.203-.88.593-1.083 1.083-.093.224-.129.484-.143.864-.02.558-.306 1.074-.79 1.353-.483.279-1.073.27-1.566.009a2.633 2.633 0 0 0-.819-.307c-.526-.069-1.058.073-1.479.395-.316.242-.549.646-1.015 1.453-.207.359-.368.639-.488.873" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-    `;
-    settingsButton.style.cssText = `
-        margin-left: auto;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        padding: 8px;
-        border-radius: 8px;
-        transition: background 0.2s ease;
-    `;
-    settingsButton.onmouseover = () => settingsButton.style.background = 'rgba(255, 255, 255, 0.1)';
-    settingsButton.onmouseout = () => settingsButton.style.background = 'transparent';
-
-    settingsButton.onclick = () => FluentSettingsMenu.open();
-    topBar.appendChild(settingsButton);
-
 
     
     const spacer = document.createElement('div');
@@ -8117,6 +8083,7 @@ window.addEventListener('message', function(event) {
         accueil.classList.remove("affiche")
         const menubottom1 = document.getElementById('menubtm');
         menubottom1.style.display = 'flex';
+        window.isMenuShowed = false;
     
         setTimeout(() => {
             menubottom1.classList.remove('slide-upb');
@@ -8134,6 +8101,7 @@ function afficherMenu() {
     accueil.classList.remove('hide');
     accueil.classList.add("affiche")
     accueil.style.display = 'block';
+    window.isMenuShowed = true;
 
     const menubottom1 = document.getElementById('menubtm');
 
