@@ -4006,31 +4006,31 @@ let selectedLines = [];
 
 
 
-// Variables globales pour la gestion des popups
-let currentPopup = null;
+// Variables globales pour la gestion des données et de l'interface
+let selectedStopPopup = null;
 let popupUpdateInterval = null;
-let currentStopId = null;
+const POPUP_UPDATE_INTERVAL = 10000; // Mise à jour popup toutes les 10s
 
-// Styles CSS pour le Fluent Design
+// CSS Fluent Design pour les popups
 const fluentStyles = `
 <style>
 .fluent-popup {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: rgba(243, 243, 243, 0.95);
-    backdrop-filter: blur(20px);
+    background: rgba(243, 243, 243, 0.9);
+    backdrop-filter: blur(30px);
     border-radius: 8px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     padding: 0;
     min-width: 320px;
     max-width: 400px;
+    overflow: hidden;
 }
 
-.fluent-header {
-    background: linear-gradient(135deg, #0078d4, #106ebe);
+.fluent-popup-header {
+    background: linear-gradient(135deg, #0078d4 0%, #106ebe 100%);
     color: white;
     padding: 16px 20px;
-    border-radius: 8px 8px 0 0;
     font-weight: 600;
     font-size: 16px;
     display: flex;
@@ -4038,326 +4038,364 @@ const fluentStyles = `
     gap: 8px;
 }
 
-.fluent-header::before {
-    content: "🚌";
-    font-size: 18px;
-}
-
-.fluent-content {
-    padding: 16px 20px;
-    max-height: 300px;
+.fluent-popup-content {
+    padding: 16px 20px 20px;
+    max-height: 400px;
     overflow-y: auto;
 }
 
 .line-group {
     margin-bottom: 16px;
-    background: white;
+    background: rgba(255, 255, 255, 0.7);
     border-radius: 6px;
-    border-left: 4px solid #0078d4;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .line-header {
-    background: linear-gradient(90deg, #f8f9fa, #ffffff);
     padding: 12px 16px;
     font-weight: 600;
+    font-size: 14px;
     color: #323130;
-    border-bottom: 1px solid #edebe9;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
 }
 
-.line-badge {
-    background: #0078d4;
-    color: white;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    min-width: 24px;
-    text-align: center;
+.line-color-indicator {
+    width: 4px;
+    height: 20px;
+    border-radius: 2px;
 }
 
-.next-times {
-    padding: 12px 16px;
-}
-
-.time-item {
+.passage-item {
+    padding: 10px 16px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #f3f2f1;
+    transition: background-color 0.2s ease;
 }
 
-.time-item:last-child {
-    border-bottom: none;
+.passage-item:hover {
+    background: rgba(0, 120, 212, 0.05);
 }
 
-.time-value {
+.passage-time {
     font-weight: 600;
-    color: #323130;
-    font-size: 14px;
+    font-size: 15px;
+    color: #0078d4;
 }
 
-.delay-info {
+.passage-delay {
     font-size: 12px;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
     font-weight: 500;
 }
 
 .delay-positive {
-    background: #fef7f1;
-    color: #d83b01;
+    background: #fef7e7;
+    color: #8a6914;
 }
 
 .delay-negative {
-    background: #f3f9f1;
+    background: #e7f3ff;
+    color: #0078d4;
+}
+
+.delay-ontime {
+    background: #e7f7e7;
     color: #107c10;
 }
 
-.delay-neutral {
-    background: #f8f9fa;
-    color: #605e5c;
-}
-
-.no-data {
+.no-passages {
     text-align: center;
     color: #605e5c;
     font-style: italic;
     padding: 20px;
 }
 
-.last-update {
+.update-time {
     font-size: 11px;
     color: #605e5c;
     text-align: center;
-    padding: 8px;
-    border-top: 1px solid #edebe9;
-    background: #faf9f8;
+    padding: 8px 16px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    background: rgba(0, 0, 0, 0.02);
 }
 
-.loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    color: #605e5c;
-}
-
-.loading::after {
-    content: "";
+.loading-spinner {
+    display: inline-block;
     width: 16px;
     height: 16px;
-    margin-left: 8px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #0078d4;
+    border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    to { transform: rotate(360deg); }
 }
 </style>
 `;
 
-// Fonction pour formater le délai
-function formatDelay(delaySeconds) {
-    if (!delaySeconds || delaySeconds === 0) {
-        return { text: "À l'heure", class: "delay-neutral" };
-    }
+// Injecter les styles Fluent Design
+if (!document.getElementById('fluent-styles')) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'fluent-styles';
+    styleElement.innerHTML = fluentStyles.replace('<style>', '').replace('</style>', '');
+    document.head.appendChild(styleElement);
+}
+
+// Initialisation du worker
+function initWorker() {
+    worker = new Worker('worker.js');
     
-    const minutes = Math.floor(Math.abs(delaySeconds) / 60);
-    if (delaySeconds > 0) {
-        return { 
-            text: `+${minutes}min`, 
-            class: "delay-positive" 
-        };
-    } else {
-        return { 
-            text: `-${minutes}min`, 
-            class: "delay-negative" 
-        };
+    worker.onerror = (error) => {
+        console.error('Erreur worker', error);
+        setTimeout(() => {
+            worker.terminate();
+            initWorker();
+        }, 1000);
+    };
+}
+
+// Récupération des données GTFS-RT
+async function fetchTripUpdates() {
+    if (fetchInProgress) return Promise.resolve(null);
+    
+    fetchInProgress = true;
+    const fetchStartTime = performance.now();
+    
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch('proxy-cors/proxy_tripupdate.php', {
+            signal: controller.signal,
+            cache: 'no-store' 
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        
+        const buffer = await response.arrayBuffer();
+        const data = await decodeProtobuf(buffer);
+        
+        const fetchTime = performance.now() - fetchStartTime;
+        console.debug(`Téléchargement gtfs en ${fetchTime.toFixed(2)}ms`);
+        
+        return new Promise((resolve, reject) => {
+            const workerTimeoutId = setTimeout(() => {
+                reject(new Error('Worker timeout'));
+            }, 3000);
+            
+            worker.onmessage = (e) => {
+                clearTimeout(workerTimeoutId);
+                tripUpdates = e.data.tripUpdates;
+                resolve(e.data.tripUpdates);
+                fetchInProgress = false;
+            };
+            
+            worker.postMessage(data);
+        });
+    } catch (error) {
+        console.error('Erreur récupération trip updates:', error);
+        fetchInProgress = false;
+        throw error;
     }
 }
 
 // Fonction pour obtenir les prochains passages pour un arrêt
-function getNextDeparturesForStop(stopId) {
-    const departures = {};
+function getNextPassagesForStop(stopId) {
+    const passages = [];
     const now = Date.now() / 1000;
     
-    // Parcourir tous les tripUpdates
-    Object.values(tripUpdates).forEach(tripUpdate => {
-        if (!tripUpdate.stopUpdates) return;
-        
-        // Chercher cet arrêt dans les mises à jour
-        const stopUpdate = tripUpdate.stopUpdates.find(stop => 
-            stop.stopId === stopId || stop.stopId === `0:${stopId}`
-        );
-        
+    Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+        const stopUpdate = tripData.stopUpdates?.find(stop => stop.stopId === stopId);
         if (stopUpdate) {
-            // Obtenir l'ID de la ligne depuis les données GeoJSON
-            const routeId = getRouteIdForTrip(stopUpdate, tripUpdate);
+            const arrivalTime = stopUpdate.arrivalTime;
+            const departureTime = stopUpdate.departureTime;
+            const unifiedTime = stopUpdate.unifiedTime;
+            const delay = stopUpdate.delay;
             
-            if (routeId) {
-                if (!departures[routeId]) {
-                    departures[routeId] = [];
-                }
-                
-                // Ajouter le passage avec les informations de délai
-                const departureTime = stopUpdate.departureTime || stopUpdate.arrivalTime;
-                const delay = stopUpdate.delay;
-                
-                if (departureTime && departureTime !== "inconnue") {
-                    departures[routeId].push({
-                        time: departureTime,
-                        delay: delay,
-                        rawTime: parseTimeToSeconds(departureTime)
-                    });
-                }
+            if (unifiedTime && unifiedTime !== "inconnue") {
+                passages.push({
+                    tripId,
+                    routeId: tripData.routeId || 'Ligne inconnue',
+                    time: unifiedTime,
+                    delay: delay,
+                    timestamp: delay !== null ? now + delay : null
+                });
             }
         }
     });
     
-    // Trier les passages par heure pour chaque ligne
-    Object.keys(departures).forEach(routeId => {
-        departures[routeId].sort((a, b) => a.rawTime - b.rawTime);
-        // Garder seulement les 3 prochains passages
-        departures[routeId] = departures[routeId].slice(0, 3);
+    // Trier par heure de passage
+    passages.sort((a, b) => {
+        if (a.timestamp && b.timestamp) {
+            return a.timestamp - b.timestamp;
+        }
+        return a.time.localeCompare(b.time);
     });
     
-    return departures;
+    return passages.slice(0, 10); // Limiter à 10 prochains passages
 }
 
-// Fonction pour convertir une heure en secondes depuis minuit
-function parseTimeToSeconds(timeStr) {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    return hours * 3600 + minutes * 60;
-}
-
-// Fonction pour obtenir l'ID de ligne (à adapter selon votre structure de données)
-function getRouteIdForTrip(stopUpdate, tripUpdate) {
-    // Cette fonction doit être adaptée selon la façon dont vous liez
-    // les trips aux lignes dans vos données
-    // Pour l'exemple, on suppose qu'il y a une correspondance dans les données GeoJSON
+// Fonction pour formater le délai
+function formatDelay(delay) {
+    if (delay === null || delay === undefined) {
+        return { text: "À l'heure", class: "delay-ontime" };
+    }
     
-    // Vous devrez probablement adapter cette logique selon votre structure
-    const busStopLayer = busStopLayers.find(layer => 
-        layer.feature.properties.stop_id === stopUpdate.stopId
-    );
+    const minutes = Math.round(delay / 60);
     
-    return busStopLayer ? busStopLayer.feature.properties.route_id : null;
+    if (Math.abs(minutes) < 1) {
+        return { text: "À l'heure", class: "delay-ontime" };
+    } else if (minutes > 0) {
+        return { text: `+${minutes}min`, class: "delay-positive" };
+    } else {
+        return { text: `${minutes}min`, class: "delay-negative" };
+    }
 }
 
 // Fonction pour créer le contenu HTML de la popup
-function createPopupContent(stopId, stopName) {
-    const departures = getNextDeparturesForStop(stopId);
-    const now = new Date();
+function createPopupContent(stopName, stopId, passages) {
+    const updateTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
-    let content = `
-        ${fluentStyles}
-        <div class="fluent-popup">
-            <div class="fluent-header">
-                ${stopName || `Arrêt ${stopId}`}
-            </div>
-            <div class="fluent-content">
-    `;
-    
-    if (Object.keys(departures).length === 0) {
-        content += `
-            <div class="no-data">
-                Aucun passage prévu pour le moment
+    if (passages.length === 0) {
+        return `
+            <div class="fluent-popup">
+                <div class="fluent-popup-header">
+                    🚏 ${stopName || 'Arrêt ' + stopId}
+                </div>
+                <div class="fluent-popup-content">
+                    <div class="no-passages">
+                        Aucun passage prévu dans les prochaines heures
+                    </div>
+                </div>
+                <div class="update-time">
+                    Dernière mise à jour : ${updateTime}
+                </div>
             </div>
         `;
-    } else {
-        Object.entries(departures).forEach(([routeId, times]) => {
-            const lineColor = lineColors[routeId] || '#0078d4';
-            
-            content += `
-                <div class="line-group">
-                    <div class="line-header">
-                        <div class="line-badge" style="background-color: ${lineColor}">
-                            ${routeId}
-                        </div>
-                        Ligne ${routeId}
-                    </div>
-                    <div class="next-times">
-            `;
-            
-            times.forEach(departure => {
-                const delayInfo = formatDelay(departure.delay);
-                content += `
-                    <div class="time-item">
-                        <div class="time-value">${departure.time}</div>
-                        <div class="delay-info ${delayInfo.class}">
-                            ${delayInfo.text}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            content += `
-                    </div>
+    }
+    
+    // Grouper les passages par ligne
+    const passagesByLine = {};
+    passages.forEach(passage => {
+        const routeId = passage.routeId || 'Ligne inconnue';
+        if (!passagesByLine[routeId]) {
+            passagesByLine[routeId] = [];
+        }
+        passagesByLine[routeId].push(passage);
+    });
+    
+    let contentHTML = `
+        <div class="fluent-popup">
+            <div class="fluent-popup-header">
+                🚏 ${stopName || 'Arrêt ' + stopId}
+            </div>
+            <div class="fluent-popup-content">
+    `;
+    
+    Object.entries(passagesByLine).forEach(([routeId, linePassages]) => {
+        const lineColor = lineColors[routeId] || '#3388ff';
+        
+        contentHTML += `
+            <div class="line-group">
+                <div class="line-header">
+                    <div class="line-color-indicator" style="background-color: ${lineColor}"></div>
+                    Ligne ${routeId}
+                </div>
+        `;
+        
+        linePassages.slice(0, 5).forEach(passage => {
+            const delayInfo = formatDelay(passage.delay);
+            contentHTML += `
+                <div class="passage-item">
+                    <div class="passage-time">${passage.time}</div>
+                    <div class="passage-delay ${delayInfo.class}">${delayInfo.text}</div>
                 </div>
             `;
         });
-    }
+        
+        contentHTML += '</div>';
+    });
     
-    content += `
+    contentHTML += `
             </div>
-            <div class="last-update">
-                Dernière mise à jour : ${now.toLocaleTimeString()}
+            <div class="update-time">
+                Dernière mise à jour : ${updateTime}
             </div>
         </div>
     `;
     
-    return content;
+    return contentHTML;
 }
 
-// Fonction pour mettre à jour le contenu de la popup
-function updatePopupContent() {
-    if (!currentPopup || !currentStopId) return;
-    
-    const stopName = getStopName(currentStopId);
-    const newContent = createPopupContent(currentStopId, stopName);
-    currentPopup.setContent(newContent);
-}
-
-// Fonction pour obtenir le nom de l'arrêt
-function getStopName(stopId) {
-    const stopLayer = busStopLayers.find(layer => 
-        layer.feature.properties.stop_id === stopId ||
-        layer.feature.properties.stop_id === `0:${stopId}`
-    );
-    
-    return stopLayer ? stopLayer.feature.properties.stop_name : null;
-}
-
-// Fonction pour démarrer la mise à jour automatique
-function startPopupUpdates() {
-    if (popupUpdateInterval) {
-        clearInterval(popupUpdateInterval);
-    }
-    
-    popupUpdateInterval = setInterval(() => {
-        updatePopupContent();
-    }, 10000); // Mise à jour toutes les 10 secondes
-}
-
-// Fonction pour arrêter la mise à jour automatique
-function stopPopupUpdates() {
-    if (popupUpdateInterval) {
-        clearInterval(popupUpdateInterval);
-        popupUpdateInterval = null;
+// Fonction pour mettre à jour le contenu de la popup ouverte
+function updateOpenPopup() {
+    if (selectedStopPopup && selectedStopPopup.isOpen()) {
+        const stopId = selectedStopPopup._stopId;
+        const stopName = selectedStopPopup._stopName;
+        const passages = getNextPassagesForStop(stopId);
+        const newContent = createPopupContent(stopName, stopId, passages);
+        selectedStopPopup.setContent(newContent);
     }
 }
 
-// Modification de votre fonction loadGeoJsonLines existante
+// Fonction pour gérer le clic sur un arrêt
+function handleBusStopClick(layer) {
+    const feature = layer.feature;
+    const stopId = feature.properties.stop_id;
+    const stopName = feature.properties.stop_name || feature.properties.name;
+    
+    // Fermer la popup précédente si elle existe
+    if (selectedStopPopup) {
+        map.closePopup(selectedStopPopup);
+        clearInterval(popupUpdateInterval);
+    }
+    
+    // Obtenir les prochains passages
+    const passages = getNextPassagesForStop(stopId);
+    const content = createPopupContent(stopName, stopId, passages);
+    
+    // Créer et ouvrir la popup
+    selectedStopPopup = L.popup({
+        maxWidth: 420,
+        className: 'fluent-popup-container',
+        closeButton: true,
+        autoClose: false,
+        closeOnEscapeKey: true
+    })
+    .setLatLng(layer.getLatLng())
+    .setContent(content)
+    .openOn(map);
+    
+    // Stocker les informations de l'arrêt dans la popup
+    selectedStopPopup._stopId = stopId;
+    selectedStopPopup._stopName = stopName;
+    
+    // Configurer la mise à jour automatique
+    popupUpdateInterval = setInterval(updateOpenPopup, POPUP_UPDATE_INTERVAL);
+    
+    // Gérer la fermeture de la popup
+    selectedStopPopup.on('remove', () => {
+        if (popupUpdateInterval) {
+            clearInterval(popupUpdateInterval);
+            popupUpdateInterval = null;
+        }
+        selectedStopPopup = null;
+    });
+}
+
+// Fonction modifiée pour charger les données GeoJSON avec gestion des clics
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
@@ -4398,38 +4436,26 @@ async function loadGeoJsonLines() {
                 fillOpacity: 0.6
             });
         },
-        // AJOUT : Gestion des clics sur les arrêts
         onEachFeature: function(feature, layer) {
+            // Ajouter l'événement de clic pour chaque arrêt
             layer.on('click', function(e) {
-                const stopId = feature.properties.stop_id;
-                const stopName = feature.properties.stop_name;
-                
-                // Fermer la popup précédente et arrêter les mises à jour
-                if (currentPopup) {
-                    map.closePopup(currentPopup);
-                    stopPopupUpdates();
-                }
-                
-                // Créer et afficher la nouvelle popup
-                currentStopId = stopId;
-                const popupContent = createPopupContent(stopId, stopName);
-                
-                currentPopup = L.popup({
-                    maxWidth: 400,
-                    className: 'custom-popup'
-                })
-                .setLatLng(e.latlng)
-                .setContent(popupContent)
-                .openOn(map);
-                
-                // Démarrer les mises à jour automatiques
-                startPopupUpdates();
-                
-                // Gérer la fermeture de la popup
-                currentPopup.on('remove', function() {
-                    stopPopupUpdates();
-                    currentPopup = null;
-                    currentStopId = null;
+                handleBusStopClick(this);
+            });
+            
+            // Effet de survol
+            layer.on('mouseover', function(e) {
+                this.setStyle({
+                    radius: 5,
+                    fillOpacity: 0.8,
+                    weight: 1
+                });
+            });
+            
+            layer.on('mouseout', function(e) {
+                this.setStyle({
+                    radius: 3,
+                    fillOpacity: 0.6,
+                    weight: 0.5
                 });
             });
         }
@@ -4443,29 +4469,71 @@ async function loadGeoJsonLines() {
     });
 }
 
-// CSS supplémentaire pour masquer les styles par défaut de Leaflet
-const additionalCSS = `
-<style>
-.custom-popup .leaflet-popup-content-wrapper {
+// Fonction d'initialisation complète
+async function initGTFSRealtimeSystem() {
+    try {
+        // Initialiser le worker
+        initWorker();
+        
+        // Première récupération des données
+        await fetchTripUpdates();
+        
+        // Programmer les mises à jour régulières des données GTFS-RT
+        setInterval(async () => {
+            try {
+                await fetchTripUpdates();
+                console.log('Données GTFS-RT mises à jour');
+            } catch (error) {
+                console.error('Erreur lors de la mise à jour GTFS-RT:', error);
+            }
+        }, FETCH_INTERVAL);
+        
+        console.log('Système GTFS-RT initialisé avec succès');
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation du système GTFS-RT:', error);
+    }
+}
+
+// Styles CSS pour le conteneur de popup
+const popupContainerStyles = `
+.fluent-popup-container .leaflet-popup-content-wrapper {
     padding: 0;
     border-radius: 8px;
+    background: transparent;
     box-shadow: none;
 }
 
-.custom-popup .leaflet-popup-content {
+.fluent-popup-container .leaflet-popup-content {
     margin: 0;
-    line-height: 1.4;
+    width: auto !important;
 }
 
-.custom-popup .leaflet-popup-tip {
-    background: rgba(243, 243, 243, 0.95);
+.fluent-popup-container .leaflet-popup-tip {
+    background: rgba(243, 243, 243, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
-</style>
 `;
 
-// Ajouter le CSS à la page
-document.head.insertAdjacentHTML('beforeend', additionalCSS);
+// Ajouter les styles pour le conteneur
+const popupStyleElement = document.createElement('style');
+popupStyleElement.innerHTML = popupContainerStyles;
+document.head.appendChild(popupStyleElement);
+
+// Initialiser le système au chargement
+document.addEventListener('DOMContentLoaded', function() {
+    initGTFSRealtimeSystem();
+});
+
+// Export des fonctions principales si nécessaire
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        initGTFSRealtimeSystem,
+        loadGeoJsonLines,
+        handleBusStopClick,
+        fetchTripUpdates
+    };
+}
 
 
 function filterByLine(lineId) {
