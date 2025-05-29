@@ -8394,52 +8394,6 @@ async function loadGeoJsonLines() {
 
 addStopClickEvents() 
 
-// === AMÉLIORATION DU WORKER POUR INCLURE L'ID DE ROUTE ===
-// Modifiez votre worker.js pour inclure l'ID de route dans les trip updates
-function enhancedProcessTripUpdates(data) {
-    const tripUpdates = {};
-    const now = Date.now() / 1000;
-    
-    const entities = data.entity || [];
-    const entitiesLength = entities.length;
-    
-    for (let j = 0; j < entitiesLength; j++) {
-        const entity = entities[j];
-        const tripUpdate = entity.tripUpdate;
-        
-        if (!tripUpdate || !tripUpdate.stopTimeUpdate || !tripUpdate.stopTimeUpdate.length) continue;
-
-        const trip = tripUpdate.trip;
-        const stops = tripUpdate.stopTimeUpdate;
-        const stopsLength = stops.length;
-        
-        const processedStops = new Array(stopsLength);
-        const arrivalDelays = {};
-        
-        for (let i = 0; i < stopsLength; i++) {
-            const processedStop = processStop(stops[i], now);
-            processedStops[i] = processedStop;
-            
-            if (processedStop.delay !== null) {
-                arrivalDelays[processedStop.stopId] = processedStop.delay;
-            }
-        }
-
-        const lastStopId = stopsLength > 0 ? 
-            (processedStops[stopsLength - 1]?.stopId || UNKNOWN_STOP) : 
-            UNKNOWN_STOP;
-
-        tripUpdates[trip.tripId] = {
-            stopUpdates: processedStops,
-            lastStopId,
-            nextStops: processedStops,
-            arrivalDelays,
-            routeId: trip.routeId || null // Ajouter l'ID de route
-        };
-    }
-
-    return tripUpdates;
-}
 
 // === INITIALISATION MODIFIÉE ===
 function initializeStopPopups() {
