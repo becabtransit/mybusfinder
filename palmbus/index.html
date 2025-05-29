@@ -8279,77 +8279,110 @@ function showStopPopup(stopId, latlng) {
     });
 }
 
-// === MODIFICATION DE LA FONCTION loadGeoJsonLines ===
-async function loadGeoJsonLines() {
-    const response = await fetch('proxy-cors/proxy_geojson.php');
-    const geoJsonData = await response.json();
-
-    const busLines = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry.type === 'LineString';
-        },
-        style: function(feature) {
-            return {
-                color: lineColors[feature.properties.route_id] || '#3388ff',
-                weight: 6,
-                opacity: 0.7,  
-                lineJoin: 'round',
-                lineCap: 'round',
-                className: 'bus-line', 
-                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
-            };
-        },
-        onEachFeature: function(feature, layer) {
-            if (feature.properties && feature.properties.route_id) {
-                geoJsonLines.push(layer);
-            }
-        }
-    }).addTo(map);
-
-    const busStops = L.geoJSON(geoJsonData, {
-        filter: function(feature) {
-            return feature.geometry && feature.geometry.type === 'Point';
-        },
-        pointToLayer: function(feature, latlng) {
-            return L.circleMarker(latlng, {
-                radius: 3,
-                fillColor: '#ffffff',
-                color: '#000000',
-                weight: 0.5,
-                opacity: 0.7,
-                fillOpacity: 0.6
-            });
-        },
-        onEachFeature: function(feature, layer) {
-            // Ajouter l'événement de clic pour afficher la popup
+// === FONCTION POUR AJOUTER LES ÉVÉNEMENTS AUX ARRÊTS EXISTANTS ===
+function addStopClickEvents() {
+    // Ajouter les événements aux arrêts déjà chargés
+    busStopLayers.forEach(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+            // Supprimer les anciens événements pour éviter les doublons
+            layer.off('click');
+            layer.off('mouseover');
+            layer.off('mouseout');
+            
+            // Ajouter l'événement de clic
             layer.on('click', function(e) {
-                const stopId = feature.properties.stop_id;
+                console.log('Clic sur arrêt détecté', layer.feature.properties);
+                const stopId = layer.feature.properties.stop_id;
                 if (stopId) {
                     // Nettoyer le stop_id (retirer le préfixe "0:" si présent)
                     const cleanStopId = stopId.replace("0:", "");
+                    console.log('Affichage popup pour arrêt:', cleanStopId);
                     showStopPopup(cleanStopId, e.latlng);
                 }
             });
             
             // Changer le curseur au survol
             layer.on('mouseover', function() {
-                this._path.style.cursor = 'pointer';
+                if (this._path) {
+                    this._path.style.cursor = 'pointer';
+                }
+                // Agrandir légèrement l'arrêt
+                this.setStyle({
+                    radius: 5,
+                    fillOpacity: 0.8
+                });
+            });
+            
+            layer.on('mouseout', function() {
+                // Remettre la taille normale
+                this.setStyle({
+                    radius: 3,
+                    fillOpacity: 0.6
+                });
             });
         }
-    }).addTo(map);
-    
-    busStops.eachLayer(function(layer) {
-        if (layer.feature && layer.feature.properties) {
-            layer.busLine = layer.feature.properties.route_id || null;
-            busStopLayers.push(layer);
-        }
     });
+    
+    console.log(`Événements ajoutés à ${busStopLayers.length} arrêts`);
 }
 
-// === INITIALISATION ===
-// Appelez cette fonction après avoir initialisé votre carte et vos données GTFS
+// === MODIFICATION DE LA FONCTION loadGeoJsonLines (ne pas changer votre version actuelle) ===
+// Gardez votre fonction loadGeoJsonLines actuelle et ajoutez seulement ceci après :
+// Appelez addStopClickEvents() après avoir chargé les arrêts
+
+// === AMÉLIORATION DU WORKER POUR INCLURE L'ID DE ROUTE ===
+// Modifiez votre worker.js pour inclure l'ID de route dans les trip updates
+function enhancedProcessTripUpdates(data) {
+    const tripUpdates = {};
+    const now = Date.now() / 1000;
+    
+    const entities = data.entity || [];
+    const entitiesLength = entities.length;
+    
+    for (let j = 0; j < entitiesLength; j++) {
+        const entity = entities[j];
+        const tripUpdate = entity.tripUpdate;
+        
+        if (!tripUpdate || !tripUpdate.stopTimeUpdate || !tripUpdate.stopTimeUpdate.length) continue;
+
+        const trip = tripUpdate.trip;
+        const stops = tripUpdate.stopTimeUpdate;
+        const stopsLength = stops.length;
+        
+        const processedStops = new Array(stopsLength);
+        const arrivalDelays = {};
+        
+        for (let i = 0; i < stopsLength; i++) {
+            const processedStop = processStop(stops[i], now);
+            processedStops[i] = processedStop;
+            
+            if (processedStop.delay !== null) {
+                arrivalDelays[processedStop.stopId] = processedStop.delay;
+            }
+        }
+
+        const lastStopId = stopsLength > 0 ? 
+            (processedStops[stopsLength - 1]?.stopId || UNKNOWN_STOP) : 
+            UNKNOWN_STOP;
+
+        tripUpdates[trip.tripId] = {
+            stopUpdates: processedStops,
+            lastStopId,
+            nextStops: processedStops,
+            arrivalDelays,
+            routeId: trip.routeId || null // Ajouter l'ID de route
+        };
+    }
+
+    return tripUpdates;
+}
+
+// === INITIALISATION MODIFIÉE ===
 function initializeStopPopups() {
     console.log('Système de popup GTFS-RT initialisé');
+    
+    // Ajouter les événements de clic aux arrêts existants
+    addStopClickEvents();
     
     // Démarrer la récupération automatique des trip updates si ce n'est pas déjà fait
     if (!worker) {
@@ -8368,8 +8401,6 @@ function initializeStopPopups() {
         });
     }, FETCH_INTERVAL);
 }
-
-
 
 
 async function main() {
