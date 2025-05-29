@@ -3989,8 +3989,14 @@ function animateMarker(marker, newPosition) {
         
         const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * easedProgress;
         const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * easedProgress;
+        const currentLatLng = [lat, lng];
         
-        marker.setLatLng([lat, lng]);
+        marker.setLatLng(currentLatLng);
+        
+        // Animer la vue minimale si elle existe
+        if (marker.minimalPopup) {
+            marker.minimalPopup.setLatLng(currentLatLng);
+        }
 
         if (linearProgress < 1) {
             marker.animationFrame = requestAnimationFrame(animate);
@@ -5824,7 +5830,7 @@ animateMarker(markers[id], [latitude, longitude]);
 
 
 // Gestionnaire d'événement pour le zoom
-map.on('zoomend', updateMinimalPopups);
+map.on('zoomend', animateMarker(markers[id], [latitude, longitude]));
 
                     }
             });
