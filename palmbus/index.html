@@ -5386,6 +5386,36 @@ window.openFullPopup = function(markerId) {
     }
 };
 
+// Ajouter le CSS pour les tooltips minimaux (à ajouter une seule fois)
+if (!document.getElementById('minimal-tooltip-styles')) {
+    const styles = document.createElement('style');
+    styles.id = 'minimal-tooltip-styles';
+    styles.textContent = `
+        .minimal-tooltip-container {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        
+        .minimal-tooltip-container::before {
+            display: none !important;
+        }
+        
+        .leaflet-tooltip-top::before {
+            display: none !important;
+        }
+        
+        .leaflet-tooltip {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+    `;
+    document.head.appendChild(styles);
+}
+
 // Fonction pour gérer l'affichage des vues minimales selon le zoom
 function updateMinimalPopups() {
     const currentZoom = map.getZoom();
@@ -5398,51 +5428,76 @@ function updateMinimalPopups() {
         
         // Si on doit afficher la vue minimale et qu'elle n'existe pas encore
         if (showMinimal && !marker.minimalPopup && !marker.isPopupOpen()) {
-            // Créer le contenu minimal avec les bonnes variables
+            // Créer le contenu minimal avec les bonnes variables - design compact et moderne
             const minimalContent = `
                 <div class="minimal-popup" style="
                     position: relative;
                     font-family: 'League Spartan', sans-serif;
-                    font-size: 12px;
+                    font-size: 11px;
                     color: ${getOptimalTextColor(lineColors[marker.line] || '#000000')};
-                    background-color: ${lineColors[marker.line] || '#000000'}9c;
-                    backdrop-filter: blur(8px);
-                    -webkit-backdrop-filter: blur(8px);
-                    border-radius: 8px;
-                    padding: 8px 12px;
-                    box-shadow: 0px 2px 10px 2px ${lineColors[marker.line] || '#000000'}6c;
-                    min-width: 120px;
+                    background: linear-gradient(135deg, ${lineColors[marker.line] || '#000000'}f0, ${lineColors[marker.line] || '#000000'}d0);
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    border-radius: 12px;
+                    padding: 6px 10px;
+                    box-shadow: 0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40;
+                    min-width: 80px;
+                    max-width: 140px;
                     cursor: pointer;
-                    border: 1px solid ${lineColors[marker.line] || '#000000'}cc;
-                " onclick="openFullPopup('${markerId}')">
-                    <div style="display: flex; flex-direction: column; gap: 4px;">
-                        <div style="font-weight: bold; font-size: 14px;">
-                            ${t("line")} ${lineName[marker.line] || t("unknownline")}
+                    border: 1px solid ${lineColors[marker.line] || '#000000'}60;
+                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    transform: translateY(0);
+                " onclick="openFullPopup('${markerId}')" 
+                onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${lineColors[marker.line] || '#000000'}90, 0 4px 12px -2px ${lineColors[marker.line] || '#000000'}50';"
+                onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40';">
+                    <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                        <div style="
+                            background: rgba(255,255,255,0.2);
+                            border-radius: 6px;
+                            padding: 2px 6px;
+                            font-weight: 600;
+                            font-size: 10px;
+                            line-height: 1.2;
+                        ">
+                            ${lineName[marker.line] || t("unknownline")}
                         </div>
-                        <div style="font-size: 11px; opacity: 0.9;">
-                            🚌 ${((markers[markerId].vehicleData && markers[markerId].vehicleData.vehicle.label) || t("unknownparc")).toString().padStart(3, '0')}
+                        <div style="
+                            background: rgba(0,0,0,0.3);
+                            border-radius: 4px;
+                            padding: 1px 4px;
+                            font-size: 9px;
+                            font-weight: 500;
+                        ">
+                            ${((markers[markerId].vehicleData && markers[markerId].vehicleData.vehicle.label) || t("unknownparc")).toString().padStart(3, '0')}
                         </div>
-                        <div style="font-size: 11px; opacity: 0.8;">
-                            ➜ ${markers[markerId].destination || t("unknowndestination")}
-                        </div>
+                    </div>
+                    <div style="
+                        font-size: 9px; 
+                        opacity: 0.85; 
+                        margin-top: 2px;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        font-weight: 400;
+                    ">
+                        ➜ ${markers[markerId].destination || t("unknowndestination")}
                     </div>
                 </div>
             `;
             
-            // Créer une popup minimale
-            const minimalPopup = L.popup({
-                closeButton: false,
-                autoClose: false,
-                closeOnClick: false,
-                closeOnEscapeKey: false,
-                className: 'minimal-popup-container',
-                offset: [0, -10]
+            // Créer un tooltip (qui ne prend pas le focus) au lieu d'une popup
+            const minimalTooltip = L.tooltip({
+                permanent: true,
+                direction: 'top',
+                className: 'minimal-tooltip-container',
+                offset: [0, -15],
+                opacity: 1
             })
             .setLatLng(marker.getLatLng())
             .setContent(minimalContent)
             .addTo(map);
             
-            marker.minimalPopup = minimalPopup;
+            marker.minimalPopup = minimalTooltip;
         }
         // Si on ne doit pas afficher la vue minimale et qu'elle existe
         else if (!showMinimal && marker.minimalPopup) {
