@@ -4006,219 +4006,202 @@ let selectedLines = [];
 
 
 
-// Variables globales nécessaires
-let stopsById = {};   // {stop_id: feature}
-let updateIntervalId = null;
+async function fetchAndStoreTripUpdates() {
+    if (fetchInProgress) return;
+    fetchInProgress = true;
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-// 1. Chargement du GeoJSON avec indexation des arrêts par stop_id pour accès rapide
+        const response = await fetch('proxy-cors/proxy_tripupdate.php', {
+            signal: controller.signal,
+            cache: 'no-store'
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+        const buffer = await response.arrayBuffer();
+        const data = await decodeProtobuf(buffer); // fournie par ta stack
+
+        return new Promise((resolve, reject) => {
+            const workerTimeoutId = setTimeout(() => {
+                reject(new Error('Worker timeout'));
+            }, 3000);
+            worker.onmessage = (e) => {
+                clearTimeout(workerTimeoutId);
+                tripUpdates = e.data.tripUpdates;
+                fetchInProgress = false;
+                resolve(e.data.tripUpdates);
+            };
+            worker.postMessage(data);
+        });
+    } catch (e) {
+        fetchInProgress = false;
+        console.error('Erreur récupération trip updates:', e);
+    }
+}
+
+// Mise à jour automatique
+function startTripUpdatesAutoRefresh() {
+    if (tripUpdatesRefreshTimer) clearInterval(tripUpdatesRefreshTimer);
+    fetchAndStoreTripUpdates();
+    tripUpdatesRefreshTimer = setInterval(fetchAndStoreTripUpdates, FETCH_INTERVAL);
+}
+startTripUpdatesAutoRefresh();
+
+// FLUENT DESIGN : mini style pour la popup
+function getFluentPopupCSS() {
+    return `
+    <style>
+        .fluent-popup { font-family: 'Segoe UI',Arial,sans-serif; background: #fff; border-radius:12px; box-shadow:0 4px 24px #0002; min-width:220px; padding: 8px 12px; }
+        .fluent-popup h4 { margin: 0 0 8px 0; font-weight:600; font-size:1.09em; color:#2260b6;}
+        .fluent-line { padding: 5px 0; border-bottom:1px solid #e5e5e5;}
+        .fluent-line:last-child { border-bottom: none; }
+        .fluent-line .route { font-weight: 500; color: #fff; background: #2260b6; border-radius: 4px; padding: 1px 7px; margin-right: 6px; font-size: 0.97em;}
+        .fluent-time { font-variant-numeric: tabular-nums; margin-left: 2px; }
+        .fluent-delayed { color: #ff3b3b; font-weight: 500; }
+        .fluent-on-time { color: #34c759; }
+        .fluent-passage { margin-left:4px; font-size:0.95em; }
+        .fluent-empty { color:#888; font-size:0.96em; }
+    </style>
+    `;
+}
+
+// Formate l'heure, gère l'affichage "dans X min" et le retard
+function formatPassageTime(unifiedTime, delaySec) {
+    if (!unifiedTime || unifiedTime === "inconnue") return `<span class="fluent-time">inconnue</span>`;
+    const now = new Date();
+    const passageDate = new Date(now);
+    const [h, m] = unifiedTime.split(':');
+    passageDate.setHours(parseInt(h,10), parseInt(m,10), 0, 0);
+    let minDiff = Math.round((passageDate - now) / 60000);
+    let absMin = Math.abs(minDiff);
+
+    let label = minDiff > 0 ? `dans ${absMin} min` : (minDiff < 0 ? `il y a ${absMin} min` : 'à l\'instant');
+    let delayLabel = '';
+    if (typeof delaySec === "number" && Math.abs(delaySec) > 60) {
+        let minDelay = Math.round(delaySec / 60);
+        delayLabel = minDelay > 0
+            ? ` <span class="fluent-delayed">+${minDelay} min</span>`
+            : ` <span class="fluent-on-time">- ${Math.abs(minDelay)} min</span>`;
+    }
+    return `<span class="fluent-time">${unifiedTime}</span> <span class="fluent-passage">${label}</span>${delayLabel}`;
+}
+
+// Regroupe les prochains passages par ligne à cet arrêt
+function getNextPassagesForStop(stopId) {
+    const resultByRoute = {};
+    for (const tripId in tripUpdates) {
+        const trip = tripUpdates[tripId];
+        if (!trip.stopUpdates || !Array.isArray(trip.stopUpdates)) continue;
+        // Cherche le prochain passage à l'arrêt
+        let nextStop = trip.stopUpdates.find(s => s.stopId === stopId);
+        if (!nextStop) continue;
+        // Identifie la ligne (route_id est souvent dans tripId ou autre, à ajuster si besoin)
+        const routeId = trip.route_id || trip.routeId || (trip.tripId || tripId).split('-')[0];
+        if (!resultByRoute[routeId]) resultByRoute[routeId] = [];
+        resultByRoute[routeId].push(nextStop);
+    }
+    // Trie chaque tableau de passages par heure de passage
+    Object.values(resultByRoute).forEach(arr => arr.sort((a,b) => {
+        if (a.unifiedTime && b.unifiedTime) return a.unifiedTime.localeCompare(b.unifiedTime);
+        return 0;
+    }));
+    return resultByRoute;
+}
+
+// Génère le HTML du popup Fluent pour un arrêt donné
+function buildFluentPopupContent(stopFeature) {
+    const stopId = stopFeature.properties.stop_id || stopFeature.properties.id;
+    const stopName = stopFeature.properties.stop_name || stopFeature.properties.name || 'Arrêt inconnu';
+    const lines = getNextPassagesForStop(stopId);
+
+    let html = getFluentPopupCSS();
+    html += `<div class="fluent-popup"><h4>${stopName}</h4>`;
+    const lineIds = Object.keys(lines);
+    if (!lineIds.length) {
+        html += `<div class="fluent-empty">Aucun passage prévu à cet arrêt</div>`;
+    } else {
+        lineIds.forEach(routeId => {
+            html += `<div class="fluent-line"><span class="route" style="background:${lineColors[routeId]||'#2260b6'}">${routeId}</span>`;
+            html += lines[routeId].slice(0,3).map(stop => formatPassageTime(stop.unifiedTime, stop.delay)).join(' | ');
+            html += '</div>';
+        });
+    }
+    html += `</div>`;
+    return html;
+}
+
+// Ajoute le handler click aux arrêts (tu peux placer ce code à la fin de loadGeoJsonLines)
+function addBusStopPopups(busStopsLayerGroup) {
+    busStopsLayerGroup.eachLayer(layer => {
+        if (layer.feature && layer.feature.properties) {
+            layer.on('click', function(e) {
+                // Ferme toutes les popups déjà ouvertes (optionnel)
+                map.closePopup();
+                // Ouvre la popup à la position de l'arrêt, contenu dynamique
+                L.popup({maxWidth: 320, closeButton:true, autoPan:true})
+                    .setLatLng(layer.getLatLng())
+                    .setContent(buildFluentPopupContent(layer.feature))
+                    .openOn(map);
+            });
+        }
+    });
+}
+
+// --- Place ceci à la fin de ta fonction loadGeoJsonLines ---
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
 
-    // Indexation des arrêts par stop_id pour accès rapide lors du clic
-    (geoJsonData.features || []).forEach(f => {
-        if (f.geometry && f.geometry.type === 'Point' && f.properties && f.properties.stop_id) {
-            // On retire le préfixe "0:" si besoin
-            const stopId = f.properties.stop_id.replace(/^0:/, '');
-            stopsById[stopId] = f;
-        }
-    });
-
-    // Ajout des lignes (facultatif pour ta question)
-    L.geoJSON(geoJsonData, {
-        filter: f => f.geometry.type === 'LineString',
-        style: f => ({
-            color: lineColors[f.properties.route_id] || '#3388ff',
-            weight: 6,
-            opacity: 0.7,
-            lineJoin: 'round',
-            lineCap: 'round',
-            className: 'bus-line',
-            dashArray: f.properties.route_type === '3' ? '5, 5' : null
-        })
-    }).addTo(map);
-
-    // Ajout des arrêts avec gestion du clic
-    const busStops = L.geoJSON(geoJsonData, {
-        filter: f => f.geometry && f.geometry.type === 'Point',
-        pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
-            radius: 6,
-            fillColor: '#fff',
-            color: '#0078d4',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.9
-        })
-    }).addTo(map);
-
-    // Gestion du clic sur chaque arrêt (circleMarker)
-    busStops.eachLayer(layer => {
-        if (layer.feature && layer.feature.properties && layer.feature.properties.stop_id) {
-            const stopId = layer.feature.properties.stop_id.replace(/^0:/, '');
-            layer.on('click', () => showStopPopup(layer, stopId));
-        }
-    });
-}
-
-// 2. Récupération périodique des Trip Updates
-async function refreshTripUpdates() {
-    try {
-        const updates = await fetchTripUpdates();
-        if (updates) tripUpdates = updates;
-    } catch (e) {
-        console.warn('Erreur maj Trip Updates', e);
-    }
-}
-
-// 3. Démarrage/arrêt du rafraîchissement périodique
-function startTripUpdatePolling() {
-    refreshTripUpdates();
-    if (updateIntervalId) clearInterval(updateIntervalId);
-    updateIntervalId = setInterval(refreshTripUpdates, 10000);
-}
-function stopTripUpdatePolling() {
-    if (updateIntervalId) clearInterval(updateIntervalId);
-    updateIntervalId = null;
-}
-
-// 4. Affichage de la popup Fluent Design sur l'arrêt cliqué
-function showStopPopup(layer, stopId) {
-    // On regroupe par ligne/route, les prochains passages à cet arrêt
-    const now = Math.floor(Date.now() / 1000);
-    const upcomingDepartures = {}; // {route_id: [{tripId, lineName, time, delay, ...}]}
-
-    for (const [tripId, trip] of Object.entries(tripUpdates)) {
-        const stopUpdate = trip.stopUpdates?.find(su => su.stopId === stopId);
-        if (!stopUpdate) continue;
-        // Si l'heure de départ/arrivée est passée, on ne garde que les prochains
-        const timeUnix = stopUpdate.departureTime !== "inconnue"
-            ? getUnixTimestamp(stopUpdate.departureTime)
-            : getUnixTimestamp(stopUpdate.arrivalTime);
-        if (!timeUnix || timeUnix < now) continue;
-
-        // On récupère le route_id depuis les entités du GTFS-RT si possible
-        // (il est possible de le stocker côté worker si besoin)
-        const routeId = getRouteIdForTrip(tripId); // À implémenter selon tes données
-        if (!routeId) continue;
-
-        if (!upcomingDepartures[routeId]) upcomingDepartures[routeId] = [];
-
-        upcomingDepartures[routeId].push({
-            tripId,
-            route_id: routeId,
-            time: stopUpdate.unifiedTime,
-            delay: stopUpdate.delay,
-            rawDeparture: stopUpdate.departureTime,
-            rawArrival: stopUpdate.arrivalTime
-        });
-    }
-
-    // Tri des départs par heure croissante pour chaque ligne
-    for (const line in upcomingDepartures) {
-        upcomingDepartures[line].sort((a, b) => {
-            // parse time "HH:mm"
-            return getUnixTimestamp(a.time) - getUnixTimestamp(b.time);
-        });
-    }
-
-    // Construction HTML Fluent
-    const stopFeature = stopsById[stopId];
-    const stopName = stopFeature?.properties?.stop_name || "Arrêt inconnu";
-    let html = `
-        <div style="min-width:220px;max-width:340px;">
-            <div style="font-size:20px;font-weight:600;color:#0078d4;margin-bottom:7px;">
-                <span class="fluent-icon" style="font-size:18px;vertical-align:middle;margin-right:5px;">&#xe707;</span>
-                ${stopName}
-            </div>
-            <div style="font-size:14px;color:#888;margin-bottom:8px">${stopId}</div>
-    `;
-
-    if (Object.keys(upcomingDepartures).length === 0) {
-        html += `<div style="color:#b90000;font-size:15px;">Aucun passage prévu prochainement</div>`;
-    } else {
-        html += `<table style="width:100%;border-collapse:collapse;">`;
-        for (const [routeId, departures] of Object.entries(upcomingDepartures)) {
-            html += `
-                <tr>
-                    <td colspan="2" style="font-weight:500;color:${lineColors[routeId] || '#0078d4'};padding:6px 0 2px 0;border-bottom:1px solid #e6e6e6;">
-                        <span class="fluent-icon" style="font-size:18px;vertical-align:middle;">&#xe8c4;</span>
-                        ${routeId}
-                    </td>
-                </tr>
-            `;
-            for (const dep of departures.slice(0, 3)) { // max 3 prochains passages par ligne
-                html += `
-                    <tr>
-                        <td style="padding:2px 6px 2px 0;">
-                            <span class="fluent-icon" style="font-size:14px;vertical-align:middle;">&#xe823;</span>
-                            ${dep.time}
-                        </td>
-                        <td style="padding:2px 0 2px 0;text-align:right;">
-                            <span style="color:${getDelayColor(dep.delay)};">
-                                ${formatDelay(dep.delay)}
-                            </span>
-                        </td>
-                    </tr>
-                `;
+    const busLines = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry.type === 'LineString';
+        },
+        style: function(feature) {
+            return {
+                color: lineColors[feature.properties.route_id] || '#3388ff',
+                weight: 6,
+                opacity: 0.7,  
+                lineJoin: 'round',
+                lineCap: 'round',
+                className: 'bus-line', 
+                dashArray: feature.properties.route_type === '3' ? '5, 5' : null
+            };
+        },
+        onEachFeature: function(feature, layer) {
+            if (feature.properties && feature.properties.route_id) {
+                geoJsonLines.push(layer);
             }
         }
-        html += `</table>`;
-    }
-    html += `</div>`;
+    }).addTo(map);
 
-    // Affichage popup Leaflet
-    layer.bindPopup(html, {
-        className: 'fluent-popup',
-        autoPan: true,
-        closeButton: true
-    }).openPopup();
-}
+    const busStops = L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry && feature.geometry.type === 'Point';
+        },
+        pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 3,
+                fillColor: '#ffffff',
+                color: '#000000',
+                weight: 0.5,
+                opacity: 0.7,
+                fillOpacity: 0.6
+            });
+        }
+    }).addTo(map);
 
-// 5. Outils d'aide
-// Conversion "HH:mm" locale en timestamp du jour (pour tri)
-function getUnixTimestamp(hhmm) {
-    if (!hhmm || hhmm === "inconnue") return null;
-    const [h, m] = hhmm.split(':').map(Number);
-    const now = new Date();
-    now.setHours(h, m, 0, 0);
-    return Math.floor(now.getTime() / 1000);
-}
+    busStops.eachLayer(function(layer) {
+        if (layer.feature && layer.feature.properties) {
+            layer.busLine = layer.feature.properties.route_id || null;
+            busStopLayers.push(layer);
+        }
+    });
 
-// Couleur du délai (vert, orange, rouge)
-function getDelayColor(delay) {
-    if (delay == null) return "#888";
-    if (delay < 60) return "#107c10";
-    if (delay < 180) return "#ffb900";
-    return "#b90000";
+    // Ajoute le handler pour les popups Fluent
+    addBusStopPopups(busStops);
 }
-function formatDelay(delay) {
-    if (delay == null) return "";
-    if (delay < 45) return "à l'heure";
-    return `+${Math.round(delay/60)} min`;
-}
-
-// Trouver le route_id d'un tripId à partir de tripUpdates (ou d'un mapping tripId→routeId à construire au parsing)
-function getRouteIdForTrip(tripId) {
-    // S'il y a routeId dans tripUpdates[tripId], sinon stocker trip.route.routeId lors du parsing processTripUpdates
-    // Exemple : dans processTripUpdates, stocker trip.routeId dans tripUpdates[tripId]
-    return tripUpdates[tripId]?.routeId || null;
-}
-
-// 6. Intégration CSS Fluent Design minimal
-const style = document.createElement('style');
-style.innerHTML = `
-.fluent-popup {
-    border-radius: 12px !important;
-    box-shadow: 0 2px 16px #0002;
-    font-family: "Segoe UI", "Arial", sans-serif;
-}
-.fluent-popup .fluent-icon {
-    font-family: 'Segoe MDL2 Assets', 'Arial', sans-serif;
-}
-`;
-document.head.appendChild(style);
-
-
 
 
 
@@ -8103,7 +8086,6 @@ async function main() {
         gtfsInitialized = true;
         
         await loadGeoJsonLines();
-        startTripUpdatePolling();
         
         await Promise.all([
             fetchTripUpdates().catch(console.error),
