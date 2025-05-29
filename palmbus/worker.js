@@ -97,7 +97,8 @@ function processTripUpdates(data) {
             stopUpdates: processedStops,
             lastStopId,
             nextStops: processedStops,
-            arrivalDelays
+            arrivalDelays,
+            routeId
         };
     }
 
