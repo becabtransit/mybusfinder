@@ -7961,20 +7961,21 @@ function getNextPassagesForStopGroupedByTerminus(stopId) {
     // { routeId: { terminusName: [stopUpdate, ...] } }
     const byRouteAndTerminus = {};
 
-    for (const tripId in tripUpdates) {
-        const tripUpdate = tripUpdates[tripId];
+    for (const tripUpdateId in tripUpdates) {
+        const tripUpdate = tripUpdates[tripUpdateId];
         if (!tripUpdate.stopUpdates || !Array.isArray(tripUpdate.stopUpdates)) continue;
+
+        // Récupère le trip GTFS-RT
+        const trip = tripUpdate.trip || {};
+        // Toujours préférer trip.routeId pour le mapping !
+        const routeId = trip.routeId || trip.route_id;
+        if (!routeId) continue;
 
         // Cherche le passage à cet arrêt
         const stopUpdate = tripUpdate.stopUpdates.find(s => s.stopId === stopId);
         if (!stopUpdate) continue;
 
-        // Ligne (route_id)
-        const trip = tripUpdate.trip || {};
-        const routeId = trip.route_id || trip.routeId || (tripId.split('-')[0]);
-        if (!routeId) continue;
-
-        // Terminus : dernier stop_id du parcours
+        // Terminus : dernier stopId du trip
         const stopUpdatesArr = tripUpdate.stopUpdates;
         const lastStopId = stopUpdatesArr.length > 0 ? stopUpdatesArr[stopUpdatesArr.length - 1].stopId : null;
         const terminusName = (lastStopId && stopNameMap[lastStopId]) ? stopNameMap[lastStopId] : 'Terminus inconnu';
@@ -7986,7 +7987,7 @@ function getNextPassagesForStopGroupedByTerminus(stopId) {
         byRouteAndTerminus[routeId][terminusName].push(stopUpdate);
     }
 
-    // Trie chaque tableau d'horaires
+    // Trie chaque tableau d'horaires par unifiedTime (optionnel)
     for (const routeId in byRouteAndTerminus) {
         for (const terminus in byRouteAndTerminus[routeId]) {
             byRouteAndTerminus[routeId][terminus].sort((a, b) => {
@@ -8027,7 +8028,6 @@ function buildFluentPopupContentGroupedByTerminus(stopFeature) {
     return html;
 }
 
-// Dans addBusStopPopups, utilise cette version :
 function addBusStopPopups(busStopsLayerGroup) {
     busStopsLayerGroup.eachLayer(layer => {
         if (layer.feature && layer.feature.properties) {
