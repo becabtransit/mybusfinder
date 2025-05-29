@@ -7851,9 +7851,6 @@ async function fetchTripUpdates() {
                 clearTimeout(workerTimeoutId);
                 const processTime = performance.now() - fetchStartTime;
                 
-                tripUpdates = e.data.tripUpdates;
-                
-                
                 resolve(e.data.tripUpdates);
                 fetchInProgress = false;
             };
@@ -8208,10 +8205,13 @@ function addFluentPopupStyles() {
  */
 function getNextDepartures(stopId) {
     const now = Date.now() / 1000;
-    const nowMinutes = Math.floor(now / 60);
     const maxTime = now + (TIME_HORIZON_MINUTES * 60);
     
     const departures = [];
+    
+    // Debug
+    console.debug(`Recherche des départs pour l'arrêt: ${stopId}`);
+    console.debug(`Trip updates disponibles: ${Object.keys(tripUpdates).length}`);
     
     // Parcourir tous les trip updates
     Object.values(tripUpdates).forEach(tripUpdate => {
@@ -8219,7 +8219,18 @@ function getNextDepartures(stopId) {
         
         // Chercher cet arrêt dans les mises à jour de ce trip
         tripUpdate.stopUpdates.forEach(stopUpdate => {
-            if (stopUpdate.stopId === stopId) {
+            // Comparaison flexible du stop_id (avec ou sans préfixe)
+            const updateStopId = stopUpdate.stopId;
+            const cleanUpdateStopId = updateStopId ? updateStopId.replace(/^0:/, '') : '';
+            const cleanTargetStopId = stopId ? stopId.replace(/^0:/, '') : '';
+            
+            if (updateStopId === stopId || 
+                cleanUpdateStopId === cleanTargetStopId ||
+                updateStopId === `0:${stopId}` ||
+                stopId === `0:${updateStopId}`) {
+                
+                console.debug(`Correspondance trouvée: ${updateStopId} <-> ${stopId}`);
+                
                 // Calculer le temps de départ
                 let departureTimestamp = null;
                 let departureTime = null;
@@ -8249,16 +8260,28 @@ function getNextDepartures(stopId) {
                     
                     departureTimestamp = departureDate.getTime() / 1000;
                     departureTime = stopUpdate.arrivalTime;
+                } else if (stopUpdate.unifiedTime && stopUpdate.unifiedTime !== 'inconnue') {
+                    // Utiliser unifiedTime comme fallback
+                    const today = new Date();
+                    const [hours, minutes] = stopUpdate.unifiedTime.split(':').map(Number);
+                    const departureDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+                    
+                    if (departureDate < new Date()) {
+                        departureDate.setDate(departureDate.getDate() + 1);
+                    }
+                    
+                    departureTimestamp = departureDate.getTime() / 1000;
+                    departureTime = stopUpdate.unifiedTime;
                 }
                 
                 // Vérifier si le départ est dans notre fenêtre de temps
                 if (departureTimestamp && departureTimestamp <= maxTime && departureTimestamp >= now - 60) {
                     const minutesUntil = Math.max(0, Math.floor((departureTimestamp - now) / 60));
                     
-                    // Trouver les informations de la ligne
-                    const routeId = extractRouteIdFromTripUpdate(tripUpdate);
-                    const lineColor = lineColors[routeId] || '#3388ff';
-                    const lineName = window.lineName && window.lineName[routeId] ? window.lineName[routeId] : routeId;
+                    // Trouver les informations de la ligne à partir du tripUpdate ou des propriétés globales
+                    const routeId = extractRouteIdFromTripUpdate(tripUpdate, stopUpdate);
+                    const lineColor = (window.lineColors && window.lineColors[routeId]) || '#3388ff';
+                    const lineName = (window.lineName && window.lineName[routeId]) || routeId;
                     const destination = getDestinationForTrip(tripUpdate);
                     
                     departures.push({
@@ -8272,6 +8295,8 @@ function getNextDepartures(stopId) {
                         destination: destination,
                         tripId: extractTripIdFromTripUpdate(tripUpdate)
                     });
+                    
+                    console.debug(`Départ ajouté: ${departureTime} - Ligne ${lineName} vers ${destination}`);
                 }
             }
         });
@@ -8280,21 +8305,37 @@ function getNextDepartures(stopId) {
     // Trier par heure de départ
     departures.sort((a, b) => a.timestamp - b.timestamp);
     
+    console.debug(`${departures.length} départs trouvés pour l'arrêt ${stopId}`);
     return departures;
 }
 
 /**
  * Fonctions utilitaires pour extraire les informations des trip updates
  */
-function extractRouteIdFromTripUpdate(tripUpdate) {
-    // Chercher le route_id dans les propriétés du trip ou des stops
+function extractRouteIdFromTripUpdate(tripUpdate, stopUpdate = null) {
+    // Essayer plusieurs sources pour le route_id
+    if (stopUpdate && stopUpdate.routeId) return stopUpdate.routeId;
+    
+    // Chercher dans les propriétés du trip update
+    if (tripUpdate.trip && tripUpdate.trip.routeId) return tripUpdate.trip.routeId;
+    if (tripUpdate.routeId) return tripUpdate.routeId;
+    
+    // Chercher le route_id dans les propriétés des stops
     if (tripUpdate.stopUpdates && tripUpdate.stopUpdates.length > 0) {
-        // Parcourir les stops pour trouver un route_id
         for (const stop of tripUpdate.stopUpdates) {
             if (stop.routeId) return stop.routeId;
         }
     }
-    return 'inconnu';
+    
+    // Essayer d'extraire depuis le tripId (format souvent trip_id contient route info)
+    const tripId = tripUpdate.tripId || (tripUpdate.trip && tripUpdate.trip.tripId);
+    if (tripId && typeof tripId === 'string') {
+        // Patterns courants: "route_123_trip_456", "123-456", etc.
+        const routeMatch = tripId.match(/(?:route_)?(\w+)(?:_trip|_|\-)/i);
+        if (routeMatch) return routeMatch[1];
+    }
+    
+    return 'Ligne inconnue';
 }
 
 function extractTripIdFromTripUpdate(tripUpdate) {
@@ -8333,11 +8374,29 @@ function updatePopupContent() {
  * Fonction pour gérer le clic sur un arrêt
  */
 function onBusStopClick(layer) {
-    const stopId = layer.feature.properties.stop_id || layer.feature.properties.stopId;
+    // Essayer différentes propriétés possibles pour le stop_id
+    const properties = layer.feature.properties;
+    let stopId = properties.stop_id || 
+                 properties.stopId || 
+                 properties.id || 
+                 properties.stop_code ||
+                 properties.code;
+    
+    // Debug : afficher toutes les propriétés disponibles
+    console.debug('Propriétés de l\'arrêt:', properties);
     
     if (!stopId) {
-        console.warn('Stop ID non trouvé pour cet arrêt');
-        return;
+        console.warn('Stop ID non trouvé pour cet arrêt. Propriétés disponibles:', Object.keys(properties));
+        
+        // Fallback: utiliser les coordonnées comme identifiant temporaire
+        const latlng = layer.getLatLng();
+        stopId = `temp_${latlng.lat.toFixed(6)}_${latlng.lng.toFixed(6)}`;
+        console.warn(`Utilisation d'un ID temporaire: ${stopId}`);
+    }
+    
+    // Nettoyer l'ID si nécessaire (enlever les préfixes comme "0:")
+    if (typeof stopId === 'string' && stopId.includes(':')) {
+        stopId = stopId.split(':').pop();
     }
     
     // Nettoyer l'ancien interval si nécessaire
@@ -8381,11 +8440,14 @@ function onBusStopClick(layer) {
     console.debug(`Popup ouverte pour l'arrêt ${stopId} - ${departures.length} départs trouvés`);
 }
 
-async function loadGeoJsonLines() {
-    const response = await fetch('proxy-cors/proxy_geojson.php');
-    const geoJsonData = await response.json();
+/**
+ * Version améliorée pour les arrêts avec gestion des clics et debug
+ */
+function enhancedLoadGeoJsonLines() {
+    // Ajouter les styles CSS
     addFluentPopupStyles();
-
+    
+    // Votre code existant pour les lignes (inchangé)
     const busLines = L.geoJSON(geoJsonData, {
         filter: function(feature) {
             return feature.geometry.type === 'LineString';
@@ -8402,18 +8464,24 @@ async function loadGeoJsonLines() {
             };
         },
         onEachFeature: function(feature, layer) {
-            
             if (feature.properties && feature.properties.route_id) {
                 geoJsonLines.push(layer);
             }
         }
     }).addTo(map);
-
+    
+    // Version améliorée pour les arrêts avec debug et gestion des clics
     const busStops = L.geoJSON(geoJsonData, {
         filter: function(feature) {
             return feature.geometry && feature.geometry.type === 'Point';
         },
         pointToLayer: function(feature, latlng) {
+            // Debug : afficher les propriétés du premier arrêt pour comprendre la structure
+            if (!window.debugStopPropertiesShown) {
+                console.log('Structure des propriétés d\'arrêt (premier arrêt):', feature.properties);
+                window.debugStopPropertiesShown = true;
+            }
+            
             return L.circleMarker(latlng, {
                 radius: 4,
                 fillColor: '#ffffff',
@@ -8430,13 +8498,24 @@ async function loadGeoJsonLines() {
                 onBusStopClick(layer);
             });
             
-            // Effet de survol
+            // Effet de survol avec nom d'arrêt si disponible
             layer.on('mouseover', function(e) {
                 layer.setStyle({
                     radius: 6,
                     weight: 2,
                     fillOpacity: 1
                 });
+                
+                // Afficher un tooltip temporaire avec le nom si disponible
+                const properties = feature.properties;
+                const stopName = properties.stop_name || properties.name || 
+                               properties.stop_id || properties.stopId || 'Arrêt de bus';
+                
+                layer.bindTooltip(stopName, {
+                    permanent: false,
+                    direction: 'top',
+                    offset: [0, -10]
+                }).openTooltip();
             });
             
             layer.on('mouseout', function(e) {
@@ -8445,10 +8524,12 @@ async function loadGeoJsonLines() {
                     weight: 1,
                     fillOpacity: 0.7
                 });
+                layer.closeTooltip();
             });
         }
     }).addTo(map);
-
+    
+    // Votre code existant pour busStopLayers
     busStops.eachLayer(function(layer) {
         if (layer.feature && layer.feature.properties) {
             layer.busLine = layer.feature.properties.route_id || null;
@@ -8456,8 +8537,12 @@ async function loadGeoJsonLines() {
         }
     });
     
+    console.log(`Chargé ${busStops.getLayers().length} arrêts de bus`);
 }
 
+/**
+ * Fonction pour démarrer le système de mise à jour automatique des trip updates
+ */
 function startTripUpdatesSystem() {
     // Première récupération
     fetchTripUpdates().then(() => {
@@ -8474,6 +8559,9 @@ function startTripUpdatesSystem() {
     }, FETCH_INTERVAL);
 }
 
+/**
+ * Fonction d'initialisation principale à appeler après le chargement des données GTFS
+ */
 function initializeBusStopPopupSystem() {
     console.log('Initialisation du système de popup des arrêts de bus...');
     
@@ -8483,6 +8571,26 @@ function initializeBusStopPopupSystem() {
     console.log('Système de popup des arrêts initialisé avec succès');
 }
 
+// Styles CSS additionnels pour les marqueurs d'arrêts
+const additionalStyles = `
+    .bus-stop-marker {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .bus-stop-marker:hover {
+        transform: scale(1.2);
+    }
+`;
+
+// Ajouter les styles additionnels
+if (!document.getElementById('bus-stop-marker-styles')) {
+    const style = document.createElement('style');
+    style.id = 'bus-stop-marker-styles';
+    style.textContent = additionalStyles;
+    document.head.appendChild(style);
+}
+
 async function main() {
     try {
         initWorker();
@@ -8490,7 +8598,7 @@ async function main() {
         const gtfsData = await initializeGTFS();
         gtfsInitialized = true;
         
-        await loadGeoJsonLines();
+        await EnhancedLoadGeoJsonLines();
         
         await Promise.all([
             fetchTripUpdates().catch(console.error),
