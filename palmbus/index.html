@@ -3376,57 +3376,57 @@ async function extractGTFSFiles() {
     }
 }
 
+const lineTextColors = {};
+const lineShortNames = {};
+const lineLongNames = {};
+
 async function loadLineColors(routesFileContent) {
     try {
-        if (!routesFileContent) {
-            return;
-        }
-        
-        const data = await getSetvar();
-        if (!data) {
-            console.error('Échec récupération variables de config');
-            return;
-        }
-        
+        if (!routesFileContent) return;
+
         const lines = routesFileContent.split('\n');
-        
         const headers = lines[0].split(',');
-        const routeIdIndex = headers.indexOf('route_id');
-        const routeLongNameIndex = headers.indexOf('route_short_name');
-        const routeColorIndex = headers.indexOf('route_color');
-        
-        if (routeIdIndex === -1 || routeLongNameIndex === -1 || routeColorIndex === -1) {
-            console.error('Impossible de trouver tous les entêttes requis dans fichier routes.txt');
+        const routeIdIdx = headers.indexOf('route_id');
+        const routeShortNameIdx = headers.indexOf('route_short_name');
+        const routeLongNameIdx = headers.indexOf('route_long_name');
+        const routeColorIdx = headers.indexOf('route_color');
+        const routeTextColorIdx = headers.indexOf('route_text_color');
+
+        if (
+            routeIdIdx === -1 ||
+            routeShortNameIdx === -1 ||
+            routeLongNameIdx === -1 ||
+            routeColorIdx === -1 ||
+            routeTextColorIdx === -1
+        ) {
+            console.error('Impossible de trouver tous les en-têtes requis dans routes.txt');
             return;
         }
-        
-        const startIndex = data.slicelinecolor ? parseInt(data.slicelinecolor) : 1;
-        
-        lines.slice(startIndex).forEach(line => {
+
+        lines.slice(1).forEach(line => {
             if (!line.trim()) return;
-            
-            const columns = line.split(',');
-            
-            if (columns.length <= Math.max(routeIdIndex, routeLongNameIndex, routeColorIndex)) {
-                return;
-            }
-            
-            const routeId = columns[routeIdIndex];
-            const routeLongName = columns[routeLongNameIndex];
-            let routeColor = columns[routeColorIndex];
-            if (routeColor && !routeColor.startsWith('#') && routeColor.trim() !== '') {
-                routeColor = `#${routeColor}`;
-            }
-            
-            let cleanedLineName = routeLongName ? routeLongName.replace(/\"/g, '').trim() : '';
+            const cols = line.split(',');
+
+            if (cols.length <= Math.max(routeIdIdx, routeShortNameIdx, routeLongNameIdx, routeColorIdx, routeTextColorIdx)) return;
+
+            const routeId = cols[routeIdIdx];
+            const shortName = cols[routeShortNameIdx];
+            const longName = cols[routeLongNameIdx];
+            let color = cols[routeColorIdx];
+            let textColor = cols[routeTextColorIdx];
+
+            if (color && !color.startsWith('#')) color = `#${color.trim()}`;
+            if (textColor && !textColor.startsWith('#')) textColor = `#${textColor.trim()}`;
+
             if (routeId) {
-                lineColors[routeId] = routeColor;
-                lineName[routeId] = cleanedLineName;
+                lineColors[routeId] = color || "#2260b6";
+                lineTextColors[routeId] = textColor || "#fff";
+                lineShortNames[routeId] = shortName ? shortName.replace(/"/g, '').trim() : routeId;
+                lineLongNames[routeId] = longName ? longName.replace(/"/g, '').trim() : "";
             }
         });
-        
     } catch (error) {
-        console.error('Erreur', error);
+        console.error('Erreur dans loadLineColors', error);
     }
 }
 
@@ -7926,7 +7926,7 @@ function getFluentPopupCSS() {
         .fluent-popup h4 { margin: 0 0 8px 0; font-weight:600; font-size:1.09em; color:#2260b6;}
         .fluent-line { padding: 5px 0; border-bottom:1px solid #e5e5e5;}
         .fluent-line:last-child { border-bottom: none; }
-        .fluent-line .route { font-weight: 500; color: #fff; background: #2260b6; border-radius: 4px; padding: 1px 7px; margin-right: 6px; font-size: 0.97em;}
+        .fluent-line .route { padding: 1px 7px; border-radius: 4px; font-weight: 600; font-size: 0.97em; display: inline-block; min-width: 20px; text-align: center;}
         .fluent-time { font-variant-numeric: tabular-nums; margin-left: 2px; }
         .fluent-delayed { color: #ff3b3b; font-weight: 500; }
         .fluent-on-time { color: #34c759; }
@@ -8012,8 +8012,10 @@ function buildFluentPopupContentGroupedByTerminus(stopFeature) {
     } else {
         routeIds.forEach(routeId => {
             const routesGroup = lines[routeId];
-            const lineShortName = lineName[routeId] ? lineName[routeId] : routeId;
-            html += `<div class="fluent-line"><span class="route" style="background:${lineColors[routeId]||'#2260b6'}">${lineShortName}</span></div>`;
+            const lineShortName = lineShortNames[routeId] || routeId;
+            const bgColor = lineColors[routeId] || '#2260b6';
+            const fgColor = lineTextColors[routeId] || '#fff';
+            html += `<div class="fluent-line"><span class="route" style="background:${bgColor};color:${fgColor}">${lineShortName}</span></div>`;
             Object.keys(routesGroup).forEach(terminusName => {
                 html += `<div class="fluent-dest" style="padding-left:13px; margin-bottom:2px;"><span style="color:#2260b6;font-weight:500;">${terminusName}</span> : `;
                 html += routesGroup[terminusName].slice(0,3).map(stop => formatPassageTime(stop.unifiedTime, stop.delay)).join(' | ');
