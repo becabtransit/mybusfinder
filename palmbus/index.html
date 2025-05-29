@@ -5222,10 +5222,8 @@ async function fetchVehiclePositions() {
                 }
 
 
-// Ajout des variables pour la gestion des vues minimales
-let minimalViews = {}; // Stockage des vues minimales
-let currentZoomLevel = map.getZoom();
-const ZOOM_THRESHOLD = 15; // Seuil de zoom pour afficher les vues minimales
+// Configuration du zoom pour la vue minimale
+const MINIMAL_VIEW_ZOOM_THRESHOLD = 15; // Ajustez selon vos besoins
 
 // Fonction pour créer le contenu de la vue minimale
 function createMinimalViewContent(vehicle, line, lastStopName, lineName, lineColors, textColor, backgroundColor) {
@@ -5238,12 +5236,11 @@ function createMinimalViewContent(vehicle, line, lastStopName, lineName, lineCol
             border-radius: 8px; 
             box-shadow: 0px 2px 8px 2px ${backgroundColor}9c; 
             overflow: hidden; 
-            background-color: ${backgroundColor}CC; 
+            background-color: ${backgroundColor}cc; 
             backdrop-filter: blur(4px); 
             -webkit-backdrop-filter: blur(4px);
             padding: 6px 8px;
             min-width: 120px;
-            max-width: 200px;
             pointer-events: none;
         ">
             <div style="text-align: center;">
@@ -5253,7 +5250,7 @@ function createMinimalViewContent(vehicle, line, lastStopName, lineName, lineCol
                 <div style="font-size: 11px; margin-bottom: 2px;">
                     🚌 ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
                 </div>
-                <div style="font-size: 10px; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                <div style="font-size: 10px; opacity: 0.9;">
                     ➜ ${lastStopName}
                 </div>
             </div>
@@ -5261,72 +5258,63 @@ function createMinimalViewContent(vehicle, line, lastStopName, lineName, lineCol
     `;
 }
 
-// Fonction pour créer une vue minimale
-function createMinimalView(marker, vehicle, line, lastStopName, lineName, lineColors, textColor, backgroundColor) {
-    const minimalContent = createMinimalViewContent(vehicle, line, lastStopName, lineName, lineColors, textColor, backgroundColor);
-    
-    const minimalPopup = L.popup({
-        closeButton: false,
-        autoClose: false,
-        closeOnClick: false,
-        closeOnEscapeKey: false,
-        className: 'minimal-view-popup',
-        offset: [0, -10]
-    }).setContent(minimalContent);
-    
-    return minimalPopup;
-}
-
-// Fonction pour mettre à jour l'affichage des vues minimales selon le zoom
-function updateMinimalViewsDisplay() {
+// Fonction pour gérer l'affichage/masquage des vues minimales
+function updateMinimalViews() {
     const currentZoom = map.getZoom();
-    const shouldShowMinimal = currentZoom >= ZOOM_THRESHOLD;
+    const showMinimalViews = currentZoom >= MINIMAL_VIEW_ZOOM_THRESHOLD;
     
     Object.keys(markers).forEach(id => {
         const marker = markers[id];
         if (!marker) return;
         
-        if (shouldShowMinimal && !marker.isPopupOpen()) {
+        // Si une popup est ouverte, masquer la vue minimale
+        if (marker.isPopupOpen()) {
+            if (marker.minimalTooltip) {
+                marker.minimalTooltip.close();
+            }
+            return;
+        }
+        
+        if (showMinimalViews) {
             // Afficher la vue minimale si elle n'existe pas déjà
-            if (!minimalViews[id]) {
-                // Récupérer les données du véhicule (vous devrez adapter selon votre structure de données)
-                const vehicle = { vehicle: { label: marker.vehicleLabel || '000' } };
-                const line = marker.line;
-                const lastStopName = marker.lastStopName || t("unknownstop");
-                const lineName = window.lineName || {};
-                const lineColors = window.lineColors || {};
-                const backgroundColor = lineColors[line] || '#000000';
-                const textColor = getOptimalTextColor(backgroundColor);
-                
-                minimalViews[id] = createMinimalView(marker, vehicle, line, lastStopName, lineName, lineColors, textColor, backgroundColor);
-                marker.bindPopup(minimalViews[id]);
-                marker.openPopup();
+            if (!marker.minimalTooltip) {
+                // Récupérer les données du marqueur (vous devrez adapter selon votre structure)
+                const vehicleData = marker.vehicleData;
+                if (vehicleData) {
+                    const minimalContent = createMinimalViewContent(
+                        vehicleData.vehicle,
+                        marker.line,
+                        vehicleData.lastStopName,
+                        vehicleData.lineName,
+                        vehicleData.lineColors,
+                        vehicleData.textColor,
+                        vehicleData.backgroundColor
+                    );
+                    
+                    marker.minimalTooltip = L.tooltip({
+                        permanent: true,
+                        direction: 'top',
+                        offset: [0, -10],
+                        className: 'minimal-tooltip',
+                        opacity: 1
+                    }).setContent(minimalContent);
+                    
+                    marker.bindTooltip(marker.minimalTooltip);
+                }
+            } else if (!marker.getTooltip()) {
+                // Réattacher le tooltip s'il a été supprimé
+                marker.bindTooltip(marker.minimalTooltip);
             }
         } else {
             // Masquer la vue minimale
-            if (minimalViews[id] && !marker.isPopupOpen()) {
-                marker.closePopup();
-                delete minimalViews[id];
+            if (marker.minimalTooltip && marker.getTooltip()) {
+                marker.unbindTooltip();
             }
         }
     });
 }
 
-// Fonction pour nettoyer les vues minimales
-function cleanupMinimalViews() {
-    Object.keys(minimalViews).forEach(id => {
-        if (!markers[id]) {
-            delete minimalViews[id];
-        }
-    });
-}
-
-// Écouteur d'événement pour le zoom
-map.on('zoomend', function() {
-    updateMinimalViewsDisplay();
-});
-
-// Modification du code principal pour intégrer la vue minimale
+// Votre code principal modifié
 const popupContent = `
     <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
        
@@ -5444,7 +5432,7 @@ const popupContent = `
         </div>   
     </div>
     </div>
-    `;
+`;
 
 if (markers[id]) {
     animateMarker(markers[id], [latitude, longitude]);
@@ -5453,9 +5441,15 @@ if (markers[id]) {
         markers[id].id = id;
     }
     
-    // Stocker les données nécessaires pour la vue minimale
-    markers[id].vehicleLabel = vehicle.vehicle.label;
-    markers[id].lastStopName = lastStopName;
+    // Stocker les données du véhicule pour la vue minimale
+    markers[id].vehicleData = {
+        vehicle: vehicle,
+        lastStopName: lastStopName,
+        lineName: lineName,
+        lineColors: lineColors,
+        textColor: textColor,
+        backgroundColor: backgroundColor
+    };
     
     if (markers[id].line !== line) {
         const oldLine = markers[id].line;
@@ -5553,12 +5547,6 @@ if (markers[id]) {
                 markers[id].styleId = styleId;
             }
         }
-        
-        // Mettre à jour la vue minimale si elle existe
-        if (minimalViews[id]) {
-            delete minimalViews[id];
-            updateMinimalViewsDisplay();
-        }
     }
     
     if (markers[id]._icon) {
@@ -5579,11 +5567,6 @@ if (markers[id]) {
 
     if (existingPopup && currentContent === popupContent) {
         return;
-    }
-
-    // Fermer la vue minimale si la popup complète s'ouvre
-    if (minimalViews[id] && markers[id].isPopupOpen()) {
-        delete minimalViews[id];
     }
 
     markers[id].setPopupContent(popupContent);
@@ -5615,8 +5598,16 @@ if (markers[id]) {
     markers[id] = marker;
     markers[id].line = line;
     markers[id].id = id;
-    markers[id].vehicleLabel = vehicle.vehicle.label;
-    markers[id].lastStopName = lastStopName;
+    
+    // Stocker les données du véhicule pour la vue minimale
+    markers[id].vehicleData = {
+        vehicle: vehicle,
+        lastStopName: lastStopName,
+        lineName: lineName,
+        lineColors: lineColors,
+        textColor: textColor,
+        backgroundColor: backgroundColor
+    };
 
     if (!selectedLine || selectedLine === line) {
         marker.addTo(map);
@@ -5625,9 +5616,9 @@ if (markers[id]) {
     marker.bindPopup(popupContent);
 
     marker.on('popupopen', function (e) {
-        // Fermer la vue minimale quand la popup complète s'ouvre
-        if (minimalViews[id]) {
-            delete minimalViews[id];
+        // Masquer la vue minimale quand la popup s'ouvre
+        if (e.target.minimalTooltip && e.target.getTooltip()) {
+            e.target.unbindTooltip();
         }
         
         if (e.popup && e.popup._contentNode) {
@@ -5640,6 +5631,12 @@ if (markers[id]) {
     });
 
     marker.on('popupclose', function (e) {
+        // Réafficher la vue minimale si le zoom le permet
+        const currentZoom = map.getZoom();
+        if (currentZoom >= MINIMAL_VIEW_ZOOM_THRESHOLD && e.target.minimalTooltip) {
+            e.target.bindTooltip(e.target.minimalTooltip);
+        }
+        
         if (e.popup && e.popup._contentNode) {
             const popupElement = e.popup._contentNode.parentElement;
             if (popupElement) {
@@ -5650,64 +5647,60 @@ if (markers[id]) {
                     if (e.popup) {
                         e.popup.remove(); 
                     }
-                    // Réafficher la vue minimale si le zoom est approprié
-                    updateMinimalViewsDisplay();
                 }, 200); 
             }
         }
     });
-
 }
-                          }
-            });      
+                }
+            });
 
-// Mettre à jour l'affichage des vues minimales après les modifications
-updateMinimalViewsDisplay();
+// Mettre à jour les vues minimales après chaque modification
+updateMinimalViews();
 
 Object.keys(markers).forEach(id => {
     if (!activeVehicleIds.has(id)) {
+        // Nettoyer la vue minimale avant de supprimer le marqueur
+        if (markers[id].minimalTooltip) {
+            markers[id].unbindTooltip();
+            markers[id].minimalTooltip = null;
+        }
         map.removeLayer(markers[id]); 
-        delete markers[id];
-        delete minimalViews[id]; // Nettoyer aussi les vues minimales
+        delete markers[id]; 
     }
 });
 
-             
+// Ajouter l'événement de zoom pour gérer les vues minimales
+map.on('zoomend', updateMinimalViews);
 
-// Nettoyer les vues minimales orphelines
-cleanupMinimalViews();
-
-// Ajouter le CSS pour les vues minimales
-const minimalViewStyles = `
+// CSS pour les tooltips minimaux (à ajouter dans votre CSS)
+const minimalTooltipStyles = `
 <style>
-.minimal-view-popup .leaflet-popup-content-wrapper {
+.minimal-tooltip {
     background: transparent !important;
+    border: none !important;
     box-shadow: none !important;
-    border-radius: 8px !important;
+    padding: 0 !important;
 }
 
-.minimal-view-popup .leaflet-popup-content {
+.minimal-tooltip .leaflet-tooltip-content {
     margin: 0 !important;
     padding: 0 !important;
 }
 
-.minimal-view-popup .leaflet-popup-tip {
-    background: rgba(0,0,0,0.8) !important;
-    border: none !important;
+.minimal-tooltip::before {
+    display: none !important;
 }
 </style>
 `;
 
-// Ajouter les styles au document si pas déjà fait
-if (!document.querySelector('#minimal-view-styles')) {
+// Injecter les styles si ce n'est pas déjà fait
+if (!document.querySelector('#minimal-tooltip-styles')) {
     const styleElement = document.createElement('div');
-    styleElement.id = 'minimal-view-styles';
-    styleElement.innerHTML = minimalViewStyles;
+    styleElement.id = 'minimal-tooltip-styles';
+    styleElement.innerHTML = minimalTooltipStyles;
     document.head.appendChild(styleElement);
 }
-
-                
-        
         
 let isMenuVisible = true;
 
