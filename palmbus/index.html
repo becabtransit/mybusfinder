@@ -4006,6 +4006,329 @@ let selectedLines = [];
 
 
 
+let updateInterval;
+let routeNames = {}; // Cache pour les noms des lignes
+
+// Configuration des couleurs de lignes (à adapter selon vos données)
+
+
+// Styles CSS pour la popup Fluent Design
+const fluentStyles = `
+<style>
+.fluent-popup {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: rgba(243, 242, 241, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 0;
+    margin: 0;
+    min-width: 300px;
+    max-width: 400px;
+}
+
+.fluent-popup-header {
+    background: linear-gradient(135deg, #0078d4, #106ebe);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px 8px 0 0;
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fluent-popup-content {
+    padding: 16px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.route-section {
+    margin-bottom: 16px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 6px;
+    padding: 12px;
+    border-left: 4px solid #0078d4;
+}
+
+.route-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #323130;
+}
+
+.route-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.departure-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.departure-item:last-child {
+    border-bottom: none;
+}
+
+.departure-time {
+    font-weight: 600;
+    color: #0078d4;
+    font-size: 16px;
+}
+
+.departure-delay {
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.delay-positive {
+    background: #fef7f1;
+    color: #d83b01;
+}
+
+.delay-negative {
+    background: #f3f9f1;
+    color: #107c10;
+}
+
+.delay-ontime {
+    background: #e1f5fe;
+    color: #0078d4;
+}
+
+.no-data {
+    text-align: center;
+    color: #605e5c;
+    font-style: italic;
+    padding: 20px;
+}
+
+.loading {
+    text-align: center;
+    color: #0078d4;
+    padding: 20px;
+}
+
+.last-update {
+    font-size: 11px;
+    color: #605e5c;
+    text-align: center;
+    padding: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    margin-top: 8px;
+}
+
+.stop-icon {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+</style>`;
+
+// Ajouter les styles CSS au document
+if (!document.getElementById('fluent-popup-styles')) {
+    const styleElement = document.createElement('div');
+    styleElement.id = 'fluent-popup-styles';
+    styleElement.innerHTML = fluentStyles;
+    document.head.appendChild(styleElement);
+}
+
+// Fonction pour formater le délai
+function formatDelay(delaySeconds) {
+    if (!delaySeconds || Math.abs(delaySeconds) < 30) {
+        return { text: 'À l\'heure', class: 'delay-ontime' };
+    }
+    
+    const minutes = Math.round(delaySeconds / 60);
+    if (minutes > 0) {
+        return { 
+            text: `+${minutes} min`, 
+            class: 'delay-positive' 
+        };
+    } else {
+        return { 
+            text: `${minutes} min`, 
+            class: 'delay-negative' 
+        };
+    }
+}
+
+// Fonction pour obtenir le nom de la ligne
+function getRouteName(routeId) {
+    if (routeNames[routeId]) {
+        return routeNames[routeId];
+    }
+    
+    // Essayer d'extraire le nom depuis les données GeoJSON
+    const routeLine = geoJsonLines.find(layer => 
+        layer.feature && layer.feature.properties.route_id === routeId
+    );
+    
+    if (routeLine && routeLine.feature.properties.route_short_name) {
+        routeNames[routeId] = routeLine.feature.properties.route_short_name;
+        return routeNames[routeId];
+    }
+    
+    return `Ligne ${routeId}`;
+}
+
+// Fonction pour obtenir les prochains passages pour un arrêt
+function getNextDeparturesForStop(stopId) {
+    const departures = [];
+    const now = Date.now() / 1000;
+    
+    Object.values(tripUpdates).forEach(tripUpdate => {
+        const stopUpdate = tripUpdate.stopUpdates.find(stop => 
+            stop.stopId === stopId || stop.stopId === `0:${stopId}`
+        );
+        
+        if (stopUpdate) {
+            // Extraire le routeId depuis tripId ou utiliser les propriétés disponibles
+            let routeId = null;
+            
+            // Chercher dans les layers pour trouver le routeId correspondant
+            const matchingLayer = busStopLayers.find(layer => 
+                layer.feature && 
+                (layer.feature.properties.stop_id === stopId || 
+                 layer.feature.properties.stop_id === `0:${stopId}`)
+            );
+            
+            if (matchingLayer) {
+                routeId = matchingLayer.feature.properties.route_id;
+            }
+            
+            // Calculer le temps de passage
+            const departureTime = stopUpdate.departureTime;
+            const arrivalTime = stopUpdate.arrivalTime;
+            const displayTime = departureTime !== "inconnue" ? departureTime : arrivalTime;
+            
+            if (displayTime !== "inconnue") {
+                departures.push({
+                    routeId: routeId || 'unknown',
+                    time: displayTime,
+                    delay: stopUpdate.delay || 0,
+                    timestamp: stopUpdate.departureTime ? 
+                        parseTimeToTimestamp(stopUpdate.departureTime) : 
+                        parseTimeToTimestamp(stopUpdate.arrivalTime)
+                });
+            }
+        }
+    });
+    
+    // Trier par heure de passage
+    departures.sort((a, b) => a.timestamp - b.timestamp);
+    
+    // Grouper par ligne
+    const groupedDepartures = {};
+    departures.forEach(dep => {
+        if (!groupedDepartures[dep.routeId]) {
+            groupedDepartures[dep.routeId] = [];
+        }
+        groupedDepartures[dep.routeId].push(dep);
+    });
+    
+    return groupedDepartures;
+}
+
+// Fonction utilitaire pour convertir l'heure en timestamp
+function parseTimeToTimestamp(timeString) {
+    if (timeString === "inconnue") return 0;
+    
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const now = new Date();
+    const timeDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+    
+    // Si l'heure est passée, c'est pour demain
+    if (timeDate < now) {
+        timeDate.setDate(timeDate.getDate() + 1);
+    }
+    
+    return timeDate.getTime();
+}
+
+// Fonction pour créer le contenu HTML de la popup
+function createPopupContent(stopId, stopName) {
+    const departures = getNextDeparturesForStop(stopId);
+    const lastUpdate = new Date().toLocaleTimeString('fr-FR', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+    });
+    
+    let content = `
+        <div class="fluent-popup">
+            <div class="fluent-popup-header">
+                <svg class="stop-icon" viewBox="0 0 24 24">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+                ${stopName || `Arrêt ${stopId}`}
+            </div>
+            <div class="fluent-popup-content">
+    `;
+    
+    if (Object.keys(departures).length === 0) {
+        content += `
+            <div class="no-data">
+                Aucun passage prévu dans les prochaines heures
+            </div>
+        `;
+    } else {
+        Object.entries(departures).forEach(([routeId, routeDepartures]) => {
+            const routeName = getRouteName(routeId);
+            const routeColor = lineColors[routeId] || '#0078d4';
+            
+            content += `
+                <div class="route-section">
+                    <div class="route-header">
+                        <div class="route-color" style="background-color: ${routeColor}"></div>
+                        ${routeName}
+                    </div>
+            `;
+            
+            // Afficher les 3 prochains passages maximum
+            routeDepartures.slice(0, 3).forEach(departure => {
+                const delayInfo = formatDelay(departure.delay);
+                
+                content += `
+                    <div class="departure-item">
+                        <span class="departure-time">${departure.time}</span>
+                        <span class="departure-delay ${delayInfo.class}">
+                            ${delayInfo.text}
+                        </span>
+                    </div>
+                `;
+            });
+            
+            content += `</div>`;
+        });
+    }
+    
+    content += `
+                <div class="last-update">
+                    Dernière mise à jour : ${lastUpdate}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return content;
+}
+
+// Modification de la fonction loadGeoJsonLines pour ajouter les événements de clic
 async function loadGeoJsonLines() {
     const response = await fetch('proxy-cors/proxy_geojson.php');
     const geoJsonData = await response.json();
@@ -4026,7 +4349,6 @@ async function loadGeoJsonLines() {
             };
         },
         onEachFeature: function(feature, layer) {
-            
             if (feature.properties && feature.properties.route_id) {
                 geoJsonLines.push(layer);
             }
@@ -4046,6 +4368,24 @@ async function loadGeoJsonLines() {
                 opacity: 0.7,
                 fillOpacity: 0.6
             });
+        },
+        onEachFeature: function(feature, layer) {
+            // Ajouter l'événement de clic sur chaque arrêt
+            layer.on('click', function(e) {
+                const stopId = feature.properties.stop_id;
+                const stopName = feature.properties.stop_name;
+                
+                // Créer et afficher la popup
+                const popupContent = createPopupContent(stopId, stopName);
+                
+                layer.bindPopup(popupContent, {
+                    maxWidth: 400,
+                    className: 'fluent-popup-container'
+                }).openPopup();
+                
+                // Empêcher la propagation de l'événement
+                L.DomEvent.stopPropagation(e);
+            });
         }
     }).addTo(map);
     
@@ -4055,8 +4395,83 @@ async function loadGeoJsonLines() {
             busStopLayers.push(layer);
         }
     });
-    
 }
+
+// Fonction pour démarrer la mise à jour automatique
+function startAutoUpdate() {
+    // Première récupération immédiate
+    fetchTripUpdates().catch(console.error);
+    
+    // Puis mise à jour toutes les 10 secondes
+    updateInterval = setInterval(async () => {
+        try {
+            await fetchTripUpdates();
+            
+            // Mettre à jour les popups ouvertes
+            updateOpenPopups();
+            
+        } catch (error) {
+            console.error('Erreur lors de la mise à jour automatique:', error);
+        }
+    }, 10000);
+}
+
+// Fonction pour arrêter la mise à jour automatique
+function stopAutoUpdate() {
+    if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+    }
+}
+
+// Fonction pour mettre à jour les popups ouvertes
+function updateOpenPopups() {
+    busStopLayers.forEach(layer => {
+        if (layer.isPopupOpen()) {
+            const stopId = layer.feature.properties.stop_id;
+            const stopName = layer.feature.properties.stop_name;
+            const newContent = createPopupContent(stopId, stopName);
+            
+            layer.getPopup().setContent(newContent);
+        }
+    });
+}
+
+// Initialisation au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialiser le worker
+    initWorker();
+    
+    // Charger les données initiales
+    loadGeoJsonLines().then(() => {
+        console.log('GeoJSON chargé, démarrage de la mise à jour automatique');
+        startAutoUpdate();
+    }).catch(error => {
+        console.error('Erreur lors du chargement initial:', error);
+    });
+});
+
+// Nettoyage lors de la fermeture de la page
+window.addEventListener('beforeunload', function() {
+    stopAutoUpdate();
+    if (worker) {
+        worker.terminate();
+    }
+});
+
+// Gestion des erreurs globales
+window.addEventListener('error', function(e) {
+    console.error('Erreur globale:', e.error);
+});
+
+// Export des fonctions principales pour usage externe
+window.GTFSPopupIntegration = {
+    startAutoUpdate,
+    stopAutoUpdate,
+    updateOpenPopups,
+    getNextDeparturesForStop,
+    createPopupContent
+};
 
 
 
