@@ -7,7 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-$url = 'https://www.data.gouv.fr/fr/datasets/r/47bc8088-6c72-43ad-a959-a5bbdd1aa14f';
+$url = 'https://www.data.gouv.fr/fr/datasets/r/15aeb8a5-1cca-4bb9-ae5f-b6e67e4ff2ab';
 
 if ($_SERVER['REQUEST_METHOD'] === 'HEAD') {
     $headers = get_headers($url, 1);
