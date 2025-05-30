@@ -2,7 +2,6 @@ const TIME_FORMAT_OPTIONS = { hour: '2-digit', minute: '2-digit' };
 const UNKNOWN_TIME = "Heure inconnue";
 const UNKNOWN_STOP = "Inconnu";
 
-// Caches optimisés avec limite de taille pour éviter les fuites mémoire
 const MAX_CACHE_SIZE = 10000;
 const timestampCache = new Map();
 const stopIdCache = new Map();
@@ -17,7 +16,6 @@ try {
     console.warn('SharedArrayBuffer non disponible');
 }
 
-// Gestion du cache avec éviction LRU simple
 function manageCacheSize(cache, maxSize) {
     if (cache.size > maxSize) {
         const firstKey = cache.keys().next().value;
@@ -62,7 +60,6 @@ self.onmessage = ({ data }) => {
 function formatTime(timestamp, cache) {
     if (!timestamp) return UNKNOWN_TIME;
     
-    // Conversion du timestamp en nombre si c'est une chaîne
     let numericTimestamp;
     if (typeof timestamp === 'string') {
         numericTimestamp = parseInt(timestamp, 10);
@@ -70,7 +67,6 @@ function formatTime(timestamp, cache) {
         numericTimestamp = Number(timestamp);
     }
     
-    // Validation du timestamp
     if (isNaN(numericTimestamp) || numericTimestamp <= 0) return UNKNOWN_TIME;
     
     const cacheKey = Math.floor(numericTimestamp);
@@ -80,15 +76,12 @@ function formatTime(timestamp, cache) {
     try {
         const date = new Date(numericTimestamp * 1000);
         
-        // Vérification si la date est valide
         if (isNaN(date.getTime())) return UNKNOWN_TIME;
         
-        // Essai de plusieurs méthodes de formatage
         let cached;
         try {
             cached = date.toLocaleTimeString([], TIME_FORMAT_OPTIONS);
         } catch (localeError) {
-            // Formatage manuel si toLocaleTimeString échoue
             const hours = date.getHours().toString().padStart(2, '0');
             const minutes = date.getMinutes().toString().padStart(2, '0');
             cached = `${hours}:${minutes}`;
@@ -106,11 +99,9 @@ function formatTime(timestamp, cache) {
 function normalizeStopId(stopId) {
     if (!stopId) return UNKNOWN_STOP;
     
-    // Cache pour éviter les opérations répétitives
     let normalized = stopIdCache.get(stopId);
     if (normalized) return normalized;
     
-    // Normalisation du stopId (supprime préfixes communs)
     normalized = String(stopId).replace(/^(0:|stop_|station_)/i, "");
     stopIdCache.set(stopId, normalized);
     manageCacheSize(stopIdCache, MAX_CACHE_SIZE);
@@ -123,13 +114,11 @@ function processStop(stop, now) {
     
     const stopId = normalizeStopId(stop.stopId || stop.stop_id);
     
-    // Gestion flexible des timestamps avec conversion string vers number
     let arrivalTime = stop.arrival?.time || stop.arrival?.timestamp || 
                      stop.arrivalTime || stop.arrival_time || null;
     let departureTime = stop.departure?.time || stop.departure?.timestamp || 
                        stop.departureTime || stop.departure_time || null;
     
-    // Conversion en nombres si nécessaire
     if (arrivalTime && typeof arrivalTime === 'string') {
         arrivalTime = parseInt(arrivalTime, 10);
     }
@@ -137,18 +126,15 @@ function processStop(stop, now) {
         departureTime = parseInt(departureTime, 10);
     }
     
-    // Vérification si au moins une heure est valide
     const hasValidArrivalTime = arrivalTime && !isNaN(arrivalTime) && arrivalTime > 0;
     const hasValidDepartureTime = departureTime && !isNaN(departureTime) && departureTime > 0;
     
-    // Si aucune heure valide n'est disponible, retourner null pour filtrer cet arrêt
     if (!hasValidArrivalTime && !hasValidDepartureTime) {
         return null;
     }
     
     const scheduleRelationship = stop.scheduleRelationship || stop.schedule_relationship;
     
-    // Calcul du délai (en secondes)
     let delay = null;
     if (hasValidArrivalTime) {
         delay = Math.floor(arrivalTime - now);
@@ -156,11 +142,9 @@ function processStop(stop, now) {
         delay = Math.floor(departureTime - now);
     }
     
-    // Gestion des délais d'arrivée/départ séparés
     const arrivalDelay = stop.arrival?.delay || stop.arrivalDelay || 0;
     const departureDelay = stop.departure?.delay || stop.departureDelay || 0;
     
-    // Format des heures (ne devrait plus retourner UNKNOWN_TIME grâce au filtrage ci-dessus)
     const formattedArrivalTime = hasValidArrivalTime ? formatTime(arrivalTime, timestampCache) : null;
     const formattedDepartureTime = hasValidDepartureTime ? formatTime(departureTime, timestampCache) : null;
     
@@ -174,10 +158,8 @@ function processStop(stop, now) {
         departureDelay,
         scheduleRelationship,
         stopSequence: stop.stopSequence || stop.stop_sequence || 0,
-        // Informations additionnelles utiles
         platformCode: stop.platformCode || stop.platform_code,
         stopHeadsign: stop.stopHeadsign || stop.stop_headsign,
-        // Timestamp brut pour debug
         rawArrivalTime: arrivalTime,
         rawDepartureTime: departureTime
     };
@@ -189,7 +171,6 @@ function extractTripInfo(tripUpdate) {
     const trip = tripUpdate.trip;
     if (!trip) return null;
     
-    // Gestion flexible des identifiants de trip
     const tripId = trip.tripId || trip.trip_id;
     if (!tripId) return null;
     
@@ -211,7 +192,6 @@ function processTripUpdates(data) {
     const tripUpdates = {};
     const now = Date.now() / 1000;
     
-    // Gestion flexible de la structure des données
     const entities = data.entity || data.entities || [];
     if (!Array.isArray(entities)) {
         console.warn('Format entities non supporté:', typeof entities);
@@ -221,21 +201,19 @@ function processTripUpdates(data) {
     const entitiesLength = entities.length;
     let processedCount = 0;
     let errorCount = 0;
-    let filteredStopsCount = 0; // Compteur pour les arrêts filtrés
+    let filteredStopsCount = 0; 
     
     for (let j = 0; j < entitiesLength; j++) {
         try {
             const entity = entities[j];
             if (!entity) continue;
             
-            // Gestion flexible du tripUpdate
             const tripUpdate = entity.tripUpdate || entity.trip_update || entity.update;
             if (!tripUpdate) continue;
             
             const tripInfo = extractTripInfo(tripUpdate);
             if (!tripInfo) continue;
             
-            // Gestion flexible des stopTimeUpdate
             const stopTimeUpdates = tripUpdate.stopTimeUpdate || 
                                   tripUpdate.stop_time_update || 
                                   tripUpdate.stopUpdates || 
@@ -250,11 +228,9 @@ function processTripUpdates(data) {
             const arrivalDelays = {};
             const departureDelays = {};
             
-            // Traitement des arrêts avec gestion d'erreurs robuste et filtrage
             for (let i = 0; i < stopsLength; i++) {
                 const processedStop = processStop(stopTimeUpdates[i], now);
                 
-                // Si processedStop est null, l'arrêt a été filtré (pas d'heure valide)
                 if (!processedStop) {
                     filteredStopsCount++;
                     continue;
@@ -262,7 +238,6 @@ function processTripUpdates(data) {
                 
                 processedStops.push(processedStop);
                 
-                // Collection des délais pour analyse
                 if (processedStop.delay !== null) {
                     arrivalDelays[processedStop.stopId] = processedStop.delay;
                 }
@@ -276,19 +251,16 @@ function processTripUpdates(data) {
             
             if (processedStops.length === 0) continue;
             
-            // Tri des arrêts par séquence si disponible
             processedStops.sort((a, b) => (a.stopSequence || 0) - (b.stopSequence || 0));
             
             const lastStopId = processedStops.length > 0 ?
                 (processedStops[processedStops.length - 1]?.stopId || UNKNOWN_STOP) :
                 UNKNOWN_STOP;
             
-            // Identification des prochains arrêts (ceux avec délai positif ou futur)
             const nextStops = processedStops.filter(stop => 
-                stop.delay === null || stop.delay > -300 // Arrêts pas encore passés (marge de 5 min)
+                stop.delay === null || stop.delay > -300 
             );
             
-            // Stockage avec informations enrichies
             tripUpdates[tripInfo.tripId] = {
                 tripInfo,
                 stopUpdates: processedStops,
@@ -298,7 +270,6 @@ function processTripUpdates(data) {
                 departureDelays,
                 timestamp: now,
                 totalStops: processedStops.length,
-                // Statistiques utiles
                 averageDelay: Object.values(arrivalDelays).length > 0 ?
                     Object.values(arrivalDelays).reduce((a, b) => a + b, 0) / Object.values(arrivalDelays).length : 0
             };
@@ -312,13 +283,11 @@ function processTripUpdates(data) {
         }
     }
     
-    // Nettoyage périodique des caches
     if (processedCount % 100 === 0) {
         if (timestampCache.size > MAX_CACHE_SIZE) timestampCache.clear();
         if (stopIdCache.size > MAX_CACHE_SIZE) stopIdCache.clear();
         if (tripCache.size > MAX_CACHE_SIZE) tripCache.clear();
     }
     
-    console.log(`Traitement terminé: ${processedCount} trips traités, ${errorCount} erreurs, ${filteredStopsCount} arrêts filtrés (sans heure)`);
     return tripUpdates;
 }
