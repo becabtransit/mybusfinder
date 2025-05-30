@@ -60,7 +60,6 @@ self.onmessage = ({ data }) => {
 };
 
 function formatTime(timestamp, cache) {
-    if (!timestamp) return UNKNOWN_TIME;
     
     // Conversion du timestamp en nombre si c'est une chaîne
     let numericTimestamp;
@@ -70,8 +69,6 @@ function formatTime(timestamp, cache) {
         numericTimestamp = Number(timestamp);
     }
     
-    // Validation du timestamp
-    if (isNaN(numericTimestamp) || numericTimestamp <= 0) return UNKNOWN_TIME;
     
     const cacheKey = Math.floor(numericTimestamp);
     let cached = cache.get(cacheKey);
@@ -80,8 +77,6 @@ function formatTime(timestamp, cache) {
     try {
         const date = new Date(numericTimestamp * 1000);
         
-        // Vérification si la date est valide
-        if (isNaN(date.getTime())) return UNKNOWN_TIME;
         
         // Essai de plusieurs méthodes de formatage
         let cached;
@@ -99,7 +94,7 @@ function formatTime(timestamp, cache) {
         return cached;
     } catch (error) {
         console.warn('Erreur formatage time:', error, 'Timestamp:', timestamp);
-        return UNKNOWN_TIME;
+        return;
     }
 }
 
