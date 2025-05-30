@@ -3387,6 +3387,7 @@ async function extractGTFSFiles() {
 async function loadLineColors(routesFileContent) {
     try {
         if (!routesFileContent) {
+            console.warn('Aucun contenu de fichier routes fourni');
             return;
         }
         
@@ -3395,46 +3396,68 @@ async function loadLineColors(routesFileContent) {
             console.error('Échec récupération variables de config');
             return;
         }
-        
-        const lines = routesFileContent.split('\n');
-        
-        const headers = lines[0].split(',');
+       
+        const lines = routesFileContent.split(/\r\n|\n/);
+       
+        const headers = parseCSVLine(lines[0]);
         const routeIdIndex = headers.indexOf('route_id');
-        const routeLongNameIndex = headers.indexOf('route_short_name');
+        const shortNameIndex = headers.indexOf('route_short_name');
+        const longNameIndex = headers.indexOf('route_long_name');
+        const routeTypeIndex = headers.indexOf('route_type');
         const routeColorIndex = headers.indexOf('route_color');
+        const routeTextColorIndex = headers.indexOf('route_text_color');
+        const agencyIdIndex = headers.indexOf('agency_id');
+       
+        if (routeIdIndex === -1) {
+            console.error('Format de fichier routes.txt invalide, colonne route_id manquante');
+            return;
+        }
         
-        if (routeIdIndex === -1 || routeLongNameIndex === -1 || routeColorIndex === -1) {
-            console.error('Impossible de trouver tous les entêttes requis dans fichier routes.txt');
+        if (routeColorIndex === -1) {
+            console.error('Impossible de trouver la colonne route_color dans le fichier routes.txt');
             return;
         }
         
         const startIndex = data.slicelinecolor ? parseInt(data.slicelinecolor) : 1;
-        
+       
         lines.slice(startIndex).forEach(line => {
             if (!line.trim()) return;
-            
-            const columns = line.split(',');
-            
-            if (columns.length <= Math.max(routeIdIndex, routeLongNameIndex, routeColorIndex)) {
+           
+            const values = parseCSVLine(line);
+            if (values.length <= routeIdIndex) {
+                console.warn('Ligne ignorée dans routes.txt, données incomplètes', line);
                 return;
             }
-            
-            const routeId = columns[routeIdIndex];
-            const routeLongName = columns[routeLongNameIndex];
-            let routeColor = columns[routeColorIndex];
-            if (routeColor && !routeColor.startsWith('#') && routeColor.trim() !== '') {
-                routeColor = `#${routeColor}`;
-            }
-            
-            let cleanedLineName = routeLongName ? routeLongName.replace(/\"/g, '').trim() : '';
+           
+            const routeId = values[routeIdIndex];
             if (routeId) {
-                lineColors[routeId] = routeColor;
+                routes[routeId] = {
+                    short_name: shortNameIndex !== -1 && values[shortNameIndex] ? values[shortNameIndex] : '',
+                    long_name: longNameIndex !== -1 && values[longNameIndex] ? values[longNameIndex] : '',
+                    route_type: routeTypeIndex !== -1 ? parseInt(values[routeTypeIndex] || '0', 10) : 0,
+                    route_color: routeColorIndex !== -1 && values[routeColorIndex] ? `#${values[routeColorIndex]}` : '#FFFFFF',
+                    route_text_color: routeTextColorIndex !== -1 && values[routeTextColorIndex] ? `#${values[routeTextColorIndex]}` : '#000000',
+                    agency_id: agencyIdIndex !== -1 ? values[agencyIdIndex] : null
+                };
+                
+                let routeColor = values[routeColorIndex];
+                if (routeColor && !routeColor.startsWith('#') && routeColor.trim() !== '') {
+                    routeColor = `#${routeColor}`;
+                }
+                
+                const routeShortName = shortNameIndex !== -1 && values[shortNameIndex] ? values[shortNameIndex] : '';
+                let cleanedLineName = routeShortName ? routeShortName.replace(/\"/g, '').trim() : '';
+                
+                lineColors[routeId] = routeColor || '#FFFFFF';
                 lineName[routeId] = cleanedLineName;
             }
         });
+       
+        console.log(`Routes chargées: ${Object.keys(routes).length} itinéraires`);
+        console.log(`Couleurs de lignes chargées: ${Object.keys(lineColors).length} lignes`);
         
     } catch (error) {
-        console.error('Erreur', error);
+        console.error('Erreur lors du chargement des itinéraires et couleurs', error);
     }
 }
 
