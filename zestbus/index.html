@@ -5209,10 +5209,10 @@ async function fetchVehiclePositions() {
                                 
                 function getTextColorForBackground(bgColor, options = {}) {
                     const {
-                        contrastRatio = 4.5,        // Ratio de contraste minimal (4.5 pour AA, 7 pour AAA)
-                        darkColor = '#1a1a1a',      // Couleur sombre personnalisable
-                        lightColor = '#f8f9fa',     // Couleur claire personnalisable
-                        useGradient = false         // Option pour des couleurs intermédiaires
+                        contrastRatio = 4.5,
+                        darkColor = '#1a1a1a',
+                        lightColor = '#f8f9fa',
+                        useGradient = true
                     } = options;
 
                     let r, g, b, a = 1;
@@ -5221,7 +5221,6 @@ async function fetchVehiclePositions() {
 
                     bgColor = bgColor.trim();
 
-                    // Support des formats CSS (rgb, rgba, hsl, etc.)
                     if (bgColor.startsWith('rgb')) {
                         const values = bgColor.match(/\d+(\.\d+)?/g);
                         if (values) {
@@ -5233,7 +5232,6 @@ async function fetchVehiclePositions() {
                             return darkColor;
                         }
                     } else {
-                        // Gestion des couleurs hexadécimales
                         if (/^#([a-f\d])([a-f\d])([a-f\d])$/i.test(bgColor)) {
                             bgColor = bgColor.replace(/^#([a-f\d])([a-f\d])([a-f\d])$/i,
                                 (_, r, g, b) => '#' + r + r + g + g + b + b);
@@ -5253,21 +5251,18 @@ async function fetchVehiclePositions() {
                         }
                     }
 
-                    // Gestion de la transparence avec fond blanc
                     if (a < 1) {
                         r = Math.round((1 - a) * 255 + a * r);
                         g = Math.round((1 - a) * 255 + a * g);
                         b = Math.round((1 - a) * 255 + a * b);
                     }
 
-                    // Calcul de la luminance relative selon WCAG
                     const srgb = [r, g, b].map(c => {
                         const val = c / 255;
                         return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4);
                     });
                     const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
 
-                    // Calcul des luminances pour les couleurs claires et sombres
                     const getLuminance = (color) => {
                         const hex = color.replace('#', '');
                         const r = parseInt(hex.substr(0, 2), 16) / 255;
@@ -5282,7 +5277,6 @@ async function fetchVehiclePositions() {
                     const darkLuminance = getLuminance(darkColor);
                     const lightLuminance = getLuminance(lightColor);
 
-                    // Calcul des ratios de contraste
                     const contrastWithDark = luminance > darkLuminance 
                         ? (luminance + 0.05) / (darkLuminance + 0.05)
                         : (darkLuminance + 0.05) / (luminance + 0.05);
@@ -5291,16 +5285,18 @@ async function fetchVehiclePositions() {
                         ? (luminance + 0.05) / (lightLuminance + 0.05)
                         : (lightLuminance + 0.05) / (luminance + 0.05);
 
-                    // Sélection de la couleur avec le meilleur contraste
                     if (contrastWithDark >= contrastRatio && contrastWithLight >= contrastRatio) {
-                        // Si les deux couleurs offrent un bon contraste, choisir selon la luminance
-                        return luminance > 0.5 ? darkColor : lightColor;
+
+                        return luminance > 0.18 ? darkColor : lightColor;
                     } else if (contrastWithDark >= contrastRatio) {
                         return darkColor;
                     } else if (contrastWithLight >= contrastRatio) {
                         return lightColor;
                     } else {
-                        // Si aucune couleur n'offre un contraste suffisant, prendre la meilleure
+
+                        if (luminance < 0.18) {
+                            return lightColor; 
+                        }
                         return contrastWithDark > contrastWithLight ? darkColor : lightColor;
                     }
                 }
