@@ -5370,10 +5370,10 @@ async function fetchVehiclePositions() {
                                 
                 function getTextColorForBackground(bgColor, options = {}) {
                     const {
-                        contrastRatio = 4.5,        
-                        darkColor = '#1a1a1a',      
-                        lightColor = '#f8f9fa',     
-                        debug = false
+                        contrastRatio = 4.5,
+                        darkColor = '#1a1a1a',
+                        lightColor = '#f8f9fa',
+                        useGradient = false 
                     } = options;
 
                     let r, g, b, a = 1;
@@ -5421,24 +5421,49 @@ async function fetchVehiclePositions() {
                     g = Math.max(0, Math.min(255, g));
                     b = Math.max(0, Math.min(255, b));
 
-
-
                     const srgb = [r, g, b].map(c => {
                         const val = c / 255;
                         return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4);
                     });
                     const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
 
+                    const getLuminance = (color) => {
+                        const hex = color.replace('#', '');
+                        const r = parseInt(hex.substr(0, 2), 16) / 255;
+                        const g = parseInt(hex.substr(2, 2), 16) / 255;
+                        const b = parseInt(hex.substr(4, 2), 16) / 255;
+                        const srgb = [r, g, b].map(c => 
+                            c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+                        );
+                        return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+                    };
 
-                    const result = luminance < 0.40 ? lightColor : darkColor;
+                    const darkLuminance = getLuminance(darkColor);
+                    const lightLuminance = getLuminance(lightColor);
+
+                    const contrastWithDark = luminance > darkLuminance 
+                        ? (luminance + 0.05) / (darkLuminance + 0.05)
+                        : (darkLuminance + 0.05) / (luminance + 0.05);
                     
+                    const contrastWithLight = luminance > lightLuminance 
+                        ? (luminance + 0.05) / (lightLuminance + 0.05)
+                        : (lightLuminance + 0.05) / (luminance + 0.05);
 
+                    if (contrastWithDark >= contrastRatio && contrastWithLight >= contrastRatio) {
+                        return luminance > 0.18 ? darkColor : lightColor;
+                    } else if (contrastWithDark >= contrastRatio) {
+                        return darkColor;
+                    } else if (contrastWithLight >= contrastRatio) {
+                        return lightColor;
+                    } else {
 
-                    return result;
+                        if (luminance < 0.18) {
+                            return lightColor; 
+                        }
+                        return contrastWithDark > contrastWithLight ? darkColor : lightColor;
+                    }
+
                 }
-
-
-                
                     
                     
 
