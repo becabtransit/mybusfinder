@@ -3384,57 +3384,113 @@ async function extractGTFSFiles() {
     }
 }
 
+function parseCSVLine(csvLine) {
+    const result = [];
+    let currentValue = '';
+    let insideQuotes = false;
+
+    for (let i = 0; i < csvLine.length; i++) {
+        const char = csvLine[i];
+        
+        if (char === '"') {
+            insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+            result.push(currentValue);
+            currentValue = '';
+        } else {
+            currentValue += char;
+        }
+    }
+    
+    result.push(currentValue);
+    
+    return result.map(value => {
+        if (value.startsWith('"') && value.endsWith('"')) {
+            return value.slice(1, -1);
+        }
+        return value;
+    });
+}
+
 async function loadLineColors(routesFileContent) {
     try {
         if (!routesFileContent) {
+            console.warn('Aucun contenu de fichier routes fourni');
             return;
         }
+        
+        if (typeof routes === 'undefined') window.routes = {};
+        if (typeof lineColors === 'undefined') window.lineColors = {};
+        if (typeof lineName === 'undefined') window.lineName = {};
         
         const data = await getSetvar();
         if (!data) {
             console.error('Échec récupération variables de config');
             return;
         }
-        
-        const lines = routesFileContent.split('\n');
-        
-        const headers = lines[0].split(',');
+       
+        const lines = routesFileContent.split(/\r\n|\n/);
+       
+        const headers = parseCSVLine(lines[0]);
         const routeIdIndex = headers.indexOf('route_id');
-        const routeLongNameIndex = headers.indexOf('route_short_name');
+        const shortNameIndex = headers.indexOf('route_short_name');
+        const longNameIndex = headers.indexOf('route_long_name');
+        const routeTypeIndex = headers.indexOf('route_type');
         const routeColorIndex = headers.indexOf('route_color');
-        
-        if (routeIdIndex === -1 || routeLongNameIndex === -1 || routeColorIndex === -1) {
-            console.error('Impossible de trouver tous les entêttes requis dans fichier routes.txt');
+        const routeTextColorIndex = headers.indexOf('route_text_color');
+        const agencyIdIndex = headers.indexOf('agency_id');
+       
+        if (routeIdIndex === -1) {
             return;
         }
         
-        const startIndex = data.slicelinecolor ? parseInt(data.slicelinecolor) : 1;
+        if (routeColorIndex === -1) {
+            console.warn('route_color non trouvée, les couleurs par défaut seront utilisées');
+        }
         
+        const startIndex = data.slicelinecolor ? parseInt(data.slicelinecolor) : 1;
+       
         lines.slice(startIndex).forEach(line => {
             if (!line.trim()) return;
-            
-            const columns = line.split(',');
-            
-            if (columns.length <= Math.max(routeIdIndex, routeLongNameIndex, routeColorIndex)) {
+           
+            const values = parseCSVLine(line);
+            if (values.length <= routeIdIndex) {
+                console.warn('Ligne ignorer dans routes txt, données incomplètes', line);
                 return;
             }
-            
-            const routeId = columns[routeIdIndex];
-            const routeLongName = columns[routeLongNameIndex];
-            let routeColor = columns[routeColorIndex];
-            if (routeColor && !routeColor.startsWith('#') && routeColor.trim() !== '') {
-                routeColor = `#${routeColor}`;
-            }
-            
-            let cleanedLineName = routeLongName ? routeLongName.replace(/\"/g, '').trim() : '';
+           
+            const routeId = values[routeIdIndex];
             if (routeId) {
+                routes[routeId] = {
+                    short_name: shortNameIndex !== -1 && values[shortNameIndex] ? values[shortNameIndex] : '',
+                    long_name: longNameIndex !== -1 && values[longNameIndex] ? values[longNameIndex] : '',
+                    route_type: routeTypeIndex !== -1 ? parseInt(values[routeTypeIndex] || '0', 10) : 0,
+                    route_color: routeColorIndex !== -1 && values[routeColorIndex] ? `#${values[routeColorIndex]}` : '#FFFFFF',
+                    route_text_color: routeTextColorIndex !== -1 && values[routeTextColorIndex] ? `#${values[routeTextColorIndex]}` : '#000000',
+                    agency_id: agencyIdIndex !== -1 ? values[agencyIdIndex] : null
+                };
+                
+                let routeColor = routeColorIndex !== -1 ? values[routeColorIndex] : '';
+                if (routeColor && !routeColor.startsWith('#') && routeColor.trim() !== '') {
+                    routeColor = `#${routeColor}`;
+                } else if (!routeColor) {
+                    routeColor = '#FFFFFF'; 
+                }
+                
+                const routeDisplayName = shortNameIndex !== -1 && values[shortNameIndex] ? 
+                    values[shortNameIndex] : 
+                    (longNameIndex !== -1 && values[longNameIndex] ? values[longNameIndex] : '');
+                
+                let cleanedLineName = routeDisplayName ? routeDisplayName.replace(/\"/g, '').trim() : '';
+                
                 lineColors[routeId] = routeColor;
                 lineName[routeId] = cleanedLineName;
             }
         });
+       
         
     } catch (error) {
-        console.error('Erreur', error);
+        console.error('Errreur lors du chargement des itineraires et couleurs', error);
     }
 }
 
@@ -5231,154 +5287,7 @@ async function fetchVehiclePositions() {
 
 
                 
-                const popupContent = `
-                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
-                    
-                <button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
-                    background: none;
-                    border: none;
-                    padding: 4px;
-                    cursor: pointer;
-                    z-index: 3;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                ">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 3C10.3431 3 9 4.34315 9 6C9 7.65685 10.3431 9 12 9C13.6569 9 15 7.65685 15 6" />
-                    <path d="M5.5 15C3.84315 15 2.5 16.3431 2.5 18C2.5 19.6569 3.84315 21 5.5 21C7.15685 21 8.5 19.6569 8.5 18" />
-                    <path d="M18.5 21C16.8431 21 15.5 19.6569 15.5 18C15.5 16.3431 16.8431 15 18.5 15C20.1569 15 21.5 16.3431 21.5 18" />
-                    <path d="M20 13C20 10.6106 18.9525 8.46589 17.2916 7M4 13C4 10.6106 5.04752 8.46589 6.70838 7M10 20.748C10.6392 20.9125 11.3094 21 12 21C12.6906 21 13.3608 20.9125 14 20.748" />
-                </svg>
 
-                </button>
-
-
-                <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
-                <div class="light-beam beam1"></div>
-                <div class="light-beam beam2"></div>
-                <div class="light-beam beam3"></div>
-
-                    <!-- Texte principal -->
-                    <div style="z-index: 2; text-align: left; width: 100%;">
-                        <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
-                        <strong style="margin: 0; font-size: 14px;">➜ ${lastStopName}</strong>
-                <div>
-                    <div style="position: relative; display: flex; align-items: center; ">
-                        <div style="
-                            position: relative;
-                            flex: 1;
-                            overflow: hidden;
-                            border-radius: 10px;
-                        ">
-                            <!-- Contenu défilant horizontalement -->
-                            <div class="options" style="
-                                display: flex;
-                                gap: 10px;
-                                padding: 0px;
-                                overflow-x: auto; 
-                                white-space: nowrap;
-                                scrollbar-width: thin; 
-                                scrollbar-color: #888 #f1f1f1;
-                                color: #ffffff;
-                            " class="custom-scrollbar">
-                                <!-- Numéro de parc -->
-                                <span style="
-                                    padding: 6px 10px; 
-                                    background: #00000077; 
-                                    font-weight: normal; 
-                                    white-space: nowrap; 
-                                    backdrop-filter: blur(8px);
-                                    -webkit-backdrop-filter: blur(8px);
-                                    border-radius: 10px; 
-                                    display: inline-flex; 
-                                    align-items: center; 
-                                    gap: 6px;
-                                    height: 20px;
-                                ">
-
-                                <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-                                <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
-
-                                    
-                                </span>
-                                
-                                <!-- Badges des options du véhicule -->
-                                ${vehicleOptionsBadges}
-                            </div>
-                        </div>
-                    </div>
-                        <div style=" margin-top: 10px; text-align: right;">
-                            ${vehicleBrandHtml}
-                        </div>
-                    </div>
-                </div>
-
-
-                    <!-- Texte en arrière-plan -->
-                    <div style="
-                        position: absolute;
-                        right: 10px;
-                        top: 0;
-                        z-index: 1;
-                        opacity: 0.1;
-                        font-size: 100px;
-                        color: ${textColor};
-                        display: flex;
-                        align-items: center;
-                        justify-content: flex-end;
-                        white-space: nowrap;
-                    ">
-                        ${t("line")} ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
-                    </div>
-                </div>
-
-
-
-
-
-                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
-                <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
-                    <ul>
-                    <div id="nextStopsContent" class="next-stops-content">
-                        ${nextStopsHTML}
-                    </div>   
-                </div>
-                </div>
-                `;
-
-                const minimalPopupContent = `
-                    <div class="minimal-popup" style="
-                        position: relative;
-                        font-family: 'League Spartan', sans-serif;
-                        font-size: 12px;
-                        color: ${textColor};
-                        background-color: ${backgroundColor}9c;
-                        backdrop-filter: blur(8px);
-                        -webkit-backdrop-filter: blur(8px);
-                        border-radius: 8px;
-                        padding: 8px 12px;
-                        box-shadow: 0px 2px 10px 2px ${backgroundColor}6c;
-                        min-width: 120px;
-                        cursor: pointer;
-                        border: 1px solid ${backgroundColor}cc;
-                    " onclick="openFullPopup('${id}')">
-                        <div style="display: flex; flex-direction: column; gap: 4px;">
-                            <div style="font-weight: bold; font-size: 14px;">
-                                ${t("line")} ${lineName[line] || t("unknownline")}
-                            </div>
-                            <div style="font-size: 11px; opacity: 0.9;">
-                                🚌 ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
-                            </div>
-                            <div style="font-size: 11px; opacity: 0.8;">
-                                ➜ ${lastStopName}
-                            </div>
-                        </div>
-                    </div>
-                `;
 
                 window.openFullPopup = function(markerId) {
                     if (markers[markerId]) {
@@ -5456,6 +5365,191 @@ async function fetchVehiclePositions() {
                     document.head.appendChild(styles);
                 }
 
+                const contentCache = new Map();
+                const colorCache = new Map();
+
+                // Pool d'objets réutilisables pour les tooltips
+                const tooltipPool = [];
+                let maxPoolSize = 50;
+
+                function getFromPool() {
+                    return tooltipPool.pop() || null;
+                }
+
+                function returnToPool(tooltip) {
+                    if (tooltipPool.length < maxPoolSize) {
+                        tooltipPool.push(tooltip);
+                    }
+                }
+
+                function generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
+                    // Inclure nextStopsHTML dans la clé de cache pour détecter les changements
+                    const nextStopsHash = nextStopsHTML ? nextStopsHTML.substring(0, 100) : '';
+                    const cacheKey = `${id}-${vehicle.vehicle.label}-${line}-${lastStopName}-${stopsHeaderText}-${nextStopsHash}`;
+                    
+                    if (contentCache.has(cacheKey)) {
+                        return contentCache.get(cacheKey);
+                    }
+                    
+                                const popupContent = `
+                                    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; color: #333; border-radius: 15px; box-shadow: 0px 0px 20px 4px ${backgroundColor}9c; overflow: hidden; background-color: ${backgroundColor}9c; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+                                    
+                                <button onclick="shareVehicleId('${vehicle.vehicle.id}')" title="${t("share")}" style="
+                                    position: absolute;
+                                    top: 10px;
+                                    right: 10px;
+                                    background: none;
+                                    border: none;
+                                    padding: 4px;
+                                    cursor: pointer;
+                                    z-index: 3;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                ">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 3C10.3431 3 9 4.34315 9 6C9 7.65685 10.3431 9 12 9C13.6569 9 15 7.65685 15 6" />
+                                    <path d="M5.5 15C3.84315 15 2.5 16.3431 2.5 18C2.5 19.6569 3.84315 21 5.5 21C7.15685 21 8.5 19.6569 8.5 18" />
+                                    <path d="M18.5 21C16.8431 21 15.5 19.6569 15.5 18C15.5 16.3431 16.8431 15 18.5 15C20.1569 15 21.5 16.3431 21.5 18" />
+                                    <path d="M20 13C20 10.6106 18.9525 8.46589 17.2916 7M4 13C4 10.6106 5.04752 8.46589 6.70838 7M10 20.748C10.6392 20.9125 11.3094 21 12 21C12.6906 21 13.3608 20.9125 14 20.748" />
+                                </svg>
+
+                                </button>
+
+
+                                <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; box-shadow: 0px 4px 20px 5px rgba(0, 0, 0, 0.3); border-radius: 11px; margin: 7px; ">
+                                <div class="light-beam beam1"></div>
+                                <div class="light-beam beam2"></div>
+                                <div class="light-beam beam3"></div>
+
+                                    <!-- Texte principal -->
+                                    <div style="z-index: 2; text-align: left; width: 100%;">
+                                        <p style="margin: 0; font-size: 24px; ">${t("line")} ${lineName[line] || t("unknownline")}</p>
+                                        <strong style="margin: 0; font-size: 14px;">➜ ${lastStopName}</strong>
+                                <div>
+                                    <div style="position: relative; display: flex; align-items: center; ">
+                                        <div style="
+                                            position: relative;
+                                            flex: 1;
+                                            overflow: hidden;
+                                            border-radius: 10px;
+                                        ">
+                                            <!-- Contenu défilant horizontalement -->
+                                            <div class="options" style="
+                                                display: flex;
+                                                gap: 10px;
+                                                padding: 0px;
+                                                overflow-x: auto; 
+                                                white-space: nowrap;
+                                                scrollbar-width: thin; 
+                                                scrollbar-color: #888 #f1f1f1;
+                                                color: #ffffff;
+                                            " class="custom-scrollbar">
+                                                <!-- Numéro de parc -->
+                                                <span style="
+                                                    padding: 6px 10px; 
+                                                    background: #00000077; 
+                                                    font-weight: normal; 
+                                                    white-space: nowrap; 
+                                                    backdrop-filter: blur(8px);
+                                                    -webkit-backdrop-filter: blur(8px);
+                                                    border-radius: 10px; 
+                                                    display: inline-flex; 
+                                                    align-items: center; 
+                                                    gap: 6px;
+                                                    height: 20px;
+                                                ">
+
+                                                <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
+                                                <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
+
+                                                    
+                                                </span>
+                                                
+                                                <!-- Badges des options du véhicule -->
+                                                ${vehicleOptionsBadges}
+                                            </div>
+                                        </div>
+                                    </div>
+                                        <div style=" margin-top: 10px; text-align: right;">
+                                            ${vehicleBrandHtml}
+                                        </div>
+                                    </div>
+                                </div>
+
+
+                                    <!-- Texte en arrière-plan -->
+                                    <div style="
+                                        position: absolute;
+                                        right: 10px;
+                                        top: 0;
+                                        z-index: 1;
+                                        opacity: 0.1;
+                                        font-size: 100px;
+                                        color: ${textColor};
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: flex-end;
+                                        white-space: nowrap;
+                                    ">
+                                        ${t("line")} ${lineName[line] || "🚌🚍🚌🚍🚌🚍🚌"}
+                                    </div>
+                                </div>
+
+
+
+
+
+                                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+                                <p style="margin: 0; font-size: 18px; text-align: right;">${stopsHeaderText}</p>
+                                    <ul>
+                                    <div id="nextStopsContent" class="next-stops-content">
+                                        ${nextStopsHTML}
+                                    </div>   
+                                </div>
+                                </div>
+                                `;
+
+                                const minimalPopupContent = `
+                                    <div class="minimal-popup" style="
+                                        position: relative;
+                                        font-family: 'League Spartan', sans-serif;
+                                        font-size: 12px;
+                                        color: ${textColor};
+                                        background-color: ${backgroundColor}9c;
+                                        backdrop-filter: blur(8px);
+                                        -webkit-backdrop-filter: blur(8px);
+                                        border-radius: 8px;
+                                        padding: 8px 12px;
+                                        box-shadow: 0px 2px 10px 2px ${backgroundColor}6c;
+                                        min-width: 120px;
+                                        cursor: pointer;
+                                        border: 1px solid ${backgroundColor}cc;
+                                    " onclick="openFullPopup('${id}')">
+                                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                                            <div style="font-weight: bold; font-size: 14px;">
+                                                ${t("line")} ${lineName[line] || t("unknownline")}
+                                            </div>
+                                            <div style="font-size: 11px; opacity: 0.9;">
+                                                🚌 ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
+                                            </div>
+                                            <div style="font-size: 11px; opacity: 0.8;">
+                                                ➜ ${lastStopName}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                    
+                    // Limiter la taille du cache
+                    if (contentCache.size > 100) {
+                        const firstKey = contentCache.keys().next().value;
+                        contentCache.delete(firstKey);
+                    }
+                    
+                    contentCache.set(cacheKey, popupContent);
+                    return popupContent;
+                }
+
                 function animateTooltip(tooltip, newLatLng, duration = 500) {
                     if (!tooltip || !tooltip._container) return;
                     
@@ -5489,31 +5583,45 @@ async function fetchVehiclePositions() {
                     const marker = markers[markerId];
                     if (!marker) return;
                     
-                    const currentState = window.minimalTooltipStates[markerId];
-                    
                     if (shouldShow && !marker.isPopupOpen()) {
                         if (!marker.minimalPopup) {
+                            // Essayer de réutiliser un tooltip existant du pool
+                            let minimalTooltip = getFromPool();
+                            
+                            if (!minimalTooltip) {
+                                minimalTooltip = L.tooltip({
+                                    permanent: true,
+                                    direction: 'center',
+                                    className: 'minimal-tooltip-container',
+                                    offset: [0, 0],
+                                    opacity: 1
+                                });
+                            }
+                            
+                            const color = lineColors[marker.line] || '#000000';
+                            const textColor = getOptimalTextColor(color);
+                            
                             const minimalContent = `
                                 <div class="minimal-popup minimal-popup-appear" style="
                                     position: relative;
                                     font-family: 'League Spartan', sans-serif;
                                     font-size: 11px;
-                                    color: ${getOptimalTextColor(lineColors[marker.line] || '#000000')};
-                                    background: linear-gradient(135deg, ${lineColors[marker.line] || '#000000'}f0, ${lineColors[marker.line] || '#000000'}d0);
+                                    color: ${textColor};
+                                    background: linear-gradient(135deg, ${color}f0, ${color}d0);
                                     backdrop-filter: blur(12px);
                                     -webkit-backdrop-filter: blur(12px);
                                     border-radius: 12px;
                                     padding: 6px 10px;
-                                    box-shadow: 0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40;
+                                    box-shadow: 0 4px 16px -2px ${color}80, 0 2px 8px -2px ${color}40;
                                     min-width: 80px;
                                     max-width: 140px;
                                     cursor: pointer;
-                                    border: 1px solid ${lineColors[marker.line] || '#000000'}60;
+                                    border: 1px solid ${color}60;
                                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                                     transform: translateY(0);
                                 " onclick="event.stopPropagation(); markers['${markerId}'].fire('click');" 
-                                onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${lineColors[marker.line] || '#000000'}90, 0 4px 12px -2px ${lineColors[marker.line] || '#000000'}50';"
-                                onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${lineColors[marker.line] || '#000000'}80, 0 2px 8px -2px ${lineColors[marker.line] || '#000000'}40';">
+                                onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${color}90, 0 4px 12px -2px ${color}50';"
+                                onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${color}80, 0 2px 8px -2px ${color}40';">
                                     <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
                                         <div style="
                                             background: rgba(255,255,255,0.2);
@@ -5549,24 +5657,19 @@ async function fetchVehiclePositions() {
                                 </div>
                             `;
                             
-                            const minimalTooltip = L.tooltip({
-                                permanent: true,
-                                direction: 'center',
-                                className: 'minimal-tooltip-container',
-                                offset: [0, 0],
-                                opacity: 1
-                            })
-                            .setLatLng(marker.getLatLng())
-                            .setContent(minimalContent)
-                            .addTo(map);
+                            minimalTooltip
+                                .setLatLng(marker.getLatLng())
+                                .setContent(minimalContent)
+                                .addTo(map);
                             
                             marker.minimalPopup = minimalTooltip;
                             window.minimalTooltipStates[markerId] = 'visible';
                         } else {
+                            // Seulement animer si la position a changé
                             const currentLatLng = marker.minimalPopup.getLatLng();
                             const newLatLng = marker.getLatLng();
                             
-                            if (currentLatLng.lat !== newLatLng.lat || currentLatLng.lng !== newLatLng.lng) {
+                            if (Math.abs(currentLatLng.lat - newLatLng.lat) > 0.0001 || Math.abs(currentLatLng.lng - newLatLng.lng) > 0.0001) {
                                 animateTooltip(marker.minimalPopup, newLatLng);
                             }
                         }
@@ -5579,16 +5682,41 @@ async function fetchVehiclePositions() {
                                 popupElement.classList.add('minimal-popup-disappear');
                                 
                                 setTimeout(() => {
-                                    if (marker.minimalPopup) {
-                                        map.removeLayer(marker.minimalPopup);
-                                        marker.minimalPopup = null;
-                                        delete window.minimalTooltipStates[markerId];
+                                    const tooltipToRemove = marker.minimalPopup;
+                                    marker.minimalPopup = null;
+                                    delete window.minimalTooltipStates[markerId];
+                                    
+                                    if (tooltipToRemove) {
+                                        map.removeLayer(tooltipToRemove);
+                                        returnToPool(tooltipToRemove);
                                     }
                                 }, 200);
                             }
+                        } else {
+                            // Fallback si pas de container
+                            const tooltipToRemove = marker.minimalPopup;
+                            marker.minimalPopup = null;
+                            delete window.minimalTooltipStates[markerId];
+                            
+                            map.removeLayer(tooltipToRemove);
+                            returnToPool(tooltipToRemove);
                         }
                     }
                 }
+                function updatePopupContent(marker, vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
+                    const popup = marker.getPopup();
+                    if (!popup) return false;
+                    
+                    const newContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
+                    
+                    // Seulement mettre à jour si le contenu a changé
+                    if (popup.getContent() !== newContent) {
+                        popup.setContent(newContent);
+                        return true;
+                    }
+                    return false;
+                }
+
                 function updateMinimalPopups() {
                     const currentZoom = map.getZoom();
                     const showMinimal = currentZoom >= 17 && currentZoom < 20; 
@@ -5645,117 +5773,122 @@ async function fetchVehiclePositions() {
                     return contrastBlack > contrastWhite ? '#000000' : '#FFFFFF';
                 }
 
-                if (markers[id]) {
+            if (markers[id]) {
+            
+            if (!markers[id].id) {
+                markers[id].id = id;
+            }
+            
+            const hasChanges = (
+            markers[id].line !== line ||
+            markers[id].destination !== lastStopName ||
+            !markers[id].vehicleData ||
+            markers[id].vehicleData.vehicle.label !== vehicle.vehicle.label ||
+            markers[id]._lastNextStopsHTML !== nextStopsHTML
+        
+        );
+            
+            if (hasChanges) {
+                markers[id].vehicleData = vehicle;
+                markers[id].destination = lastStopName;
+                
+                if (markers[id].line !== line) {
+                    const oldLine = markers[id].line;
+                    markers[id].line = line;
+                    markers[id]._lastNextStopsHTML = nextStopsHTML;
                     
-                    if (!markers[id].id) {
-                        markers[id].id = id;
-                    }
-                    
-                    markers[id].vehicleData = vehicle;
-                    markers[id].destination = lastStopName;
-                    
-                    if (markers[id].line !== line) {
-                        const oldLine = markers[id].line;
-                        markers[id].line = line;
-                        
-                        const color = lineColors[line] || '#000000';
-                        if (markers[id]._icon) {
-                            const markerIcon = markers[id]._icon.querySelector('.marker-icon');
-                            if (markerIcon) {
-                                markerIcon.style.transition = 'background-color 0.5s ease';
-                                markerIcon.style.backgroundColor = color;
-                            }
-                            
-                            const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
-                            if (arrowElement) {
-                                arrowElement.style.transition = 'stroke 0.5s ease';
-                                arrowElement.setAttribute('stroke', color);
-                            }
-                        }
-                        
-                        if (markers[id].isPopupOpen()) {
-                            const menubtm = document.getElementById('menubtm');
-                            const filtre = document.getElementById('filtre');
-                            if (menubtm) {
-                                lastActiveColor = color;
-                                
-                                menubtm.style.backgroundColor = `${color}9c`;
-                                filtre.style.backgroundColor = `${color}9c`;
-
-                                const textColor = getOptimalTextColor(color);
-                                
-                                const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
-                                const styleSheet = document.createElement('style');
-                                styleSheet.id = styleId;
-                                styleSheet.classList.add('menu-color-style');
-                                
-                                styleSheet.textContent = `
-                                    #menubtm * {
-                                        color: ${textColor};
-                                        transition: color 0.5s ease;
-                                    }
-
-                                    #filtre * {
-                                        color: ${textColor};
-                                        transition: color 0.5s ease;
-                                    }
-                                `;
-                                
-                                document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
-                                document.head.appendChild(styleSheet);
-                                markers[id].styleId = styleId;
-                            }
-                        }
-                    }
-                    
+                    const color = lineColors[line] || '#000000';
                     if (markers[id]._icon) {
-                        const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
+                        const markerIcon = markers[id]._icon.querySelector('.marker-icon');
+                        if (markerIcon) {
+                            markerIcon.style.transition = 'background-color 0.5s ease';
+                            markerIcon.style.backgroundColor = color;
+                        }
                         
+                        const arrowElement = markers[id]._icon.querySelector('.marker-arrow-path');
                         if (arrowElement) {
-                            const targetRotation = bearing - 90;
-                            arrowElement.style.transition = 'transform 0.5s ease';
-                            arrowElement.style.transform = `rotate(${targetRotation}deg)`;
-                            arrowElement._currentRotation = targetRotation;
+                            arrowElement.style.transition = 'stroke 0.5s ease';
+                            arrowElement.setAttribute('stroke', color);
                         }
                     }
-
-                    updateLinesDisplay();
-
-                    const existingPopup = markers[id].getPopup();
-                    const currentContent = existingPopup ? existingPopup.getContent() : '';
-
-                    if (existingPopup && currentContent === popupContent) {
-                        return;
-                    }
-
-                    markers[id].setPopupContent(popupContent);
-
+                    
                     if (markers[id].isPopupOpen()) {
-                        const popup = markers[id]._popup;
-                        if (popup && popup._contentNode) {
-                            const popupElement = popup._contentNode.parentElement;
-                            if (popupElement) {
-                                popupElement.classList.remove('hide'); 
-                                popupElement.classList.add('show'); 
-                                markers[id].openPopup();
-                            }
-                        }
-                    }
+                        const menubtm = document.getElementById('menubtm');
+                        const filtre = document.getElementById('filtre');
+                        if (menubtm) {
+                            lastActiveColor = color;
+                            
+                            menubtm.style.backgroundColor = `${color}9c`;
+                            filtre.style.backgroundColor = `${color}9c`;
 
-                    if (selectedLine && markers[id].line !== selectedLine) {
-                        if (map.hasLayer(markers[id])) {
-                            map.removeLayer(markers[id]);
-                        }
-                    } else {
-                        if (!map.hasLayer(markers[id])) {
-                            map.addLayer(markers[id]);
+                            const textColor = getOptimalTextColor(color);
+                            
+                            const styleId = `popup-style-${Math.random().toString(36).substr(2, 9)}`;
+                            const styleSheet = document.createElement('style');
+                            styleSheet.id = styleId;
+                            styleSheet.classList.add('menu-color-style');
+                            
+                            styleSheet.textContent = `
+                                #menubtm * {
+                                    color: ${textColor};
+                                    transition: color 0.5s ease;
+                                }
+
+                                #filtre * {
+                                    color: ${textColor};
+                                    transition: color 0.5s ease;
+                                }
+                            `;
+                            
+                            document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
+                            document.head.appendChild(styleSheet);
+                            markers[id].styleId = styleId;
                         }
                     }
-                animateMarker(markers[id], [latitude, longitude]);
-                setTimeout(() => {
-                    updateMinimalPopups();
-                }, 1000);
-                } else {
+                }
+                
+                updateLinesDisplay();
+
+                const popupContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
+                updatePopupContent(markers[id], vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
+                if (markers[id].isPopupOpen() && contentUpdated) {
+                    const popup = markers[id]._popup;
+                    if (popup && popup._contentNode) {
+                        const popupElement = popup._contentNode.parentElement;
+                        if (popupElement) {
+                            popupElement.classList.remove('hide'); 
+                            popupElement.classList.add('show'); 
+                            markers[id].openPopup();
+                        }
+                    }
+                }
+            }
+            
+            if (markers[id]._icon) {
+                const arrowElement = markers[id]._icon.querySelector('.marker-arrow');
+                
+                if (arrowElement) {
+                    const targetRotation = bearing - 90;
+                    arrowElement.style.transition = 'transform 0.5s ease';
+                    arrowElement.style.transform = `rotate(${targetRotation}deg)`;
+                    arrowElement._currentRotation = targetRotation;
+                }
+            }
+
+            if (selectedLine && markers[id].line !== selectedLine) {
+                if (map.hasLayer(markers[id])) {
+                    map.removeLayer(markers[id]);
+                }
+            } else {
+                if (!map.hasLayer(markers[id])) {
+                    map.addLayer(markers[id]);
+                }
+            }
+            animateMarker(markers[id], [latitude, longitude]);
+            setTimeout(() => {
+                updateMinimalPopups();
+            }, 1000);
+            } else {
                     const marker = createColoredMarker(latitude, longitude, line, bearing);
                     updateLinesDisplay();
                     markers[id] = marker;
@@ -5768,7 +5901,9 @@ async function fetchVehiclePositions() {
                         marker.addTo(map);
                     }
                     
+                    const popupContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
                     marker.bindPopup(popupContent);
+                    markers[id]._lastNextStopsHTML = nextStopsHTML;
 
                     marker.on('popupopen', function (e) {
                         if (markers[id].minimalPopup) {
@@ -5826,16 +5961,24 @@ async function fetchVehiclePositions() {
 
 Object.keys(markers).forEach(id => {
     if (!activeVehicleIds.has(id)) {
-        // Nettoyer la vue minimale avant de supprimer le marqueur
         if (markers[id].minimalPopup) {
-            createOrUpdateMinimalTooltip(id, false);
+            returnToPool(markers[id].minimalPopup);
+            markers[id].minimalPopup = null;
         }
-        // Nettoyer l'état global
         delete window.minimalTooltipStates[id];
         map.removeLayer(markers[id]); 
         delete markers[id]; 
     }
 });
+
+setInterval(() => {
+    if (contentCache.size > 30) { 
+        contentCache.clear();
+    }
+    if (colorCache.size > 20) {
+        colorCache.clear();
+    }
+}, 180000); 
 
         
 let isMenuVisible = true;
@@ -7269,9 +7412,17 @@ const menubottom1 = document.getElementById('menubtm');
                     menu.style.display = 'none';
                 }
             });
-            isMenuVisible = false; 
-        };
+
+            const menubottom1 = document.getElementById('menubtm');
+            menubottom1.style.display = 'flex';
         
+            setTimeout(() => {
+                menubottom1.classList.remove('slide-upb');
+                menubottom1.classList.add('slide-downb');
+            }, 10);
+                isMenuVisible = false; 
+            };
+            
 
         updateMenu();
 
