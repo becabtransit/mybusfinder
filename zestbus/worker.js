@@ -60,59 +60,38 @@ self.onmessage = ({ data }) => {
 };
 
 function formatTime(timestamp, cache) {
-    // Debug: log du timestamp reçu
-    console.log('formatTime called with:', timestamp, 'type:', typeof timestamp);
-    
-    if (!timestamp) {
-        console.log('formatTime: timestamp vide ou null');
-        return UNKNOWN_TIME;
-    }
+    if (!timestamp) return UNKNOWN_TIME;
     
     // Conversion du timestamp en nombre si c'est une chaîne
     let numericTimestamp;
     if (typeof timestamp === 'string') {
         numericTimestamp = parseInt(timestamp, 10);
-        console.log('formatTime: conversion string vers number:', numericTimestamp);
     } else {
         numericTimestamp = Number(timestamp);
-        console.log('formatTime: conversion vers number:', numericTimestamp);
     }
     
     // Validation du timestamp
-    if (isNaN(numericTimestamp) || numericTimestamp <= 0) {
-        console.log('formatTime: timestamp invalide:', numericTimestamp);
-        return UNKNOWN_TIME;
-    }
+    if (isNaN(numericTimestamp) || numericTimestamp <= 0) return UNKNOWN_TIME;
     
     const cacheKey = Math.floor(numericTimestamp);
     let cached = cache.get(cacheKey);
-    if (cached) {
-        console.log('formatTime: cache hit:', cached);
-        return cached;
-    }
+    if (cached) return cached;
     
     try {
         const date = new Date(numericTimestamp * 1000);
-        console.log('formatTime: date créée:', date, 'ISO:', date.toISOString());
         
         // Vérification si la date est valide
-        if (isNaN(date.getTime())) {
-            console.log('formatTime: date invalide');
-            return UNKNOWN_TIME;
-        }
+        if (isNaN(date.getTime())) return UNKNOWN_TIME;
         
         // Essai de plusieurs méthodes de formatage
         let cached;
         try {
             cached = date.toLocaleTimeString([], TIME_FORMAT_OPTIONS);
-            console.log('formatTime: toLocaleTimeString réussi:', cached);
         } catch (localeError) {
-            console.warn('toLocaleTimeString échoué, utilisation manuelle:', localeError);
             // Formatage manuel si toLocaleTimeString échoue
             const hours = date.getHours().toString().padStart(2, '0');
             const minutes = date.getMinutes().toString().padStart(2, '0');
             cached = `${hours}:${minutes}`;
-            console.log('formatTime: formatage manuel:', cached);
         }
         
         cache.set(cacheKey, cached);
