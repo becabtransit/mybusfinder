@@ -3509,7 +3509,10 @@ async function loadStopIds(stopsFileContent) {
             lines.slice(1).forEach(line => {
                 if (line.trim()) {
                     const columns = line.split(',');
-                    const stopId = columns[stopIdIndex];
+                    let stopId = columns[stopIdIndex];
+                    
+                    stopId = stopId.replace(/\"/g, '');
+                    
                     if (stopId) {
                         stopIds.push(stopId);
                     }
@@ -3536,9 +3539,10 @@ async function loadLineTerminusData(stopsFileContent) {
             lines.slice(1).forEach(line => {
                 if (line.trim()) {
                     const columns = line.split(',');
-                    const stopId = columns[stopIdIndex];
+                    let stopId = columns[stopIdIndex];
                     let stopName = columns[stopNameIndex];
                     
+                    stopId = stopId.replace(/\"/g, '');
                     stopName = stopName.replace(/\"/g, '');
                     
                     if (stopId && stopName) {
@@ -5063,13 +5067,12 @@ async function fetchVehiclePositions() {
                 const speed = vehicle.position.speed ? (vehicle.position.speed).toFixed(0) + ' km/h' : 'Arrêté';
                 const bearing = vehicle.position.bearing || 'Inconnu';
                 const tripId = vehicle.trip && vehicle.trip.tripId ? vehicle.trip.tripId : 'Inconnu';
-                const tripIdCorrected = tripId.replace("_0", "");
 
-                const lastStopId = tripUpdates[tripIdCorrected] ? tripUpdates[tripIdCorrected].lastStopId : 'Inconnu';
+                const lastStopId = tripUpdates[tripId] ? tripUpdates[tripId].lastStopId : 'Inconnu';
                 const lastStopNameun = stopNameMap[lastStopId] || 'Destination inconnue';
                 let lastStopName = lastStopNameun.replace("0:", "");
                 
-                const nextStops = tripUpdates[tripIdCorrected]?.nextStops || [];
+                const nextStops = tripUpdates[tripId]?.nextStops || [];
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
                 const now = Math.floor(Date.now() / 1000);
 
