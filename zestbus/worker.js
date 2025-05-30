@@ -60,7 +60,7 @@ self.onmessage = ({ data }) => {
 };
 
 function formatTime(timestamp, cache) {
-    if (!timestamp) return undefined;
+    if (!timestamp) return UNKNOWN_TIME;
     
     // Conversion du timestamp en nombre si c'est une chaîne
     let numericTimestamp;
@@ -71,7 +71,7 @@ function formatTime(timestamp, cache) {
     }
     
     // Validation du timestamp
-    if (isNaN(numericTimestamp) || numericTimestamp <= 0) return undefined;
+    if (isNaN(numericTimestamp) || numericTimestamp <= 0) return UNKNOWN_TIME;
     
     const cacheKey = Math.floor(numericTimestamp);
     let cached = cache.get(cacheKey);
@@ -81,7 +81,7 @@ function formatTime(timestamp, cache) {
         const date = new Date(numericTimestamp * 1000);
         
         // Vérification si la date est valide
-        if (isNaN(date.getTime())) return undefined;
+        if (isNaN(date.getTime())) return UNKNOWN_TIME;
         
         // Essai de plusieurs méthodes de formatage
         let cached;
@@ -99,7 +99,7 @@ function formatTime(timestamp, cache) {
         return cached;
     } catch (error) {
         console.warn('Erreur formatage time:', error, 'Timestamp:', timestamp);
-        return undefined;
+        return UNKNOWN_TIME;
     }
 }
 
@@ -137,13 +137,22 @@ function processStop(stop, now) {
         departureTime = parseInt(departureTime, 10);
     }
     
+    // Vérification si au moins une heure est valide
+    const hasValidArrivalTime = arrivalTime && !isNaN(arrivalTime) && arrivalTime > 0;
+    const hasValidDepartureTime = departureTime && !isNaN(departureTime) && departureTime > 0;
+    
+    // Si aucune heure valide n'est disponible, retourner null pour filtrer cet arrêt
+    if (!hasValidArrivalTime && !hasValidDepartureTime) {
+        return null;
+    }
+    
     const scheduleRelationship = stop.scheduleRelationship || stop.schedule_relationship;
     
     // Calcul du délai (en secondes)
     let delay = null;
-    if (arrivalTime && arrivalTime > 0) {
+    if (hasValidArrivalTime) {
         delay = Math.floor(arrivalTime - now);
-    } else if (departureTime && departureTime > 0) {
+    } else if (hasValidDepartureTime) {
         delay = Math.floor(departureTime - now);
     }
     
@@ -151,11 +160,15 @@ function processStop(stop, now) {
     const arrivalDelay = stop.arrival?.delay || stop.arrivalDelay || 0;
     const departureDelay = stop.departure?.delay || stop.departureDelay || 0;
     
+    // Format des heures (ne devrait plus retourner UNKNOWN_TIME grâce au filtrage ci-dessus)
+    const formattedArrivalTime = hasValidArrivalTime ? formatTime(arrivalTime, timestampCache) : null;
+    const formattedDepartureTime = hasValidDepartureTime ? formatTime(departureTime, timestampCache) : null;
+    
     return {
         stopId,
-        arrivalTime: formatTime(arrivalTime, timestampCache),
-        departureTime: formatTime(departureTime, timestampCache),
-        unifiedTime: formatTime(arrivalTime || departureTime, timestampCache),
+        arrivalTime: formattedArrivalTime,
+        departureTime: formattedDepartureTime,
+        unifiedTime: formattedArrivalTime || formattedDepartureTime,
         delay,
         arrivalDelay,
         departureDelay,
@@ -208,6 +221,7 @@ function processTripUpdates(data) {
     const entitiesLength = entities.length;
     let processedCount = 0;
     let errorCount = 0;
+    let filteredStopsCount = 0; // Compteur pour les arrêts filtrés
     
     for (let j = 0; j < entitiesLength; j++) {
         try {
@@ -236,10 +250,15 @@ function processTripUpdates(data) {
             const arrivalDelays = {};
             const departureDelays = {};
             
-            // Traitement des arrêts avec gestion d'erreurs robuste
+            // Traitement des arrêts avec gestion d'erreurs robuste et filtrage
             for (let i = 0; i < stopsLength; i++) {
                 const processedStop = processStop(stopTimeUpdates[i], now);
-                if (!processedStop) continue;
+                
+                // Si processedStop est null, l'arrêt a été filtré (pas d'heure valide)
+                if (!processedStop) {
+                    filteredStopsCount++;
+                    continue;
+                }
                 
                 processedStops.push(processedStop);
                 
@@ -300,6 +319,6 @@ function processTripUpdates(data) {
         if (tripCache.size > MAX_CACHE_SIZE) tripCache.clear();
     }
     
-    console.log(`Traitement terminé: ${processedCount} trips traités, ${errorCount} erreurs`);
+    console.log(`Traitement terminé: ${processedCount} trips traités, ${errorCount} erreurs, ${filteredStopsCount} arrêts filtrés (sans heure)`);
     return tripUpdates;
 }
