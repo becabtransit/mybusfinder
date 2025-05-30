@@ -3509,7 +3509,10 @@ async function loadStopIds(stopsFileContent) {
             lines.slice(1).forEach(line => {
                 if (line.trim()) {
                     const columns = line.split(',');
-                    const stopId = columns[stopIdIndex];
+                    let stopId = columns[stopIdIndex];
+                    
+                    stopId = stopId.replace(/\"/g, '');
+                    
                     if (stopId) {
                         stopIds.push(stopId);
                     }
@@ -3536,9 +3539,10 @@ async function loadLineTerminusData(stopsFileContent) {
             lines.slice(1).forEach(line => {
                 if (line.trim()) {
                     const columns = line.split(',');
-                    const stopId = columns[stopIdIndex];
+                    let stopId = columns[stopIdIndex];
                     let stopName = columns[stopNameIndex];
                     
+                    stopId = stopId.replace(/\"/g, '');
                     stopName = stopName.replace(/\"/g, '');
                     
                     if (stopId && stopName) {
@@ -5037,7 +5041,7 @@ async function fetchVehiclePositions() {
                 if (vehicle) {
 
 
-                const id = vehicle.vehicle.id;
+                const id = vehicle.vehicle.label || vehicle.vehicle.id;
                 const vehicleOptionsBadges = getVehicleOptionsBadges(id);
                 const vehicleBrandHtml = getVehicleBrandHtml(id);
                 const line = vehicle.trip && vehicle.trip.routeId ? vehicle.trip.routeId : 'Inconnu';
