@@ -5241,9 +5241,9 @@ async function fetchVehiclePositions() {
                     window.minimalTooltipStates = {};
                 }
 
-                if (!document.getElementById('minimal-tooltip-styles')) {
+                if (!document.getElementById('enhanced-tooltip-styles')) {
                     const styles = document.createElement('style');
-                    styles.id = 'minimal-tooltip-styles';
+                    styles.id = 'enhanced-tooltip-styles';
                     styles.textContent = `
                         .minimal-tooltip-container {
                             background: transparent !important;
@@ -5271,189 +5271,73 @@ async function fetchVehiclePositions() {
                             box-shadow: none !important;
                         }
                         
-                        /* Conteneur principal du popup */
-                        .enhanced-popup-container {
-                            background: linear-gradient(145deg, #ffffff, #f8fafc);
-                            border: 2px solid rgba(59, 130, 246, 0.2);
-                            border-radius: 16px;
-                            padding: 16px;
-                            box-shadow: 
-                                0 20px 25px -5px rgba(0, 0, 0, 0.1),
-                                0 10px 10px -5px rgba(0, 0, 0, 0.04),
-                                0 0 0 1px rgba(255, 255, 255, 0.8);
-                            backdrop-filter: blur(12px);
-                            min-width: 220px;
-                            position: relative;
-                            overflow: hidden;
-                        }
-                        
-                        /* Effet de brillance subtile */
-                        .enhanced-popup-container::before {
-                            content: '';
-                            position: absolute;
-                            top: 0;
-                            left: -100%;
-                            width: 100%;
-                            height: 100%;
-                            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-                            animation: shimmer 3s infinite;
-                            pointer-events: none;
-                        }
-                        
-                        @keyframes shimmer {
-                            0% { left: -100%; }
-                            50% { left: 100%; }
-                            100% { left: 100%; }
-                        }
-                        
-                        /* Header avec la ligne */
-                        .popup-header {
-                            display: flex;
-                            align-items: center;
-                            gap: 8px;
-                            margin-bottom: 12px;
-                            padding-bottom: 8px;
-                            border-bottom: 2px solid rgba(59, 130, 246, 0.1);
-                        }
-                        
-                        .line-badge {
-                            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-                            color: white;
-                            padding: 4px 12px;
-                            border-radius: 20px;
-                            font-weight: 700;
-                            font-size: 12px;
-                            text-transform: uppercase;
-                            letter-spacing: 0.5px;
-                            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
-                        }
-                        
-                        /* Informations du véhicule */
-                        .vehicle-info {
-                            display: flex;
-                            align-items: center;
-                            gap: 10px;
-                            margin-bottom: 10px;
-                            padding: 8px 12px;
-                            background: rgba(16, 185, 129, 0.1);
-                            border-radius: 12px;
-                            border-left: 4px solid #10b981;
-                        }
-                        
-                        .vehicle-icon {
-                            font-size: 18px;
-                            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-                        }
-                        
-                        .vehicle-number {
-                            font-weight: 700;
-                            font-size: 16px;
-                            color: #065f46;
-                            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-                        }
-                        
-                        /* Destination */
-                        .destination-info {
-                            display: flex;
-                            align-items: center;
-                            gap: 10px;
-                            padding: 8px 12px;
-                            background: rgba(249, 115, 22, 0.1);
-                            border-radius: 12px;
-                            border-left: 4px solid #f97316;
-                        }
-                        
-                        .direction-arrow {
-                            font-size: 16px;
-                            color: #ea580c;
-                            font-weight: bold;
-                        }
-                        
-                        .destination-text {
-                            font-weight: 600;
-                            color: #9a3412;
-                            font-size: 14px;
-                        }
-                        
-                        /* Animations améliorées */
-                        @keyframes popIn {
+                        @keyframes smoothPopIn {
                             0% {
                                 opacity: 0;
-                                transform: scale(0.3) translateY(20px) rotate(-5deg);
+                                transform: scale(0.6) translateY(15px);
                                 filter: blur(4px);
                             }
-                            50% {
-                                transform: scale(1.05) translateY(-5px) rotate(1deg);
-                                filter: blur(1px);
+                            60% {
+                                transform: scale(1.05) translateY(-3px);
+                                filter: blur(0px);
                             }
                             100% {
                                 opacity: 1;
-                                transform: scale(1) translateY(0) rotate(0deg);
+                                transform: scale(1) translateY(0);
                                 filter: blur(0px);
                             }
                         }
                         
-                        @keyframes popOut {
+                        @keyframes smoothPopOut {
                             0% {
                                 opacity: 1;
-                                transform: scale(1) translateY(0) rotate(0deg);
+                                transform: scale(1) translateY(0);
                                 filter: blur(0px);
                             }
                             100% {
                                 opacity: 0;
-                                transform: scale(0.3) translateY(15px) rotate(3deg);
-                                filter: blur(3px);
+                                transform: scale(0.7) translateY(10px);
+                                filter: blur(2px);
                             }
                         }
                         
-                        .minimal-popup-appear {
-                            animation: popIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-                        }
-                        
-                        .minimal-popup-disappear {
-                            animation: popOut 0.25s cubic-bezier(0.4, 0, 1, 1);
-                        }
-                        
-                        /* Responsive design */
-                        @media (max-width: 480px) {
-                            .enhanced-popup-container {
-                                min-width: 180px;
-                                padding: 12px;
+                        @keyframes pulseGlow {
+                            0%, 100% {
+                                box-shadow: 0 4px 20px -3px var(--tooltip-color-80), 
+                                        0 2px 10px -2px var(--tooltip-color-40),
+                                        0 0 0 0 var(--tooltip-color-30);
                             }
-                            
-                            .line-badge {
-                                font-size: 10px;
-                                padding: 3px 8px;
-                            }
-                            
-                            .vehicle-number {
-                                font-size: 14px;
+                            50% {
+                                box-shadow: 0 6px 25px -3px var(--tooltip-color-90), 
+                                        0 4px 15px -2px var(--tooltip-color-50),
+                                        0 0 0 2px var(--tooltip-color-20);
                             }
                         }
                         
-                        /* Mode sombre */
-                        @media (prefers-color-scheme: dark) {
-                            .enhanced-popup-container {
-                                background: linear-gradient(145deg, #1f2937, #111827);
-                                border-color: rgba(59, 130, 246, 0.3);
-                                color: #f9fafb;
-                            }
-                            
-                            .vehicle-info {
-                                background: rgba(16, 185, 129, 0.2);
-                            }
-                            
-                            .vehicle-number {
-                                color: #34d399;
-                            }
-                            
-                            .destination-info {
-                                background: rgba(249, 115, 22, 0.2);
-                            }
-                            
-                            .destination-text {
-                                color: #fb923c;
-                            }
+                        .enhanced-popup-appear {
+                            animation: smoothPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+                        }
+                        
+                        .enhanced-popup-disappear {
+                            animation: smoothPopOut 0.25s cubic-bezier(0.4, 0, 1, 1);
+                        }
+                        
+                        .tooltip-hover-active {
+                            animation: pulseGlow 2s ease-in-out infinite;
+                        }
+                        
+                        /* Amélioration des scrollbars si nécessaire */
+                        .enhanced-tooltip::-webkit-scrollbar {
+                            width: 2px;
+                        }
+                        
+                        .enhanced-tooltip::-webkit-scrollbar-track {
+                            background: transparent;
+                        }
+                        
+                        .enhanced-tooltip::-webkit-scrollbar-thumb {
+                            background: rgba(255,255,255,0.3);
+                            border-radius: 1px;
                         }
                     `;
                     document.head.appendChild(styles);
@@ -5604,22 +5488,35 @@ async function fetchVehiclePositions() {
                                 `;
 
                                 const minimalPopupContent = `
-                                    <div class="enhanced-popup-container">
-                                        <div class="popup-header">
-                                            <span class="line-badge">${t("line")} ${lineName[line] || t("unknownline")}</span>
-                                        </div>
-                                        
-                                        <div class="vehicle-info">
-                                            <span class="vehicle-icon">🚌</span>
-                                            <span class="vehicle-number">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
-                                        </div>
-                                        
-                                        <div class="destination-info">
-                                            <span class="direction-arrow">➜</span>
-                                            <span class="destination-text">${lastStopName}</span>
+                                    <div class="minimal-popup" style="
+                                        position: relative;
+                                        font-family: 'League Spartan', sans-serif;
+                                        font-size: 12px;
+                                        color: ${textColor};
+                                        background-color: ${backgroundColor}9c;
+                                        backdrop-filter: blur(8px);
+                                        -webkit-backdrop-filter: blur(8px);
+                                        border-radius: 8px;
+                                        padding: 8px 12px;
+                                        box-shadow: 0px 2px 10px 2px ${backgroundColor}6c;
+                                        min-width: 120px;
+                                        cursor: pointer;
+                                        border: 1px solid ${backgroundColor}cc;
+                                    " onclick="openFullPopup('${id}')">
+                                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                                            <div style="font-weight: bold; font-size: 14px;">
+                                                ${t("line")} ${lineName[line] || t("unknownline")}
+                                            </div>
+                                            <div style="font-size: 11px; opacity: 0.9;">
+                                                🚌 ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
+                                            </div>
+                                            <div style="font-size: 11px; opacity: 0.8;">
+                                                ➜ ${lastStopName}
+                                            </div>
                                         </div>
                                     </div>
-                                `;                    
+                                `;
+                    
                     // Limiter la taille du cache
                     if (contentCache.size > 100) {
                         const firstKey = contentCache.keys().next().value;
@@ -5682,21 +5579,134 @@ async function fetchVehiclePositions() {
                             const textColor = getOptimalTextColor(color);
                             
                             const minimalContent = `
-                                <div class="enhanced-popup-container">
-                                    <div class="popup-header">
-                                        <span class="line-badge">${t("line")} ${lineName[line] || t("unknownline")}</span>
+                                <div class="enhanced-tooltip minimal-popup enhanced-popup-appear" 
+                                    style="
+                                        --tooltip-color-20: ${color}20;
+                                        --tooltip-color-30: ${color}30;
+                                        --tooltip-color-40: ${color}40;
+                                        --tooltip-color-50: ${color}50;
+                                        --tooltip-color-80: ${color}80;
+                                        --tooltip-color-90: ${color}90;
+                                        position: relative;
+                                        font-family: 'Inter', 'League Spartan', -apple-system, BlinkMacSystemFont, sans-serif;
+                                        font-size: 11px;
+                                        color: ${textColor};
+                                        background: linear-gradient(135deg, ${color}f8 0%, ${color}e8 50%, ${color}d8 100%);
+                                        backdrop-filter: blur(16px) saturate(180%);
+                                        -webkit-backdrop-filter: blur(16px) saturate(180%);
+                                        border-radius: 16px;
+                                        padding: 10px 12px;
+                                        box-shadow: 
+                                            0 4px 20px -3px ${color}80, 
+                                            0 2px 10px -2px ${color}40,
+                                            inset 0 1px 0 rgba(255,255,255,0.2);
+                                        min-width: 85px;
+                                        max-width: 150px;
+                                        cursor: pointer;
+                                        border: 1px solid ${color}50;
+                                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                                        transform: translateY(0) scale(1);
+                                        overflow: hidden;
+                                    " 
+                                    onclick="event.stopPropagation(); markers['${markerId}'].fire('click');" 
+                                    onmouseover="
+                                        this.style.transform='translateY(-3px) scale(1.03)'; 
+                                        this.style.boxShadow='0 8px 30px -3px ${color}a0, 0 4px 15px -2px ${color}60, inset 0 1px 0 rgba(255,255,255,0.3)';
+                                        this.classList.add('tooltip-hover-active');
+                                    "
+                                    onmouseout="
+                                        this.style.transform='translateY(0) scale(1)'; 
+                                        this.style.boxShadow='0 4px 20px -3px ${color}80, 0 2px 10px -2px ${color}40, inset 0 1px 0 rgba(255,255,255,0.2)';
+                                        this.classList.remove('tooltip-hover-active');
+                                    ">
+                                    
+                                    <!-- Effet de brillance subtil -->
+                                    <div style="
+                                        position: absolute;
+                                        top: 0;
+                                        left: -100%;
+                                        width: 100%;
+                                        height: 100%;
+                                        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+                                        animation: shimmer 3s ease-in-out infinite;
+                                        pointer-events: none;
+                                    "></div>
+                                    
+                                    <div style="display: flex; align-items: center; gap: 8px; white-space: nowrap; position: relative; z-index: 1;">
+                                        <!-- Badge de ligne amélioré -->
+                                        <div style="
+                                            background: linear-gradient(135deg, rgba(255,255,255,0.25), rgba(255,255,255,0.15));
+                                            border-radius: 8px;
+                                            padding: 3px 8px;
+                                            font-weight: 600;
+                                            font-size: 10px;
+                                            line-height: 1.2;
+                                            border: 1px solid rgba(255,255,255,0.2);
+                                            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                                            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                                        ">
+                                            ${lineName[marker.line] || t("unknownline")}
+                                        </div>
+                                        
+                                        <!-- Badge de véhicule amélioré -->
+                                        <div style="
+                                            background: linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,0,0,0.3));
+                                            border-radius: 6px;
+                                            padding: 2px 6px;
+                                            font-size: 9px;
+                                            font-weight: 600;
+                                            border: 1px solid rgba(255,255,255,0.1);
+                                            box-shadow: inset 0 1px 2px rgba(0,0,0,0.2), 0 1px 2px rgba(255,255,255,0.1);
+                                            font-variant-numeric: tabular-nums;
+                                        ">
+                                            ${((marker.vehicleData && marker.vehicleData.vehicle.label) || t("unknownparc")).toString().padStart(3, '0')}
+                                        </div>
                                     </div>
                                     
-                                    <div class="vehicle-info">
-                                        <span class="vehicle-icon">🚌</span>
-                                        <span class="vehicle-number">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
+                                    <!-- Destination avec icône améliorée -->
+                                    <div style="
+                                        font-size: 9px; 
+                                        opacity: 0.9; 
+                                        margin-top: 6px;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        white-space: nowrap;
+                                        font-weight: 500;
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 4px;
+                                        position: relative;
+                                        z-index: 1;
+                                    ">
+                                        <span style="
+                                            display: inline-block;
+                                            font-size: 8px;
+                                            opacity: 0.8;
+                                            transform: translateY(-0.5px);
+                                        ">🚌</span>
+                                        <span style="text-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                            ${marker.destination || t("unknowndestination")}
+                                        </span>
                                     </div>
                                     
-                                    <div class="destination-info">
-                                        <span class="direction-arrow">➜</span>
-                                        <span class="destination-text">${lastStopName}</span>
-                                    </div>
+                                    <!-- Indicateur de clic subtil -->
+                                    <div style="
+                                        position: absolute;
+                                        bottom: 2px;
+                                        right: 4px;
+                                        font-size: 6px;
+                                        opacity: 0.4;
+                                        pointer-events: none;
+                                    ">💫</div>
                                 </div>
+                                
+                                <style>
+                                    @keyframes shimmer {
+                                        0% { left: -100%; }
+                                        50% { left: 100%; }
+                                        100% { left: 100%; }
+                                    }
+                                </style>
                             `;                            
                             minimalTooltip
                                 .setLatLng(marker.getLatLng())
