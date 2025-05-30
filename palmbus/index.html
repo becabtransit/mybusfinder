@@ -3419,7 +3419,6 @@ async function loadLineColors(routesFileContent) {
             return;
         }
         
-        // S'assurer que les objets globaux existent
         if (typeof routes === 'undefined') window.routes = {};
         if (typeof lineColors === 'undefined') window.lineColors = {};
         if (typeof lineName === 'undefined') window.lineName = {};
@@ -3442,13 +3441,11 @@ async function loadLineColors(routesFileContent) {
         const agencyIdIndex = headers.indexOf('agency_id');
        
         if (routeIdIndex === -1) {
-            console.error('Format de fichier routes.txt invalide, colonne route_id manquante');
             return;
         }
         
-        // Rétro-compatibilité : ne pas échouer si route_color est manquante
         if (routeColorIndex === -1) {
-            console.warn('Colonne route_color non trouvée, les couleurs par défaut seront utilisées');
+            console.warn('route_color non trouvée, les couleurs par défaut seront utilisées');
         }
         
         const startIndex = data.slicelinecolor ? parseInt(data.slicelinecolor) : 1;
@@ -3458,13 +3455,12 @@ async function loadLineColors(routesFileContent) {
            
             const values = parseCSVLine(line);
             if (values.length <= routeIdIndex) {
-                console.warn('Ligne ignorée dans routes.txt, données incomplètes', line);
+                console.warn('Ligne ignorer dans routes txt, données incomplètes', line);
                 return;
             }
            
             const routeId = values[routeIdIndex];
             if (routeId) {
-                // Données pour l'objet routes (comme dans loadRoutes)
                 routes[routeId] = {
                     short_name: shortNameIndex !== -1 && values[shortNameIndex] ? values[shortNameIndex] : '',
                     long_name: longNameIndex !== -1 && values[longNameIndex] ? values[longNameIndex] : '',
@@ -3474,15 +3470,13 @@ async function loadLineColors(routesFileContent) {
                     agency_id: agencyIdIndex !== -1 ? values[agencyIdIndex] : null
                 };
                 
-                // Données pour lineColors et lineName (rétro-compatibilité avec l'ancienne loadLineColors)
                 let routeColor = routeColorIndex !== -1 ? values[routeColorIndex] : '';
                 if (routeColor && !routeColor.startsWith('#') && routeColor.trim() !== '') {
                     routeColor = `#${routeColor}`;
                 } else if (!routeColor) {
-                    routeColor = '#FFFFFF'; // Couleur par défaut
+                    routeColor = '#FFFFFF'; 
                 }
                 
-                // Utiliser short_name en priorité, puis long_name si short_name n'existe pas (rétro-compatibilité)
                 const routeDisplayName = shortNameIndex !== -1 && values[shortNameIndex] ? 
                     values[shortNameIndex] : 
                     (longNameIndex !== -1 && values[longNameIndex] ? values[longNameIndex] : '');
