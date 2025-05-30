@@ -3384,6 +3384,34 @@ async function extractGTFSFiles() {
     }
 }
 
+function parseCSVLine(csvLine) {
+    const result = [];
+    let currentValue = '';
+    let insideQuotes = false;
+
+    for (let i = 0; i < csvLine.length; i++) {
+        const char = csvLine[i];
+        
+        if (char === '"') {
+            insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+            result.push(currentValue);
+            currentValue = '';
+        } else {
+            currentValue += char;
+        }
+    }
+    
+    result.push(currentValue);
+    
+    return result.map(value => {
+        if (value.startsWith('"') && value.endsWith('"')) {
+            return value.slice(1, -1);
+        }
+        return value;
+    });
+}
+
 async function loadLineColors(routesFileContent) {
     try {
         if (!routesFileContent) {
