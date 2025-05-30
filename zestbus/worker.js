@@ -60,76 +60,34 @@ self.onmessage = ({ data }) => {
 };
 
 function formatTime(timestamp, cache) {
-    // Debug: log des valeurs reçues
-    if (timestamp !== null && timestamp !== undefined) {
-        console.log('Timestamp reçu:', timestamp, 'Type:', typeof timestamp);
-    }
+    if (!timestamp) return UNKNOWN_TIME;
     
-    // Gestion des différents formats de timestamp
-    let normalizedTimestamp = null;
-    
-    if (timestamp === null || timestamp === undefined) {
-        return UNKNOWN_TIME;
-    }
-    
-    // Conversion selon le type et format
+    // Conversion du timestamp en nombre si c'est une chaîne
+    let numericTimestamp;
     if (typeof timestamp === 'string') {
-        // Si c'est une chaîne, essayer de la parser
-        const parsed = parseInt(timestamp, 10);
-        if (!isNaN(parsed)) {
-            normalizedTimestamp = parsed;
-        }
-    } else if (typeof timestamp === 'number') {
-        normalizedTimestamp = timestamp;
-    } else if (typeof timestamp === 'object' && timestamp.low !== undefined) {
-        // Format Protocol Buffer avec low/high
-        normalizedTimestamp = timestamp.low;
+        numericTimestamp = parseInt(timestamp, 10);
+    } else {
+        numericTimestamp = Number(timestamp);
     }
     
-    if (normalizedTimestamp === null || normalizedTimestamp <= 0) {
-        console.log('Timestamp normalisé invalide:', normalizedTimestamp);
-        return UNKNOWN_TIME;
-    }
+    // Validation du timestamp
+    if (isNaN(numericTimestamp) || numericTimestamp <= 0) return UNKNOWN_TIME;
     
-    // Cache check
-    const cacheKey = Math.floor(normalizedTimestamp);
+    const cacheKey = Math.floor(numericTimestamp);
     let cached = cache.get(cacheKey);
     if (cached) return cached;
     
     try {
-        // Détection automatique du format (secondes vs millisecondes)
-        let dateTimestamp = normalizedTimestamp;
-        
-        // Si le timestamp semble être en millisecondes (très grand nombre)
-        if (normalizedTimestamp > 1e12) {
-            dateTimestamp = normalizedTimestamp / 1000;
-        }
-        // Si trop petit, c'est probablement déjà en secondes
-        else if (normalizedTimestamp > 1e9) {
-            dateTimestamp = normalizedTimestamp;
-        }
-        else {
-            console.warn('Format timestamp non reconnu:', normalizedTimestamp);
-            return UNKNOWN_TIME;
-        }
-        
-        const date = new Date(dateTimestamp * 1000);
-        console.log('Date créée:', date, 'isValid:', !isNaN(date.getTime()));
-        
+        const date = new Date(numericTimestamp * 1000);
         // Vérification si la date est valide
-        if (isNaN(date.getTime())) {
-            console.warn('Date invalide pour timestamp:', dateTimestamp);
-            return UNKNOWN_TIME;
-        }
+        if (isNaN(date.getTime())) return UNKNOWN_TIME;
         
         cached = date.toLocaleTimeString([], TIME_FORMAT_OPTIONS);
-        console.log('Heure formatée:', cached);
-        
         cache.set(cacheKey, cached);
         manageCacheSize(cache, MAX_CACHE_SIZE);
         return cached;
     } catch (error) {
-        console.error('Erreur formatage time:', error, 'pour timestamp:', normalizedTimestamp);
+        console.warn('Erreur formatage time:', error, 'Timestamp:', timestamp);
         return UNKNOWN_TIME;
     }
 }
@@ -154,44 +112,35 @@ function processStop(stop, now) {
     
     const stopId = normalizeStopId(stop.stopId || stop.stop_id);
     
-    // Debug: log de la structure du stop
-    console.log('Stop reçu:', JSON.stringify(stop, null, 2));
+    // Gestion flexible des timestamps avec conversion string vers number
+    let arrivalTime = stop.arrival?.time || stop.arrival?.timestamp || 
+                     stop.arrivalTime || stop.arrival_time || null;
+    let departureTime = stop.departure?.time || stop.departure?.timestamp || 
+                       stop.departureTime || stop.departure_time || null;
     
-    // Gestion flexible des timestamps (arrival/departure peuvent être dans différents formats)
-    let arrivalTime = null;
-    let departureTime = null;
-    
-    // Extraction du timestamp d'arrivée
-    if (stop.arrival) {
-        arrivalTime = stop.arrival.time || stop.arrival.timestamp || stop.arrival;
-    } else {
-        arrivalTime = stop.arrivalTime || stop.arrival_time;
+    // Conversion en nombres si nécessaire
+    if (arrivalTime && typeof arrivalTime === 'string') {
+        arrivalTime = parseInt(arrivalTime, 10);
     }
-    
-    // Extraction du timestamp de départ
-    if (stop.departure) {
-        departureTime = stop.departure.time || stop.departure.timestamp || stop.departure;
-    } else {
-        departureTime = stop.departureTime || stop.departure_time;
+    if (departureTime && typeof departureTime === 'string') {
+        departureTime = parseInt(departureTime, 10);
     }
-    
-    console.log('Timestamps extraits - Arrivée:', arrivalTime, 'Départ:', departureTime);
     
     const scheduleRelationship = stop.scheduleRelationship || stop.schedule_relationship;
     
     // Calcul du délai (en secondes)
     let delay = null;
-    const timeToUse = arrivalTime || departureTime;
-    if (timeToUse && typeof timeToUse === 'number' && timeToUse > 0) {
-        const normalizedTime = timeToUse > 1e12 ? timeToUse / 1000 : timeToUse;
-        delay = Math.floor(normalizedTime - now);
+    if (arrivalTime && arrivalTime > 0) {
+        delay = Math.floor(arrivalTime - now);
+    } else if (departureTime && departureTime > 0) {
+        delay = Math.floor(departureTime - now);
     }
     
     // Gestion des délais d'arrivée/départ séparés
-    const arrivalDelay = (stop.arrival && stop.arrival.delay) || stop.arrivalDelay || 0;
-    const departureDelay = (stop.departure && stop.departure.delay) || stop.departureDelay || 0;
+    const arrivalDelay = stop.arrival?.delay || stop.arrivalDelay || 0;
+    const departureDelay = stop.departure?.delay || stop.departureDelay || 0;
     
-    const result = {
+    return {
         stopId,
         arrivalTime: formatTime(arrivalTime, timestampCache),
         departureTime: formatTime(departureTime, timestampCache),
@@ -203,11 +152,11 @@ function processStop(stop, now) {
         stopSequence: stop.stopSequence || stop.stop_sequence || 0,
         // Informations additionnelles utiles
         platformCode: stop.platformCode || stop.platform_code,
-        stopHeadsign: stop.stopHeadsign || stop.stop_headsign
+        stopHeadsign: stop.stopHeadsign || stop.stop_headsign,
+        // Timestamp brut pour debug
+        rawArrivalTime: arrivalTime,
+        rawDepartureTime: departureTime
     };
-    
-    console.log('Stop traité:', result);
-    return result;
 }
 
 function extractTripInfo(tripUpdate) {
