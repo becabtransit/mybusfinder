@@ -5688,6 +5688,7 @@ async function fetchVehiclePositions() {
                         
                         const shouldShow = showMinimal && !marker.isPopupOpen() && isInBounds;
                         createOrUpdateMinimalTooltip(markerId, shouldShow);
+                        animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
                     });
                 }
 
@@ -5911,7 +5912,6 @@ async function fetchVehiclePositions() {
                 }
             }
                 updateMinimalPopups();
-                animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
             } else {
                     const marker = createColoredMarker(latitude, longitude, line, bearing);
                     updateLinesDisplay();
@@ -5949,9 +5949,9 @@ async function fetchVehiclePositions() {
                             if (popupElement) {
                                 popupElement.classList.remove('show');
                                 popupElement.classList.add('hide');
-                                updateMinimalPopups();
-                                animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
-
+                                setTimeout(() => {
+                                    updateMinimalPopups();
+                                }, 10); 
                             }
                         }
                     });
@@ -5971,14 +5971,13 @@ async function fetchVehiclePositions() {
                         }
                         setTimeout(() => {
                             updateMinimalPopups();
-                            animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
-                        }, 10);
+                        }, 1000);
 
                     }
 
 
-                map.on('zoomend', updateMinimalPopups, animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude)));
-                map.on('moveend', updateMinimalPopups, animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude)));
+                map.on('zoomend', updateMinimalPopups);
+                map.on('moveend', updateMinimalPopups);
 
                 }
         });
