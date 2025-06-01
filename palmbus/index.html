@@ -5688,7 +5688,6 @@ async function fetchVehiclePositions() {
                         
                         const shouldShow = showMinimal && !marker.isPopupOpen() && isInBounds;
                         createOrUpdateMinimalTooltip(markerId, shouldShow);
-                        animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
                     });
                 }
 
@@ -5912,6 +5911,7 @@ async function fetchVehiclePositions() {
                 }
             }
                 updateMinimalPopups();
+                animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
             } else {
                     const marker = createColoredMarker(latitude, longitude, line, bearing);
                     updateLinesDisplay();
@@ -5949,13 +5949,8 @@ async function fetchVehiclePositions() {
                             if (popupElement) {
                                 popupElement.classList.remove('show');
                                 popupElement.classList.add('hide');
-                                setTimeout(() => {
-                                    if (markers[id].minimalPopup) {
-                                        updateMinimalPopups();
-                                        createOrUpdateMinimalTooltip(id, true);
-                                        animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
-                                    }
-                                }, 50);
+                                updateMinimalPopups();
+                                animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
 
                             }
                         }
@@ -5976,13 +5971,14 @@ async function fetchVehiclePositions() {
                         }
                         setTimeout(() => {
                             updateMinimalPopups();
-                        }, 1000);
+                            animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
+                        }, 10);
 
                     }
 
 
-                map.on('zoomend', updateMinimalPopups);
-                map.on('moveend', updateMinimalPopups);
+                map.on('zoomend', updateMinimalPopups, animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude)));
+                map.on('moveend', updateMinimalPopups, animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude)));
 
                 }
         });
