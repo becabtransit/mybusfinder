@@ -5505,34 +5505,39 @@ async function fetchVehiclePositions() {
                     return popupContent;
                 }
 
-                function animateTooltip(tooltip, newLatLng, duration = 500) {
+                function animateTooltip(tooltip, newLatLng, duration = 1000) {
                     if (!tooltip || !tooltip._container) return;
-                    
-                    const container = tooltip._container;
-                    const startPos = map.latLngToContainerPoint(tooltip.getLatLng());
-                    const endPos = map.latLngToContainerPoint(newLatLng);
-                    
+
+                    const startLatLng = tooltip.getLatLng();
+                    const endLatLng = newLatLng;
                     const startTime = performance.now();
-                    
+
+                    if (tooltip.animationFrame) {
+                        cancelAnimationFrame(tooltip.animationFrame);
+                    }
+
+                    function easeInOutQuad(t) {
+                        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                    }
+
                     function animate(currentTime) {
                         const elapsed = currentTime - startTime;
                         const progress = Math.min(elapsed / duration, 1);
-                        
-                        const easeProgress = 1 - Math.pow(1 - progress, 3);
-                        
-                        const currentX = startPos.x + (endPos.x - startPos.x) * easeProgress;
-                        const currentY = startPos.y + (endPos.y - startPos.y) * easeProgress;
-                        
-                        const currentLatLng = map.containerPointToLatLng([currentX, currentY]);
-                        tooltip.setLatLng(currentLatLng);
-                        
+                        const easedProgress = easeInOutQuad(progress);
+
+                        const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * easedProgress;
+                        const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * easedProgress;
+
+                        tooltip.setLatLng([lat, lng]);
+
                         if (progress < 1) {
-                            requestAnimationFrame(animate);
+                            tooltip.animationFrame = requestAnimationFrame(animate);
                         }
                     }
-                    
-                    requestAnimationFrame(animate);
+
+                    tooltip.animationFrame = requestAnimationFrame(animate);
                 }
+
 
                 function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                     const marker = markers[markerId];
