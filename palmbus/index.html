@@ -2359,26 +2359,7 @@ async function initMap() {
         }
     });
     
-    mapInstance.on('popupopen', function (e) {
-        const popupWrapper = e.popup._wrapper; 
-        popupWrapper.classList.remove('popup-zoom-out', 'popup-zoom-in');
-        setTimeout(() => {
-            popupWrapper.classList.add('popup-zoom-in');
-        }, 10); 
-    });
-    
-    mapInstance.on('popupclose', function (e) {
-        const popupWrapper = e.popup._wrapper; 
-        popupWrapper.classList.remove('popup-zoom-in');
-        popupWrapper.classList.add('popup-zoom-out');
-        popupWrapper.addEventListener(
-            'transitionend',
-            () => {
-                popupWrapper.classList.remove('popup-zoom-out');
-            },
-            { once: true }
-        );
-    });
+
 
     
 
@@ -5899,6 +5880,7 @@ async function fetchVehiclePositions() {
             animateMarker(markers[id], [latitude, longitude]);
             if (markers[id].minimalPopup) {
                 createOrUpdateMinimalTooltip(id, true);
+                animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
             }
 
             if (selectedLine && markers[id].line !== selectedLine) {
@@ -5949,9 +5931,12 @@ async function fetchVehiclePositions() {
                             if (popupElement) {
                                 popupElement.classList.remove('show');
                                 popupElement.classList.add('hide');
+                                createOrUpdateMinimalTooltip(id, true);
+                                animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
+                                
                                 setTimeout(() => {
                                     updateMinimalPopups();
-                                }, 50); 
+                                }, 1000); 
                             }
                         }
                     });
