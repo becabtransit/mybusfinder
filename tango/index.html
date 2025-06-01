@@ -5324,7 +5324,6 @@ async function fetchVehiclePositions() {
                 const contentCache = new Map();
                 const colorCache = new Map();
 
-                // Pool d'objets réutilisables pour les tooltips
                 const tooltipPool = [];
                 let maxPoolSize = 50;
 
@@ -5339,7 +5338,6 @@ async function fetchVehiclePositions() {
                 }
 
                 function generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
-                    // Inclure nextStopsHTML dans la clé de cache pour détecter les changements
                     const nextStopsHash = nextStopsHTML ? nextStopsHTML.substring(0, 100) : '';
                     const cacheKey = `${id}-${vehicle.vehicle.label}-${line}-${lastStopName}-${stopsHeaderText}-${nextStopsHash}`;
                     
@@ -5496,7 +5494,7 @@ async function fetchVehiclePositions() {
                                     </div>
                                 `;
                     
-                    // Limiter la taille du cache
+                    // limite la taille cache
                     if (contentCache.size > 100) {
                         const firstKey = contentCache.keys().next().value;
                         contentCache.delete(firstKey);
@@ -5525,7 +5523,7 @@ async function fetchVehiclePositions() {
                         const currentY = startPos.y + (endPos.y - startPos.y) * easeProgress;
                         
                         const currentLatLng = map.containerPointToLatLng([currentX, currentY]);
-                        tooltip.setLatLng(currentLatLng);
+                        tooltip.setLatLng([currentLatLng]);
                         
                         if (progress < 1) {
                             requestAnimationFrame(animate);
@@ -5541,7 +5539,7 @@ async function fetchVehiclePositions() {
                     
                     if (shouldShow && !marker.isPopupOpen()) {
                         if (!marker.minimalPopup) {
-                            // Essayer de réutiliser un tooltip existant du pool
+                            // essayons de reutiliser un tooltip existant du pool
                             let minimalTooltip = getFromPool();
                             
                             if (!minimalTooltip) {
@@ -5621,7 +5619,7 @@ async function fetchVehiclePositions() {
                             marker.minimalPopup = minimalTooltip;
                             window.minimalTooltipStates[markerId] = 'visible';
                         } else {
-                            // Seulement animer si la position a changé
+                            // seulement animer si la position a changé
                             const currentLatLng = marker.minimalPopup.getLatLng();
                             const newLatLng = marker.getLatLng();
                             
@@ -5665,7 +5663,7 @@ async function fetchVehiclePositions() {
                     
                     const newContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
                     
-                    // Seulement mettre à jour si le contenu a changé
+                    // màj si le contenu a changé
                     if (popup.getContent() !== newContent) {
                         popup.setContent(newContent);
                         return true;
@@ -5783,6 +5781,8 @@ async function fetchVehiclePositions() {
                 }
 
             if (markers[id]) {
+
+            animateMarker(markers[id], [latitude, longitude]);
             
             if (!markers[id].id) {
                 markers[id].id = id;
@@ -5884,6 +5884,8 @@ async function fetchVehiclePositions() {
                 }
             }
 
+            animateMarker(markers[id], [latitude, longitude]);
+
             if (selectedLine && markers[id].line !== selectedLine) {
                 if (map.hasLayer(markers[id])) {
                     map.removeLayer(markers[id]);
@@ -5893,7 +5895,6 @@ async function fetchVehiclePositions() {
                     map.addLayer(markers[id]);
                 }
             }
-            animateMarker(markers[id], [latitude, longitude]);
             setTimeout(() => {
                 updateMinimalPopups();
             }, 1000);
