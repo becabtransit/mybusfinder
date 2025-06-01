@@ -5579,18 +5579,7 @@ async function fetchVehiclePositions() {
                                     border: 1px solid ${color}60;
                                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                                     transform: translateY(0);
-                                " onclick="event.stopPropagation(); if(window.markers && window.markers['${markerId}']) { 
-                                    const marker = window.markers['${markerId}'];
-                                    if (marker.popupData) {
-                                        const { vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, 
-                                                vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id } = marker.popupData;
-                                        const content = generatePopupContent(vehicle, line, lastStopName, 
-                                            nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, 
-                                            backgroundColor, textColor, id);
-                                        marker.getPopup().setContent(content);
-                                    }
-                                    marker.fire('click'); 
-                                }" 
+                                " onclick="event.stopPropagation(); if(window.markers && window.markers['${markerId}']) { window.markers['${markerId}'].openPopup(); }" 
                                 onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${color}90, 0 4px 12px -2px ${color}50';"
                                 onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${color}80, 0 2px 8px -2px ${color}40';">
                                     <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
@@ -5666,21 +5655,16 @@ async function fetchVehiclePositions() {
                         }
                     }
                 }
-
-
                 function updatePopupContent(marker, vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
-                    marker.popupData = {
-                        vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, 
-                        vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id
-                    };
+                    const popup = marker.getPopup();
+                    if (!popup) return false;
                     
-                    if (marker.isPopupOpen()) {
-                        const popup = marker.getPopup();
-                        if (popup) {
-                            const newContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
-                            popup.setContent(newContent);
-                            return true;
-                        }
+                    const newContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
+                    
+                    // màj si le contenu a changé
+                    if (popup.getContent() !== newContent) {
+                        popup.setContent(newContent);
+                        return true;
                     }
                     return false;
                 }
@@ -5689,11 +5673,26 @@ async function fetchVehiclePositions() {
                     const currentZoom = map.getZoom();
                     const showMinimal = currentZoom >= 17 && currentZoom < 20; 
                     
+                    if (!showMinimal) {
+                        Object.keys(markers).forEach(markerId => {
+                            const marker = markers[markerId];
+                            if (marker) {
+                                createOrUpdateMinimalTooltip(markerId, false);
+                            }
+                        });
+                        return;
+                    }
+                    
+                    const bounds = map.getBounds();
+                    
                     Object.keys(markers).forEach(markerId => {
                         const marker = markers[markerId];
                         if (!marker) return;
                         
-                        const shouldShow = showMinimal && !marker.isPopupOpen();
+                        const markerLatLng = marker.getLatLng();
+                        const isInBounds = bounds.contains(markerLatLng);
+                        
+                        const shouldShow = showMinimal && !marker.isPopupOpen() && isInBounds;
                         createOrUpdateMinimalTooltip(markerId, shouldShow);
                     });
                 }
@@ -5934,26 +5933,11 @@ async function fetchVehiclePositions() {
                         marker.addTo(map);
                     }
                     
-                    marker.bindPopup('');
-
-                    marker.popupData = {
-                        vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, 
-                        vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id
-                    };
+                    const popupContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
+                    marker.bindPopup(popupContent);
                     markers[id]._lastNextStopsHTML = nextStopsHTML;
 
                     marker.on('popupopen', function (e) {
-                        if (marker.popupData) {
-                            const { vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, 
-                                    vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id } = marker.popupData;
-                            
-                            const popupContent = generatePopupContent(vehicle, line, lastStopName, 
-                                nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, 
-                                backgroundColor, textColor, id);
-                            
-                            e.popup.setContent(popupContent);
-                        }
-                        
                         if (markers[id].minimalPopup) {
                             createOrUpdateMinimalTooltip(id, false);
                         }
@@ -6007,6 +5991,7 @@ async function fetchVehiclePositions() {
 
 
                 map.on('zoomend', updateMinimalPopups);
+                map.on('moveend', updateMinimalPopups);
 
                 }
         });
