@@ -317,6 +317,7 @@
         font-size: 50px;
         font-weight: 700;
         background: linear-gradient(45deg, #f0f0f0, #fff, #f0f0f0);
+        background-clip: text;
         -webkit-background-clip: text;
         color: transparent;
         animation: 3s infinite gradientTextAnimation;
@@ -5523,7 +5524,7 @@ async function fetchVehiclePositions() {
                         const currentY = startPos.y + (endPos.y - startPos.y) * easeProgress;
                         
                         const currentLatLng = map.containerPointToLatLng([currentX, currentY]);
-                        tooltip.setLatLng([currentLatLng]);
+                        tooltip.setLatLng(currentLatLng);
                         
                         if (progress < 1) {
                             requestAnimationFrame(animate);
@@ -5573,7 +5574,7 @@ async function fetchVehiclePositions() {
                                     border: 1px solid ${color}60;
                                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                                     transform: translateY(0);
-                                " onclick="event.stopPropagation(); markers['${markerId}'].fire('click');" 
+                                " onclick="event.stopPropagation(); if(window.markers && window.markers['${markerId}']) { window.markers['${markerId}'].fire('click'); }" 
                                 onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${color}90, 0 4px 12px -2px ${color}50';"
                                 onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${color}80, 0 2px 8px -2px ${color}40';">
                                     <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
@@ -5618,15 +5619,15 @@ async function fetchVehiclePositions() {
                             
                             marker.minimalPopup = minimalTooltip;
                             window.minimalTooltipStates[markerId] = 'visible';
-                        } else {
-                            // seulement animer si la position a changé
-                            const currentLatLng = marker.minimalPopup.getLatLng();
-                            const newLatLng = marker.getLatLng();
-                            
-                            if (Math.abs(currentLatLng.lat - newLatLng.lat) > 0.0001 || Math.abs(currentLatLng.lng - newLatLng.lng) > 0.0001) {
-                                animateTooltip(marker.minimalPopup, newLatLng);
+                            } else {
+                                // Mettre à jour la position si elle a changé
+                                const currentLatLng = marker.minimalPopup.getLatLng();
+                                const newLatLng = marker.getLatLng();
+                                
+                                if (currentLatLng.lat !== newLatLng.lat || currentLatLng.lng !== newLatLng.lng) {
+                                    animateTooltip(marker.minimalPopup, newLatLng);
+                                }
                             }
-                        }
                     } else if (!shouldShow && marker.minimalPopup) {
                         const tooltipContainer = marker.minimalPopup._container;
                         if (tooltipContainer) {
@@ -5783,7 +5784,13 @@ async function fetchVehiclePositions() {
             if (markers[id]) {
 
             animateMarker(markers[id], [latitude, longitude]);
-            
+            // Mettre à jour la position du tooltip minimal s'il existe
+            if (markers[id].minimalPopup) {
+                setTimeout(() => {
+                    createOrUpdateMinimalTooltip(id, true);
+                }, 100);
+            }            
+
             if (!markers[id].id) {
                 markers[id].id = id;
             }
@@ -5885,6 +5892,11 @@ async function fetchVehiclePositions() {
             }
 
             animateMarker(markers[id], [latitude, longitude]);
+            if (markers[id].minimalPopup) {
+                setTimeout(() => {
+                    createOrUpdateMinimalTooltip(id, true);
+                }, 100);
+            }
 
             if (selectedLine && markers[id].line !== selectedLine) {
                 if (map.hasLayer(markers[id])) {
@@ -5955,6 +5967,12 @@ async function fetchVehiclePositions() {
                         marker.openPopup();
                     });
                         animateMarker(markers[id], [latitude, longitude]);
+                        // Mettre à jour la position du tooltip minimal s'il existe
+                        if (markers[id].minimalPopup) {
+                            setTimeout(() => {
+                                createOrUpdateMinimalTooltip(id, true);
+                            }, 100);
+                        }
                         setTimeout(() => {
                             updateMinimalPopups();
                         }, 1000);
