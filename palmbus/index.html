@@ -5494,7 +5494,7 @@ async function fetchVehiclePositions() {
                                     </div>
                                 `;
                     
-                    // Limiter la taille du cache
+                    // limite la taille cache
                     if (contentCache.size > 100) {
                         const firstKey = contentCache.keys().next().value;
                         contentCache.delete(firstKey);
@@ -5523,7 +5523,7 @@ async function fetchVehiclePositions() {
                         const currentY = startPos.y + (endPos.y - startPos.y) * easeProgress;
                         
                         const currentLatLng = map.containerPointToLatLng([currentX, currentY]);
-                        tooltip.setLatLng(currentLatLng);
+                        tooltip.setLatLng([currentLatLng]);
                         
                         if (progress < 1) {
                             requestAnimationFrame(animate);
@@ -5539,7 +5539,7 @@ async function fetchVehiclePositions() {
                     
                     if (shouldShow && !marker.isPopupOpen()) {
                         if (!marker.minimalPopup) {
-                            // Essayer de réutiliser un tooltip existant du pool
+                            // essayons de reutiliser un tooltip existant du pool
                             let minimalTooltip = getFromPool();
                             
                             if (!minimalTooltip) {
@@ -5619,11 +5619,13 @@ async function fetchVehiclePositions() {
                             marker.minimalPopup = minimalTooltip;
                             window.minimalTooltipStates[markerId] = 'visible';
                         } else {
-                            // Seulement animer si la position a changé
+                            // seulement animer si la position a changé
                             const currentLatLng = marker.minimalPopup.getLatLng();
+                            const newLatLng = marker.getLatLng();
                             
-                                animateTooltip(marker.minimalPopup, [latitude, longitude], 300);
-                            
+                            if (Math.abs(currentLatLng.lat - newLatLng.lat) > 0.0001 || Math.abs(currentLatLng.lng - newLatLng.lng) > 0.0001) {
+                                animateTooltip(marker.minimalPopup, newLatLng);
+                            }
                         }
                     } else if (!shouldShow && marker.minimalPopup) {
                         const tooltipContainer = marker.minimalPopup._container;
@@ -5661,7 +5663,7 @@ async function fetchVehiclePositions() {
                     
                     const newContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
                     
-                    // Seulement mettre à jour si le contenu a changé
+                    // màj si le contenu a changé
                     if (popup.getContent() !== newContent) {
                         popup.setContent(newContent);
                         return true;
@@ -5880,6 +5882,8 @@ async function fetchVehiclePositions() {
                 }
             }
 
+            animateMarker(markers[id], [latitude, longitude]);
+
             if (selectedLine && markers[id].line !== selectedLine) {
                 if (map.hasLayer(markers[id])) {
                     map.removeLayer(markers[id]);
@@ -5889,7 +5893,6 @@ async function fetchVehiclePositions() {
                     map.addLayer(markers[id]);
                 }
             }
-            animateMarker(markers[id], [latitude, longitude]);
             setTimeout(() => {
                 updateMinimalPopups();
             }, 1000);
