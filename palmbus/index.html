@@ -5683,12 +5683,19 @@ async function fetchVehiclePositions() {
                         const marker = markers[markerId];
                         if (!marker) return;
                         
-                        const markerLatLng = marker.getLatLng();
+                        const markerLatLng = marker.getLatLng(); 
                         const isInBounds = bounds.contains(markerLatLng);
                         
                         const shouldShow = showMinimal && !marker.isPopupOpen() && isInBounds;
-                        createOrUpdateMinimalTooltip(markerId, shouldShow);
-                        animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
+                        
+                        if (shouldShow) {
+                            createOrUpdateMinimalTooltip(markerId, true);
+                            if (marker.minimalPopup) {
+                                marker.minimalPopup.setLatLng(markerLatLng);
+                            }
+                        } else {
+                            createOrUpdateMinimalTooltip(markerId, false);
+                        }
                     });
                 }
 
@@ -5911,6 +5918,7 @@ async function fetchVehiclePositions() {
                     map.addLayer(markers[id]);
                 }
             }
+                updateMinimalPopups();
             } else {
                     const marker = createColoredMarker(latitude, longitude, line, bearing);
                     updateLinesDisplay();
