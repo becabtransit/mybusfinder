@@ -5510,202 +5510,144 @@ async function fetchVehiclePositions() {
                 }
 
 
-
-                    
                 function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                     const marker = markers[markerId];
                     if (!marker) return;
                     
                     if (shouldShow && !marker.isPopupOpen()) {
-                        // Supprimer l'ancien tooltip s'il existe
-                        if (marker.customTooltip) {
-                            marker.customTooltip.remove();
-                            marker.customTooltip = null;
-                        }
-                        
-                        const color = lineColors[marker.line] || '#000000';
-                        const textColor = getOptimalTextColor(color);
-                        
-                        // Créer un div personnalisé au lieu d'utiliser L.tooltip
-                        const tooltipDiv = document.createElement('div');
-                        tooltipDiv.className = 'custom-minimal-tooltip';
-                        tooltipDiv.innerHTML = `
-                            <div class="minimal-popup-modern" style="
-                                position: relative;
-                                font-family: 'League Spartan', sans-serif;
-                                font-size: 12px;
-                                color: ${textColor};
-                                background: linear-gradient(135deg, ${color}f5, ${color}e0);
-                                backdrop-filter: blur(16px);
-                                -webkit-backdrop-filter: blur(16px);
-                                border-radius: 16px;
-                                padding: 12px 16px;
-                                box-shadow: 
-                                    0 8px 32px -4px ${color}40,
-                                    0 4px 16px -2px ${color}20,
-                                    inset 0 1px 0 rgba(255,255,255,0.2);
-                                min-width: 120px;
-                                max-width: 180px;
-                                cursor: pointer;
-                                border: 1px solid ${color}80;
-                                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                                transform: translateY(0) scale(1);
-                                animation: tooltipFadeIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-                                user-select: none;
-                            ">
-                                <!-- Icône de ligne -->
-                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                                    <div style="
-                                        background: rgba(255,255,255,0.25);
-                                        border-radius: 12px;
-                                        padding: 4px 12px;
-                                        font-weight: 700;
-                                        font-size: 14px;
-                                        line-height: 1.2;
-                                        letter-spacing: 0.5px;
-                                        box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
-                                    ">
-                                        🚌 ${lineName[marker.line] || t("unknownline")}
-                                    </div>
-                                    <div style="
-                                        background: rgba(0,0,0,0.4);
-                                        border-radius: 8px;
-                                        padding: 3px 8px;
-                                        font-size: 11px;
-                                        font-weight: 600;
-                                        color: #ffffff;
-                                        box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
-                                    ">
-                                        #${((marker.vehicleData && marker.vehicleData.vehicle.label) || t("unknownparc")).toString().padStart(3, '0')}
-                                    </div>
-                                </div>
-                                
-                                <!-- Destination -->
-                                <div style="
-                                    font-size: 11px; 
-                                    opacity: 0.9; 
-                                    overflow: hidden;
-                                    text-overflow: ellipsis;
-                                    white-space: nowrap;
-                                    font-weight: 500;
-                                    display: flex;
-                                    align-items: center;
-                                    gap: 6px;
-                                ">
-                                    <span style="opacity: 0.7;">➜</span>
-                                    <span>${marker.destination || t("unknowndestination")}</span>
-                                </div>
-                                
-                                <!-- Indicateur cliquable -->
-                                <div style="
-                                    position: absolute;
-                                    bottom: -2px;
-                                    left: 50%;
-                                    transform: translateX(-50%);
-                                    width: 20px;
-                                    height: 3px;
-                                    background: rgba(255,255,255,0.4);
-                                    border-radius: 2px;
-                                    opacity: 0.6;
-                                "></div>
-                            </div>
-                        `;
-                        
-                        // Styles CSS pour les animations
-                        if (!document.getElementById('custom-tooltip-styles')) {
-                            const styles = document.createElement('style');
-                            styles.id = 'custom-tooltip-styles';
-                            styles.textContent = `
-                                @keyframes tooltipFadeIn {
-                                    0% {
-                                        opacity: 0;
-                                        transform: translateY(10px) scale(0.8);
-                                    }
-                                    100% {
-                                        opacity: 1;
-                                        transform: translateY(0) scale(1);
-                                    }
-                                }
-                                
-                                .custom-minimal-tooltip {
-                                    position: absolute;
-                                    z-index: 1000;
-                                    pointer-events: auto;
-                                }
-                                
-                                .minimal-popup-modern:hover {
-                                    transform: translateY(-3px) scale(1.05) !important;
-                                    box-shadow: 
-                                        0 12px 40px -4px ${color}60,
-                                        0 6px 20px -2px ${color}30,
-                                        inset 0 1px 0 rgba(255,255,255,0.3) !important;
-                                }
-                                
-                                .minimal-popup-modern:active {
-                                    transform: translateY(-1px) scale(1.02) !important;
-                                }
-                            `;
-                            document.head.appendChild(styles);
-                        }
-                        
-                        // Positionner le tooltip
-                        const point = map.latLngToContainerPoint(marker.getLatLng());
-                        tooltipDiv.style.position = 'absolute';
-                        tooltipDiv.style.left = (point.x - 60) + 'px';
-                        tooltipDiv.style.top = (point.y - 80) + 'px';
-                        tooltipDiv.style.zIndex = '1000';
-                        tooltipDiv.style.pointerEvents = 'auto';
-                        
-                        // Ajouter au conteneur de la carte
-                        map.getContainer().appendChild(tooltipDiv);
-                        
-                        // Événement de clic - SOLUTION ROBUSTE
-                        const clickHandler = function(e) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log('Tooltip clicked for marker:', markerId); // Debug
-                            if (window.markers && window.markers[markerId]) {
-                                window.markers[markerId].openPopup();
+                        if (!marker.minimalPopup) {
+                            // essayons de reutiliser un tooltip existant du pool
+                            let minimalTooltip = getFromPool();
+                            
+                            if (!minimalTooltip) {
+                                minimalTooltip = L.tooltip({
+                                    permanent: true,
+                                    direction: 'center',
+                                    className: 'minimal-tooltip-container',
+                                    offset: [0, 0],
+                                    opacity: 1
+                                });
                             }
-                        };
-                        
-                        // Attacher l'événement sur plusieurs types d'événements pour plus de robustesse
-                        tooltipDiv.addEventListener('click', clickHandler, true);
-                        tooltipDiv.addEventListener('mousedown', clickHandler, true);
-                        tooltipDiv.addEventListener('touchstart', clickHandler, true);
-                        
-                        // Stocker la référence
-                        marker.customTooltip = tooltipDiv;
-                        marker.customTooltip.updatePosition = function() {
-                            const point = map.latLngToContainerPoint(marker.getLatLng());
-                            tooltipDiv.style.left = (point.x - 60) + 'px';
-                            tooltipDiv.style.top = (point.y - 80) + 'px';
-                        };
-                        
-                        window.minimalTooltipStates[markerId] = 'visible';
-                        
-                    } else if (!shouldShow && marker.customTooltip) {
-                        // Supprimer le tooltip avec animation
-                        const tooltip = marker.customTooltip;
-                        const popupElement = tooltip.querySelector('.minimal-popup-modern');
-                        
-                        if (popupElement) {
-                            popupElement.style.animation = 'tooltipFadeIn 0.2s reverse';
+                            
+                            const color = lineColors[marker.line] || '#000000';
+                            const textColor = getOptimalTextColor(color);
+                            
+                            const minimalContent = `
+                                <div class="minimal-popup minimal-popup-appear" style="
+                                    position: relative;
+                                    font-family: 'League Spartan', sans-serif;
+                                    font-size: 11px;
+                                    color: ${textColor};
+                                    background: linear-gradient(135deg, ${color}f0, ${color}d0);
+                                    backdrop-filter: blur(12px);
+                                    -webkit-backdrop-filter: blur(12px);
+                                    border-radius: 12px;
+                                    padding: 6px 10px;
+                                    box-shadow: 0 4px 16px -2px ${color}80, 0 2px 8px -2px ${color}40;
+                                    min-width: 80px;
+                                    max-width: 140px;
+                                    cursor: pointer;
+                                    border: 1px solid ${color}60;
+                                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                                    transform: translateY(0);
+                                ">
+                                    <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                        <div style="
+                                            background: rgba(255,255,255,0.2);
+                                            border-radius: 6px;
+                                            padding: 2px 6px;
+                                            font-weight: 600;
+                                            font-size: 10px;
+                                            line-height: 1.2;
+                                        ">
+                                            ${lineName[marker.line] || t("unknownline")}
+                                        </div>
+                                        <div style="
+                                            background: rgba(0,0,0,0.3);
+                                            border-radius: 4px;
+                                            padding: 1px 4px;
+                                            font-size: 9px;
+                                            font-weight: 500;
+                                        ">
+                                            ${((marker.vehicleData && marker.vehicleData.vehicle.label) || t("unknownparc")).toString().padStart(3, '0')}
+                                        </div>
+                                    </div>
+                                    <div style="
+                                        font-size: 9px; 
+                                        opacity: 0.85; 
+                                        margin-top: 2px;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        white-space: nowrap;
+                                        font-weight: 400;
+                                    ">
+                                        ➜ ${marker.destination || t("unknowndestination")}
+                                    </div>
+                                </div>
+                            `;
+
+                            minimalTooltip
+                                .setLatLng(marker.getLatLng())
+                                .setContent(minimalContent)
+                                .addTo(map);
+
                             setTimeout(() => {
-                                if (tooltip && tooltip.parentNode) {
-                                    tooltip.remove();
+                                if (minimalTooltip._container) {
+                                    minimalTooltip._container.addEventListener('mousedown', function(e) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (window.markers && window.markers[markerId]) {
+                                            window.markers[markerId].openPopup();
+                                        }
+                                    });
+                                    
+                                    const allElements = minimalTooltip._container.querySelectorAll('*');
+                                    allElements.forEach(element => {
+                                        element.addEventListener('mousedown', function(e) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (window.markers && window.markers[markerId]) {
+                                                window.markers[markerId].openPopup();
+                                            }
+                                        });
+                                    });
                                 }
-                                marker.customTooltip = null;
-                                delete window.minimalTooltipStates[markerId];
-                            }, 200);
+                            }, 100);
+
+                                                        
+                            marker.minimalPopup = minimalTooltip;
+                            window.minimalTooltipStates[markerId] = 'visible';
+                            }
+                    } else if (!shouldShow && marker.minimalPopup) {
+                        const tooltipContainer = marker.minimalPopup._container;
+                        if (tooltipContainer) {
+                            const popupElement = tooltipContainer.querySelector('.minimal-popup');
+                            if (popupElement) {
+                                popupElement.classList.remove('minimal-popup-appear');
+                                popupElement.classList.add('minimal-popup-disappear');
+                                
+                                setTimeout(() => {
+                                    const tooltipToRemove = marker.minimalPopup;
+                                    marker.minimalPopup = null;
+                                    delete window.minimalTooltipStates[markerId];
+                                    
+                                    if (tooltipToRemove) {
+                                        map.removeLayer(tooltipToRemove);
+                                        returnToPool(tooltipToRemove);
+                                    }
+                                }, 200);
+                            }
                         } else {
-                            tooltip.remove();
-                            marker.customTooltip = null;
+                            // Fallback si pas de container
+                            const tooltipToRemove = marker.minimalPopup;
+                            marker.minimalPopup = null;
                             delete window.minimalTooltipStates[markerId];
+                            
+                            map.removeLayer(tooltipToRemove);
+                            returnToPool(tooltipToRemove);
                         }
                     }
                 }
-                
                 function updatePopupContent(marker, vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
                     const popup = marker.getPopup();
                     if (!popup) return false;
