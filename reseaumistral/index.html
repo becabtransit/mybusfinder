@@ -317,6 +317,7 @@
         font-size: 50px;
         font-weight: 700;
         background: linear-gradient(45deg, #f0f0f0, #fff, #f0f0f0);
+        background-clip: text;
         -webkit-background-clip: text;
         color: transparent;
         animation: 3s infinite gradientTextAnimation;
@@ -950,6 +951,7 @@
         animation: 0.3s ease-in-out hoverBounce;
         transform: scale(0.8);
         transition: transform 0.2s;
+        filter: brightness(1.2);
     }
     @keyframes fadeOut {
         from {
@@ -5464,35 +5466,6 @@ async function fetchVehiclePositions() {
                                 </div>
                                 `;
 
-                                const minimalPopupContent = `
-                                    <div class="minimal-popup" style="
-                                        position: relative;
-                                        font-family: 'League Spartan', sans-serif;
-                                        font-size: 12px;
-                                        color: ${textColor};
-                                        background-color: ${backgroundColor}9c;
-                                        backdrop-filter: blur(8px);
-                                        -webkit-backdrop-filter: blur(8px);
-                                        border-radius: 8px;
-                                        padding: 8px 12px;
-                                        box-shadow: 0px 2px 10px 2px ${backgroundColor}6c;
-                                        min-width: 120px;
-                                        cursor: pointer;
-                                        border: 1px solid ${backgroundColor}cc;
-                                    " onclick="openFullPopup('${id}')">
-                                        <div style="display: flex; flex-direction: column; gap: 4px;">
-                                            <div style="font-weight: bold; font-size: 14px;">
-                                                ${t("line")} ${lineName[line] || t("unknownline")}
-                                            </div>
-                                            <div style="font-size: 11px; opacity: 0.9;">
-                                                🚌 ${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}
-                                            </div>
-                                            <div style="font-size: 11px; opacity: 0.8;">
-                                                ➜ ${lastStopName}
-                                            </div>
-                                        </div>
-                                    </div>
-                                `;
                     
                     // limite la taille cache
                     if (contentCache.size > 100) {
@@ -5504,34 +5477,39 @@ async function fetchVehiclePositions() {
                     return popupContent;
                 }
 
-                function animateTooltip(tooltip, newLatLng, duration = 500) {
+                function animateTooltip(tooltip, newLatLng, duration = 1000) {
                     if (!tooltip || !tooltip._container) return;
-                    
-                    const container = tooltip._container;
-                    const startPos = map.latLngToContainerPoint(tooltip.getLatLng());
-                    const endPos = map.latLngToContainerPoint(newLatLng);
-                    
+
+                    const startLatLng = tooltip.getLatLng();
+                    const endLatLng = newLatLng;
                     const startTime = performance.now();
-                    
+
+                    if (tooltip.animationFrame) {
+                        cancelAnimationFrame(tooltip.animationFrame);
+                    }
+
+                    function easeInOutQuad(t) {
+                        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                    }
+
                     function animate(currentTime) {
                         const elapsed = currentTime - startTime;
                         const progress = Math.min(elapsed / duration, 1);
-                        
-                        const easeProgress = 1 - Math.pow(1 - progress, 3);
-                        
-                        const currentX = startPos.x + (endPos.x - startPos.x) * easeProgress;
-                        const currentY = startPos.y + (endPos.y - startPos.y) * easeProgress;
-                        
-                        const currentLatLng = map.containerPointToLatLng([currentX, currentY]);
-                        tooltip.setLatLng([currentLatLng]);
-                        
+                        const easedProgress = easeInOutQuad(progress);
+
+                        const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * easedProgress;
+                        const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * easedProgress;
+
+                        tooltip.setLatLng([lat, lng]);
+
                         if (progress < 1) {
-                            requestAnimationFrame(animate);
+                            tooltip.animationFrame = requestAnimationFrame(animate);
                         }
                     }
-                    
-                    requestAnimationFrame(animate);
+
+                    tooltip.animationFrame = requestAnimationFrame(animate);
                 }
+
 
                 function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                     const marker = markers[markerId];
@@ -5573,9 +5551,7 @@ async function fetchVehiclePositions() {
                                     border: 1px solid ${color}60;
                                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                                     transform: translateY(0);
-                                " onclick="event.stopPropagation(); markers['${markerId}'].fire('click');" 
-                                onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 20px -2px ${color}90, 0 4px 12px -2px ${color}50';"
-                                onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 16px -2px ${color}80, 0 2px 8px -2px ${color}40';">
+                                ">
                                     <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
                                         <div style="
                                             background: rgba(255,255,255,0.2);
@@ -5610,23 +5586,39 @@ async function fetchVehiclePositions() {
                                     </div>
                                 </div>
                             `;
-                            
+
                             minimalTooltip
                                 .setLatLng(marker.getLatLng())
                                 .setContent(minimalContent)
                                 .addTo(map);
-                            
+
+                            setTimeout(() => {
+                                if (minimalTooltip._container) {
+                                    minimalTooltip._container.addEventListener('mousedown', function(e) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (window.markers && window.markers[markerId]) {
+                                            window.markers[markerId].openPopup();
+                                        }
+                                    });
+                                    
+                                    const allElements = minimalTooltip._container.querySelectorAll('*');
+                                    allElements.forEach(element => {
+                                        element.addEventListener('mousedown', function(e) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (window.markers && window.markers[markerId]) {
+                                                window.markers[markerId].openPopup();
+                                            }
+                                        });
+                                    });
+                                }
+                            }, 100);
+
+                                                        
                             marker.minimalPopup = minimalTooltip;
                             window.minimalTooltipStates[markerId] = 'visible';
-                        } else {
-                            // seulement animer si la position a changé
-                            const currentLatLng = marker.minimalPopup.getLatLng();
-                            const newLatLng = marker.getLatLng();
-                            
-                            if (Math.abs(currentLatLng.lat - newLatLng.lat) > 0.0001 || Math.abs(currentLatLng.lng - newLatLng.lng) > 0.0001) {
-                                animateTooltip(marker.minimalPopup, newLatLng);
                             }
-                        }
                     } else if (!shouldShow && marker.minimalPopup) {
                         const tooltipContainer = marker.minimalPopup._container;
                         if (tooltipContainer) {
@@ -5675,12 +5667,29 @@ async function fetchVehiclePositions() {
                     const currentZoom = map.getZoom();
                     const showMinimal = currentZoom >= 17 && currentZoom < 20; 
                     
+                    if (!showMinimal) {
+                        Object.keys(markers).forEach(markerId => {
+                            const marker = markers[markerId];
+                            if (marker) {
+                                createOrUpdateMinimalTooltip(markerId, false);
+                                animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
+                            }
+                        });
+                        return;
+                    }
+                    
+                    const bounds = map.getBounds();
+                    
                     Object.keys(markers).forEach(markerId => {
                         const marker = markers[markerId];
                         if (!marker) return;
                         
-                        const shouldShow = showMinimal && !marker.isPopupOpen();
+                        const markerLatLng = marker.getLatLng();
+                        const isInBounds = bounds.contains(markerLatLng);
+                        
+                        const shouldShow = showMinimal && !marker.isPopupOpen() && isInBounds;
                         createOrUpdateMinimalTooltip(markerId, shouldShow);
+                        animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
                     });
                 }
 
@@ -5783,7 +5792,12 @@ async function fetchVehiclePositions() {
             if (markers[id]) {
 
             animateMarker(markers[id], [latitude, longitude]);
-            
+            animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
+            if (markers[id].minimalPopup) {
+                    createOrUpdateMinimalTooltip(id, true);
+                    animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
+            }
+
             if (!markers[id].id) {
                 markers[id].id = id;
             }
@@ -5885,6 +5899,10 @@ async function fetchVehiclePositions() {
             }
 
             animateMarker(markers[id], [latitude, longitude]);
+            if (markers[id].minimalPopup) {
+                createOrUpdateMinimalTooltip(id, true);
+                animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
+            }
 
             if (selectedLine && markers[id].line !== selectedLine) {
                 if (map.hasLayer(markers[id])) {
@@ -5895,9 +5913,7 @@ async function fetchVehiclePositions() {
                     map.addLayer(markers[id]);
                 }
             }
-            setTimeout(() => {
                 updateMinimalPopups();
-            }, 1000);
             } else {
                     const marker = createColoredMarker(latitude, longitude, line, bearing);
                     updateLinesDisplay();
@@ -5918,6 +5934,7 @@ async function fetchVehiclePositions() {
                     marker.on('popupopen', function (e) {
                         if (markers[id].minimalPopup) {
                             createOrUpdateMinimalTooltip(id, false);
+                            animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
                         }
                         
                         if (e.popup && e.popup._contentNode) {
@@ -5935,15 +5952,9 @@ async function fetchVehiclePositions() {
                             if (popupElement) {
                                 popupElement.classList.remove('show');
                                 popupElement.classList.add('hide');
-
                                 setTimeout(() => {
-                                    if (e.popup) {
-                                        e.popup.remove(); 
-                                    }
-                                    setTimeout(() => {
-                                        updateMinimalPopups();
-                                    }, 100);
-                                }, 200); 
+                                    updateMinimalPopups();
+                                }, 10); 
                             }
                         }
                     });
@@ -5951,10 +5962,16 @@ async function fetchVehiclePositions() {
                     marker.on('click', function() {
                         if (markers[id].minimalPopup) {
                             createOrUpdateMinimalTooltip(id, false);
+                            animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
                         }
                         marker.openPopup();
                     });
                         animateMarker(markers[id], [latitude, longitude]);
+                        // Mettre à jour la position du tooltip minimal s'il existe
+                        if (markers[id].minimalPopup) {
+                        createOrUpdateMinimalTooltip(id, true);
+                        animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
+                        }
                         setTimeout(() => {
                             updateMinimalPopups();
                         }, 1000);
@@ -5963,6 +5980,7 @@ async function fetchVehiclePositions() {
 
 
                 map.on('zoomend', updateMinimalPopups);
+                map.on('moveend', updateMinimalPopups);
 
                 }
         });
