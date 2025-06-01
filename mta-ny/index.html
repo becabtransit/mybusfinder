@@ -36,8 +36,7 @@
         -moz-user-select: none;
         -ms-user-select: none;
         user-select: none;
-        touch-action: manipulation;
-        overscroll-behavior: none;
+
     }
     @font-face {
         font-family: "League Spartan";
@@ -416,9 +415,11 @@
     }
     #accueil.hide {
         animation: 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards accueilCache;
+        pointer-events: none;
     }
     #accueil.affiche {
         animation: 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards accueilAffiche;
+        pointer-events: auto;
     }
     @keyframes accueilCache {
         0% {
@@ -5289,35 +5290,31 @@ async function fetchVehiclePositions() {
                         
                         @keyframes popIn {
                             0% {
-                                opacity: 0;
-                                transform: scale(0.3) translateY(10px);
+                                transform: scale(0) translateY(45px);
                             }
                             50% {
-                                transform: scale(1.1) translateY(-2px);
+                                transform: scale(1.1) translateY(-6px);
                             }
                             100% {
-                                opacity: 1;
                                 transform: scale(1) translateY(0);
                             }
                         }
                         
                         @keyframes popOut {
                             0% {
-                                opacity: 1;
                                 transform: scale(1) translateY(0);
                             }
                             100% {
-                                opacity: 0;
-                                transform: scale(0.3) translateY(10px);
+                                transform: scale(0) translateY(10px);
                             }
                         }
                         
                         .minimal-popup-appear {
-                            animation: popIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+                            animation: popIn 0.4s cubic-bezier(0.4, 0, 1, 1);
                         }
                         
                         .minimal-popup-disappear {
-                            animation: popOut 0.2s cubic-bezier(0.4, 0, 1, 1);
+                            animation: popOut 0.3s cubic-bezier(0.4, 0, 1, 1);
                         }
                     `;
                     document.head.appendChild(styles);
@@ -5671,7 +5668,6 @@ async function fetchVehiclePositions() {
                         Object.keys(markers).forEach(markerId => {
                             const marker = markers[markerId];
                             if (marker) {
-                                animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
                                 createOrUpdateMinimalTooltip(markerId, false);
                             }
                         });
@@ -5684,12 +5680,19 @@ async function fetchVehiclePositions() {
                         const marker = markers[markerId];
                         if (!marker) return;
                         
-                        const markerLatLng = marker.getLatLng();
+                        const markerLatLng = marker.getLatLng(); 
                         const isInBounds = bounds.contains(markerLatLng);
                         
                         const shouldShow = showMinimal && !marker.isPopupOpen() && isInBounds;
-                        createOrUpdateMinimalTooltip(markerId, shouldShow);
-                        animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
+                        
+                        if (shouldShow) {
+                            createOrUpdateMinimalTooltip(markerId, true);
+                            if (marker.minimalPopup) {
+                                marker.minimalPopup.setLatLng(markerLatLng);
+                            }
+                        } else {
+                            createOrUpdateMinimalTooltip(markerId, false);
+                        }
                     });
                 }
 
@@ -5792,7 +5795,6 @@ async function fetchVehiclePositions() {
             if (markers[id]) {
 
             animateMarker(markers[id], [latitude, longitude]);
-            animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
             if (markers[id].minimalPopup) {
                     createOrUpdateMinimalTooltip(id, true);
                     animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
@@ -5934,7 +5936,6 @@ async function fetchVehiclePositions() {
                     marker.on('popupopen', function (e) {
                         if (markers[id].minimalPopup) {
                             createOrUpdateMinimalTooltip(id, false);
-                            animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
                         }
                         
                         if (e.popup && e.popup._contentNode) {
@@ -5962,7 +5963,6 @@ async function fetchVehiclePositions() {
                     marker.on('click', function() {
                         if (markers[id].minimalPopup) {
                             createOrUpdateMinimalTooltip(id, false);
-                            animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
                         }
                         marker.openPopup();
                     });
@@ -5972,9 +5972,6 @@ async function fetchVehiclePositions() {
                         createOrUpdateMinimalTooltip(id, true);
                         animateTooltip(markers[id].minimalPopup, L.latLng(latitude, longitude));
                         }
-                        setTimeout(() => {
-                            updateMinimalPopups();
-                        }, 1000);
 
                     }
 
