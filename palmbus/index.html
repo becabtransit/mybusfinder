@@ -1430,6 +1430,60 @@
         height: 100%;
     }
 
+            .zoom-slider-container {
+            position: fixed;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1000;
+            height: 80vh;
+            width: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .zoom-slider {
+            width: 4px;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 2px;
+            position: relative;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            transition: opacity 0.3s ease, background 0.3s ease;
+        }
+
+        .zoom-slider:hover,
+        .zoom-slider.active {
+            background: rgba(255, 255, 255, 0.8);
+            opacity: 1;
+        }
+
+        .zoom-emoji {
+            position: absolute;
+            left: -35px;
+            font-size: 20px;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.2s ease;
+            pointer-events: none;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            top: 50%;
+            transform-origin: center;
+        }
+
+        .zoom-emoji.visible {
+            opacity: 1;
+            transform: translateY(-50%) scale(1);
+        }
+
+        .leaflet-control-zoom {
+            display: none !important;
+        }
+
+
 </style>
 
 </head>
@@ -1478,6 +1532,13 @@
 </amp-auto-ads>
 
     <div id="map"></div>
+
+    <div class="zoom-slider-container">
+        <div class="zoom-slider" id="zoomSlider">
+            <div class="zoom-emoji" id="zoomEmoji">🏠</div>
+        </div>
+    </div>
+
     <svg id="sun-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
 
 
@@ -2428,6 +2489,131 @@ async function initMap() {
     const mapInstance = L.map('map', {
         zoomControl: false 
     }).setView(defaultCoords, defaultZoom);
+
+    const slider = document.getElementById('zoomSlider');
+    const emoji = document.getElementById('zoomEmoji');
+    
+    const minZoom = 3;
+    const maxZoom = 18;
+    const dezoomMax = 12; 
+    
+    let isDragging = false;
+    let isHovering = false;
+
+    const zoomEmojis = {
+        3: '🌍', 4: '🌍', 5: '🌎', 6: '🌎', 7: '🗺️', 8: '🗺️', 
+        9: '🏙️', 10: '🏙️', 11: '🏘️', 12: '🏘️', 13: '🏠', 14: '🏠',
+        15: '🔍', 16: '🔍', 17: '🔎', 18: '🔎'
+    };
+
+    function findClosestMarker(center) {
+        let closestMarker = null;
+        let minDistance = Infinity;
+        
+        markers.forEach(marker => {
+            const distance = center.distanceTo(marker.getLatLng());
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestMarker = marker;
+            }
+        });
+        
+        return closestMarker;
+    }
+
+    function calculateZoomFromY(y) {
+        const rect = slider.getBoundingClientRect();
+        const relativeY = y - rect.top;
+        const percentage = 1 - (relativeY / rect.height); 
+        
+        let zoom = minZoom + (percentage * (maxZoom - minZoom));
+        
+        zoom = Math.max(zoom, dezoomMax);
+        zoom = Math.min(zoom, maxZoom);
+        zoom = Math.max(zoom, minZoom);
+        
+        return Math.round(zoom);
+    }
+
+    function positionEmoji(y) {
+        const rect = slider.getBoundingClientRect();
+        const relativeY = y - rect.top;
+        emoji.style.top = Math.max(0, Math.min(relativeY, rect.height)) + 'px';
+    }
+
+    function handleStart(e) {
+        isDragging = true;
+        slider.classList.add('active');
+        
+        const clientY = e.type === 'mousedown' ? e.clientY : e.touches[0].clientY;
+        const zoom = calculateZoomFromY(clientY);
+        
+        positionEmoji(clientY);
+        emoji.textContent = zoomEmojis[zoom] || '🔍';
+        emoji.classList.add('visible');
+        
+        const center = map.getCenter();
+        const closestMarker = findClosestMarker(center);
+        
+        if (closestMarker) {
+            map.setView(closestMarker.getLatLng(), zoom, { animate: true, duration: 0.3 });
+        } else {
+            map.setZoom(zoom, { animate: true });
+        }
+        
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        document.addEventListener('touchend', handleEnd);
+        
+        e.preventDefault();
+    }
+
+    function handleMove(e) {
+        if (!isDragging) return;
+        
+        const clientY = e.type === 'mousemove' ? e.clientY : e.touches[0].clientY;
+        const zoom = calculateZoomFromY(clientY);
+        
+        positionEmoji(clientY);
+        emoji.textContent = zoomEmojis[zoom] || '🔍';
+        
+        const center = map.getCenter();
+        const closestMarker = findClosestMarker(center);
+        
+        if (closestMarker) {
+            map.setView(closestMarker.getLatLng(), zoom, { animate: true, duration: 0.1 });
+        } else {
+            map.setZoom(zoom, { animate: true });
+        }
+        
+        e.preventDefault();
+    }
+
+    function handleEnd() {
+        isDragging = false;
+        slider.classList.remove('active');
+        emoji.classList.remove('visible');
+        
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('mouseup', handleEnd);
+        document.removeEventListener('touchmove', handleMove);
+        document.removeEventListener('touchend', handleEnd);
+    }
+
+    slider.addEventListener('mousedown', handleStart);
+    slider.addEventListener('touchstart', handleStart, { passive: false });
+
+    slider.addEventListener('mouseenter', function() {
+        isHovering = true;
+    });
+
+    slider.addEventListener('mouseleave', function() {
+        isHovering = false;
+    });
+
+    window.addEventListener('resize', function() {
+    });
     
     L.popup({
         closeButton: false
