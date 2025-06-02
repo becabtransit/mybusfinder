@@ -2489,131 +2489,6 @@ async function initMap() {
     const mapInstance = L.map('map', {
         zoomControl: false 
     }).setView(defaultCoords, defaultZoom);
-
-    const slider = document.getElementById('zoomSlider');
-    const emoji = document.getElementById('zoomEmoji');
-    
-    const minZoom = 3;
-    const maxZoom = 18;
-    const dezoomMax = 12; 
-    
-    let isDragging = false;
-    let isHovering = false;
-
-    const zoomEmojis = {
-        3: '🌍', 4: '🌍', 5: '🌎', 6: '🌎', 7: '🗺️', 8: '🗺️', 
-        9: '🏙️', 10: '🏙️', 11: '🏘️', 12: '🏘️', 13: '🏠', 14: '🏠',
-        15: '🔍', 16: '🔍', 17: '🔎', 18: '🔎'
-    };
-
-    function findClosestMarker(center) {
-        let closestMarker = null;
-        let minDistance = Infinity;
-        
-        markers.forEach(marker => {
-            const distance = center.distanceTo(marker.getLatLng());
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestMarker = marker;
-            }
-        });
-        
-        return closestMarker;
-    }
-
-    function calculateZoomFromY(y) {
-        const rect = slider.getBoundingClientRect();
-        const relativeY = y - rect.top;
-        const percentage = 1 - (relativeY / rect.height); 
-        
-        let zoom = minZoom + (percentage * (maxZoom - minZoom));
-        
-        zoom = Math.max(zoom, dezoomMax);
-        zoom = Math.min(zoom, maxZoom);
-        zoom = Math.max(zoom, minZoom);
-        
-        return Math.round(zoom);
-    }
-
-    function positionEmoji(y) {
-        const rect = slider.getBoundingClientRect();
-        const relativeY = y - rect.top;
-        emoji.style.top = Math.max(0, Math.min(relativeY, rect.height)) + 'px';
-    }
-
-    function handleStart(e) {
-        isDragging = true;
-        slider.classList.add('active');
-        
-        const clientY = e.type === 'mousedown' ? e.clientY : e.touches[0].clientY;
-        const zoom = calculateZoomFromY(clientY);
-        
-        positionEmoji(clientY);
-        emoji.textContent = zoomEmojis[zoom] || '🔍';
-        emoji.classList.add('visible');
-        
-        const center = map.getCenter();
-        const closestMarker = findClosestMarker(center);
-        
-        if (closestMarker) {
-            map.setView(closestMarker.getLatLng(), zoom, { animate: true, duration: 0.3 });
-        } else {
-            map.setZoom(zoom, { animate: true });
-        }
-        
-        document.addEventListener('mousemove', handleMove);
-        document.addEventListener('mouseup', handleEnd);
-        document.addEventListener('touchmove', handleMove, { passive: false });
-        document.addEventListener('touchend', handleEnd);
-        
-        e.preventDefault();
-    }
-
-    function handleMove(e) {
-        if (!isDragging) return;
-        
-        const clientY = e.type === 'mousemove' ? e.clientY : e.touches[0].clientY;
-        const zoom = calculateZoomFromY(clientY);
-        
-        positionEmoji(clientY);
-        emoji.textContent = zoomEmojis[zoom] || '🔍';
-        
-        const center = map.getCenter();
-        const closestMarker = findClosestMarker(center);
-        
-        if (closestMarker) {
-            map.setView(closestMarker.getLatLng(), zoom, { animate: true, duration: 0.1 });
-        } else {
-            map.setZoom(zoom, { animate: true });
-        }
-        
-        e.preventDefault();
-    }
-
-    function handleEnd() {
-        isDragging = false;
-        slider.classList.remove('active');
-        emoji.classList.remove('visible');
-        
-        document.removeEventListener('mousemove', handleMove);
-        document.removeEventListener('mouseup', handleEnd);
-        document.removeEventListener('touchmove', handleMove);
-        document.removeEventListener('touchend', handleEnd);
-    }
-
-    slider.addEventListener('mousedown', handleStart);
-    slider.addEventListener('touchstart', handleStart, { passive: false });
-
-    slider.addEventListener('mouseenter', function() {
-        isHovering = true;
-    });
-
-    slider.addEventListener('mouseleave', function() {
-        isHovering = false;
-    });
-
-    window.addEventListener('resize', function() {
-    });
     
     L.popup({
         closeButton: false
@@ -6055,6 +5930,131 @@ async function fetchVehiclePositions() {
                 }
 
             if (markers[id]) {
+
+                    const slider = document.getElementById('zoomSlider');
+                    const emoji = document.getElementById('zoomEmoji');
+                    
+                    const minZoom = 3;
+                    const maxZoom = 18;
+                    const dezoomMax = 12; 
+                    
+                    let isDragging = false;
+                    let isHovering = false;
+
+                    const zoomEmojis = {
+                        3: '🌍', 4: '🌍', 5: '🌎', 6: '🌎', 7: '🗺️', 8: '🗺️', 
+                        9: '🏙️', 10: '🏙️', 11: '🏘️', 12: '🏘️', 13: '🏠', 14: '🏠',
+                        15: '🔍', 16: '🔍', 17: '🔎', 18: '🔎'
+                    };
+
+                    function findClosestMarker(center) {
+                        let closestMarker = null;
+                        let minDistance = Infinity;
+                        
+                        markers.forEach(marker => {
+                            const distance = center.distanceTo(marker.getLatLng());
+                            if (distance < minDistance) {
+                                minDistance = distance;
+                                closestMarker = marker;
+                            }
+                        });
+                        
+                        return closestMarker;
+                    }
+
+                    function calculateZoomFromY(y) {
+                        const rect = slider.getBoundingClientRect();
+                        const relativeY = y - rect.top;
+                        const percentage = 1 - (relativeY / rect.height); 
+                        
+                        let zoom = minZoom + (percentage * (maxZoom - minZoom));
+                        
+                        zoom = Math.max(zoom, dezoomMax);
+                        zoom = Math.min(zoom, maxZoom);
+                        zoom = Math.max(zoom, minZoom);
+                        
+                        return Math.round(zoom);
+                    }
+
+                    function positionEmoji(y) {
+                        const rect = slider.getBoundingClientRect();
+                        const relativeY = y - rect.top;
+                        emoji.style.top = Math.max(0, Math.min(relativeY, rect.height)) + 'px';
+                    }
+
+                    function handleStart(e) {
+                        isDragging = true;
+                        slider.classList.add('active');
+                        
+                        const clientY = e.type === 'mousedown' ? e.clientY : e.touches[0].clientY;
+                        const zoom = calculateZoomFromY(clientY);
+                        
+                        positionEmoji(clientY);
+                        emoji.textContent = zoomEmojis[zoom] || '🔍';
+                        emoji.classList.add('visible');
+                        
+                        const center = map.getCenter();
+                        const closestMarker = findClosestMarker(center);
+                        
+                        if (closestMarker) {
+                            map.setView(closestMarker.getLatLng(), zoom, { animate: true, duration: 0.3 });
+                        } else {
+                            map.setZoom(zoom, { animate: true });
+                        }
+                        
+                        document.addEventListener('mousemove', handleMove);
+                        document.addEventListener('mouseup', handleEnd);
+                        document.addEventListener('touchmove', handleMove, { passive: false });
+                        document.addEventListener('touchend', handleEnd);
+                        
+                        e.preventDefault();
+                    }
+
+                    function handleMove(e) {
+                        if (!isDragging) return;
+                        
+                        const clientY = e.type === 'mousemove' ? e.clientY : e.touches[0].clientY;
+                        const zoom = calculateZoomFromY(clientY);
+                        
+                        positionEmoji(clientY);
+                        emoji.textContent = zoomEmojis[zoom] || '🔍';
+                        
+                        const center = map.getCenter();
+                        const closestMarker = findClosestMarker(center);
+                        
+                        if (closestMarker) {
+                            map.setView(closestMarker.getLatLng(), zoom, { animate: true, duration: 0.1 });
+                        } else {
+                            map.setZoom(zoom, { animate: true });
+                        }
+                        
+                        e.preventDefault();
+                    }
+
+                    function handleEnd() {
+                        isDragging = false;
+                        slider.classList.remove('active');
+                        emoji.classList.remove('visible');
+                        
+                        document.removeEventListener('mousemove', handleMove);
+                        document.removeEventListener('mouseup', handleEnd);
+                        document.removeEventListener('touchmove', handleMove);
+                        document.removeEventListener('touchend', handleEnd);
+                    }
+
+                    slider.addEventListener('mousedown', handleStart);
+                    slider.addEventListener('touchstart', handleStart, { passive: false });
+
+                    slider.addEventListener('mouseenter', function() {
+                        isHovering = true;
+                    });
+
+                    slider.addEventListener('mouseleave', function() {
+                        isHovering = false;
+                    });
+
+                    window.addEventListener('resize', function() {
+                    });
 
             animateMarker(markers[id], [latitude, longitude]);
             if (markers[id].minimalPopup) {
