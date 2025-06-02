@@ -2120,6 +2120,12 @@ tarteaucitron.init({
                 icon: "",
                 label: "My Bus Finder - by BecabTransit",
                 description: "build " + `${window.BUILD_VERSION}`,
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "ver", {
+                icon: "",
+                label: "Build version",
+                description: "build " + `${window.BUILD_VERSION}`,
                 onclick: function () {
                 showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html");
                 }
@@ -7503,7 +7509,7 @@ const FluentSettingsMenu = (function() {
         transition: opacity 0.3s ease;
       }
       
-      .fluent-settings-container {
+        .fluent-settings-container {
         position: fixed;
         top: 50%;
         left: 50%;
@@ -7521,7 +7527,9 @@ const FluentSettingsMenu = (function() {
         z-index: ${options.zIndex};
         overflow: hidden;
         opacity: 0;
-      }
+        position: relative;
+        }
+
       
       .fluent-settings-header {
         display: flex;
@@ -7647,17 +7655,21 @@ const FluentSettingsMenu = (function() {
         color: #555;
       }
       
-      .fluent-settings-submenu {
+    .fluent-settings-submenu {
         position: absolute;
         top: 0;
-        left: 100%;
+        left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(255, 255, 255, 0.85);
+        background-color: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
         transition: transform 0.3s ease;
         display: flex;
         flex-direction: column;
-      }
+        transform: translateX(100%);
+        overflow-y: auto;
+    }
       
       .fluent-switch {
         position: relative;
@@ -8096,24 +8108,25 @@ function addSubmenu(sectionId, id, options) {
         controlElement.appendChild(select);
         break;
         
-      case 'submenu':
+        case 'submenu':
         const indicator = document.createElement('span');
         indicator.className = 'fluent-settings-submenu-indicator';
         indicator.textContent = '❯';
         controlElement.appendChild(indicator);
         
         itemElement.addEventListener('click', (event) => {
-        if (item.onclick && typeof item.onclick === 'function') {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            if (item.onclick && typeof item.onclick === 'function') {
             item.onclick(event);
             safeVibrate([50], true);
-        }
-        
-        if (item.type === 'submenu') {
+            }
+            
             const submenu = menuElement.container.querySelector(`.fluent-settings-submenu[data-submenu-id="${item.submenuId}"]`);
             if (submenu) {
             submenu.style.transform = 'translateX(0)';
             }
-        }
         });
         break;
         
