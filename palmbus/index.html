@@ -5935,183 +5935,169 @@ async function fetchVehiclePositions() {
                 
             animateMarker(markers[id], [latitude, longitude]);
 
-            const minZoom = 3;
-            const maxZoom = 18;
-            const dezoomMax = 12; 
+const minZoom = 3;
+const maxZoom = 18;
+const dezoomMax = 12; 
 
-            const zoomEmojis = {
-                3: '🌍', 4: '🌍', 5: '🌎', 6: '🌎', 7: '🗺️', 8: '🗺️', 
-                9: '🏙️', 10: '🏙️', 11: '🏘️', 12: '🏘️', 13: '🏠', 14: '🏠',
-                15: '🔍', 16: '🔍', 17: '🔎', 18: '🔎'
-            };
+const zoomEmojis = {
+    3: '🌍', 4: '🌍', 5: '🌎', 6: '🌎', 7: '🗺️', 8: '🗺️', 
+    9: '🏙️', 10: '🏙️', 11: '🏘️', 12: '🏘️', 13: '🏠', 14: '🏠',
+    15: '🔍', 16: '🔍', 17: '🔎', 18: '🔎'
+};
 
-            function findClosestMarker(center) {
-                let closestMarker = null;
-                let minDistance = Infinity;
-                
-                Object.values(markers).forEach(marker => {
-                    if (map.hasLayer(marker)) { // Seulement les markers visibles
-                        const distance = center.distanceTo(marker.getLatLng());
-                        if (distance < minDistance) {
-                            minDistance = distance;
-                            closestMarker = marker;
-                        }
-                    }
-                });
-                
-                return closestMarker;
+// Variables pour optimiser les performances
+let isZoomSliderActive = false;
+let lastClosestMarkerId = null;
+let zoomSliderThrottle = null;
+
+function findClosestMarkerOptimized(center) {
+    // Cache le résultat si le slider n'est pas actif
+    if (!isZoomSliderActive) return null;
+    
+    let closestMarker = null;
+    let minDistance = Infinity;
+    let closestMarkerId = null;
+    
+    // Parcourir seulement les markers visibles
+    Object.keys(markers).forEach(id => {
+        const marker = markers[id];
+        if (map.hasLayer(marker)) {
+            const distance = center.distanceTo(marker.getLatLng());
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestMarker = marker;
+                closestMarkerId = id;
             }
+        }
+    });
+    
+    lastClosestMarkerId = closestMarkerId;
+    return closestMarker;
+}
 
-            function calculateZoomFromY(y) {
-                const slider = document.getElementById('zoomSlider');
-                if (!slider) return map.getZoom();
-                
-                const rect = slider.getBoundingClientRect();
-                const relativeY = y - rect.top;
-                const percentage = 1 - (relativeY / rect.height); 
-                
-                let zoom = minZoom + (percentage * (maxZoom - minZoom));
-                
-                zoom = Math.max(zoom, dezoomMax);
-                zoom = Math.min(zoom, maxZoom);
-                zoom = Math.max(zoom, minZoom);
-                
-                return Math.round(zoom);
+function calculateZoomFromY(y) {
+    const slider = document.getElementById('zoomSlider');
+    if (!slider) return map.getZoom();
+    
+    const rect = slider.getBoundingClientRect();
+    const relativeY = y - rect.top;
+    const percentage = 1 - (relativeY / rect.height); 
+    
+    let zoom = minZoom + (percentage * (maxZoom - minZoom));
+    zoom = Math.max(Math.min(Math.max(zoom, dezoomMax), maxZoom), minZoom);
+    
+    return Math.round(zoom);
+}
+
+function positionEmoji(y) {
+    const slider = document.getElementById('zoomSlider');
+    const emoji = document.getElementById('zoomEmoji');
+    if (!slider || !emoji) return;
+    
+    const rect = slider.getBoundingClientRect();
+    const relativeY = y - rect.top;
+    emoji.style.top = Math.max(0, Math.min(relativeY, rect.height)) + 'px';
+}
+
+// Fonction throttlée pour éviter trop d'appels
+function throttledZoomUpdate(callback, delay = 50) {
+    if (zoomSliderThrottle) clearTimeout(zoomSliderThrottle);
+    zoomSliderThrottle = setTimeout(callback, delay);
+}
+
+// ===== CODE À SUPPRIMER COMPLÈTEMENT DE LA SECTION if (markers[id]) =====
+// Ne plus rien ajouter dans la boucle markers[id] pour éviter le lag !
+
+// ===== CODE À AJOUTER POUR INITIALISER LE SLIDER (remplace l'ancien) =====
+
+function initializeZoomSlider() {
+    const slider = document.getElementById('zoomSlider');
+    const emoji = document.getElementById('zoomEmoji');
+    
+    if (!slider || !emoji) return;
+    
+    let isDragging = false;
+
+    function handleStart(e) {
+        isDragging = true;
+        isZoomSliderActive = true; // Activer le mode zoom slider
+        slider.classList.add('active');
+        
+        const clientY = e.type === 'mousedown' ? e.clientY : e.touches[0].clientY;
+        const zoom = calculateZoomFromY(clientY);
+        
+        positionEmoji(clientY);
+        emoji.textContent = zoomEmojis[zoom] || '🔍';
+        emoji.classList.add('visible');
+        
+        // Trouver le marker le plus proche UNE SEULE FOIS au début
+        const center = map.getCenter();
+        const closestMarker = findClosestMarkerOptimized(center);
+        
+        if (closestMarker) {
+            map.setView(closestMarker.getLatLng(), zoom, { animate: true, duration: 0.3 });
+        } else {
+            map.setZoom(zoom, { animate: true });
+        }
+        
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        document.addEventListener('touchend', handleEnd);
+        
+        e.preventDefault();
+    }
+
+    function handleMove(e) {
+        if (!isDragging) return;
+        
+        const clientY = e.type === 'mousemove' ? e.clientY : e.touches[0].clientY;
+        const zoom = calculateZoomFromY(clientY);
+        
+        positionEmoji(clientY);
+        emoji.textContent = zoomEmojis[zoom] || '🔍';
+        
+        // Throttler les mises à jour du zoom pour éviter le lag
+        throttledZoomUpdate(() => {
+            const center = map.getCenter();
+            
+            // Utiliser le dernier marker le plus proche trouvé
+            if (lastClosestMarkerId && markers[lastClosestMarkerId]) {
+                map.setView(markers[lastClosestMarkerId].getLatLng(), zoom, { animate: false });
+            } else {
+                map.setZoom(zoom, { animate: false });
             }
+        }, 16); // ~60fps
+        
+        e.preventDefault();
+    }
 
-            function positionEmoji(y) {
-                const slider = document.getElementById('zoomSlider');
-                const emoji = document.getElementById('zoomEmoji');
-                if (!slider || !emoji) return;
-                
-                const rect = slider.getBoundingClientRect();
-                const relativeY = y - rect.top;
-                emoji.style.top = Math.max(0, Math.min(relativeY, rect.height)) + 'px';
-            }
+    function handleEnd() {
+        isDragging = false;
+        isZoomSliderActive = false; // Désactiver le mode zoom slider
+        slider.classList.remove('active');
+        emoji.classList.remove('visible');
+        
+        // Clear throttle
+        if (zoomSliderThrottle) {
+            clearTimeout(zoomSliderThrottle);
+            zoomSliderThrottle = null;
+        }
+        
+        lastClosestMarkerId = null;
+        
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('mouseup', handleEnd);
+        document.removeEventListener('touchmove', handleMove);
+        document.removeEventListener('touchend', handleEnd);
+    }
 
-                if (markers[id]._isActiveForZoom) {
-                    const currentZoom = map.getZoom();
-                    const markerPosition = markers[id].getLatLng();
-                    
-                    // Vérifier si ce marker est le plus proche du centre
-                    const center = map.getCenter();
-                    const closestMarker = findClosestMarker(center);
-                    
-                    if (closestMarker === markers[id]) {
-                        // Ce marker est le plus proche, appliquer la logique zoom
-                        markers[id]._isClosestToCenter = true;
-                        
-                        // Si le zoom a changé et que ce marker était actif pour le zoom
-                        if (markers[id]._lastZoomLevel !== currentZoom) {
-                            markers[id]._lastZoomLevel = currentZoom;
-                            
-                            // Mettre à jour l'emoji si le slider est actif
-                            const emoji = document.getElementById('zoomEmoji');
-                            if (emoji && emoji.classList.contains('visible')) {
-                                emoji.textContent = zoomEmojis[currentZoom] || '🔍';
-                            }
-                        }
-                    } else {
-                        markers[id]._isClosestToCenter = false;
-                    }
-                }
+    slider.addEventListener('mousedown', handleStart);
+    slider.addEventListener('touchstart', handleStart, { passive: false });
+}
 
-                // ===== CODE À AJOUTER POUR INITIALISER LE SLIDER (après la création de tous les markers) =====
-
-                function initializeZoomSlider() {
-                    const slider = document.getElementById('zoomSlider');
-                    const emoji = document.getElementById('zoomEmoji');
-                    
-                    if (!slider || !emoji) return;
-                    
-                    let isDragging = false;
-                    let isHovering = false;
-
-                    function handleStart(e) {
-                        isDragging = true;
-                        slider.classList.add('active');
-                        
-                        const clientY = e.type === 'mousedown' ? e.clientY : e.touches[0].clientY;
-                        const zoom = calculateZoomFromY(clientY);
-                        
-                        positionEmoji(clientY);
-                        emoji.textContent = zoomEmojis[zoom] || '🔍';
-                        emoji.classList.add('visible');
-                        
-                        // Marquer tous les markers comme actifs pour le zoom
-                        Object.values(markers).forEach(marker => {
-                            marker._isActiveForZoom = true;
-                        });
-                        
-                        const center = map.getCenter();
-                        const closestMarker = findClosestMarker(center);
-                        
-                        if (closestMarker) {
-                            map.setView(closestMarker.getLatLng(), zoom, { animate: true, duration: 0.3 });
-                        } else {
-                            map.setZoom(zoom, { animate: true });
-                        }
-                        
-                        document.addEventListener('mousemove', handleMove);
-                        document.addEventListener('mouseup', handleEnd);
-                        document.addEventListener('touchmove', handleMove, { passive: false });
-                        document.addEventListener('touchend', handleEnd);
-                        
-                        e.preventDefault();
-                    }
-
-                    function handleMove(e) {
-                        if (!isDragging) return;
-                        
-                        const clientY = e.type === 'mousemove' ? e.clientY : e.touches[0].clientY;
-                        const zoom = calculateZoomFromY(clientY);
-                        
-                        positionEmoji(clientY);
-                        emoji.textContent = zoomEmojis[zoom] || '🔍';
-                        
-                        const center = map.getCenter();
-                        const closestMarker = findClosestMarker(center);
-                        
-                        if (closestMarker) {
-                            map.setView(closestMarker.getLatLng(), zoom, { animate: true, duration: 0.1 });
-                        } else {
-                            map.setZoom(zoom, { animate: true });
-                        }
-                        
-                        e.preventDefault();
-                    }
-
-                    function handleEnd() {
-                        isDragging = false;
-                        slider.classList.remove('active');
-                        emoji.classList.remove('visible');
-                        
-                        // Désactiver le flag zoom pour tous les markers
-                        Object.values(markers).forEach(marker => {
-                            marker._isActiveForZoom = false;
-                        });
-                        
-                        document.removeEventListener('mousemove', handleMove);
-                        document.removeEventListener('mouseup', handleEnd);
-                        document.removeEventListener('touchmove', handleMove);
-                        document.removeEventListener('touchend', handleEnd);
-                    }
-
-                    slider.addEventListener('mousedown', handleStart);
-                    slider.addEventListener('touchstart', handleStart, { passive: false });
-
-                    slider.addEventListener('mouseenter', function() {
-                        isHovering = true;
-                    });
-
-                    slider.addEventListener('mouseleave', function() {
-                        isHovering = false;
-                    });
-                }
-
-                // Appeler cette fonction après avoir créé votre map et vos markers
-                // Par exemple, à la fin de votre fonction d'initialisation principale
-                initializeZoomSlider();
+// Appeler cette fonction après avoir créé votre map
+initializeZoomSlider();
 
             if (markers[id].minimalPopup) {
                     createOrUpdateMinimalTooltip(id, true);
