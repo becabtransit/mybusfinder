@@ -8337,7 +8337,7 @@ setTimeout(() => {
 }, 2000);
 
 
-
+const receivedSettings = {};
 
 window.addEventListener('message', function(event) {
 
@@ -8380,10 +8380,82 @@ window.addEventListener('message', function(event) {
 
     }
 
-    if (event.data.type === 'settingsComplete') {
-        console.log('Paramètres reçus:', event.data.settings);
-        // Appliquer les paramètres
+    if (event.data.type === 'settingUpdate') {
+        const { setting, value } = event.data;
+        receivedSettings[setting] = value;        
+        handleSettingUpdate(setting, value);
+        
+    } else if (event.data.type === 'settingsComplete') {
+        console.log('OOBE terminée !!');
+        console.log('Params', receivedSettings);
+        applyAllSettings(receivedSettings);
     }
+
+
+
+
+    function handleSettingUpdate(setting, value) {
+    switch(setting) {
+        case 'language':
+            console.log('Redémarrage app pr changement langue...', value);
+            window.location.reload();
+            break;
+        case 'theme':
+            console.log('Thème sélectionné:', value);
+            changeColorBkg(value);
+            break;
+            
+        case 'mapview':
+            toggleMapView(value);
+            break;
+            
+        case 'transparency':
+            localStorage.setItem('transparency', value);
+            break;
+            
+        case 'locateonstart':
+            localStorage.setItem('locateonstart', value);
+            break;
+            
+        case 'spottingmode':
+            toggleSunOrientation(value);
+            break;
+            
+        case 'darkmap':
+            if (value) {
+                showFluentPopup({
+                    title: betasetting,
+                    message: betasettingdarkmap,
+                    buttons: {
+                        primary: understood,
+                        primaryAction: () => {
+                            localStorage.setItem('darkmap', 'true');
+                            const mapPane = map.getPanes().tilePane;
+                            mapPane.style.filter = 'invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)';
+                            fluentPopupManager.close();
+                        },
+                        secondary: cancel,
+                        secondaryAction: () => {
+                            const toggle = document.querySelector('[data-setting="darkmap"]');
+                            if (toggle) {
+                                toggle.querySelector('input[type="checkbox"]').checked = false;
+                            }
+                            localStorage.setItem('darkmap', 'false');
+                            fluentPopupManager.close();
+                        }
+                    }
+                });
+            } else {
+                localStorage.setItem('darkmap', value);
+                const mapPane = map.getPanes().tilePane;
+                mapPane.style.filter = 'none';
+            }
+            break;
+            
+        default:
+            console.log('Parametre inconnu :(', setting, value);
+    }
+}
 });
 
 function afficherMenu() {
