@@ -2153,12 +2153,30 @@ tarteaucitron.init({
                 }
             });
 
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "opendata", {
+                icon: "🚌",
+                label: "Données temps-réel",
+                description: "Ministère de l'Aménagement du Territoire, des Infrastructures et des Transports",
+                onclick: function () {
+                    window.open('https://transport.data.gouv.fr/', '_blank');
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "fluentdesign", {
+                icon: "🖌️",
+                label: "Microsoft Fluent Design System",
+                description: "v2.0.0",
+                onclick: function () {
+                    window.open('https://fluent2.microsoft.design/', '_blank');
+                }
+            });
+
             FluentSettingsMenu.addSubmenu("submenu-aboutsub", "protobuf", {
                 icon: "📦",
                 label: "Protobuf.js",
                 description: "v3.21.12",
                 onclick: function () {
-                    return;
+                    window.open('https://protobuf.dev/', '_blank');
                 }
             });
 
@@ -2167,7 +2185,7 @@ tarteaucitron.init({
                 label: "Leaflet.js",
                 description: "v1.9.4",
                 onclick: function () {
-                    return;
+                    window.open('https://leafletjs.com/', '_blank');
                 }
             });
 
@@ -2176,7 +2194,7 @@ tarteaucitron.init({
                 label: "OpenStreetMap Contributors",
                 description: "© OpenStreetMap contributors (data: ODbL, map: CC-BY-SA 2.0)",
                 onclick: function () {
-                    return;
+                    window.open('https://www.openstreetmap.org/copyright', '_blank');
                 }
             });
 
@@ -2185,7 +2203,7 @@ tarteaucitron.init({
                 label: "JSZip.js",
                 description: "v3.10.1",
                 onclick: function () {
-                    return;
+                    window.open('https://stuk.github.io/jszip/', '_blank');
                 }
             });
 
@@ -3011,9 +3029,21 @@ document.getElementById('close-popup1').addEventListener('click', closeUpdatePop
 
 
 function hideLoadingScreen() {
+    if(!localStorage.getItem('OutOfBoxExperienceTerminee')) {
+            const iframeeee = document.getElementById("webview-frameaccueil");
+            iframeeee.src = "../oobe.html";
+    } 
     setTimeout(() => {
         const loadingScreen = document.getElementById('loading-screen');
 
+        if (localStorage.getItem('buildversion') !== window.BUILD_VERSION) {
+            toastBottomRight.info(`Updating to build ${window.BUILD_VERSION} in progress... Please wait`);
+            localStorage.setItem('buildversion', window.BUILD_VERSION);
+                setTimeout(() => {
+                    window.location.reload();
+                }, 4000);
+
+        } else {
 
         setTimeout(() => {
             const logoscr = document.getElementById('logoscr');
@@ -3023,13 +3053,10 @@ function hideLoadingScreen() {
 
             setTimeout(() => {
                 loadingScreen.style.display = 'none';
-                if(!localStorage.getItem('premierLancement')) {
-                    showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
-                    showLanguageSwitcher();
-                    localStorage.setItem('premierLancement', 'true');
-                } 
+                loadingScreen.style.pointerEvents = 'none';
             }, 300);
         }, 900);
+    }
     }, 100);
 }
 
@@ -3482,6 +3509,7 @@ async function clearGTFSCache() {
         toastBottomRight.error('Erreur lors de l\'effacement du cache');
         throw error;
     }
+    localStorage.clear();
 }
 
 async function decodeProtobuf(buffer) {
@@ -8316,7 +8344,7 @@ setTimeout(() => {
 }, 2000);
 
 
-
+const receivedSettings = {};
 
 window.addEventListener('message', function(event) {
 
@@ -8358,6 +8386,58 @@ window.addEventListener('message', function(event) {
         }, 10);
 
     }
+
+    if (event.data.type === 'settingUpdate') {
+        const { setting, value } = event.data;
+        receivedSettings[setting] = value;        
+        handleSettingUpdate(setting, value);
+        
+    } else if (event.data.type === 'settingsComplete') {
+        console.log('OOBE terminée !!');
+        console.log('Params', receivedSettings);
+        localStorage.setItem('OutOfBoxExperienceTerminee', 'true');
+        applyAllSettings(receivedSettings);
+    }
+
+
+
+
+    function handleSettingUpdate(setting, value) {
+    switch(setting) {
+        case 'language':
+            console.log('Redémarrage app pr changement langue...', value);
+            window.location.reload();
+            break;
+        case 'theme':
+            console.log('Thème sélectionné:', value);
+            changeColorBkg(value);
+            break;
+            
+        case 'mapview':
+            localStorage.setItem('isStandardView', value);
+            break;
+            
+        case 'transparency':
+            localStorage.setItem('transparency', value);
+            break;
+            
+        case 'locateonstart':
+            localStorage.setItem('locateonstart', value);
+            break;
+            
+        case 'spottingmode':
+            toggleSunOrientation(value);
+            break;
+            
+        case 'darkmap':
+            localStorage.setItem('darkmap', value);
+            window.location.reload();
+            break;
+            
+        default:
+            console.log('Parametre inconnu :(', setting, value);
+    }
+}
 });
 
 function afficherMenu() {
