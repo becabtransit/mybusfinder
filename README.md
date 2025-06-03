@@ -21,3 +21,5 @@ MyBusFinder offre une solution intuitive pour suivre les bus en temps réel, con
 ## 📄 Licence
 
 Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+*vive les bousses comme dirait un certain meilleur pote*
