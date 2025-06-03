@@ -1304,38 +1304,6 @@
         border: 1px solid #ccc;
         cursor: pointer;
     }
-    .first-visit-tooltip {
-        position: absolute;
-        bottom: 80px;
-        left: 50%;
-        width: auto;
-        transform: translateX(-50%);
-        background-color: rgba(15, 5, 107, 0.384);
-        color: #fff;
-        padding: 10px 15px;
-        border-radius: 15px;
-        z-index: 10001;
-        display: flex;
-        align-items: center;
-        opacity: 0;
-        visibility: hidden;
-        transition: 0.3s;
-        backdrop-filter: blur(8px);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .first-visit-tooltip.show {
-        opacity: 1;
-        visibility: visible;
-    }
-    .first-visit-tooltip .tooltip-content {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .first-visit-tooltip svg {
-        stroke: white;
-        animation: 1s infinite bounce;
-    }
     @keyframes bounce {
         0%,
         100% {
@@ -1438,14 +1406,6 @@
     <span data-i18n="filtersreset" class="filtre-texte">Réinitialiser les filtres</span>
 </div>
 
-<div id="first-visit-tooltip" class="first-visit-tooltip">
-    <div class="tooltip-content">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="up-arrow">
-            <path d="M12 5l-7 7h14l-7-7z" fill="white"/>
-        </svg>
-        <span data-i18n="slideuptosettings">Glissez vers le haut pour les paramètres</span>
-    </div>
-</div>
  <div class="menubottom">
         <ul id="menubtm" class="menubottom-ul">
             <li>
@@ -2018,7 +1978,7 @@ tarteaucitron.init({
                 }
             });
 
-            FluentSettingsMenu.addSelect("general", "mapview", {
+            FluentSettingsMenu.addSelect("general", "themeselect", {
                 icon: "🖌️",
                 label: theme,
                 description: themeselect,
@@ -2126,12 +2086,21 @@ tarteaucitron.init({
                 description: "made in Cannes with ❤️",
             });
 
+            FluentSettingsMenu.addSubmenu("about", "instagram", {
+                icon: "📸",
+                label: "Instagram",
+                description: "@mybusfinder",
+                onclick: function () {
+                    window.open('https://www.instagram.com/mybusfinder/', '_blank');
+                }
+            });
+
             FluentSettingsMenu.addSubmenu("submenu-aboutsub", "ver", {
                 icon: "ℹ️",
                 label: "Version",
-                description: "3.0.1.7X",
+                description: "3.0.2.0X",
                 onclick: function () {
-                    showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html");
+                    return;
                 }
             });
 
@@ -2204,6 +2173,15 @@ tarteaucitron.init({
                 description: "v3.10.1",
                 onclick: function () {
                     window.open('https://stuk.github.io/jszip/', '_blank');
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "github", {
+                icon: "🐈‍⬛",
+                label: "GitHub",
+                description: "becabtransit/mybusfinder",
+                onclick: function () {
+                    window.open('https://github.com/becabtransit/mybusfinder', '_blank');
                 }
             });
 
@@ -2294,51 +2272,6 @@ if ('serviceWorker' in navigator) {
       });
   });
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-    const tooltip = document.getElementById('first-visit-tooltip');
-    
-    let navigationCount = parseInt(localStorage.getItem('navigationCount') || '0');
-    
-    function showTooltip() {
-        tooltip.classList.add('show');
-        
-        const tooltipTimeout = setTimeout(() => {
-            tooltip.classList.remove('show');
-        }, 10000);
-        
-        const hideTooltip = () => {
-            tooltip.classList.remove('show');
-            document.removeEventListener('click', clickHandler);
-        };
-        
-        const clickHandler = (event) => {
-            if (!tooltip.contains(event.target)) {
-                clearTimeout(tooltipTimeout);
-                hideTooltip();
-            }
-        };
-        
-        document.addEventListener('click', clickHandler);
-    }
-    
-    function checkNavigationAndShowTooltip() {
-        navigationCount++;
-        localStorage.setItem('navigationCount', navigationCount.toString());
-        
-        if (navigationCount === 2) {
-            setTimeout(showTooltip, 3000);
-        }
-    }
-    
-    const originalHideLoadingScreen = window.hideLoadingScreen;
-    window.hideLoadingScreen = function() {
-        if (originalHideLoadingScreen) {
-            originalHideLoadingScreen.apply(this, arguments);
-        }
-        checkNavigationAndShowTooltip();
-    };
-});
 
 async function getSetvar() {
     try {
