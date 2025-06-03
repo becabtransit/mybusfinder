@@ -738,7 +738,7 @@
         width: 70px;
         position: relative;
         cursor: pointer;
-        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out;
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out, color 0.5s ease;
     }
     .menubottom ul li a .icon {
         position: relative;
@@ -752,11 +752,13 @@
         align-items: center;
     }
     .menubottom ul li a .title {
+        font-family: League Spartan;
+        font-weight: 400;
         margin-bottom: 8px;
         font-size: 14px;
         text-align: center;
         opacity: 1;
-        transition: none;
+        transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.3s ease-out, filter 0.3s ease-out, color 0.5s ease;
     }
     .menubottom ul li a:hover .icon {
         transform: scale(0.8);
@@ -1030,8 +1032,6 @@
     .title {
         color: #fff;
         font-size: 24px;
-        font-weight: 300;
-        text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
     }
     .shine {
         position: absolute;
@@ -1304,38 +1304,6 @@
         border: 1px solid #ccc;
         cursor: pointer;
     }
-    .first-visit-tooltip {
-        position: absolute;
-        bottom: 80px;
-        left: 50%;
-        width: auto;
-        transform: translateX(-50%);
-        background-color: rgba(15, 5, 107, 0.384);
-        color: #fff;
-        padding: 10px 15px;
-        border-radius: 15px;
-        z-index: 10001;
-        display: flex;
-        align-items: center;
-        opacity: 0;
-        visibility: hidden;
-        transition: 0.3s;
-        backdrop-filter: blur(8px);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .first-visit-tooltip.show {
-        opacity: 1;
-        visibility: visible;
-    }
-    .first-visit-tooltip .tooltip-content {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .first-visit-tooltip svg {
-        stroke: white;
-        animation: 1s infinite bounce;
-    }
     @keyframes bounce {
         0%,
         100% {
@@ -1438,14 +1406,6 @@
     <span data-i18n="filtersreset" class="filtre-texte">Réinitialiser les filtres</span>
 </div>
 
-<div id="first-visit-tooltip" class="first-visit-tooltip">
-    <div class="tooltip-content">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="up-arrow">
-            <path d="M12 5l-7 7h14l-7-7z" fill="white"/>
-        </svg>
-        <span data-i18n="slideuptosettings">Glissez vers le haut pour les paramètres</span>
-    </div>
-</div>
  <div class="menubottom">
         <ul id="menubtm" class="menubottom-ul">
             <li>
@@ -1993,6 +1953,10 @@ tarteaucitron.init({
             const betasettingdarkmap = t("betasettingdarkmap");
             const understood = t("understood");
             const cancel = t("cancel");
+            const languagepackversion = t("languagepackversion");
+            const langversion = t("langversion");
+            const erazecache = t("erazecache");
+            const erazecachetext = t("erazecachetext");
                    
 
             FluentSettingsMenu.init({
@@ -2014,7 +1978,7 @@ tarteaucitron.init({
                 }
             });
 
-            FluentSettingsMenu.addSelect("general", "mapview", {
+            FluentSettingsMenu.addSelect("general", "themeselect", {
                 icon: "🖌️",
                 label: theme,
                 description: themeselect,
@@ -2119,18 +2083,129 @@ tarteaucitron.init({
             FluentSettingsMenu.addSubmenu("about", "aboutsub", {
                 icon: "",
                 label: "My Bus Finder - by BecabTransit",
-                description: "build " + `${window.BUILD_VERSION}`,
+                description: "made in Cannes with ❤️",
+            });
+
+            FluentSettingsMenu.addSubmenu("about", "instagram", {
+                icon: "📸",
+                label: "Instagram",
+                description: "@mybusfinder",
                 onclick: function () {
-                showUpdatePopupmusic("https://www.mybusfinder.fr/updatecm/updatecm.html");
+                    window.open('https://www.instagram.com/mybusfinder/', '_blank');
                 }
             });
 
-            FluentSettingsMenu.addSubmenu("about", "erazecache", {
-                icon: "",
-                label: "For developers - erase cache",
-                description: "Do not use if you don't know what you are doing",
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "ver", {
+                icon: "ℹ️",
+                label: "Version",
+                description: "3.0.2.0X",
                 onclick: function () {
-                clearGTFSCache();
+                    return;
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "buildver", {
+                icon: "🏗️",
+                label: "Build",
+                description: `${window.BUILD_VERSION}`,
+                onclick: function () {
+                    return;
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "lang", {
+                icon: "📖",
+                label: languagepackversion,
+                description: i18n.currentLang + " - " + langversion,
+                onclick: function () {
+                    return;
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "opendata", {
+                icon: "🚌",
+                label: "Données temps-réel",
+                description: "Ministère de l'Aménagement du Territoire, des Infrastructures et des Transports",
+                onclick: function () {
+                    window.open('https://transport.data.gouv.fr/', '_blank');
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "fluentdesign", {
+                icon: "🖌️",
+                label: "Microsoft Fluent Design System",
+                description: "v2.0.0",
+                onclick: function () {
+                    window.open('https://fluent2.microsoft.design/', '_blank');
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "protobuf", {
+                icon: "📦",
+                label: "Protobuf.js",
+                description: "v3.21.12",
+                onclick: function () {
+                    window.open('https://protobuf.dev/', '_blank');
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "leaflet", {
+                icon: "📦",
+                label: "Leaflet.js",
+                description: "v1.9.4",
+                onclick: function () {
+                    window.open('https://leafletjs.com/', '_blank');
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "osm", {
+                icon: "📦",
+                label: "OpenStreetMap Contributors",
+                description: "© OpenStreetMap contributors (data: ODbL, map: CC-BY-SA 2.0)",
+                onclick: function () {
+                    window.open('https://www.openstreetmap.org/copyright', '_blank');
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "jszip", {
+                icon: "📦",
+                label: "JSZip.js",
+                description: "v3.10.1",
+                onclick: function () {
+                    window.open('https://stuk.github.io/jszip/', '_blank');
+                }
+            });
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "github", {
+                icon: "🐈‍⬛",
+                label: "GitHub",
+                description: "becabtransit/mybusfinder",
+                onclick: function () {
+                    window.open('https://github.com/becabtransit/mybusfinder', '_blank');
+                }
+            });
+
+
+            FluentSettingsMenu.addSubmenu("submenu-aboutsub", "erazecache", {
+                icon: "🗑️",
+                label: erazecache,
+                description: erazecachetext,
+                onclick: function () {
+                    showFluentPopup({
+                        title: erazecache,
+                        message: erazecachetext,
+                        buttons: {
+                            primary: understood,
+                            primaryAction: () => {
+                                clearGTFSCache();
+                                fluentPopupManager.close();
+                            },
+                            secondary: cancel,
+                            secondaryAction: () => {
+                                fluentPopupManager.close();
+                            }
+                        }
+                    });
                 }
             });
         });
@@ -2197,51 +2272,6 @@ if ('serviceWorker' in navigator) {
       });
   });
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-    const tooltip = document.getElementById('first-visit-tooltip');
-    
-    let navigationCount = parseInt(localStorage.getItem('navigationCount') || '0');
-    
-    function showTooltip() {
-        tooltip.classList.add('show');
-        
-        const tooltipTimeout = setTimeout(() => {
-            tooltip.classList.remove('show');
-        }, 10000);
-        
-        const hideTooltip = () => {
-            tooltip.classList.remove('show');
-            document.removeEventListener('click', clickHandler);
-        };
-        
-        const clickHandler = (event) => {
-            if (!tooltip.contains(event.target)) {
-                clearTimeout(tooltipTimeout);
-                hideTooltip();
-            }
-        };
-        
-        document.addEventListener('click', clickHandler);
-    }
-    
-    function checkNavigationAndShowTooltip() {
-        navigationCount++;
-        localStorage.setItem('navigationCount', navigationCount.toString());
-        
-        if (navigationCount === 2) {
-            setTimeout(showTooltip, 3000);
-        }
-    }
-    
-    const originalHideLoadingScreen = window.hideLoadingScreen;
-    window.hideLoadingScreen = function() {
-        if (originalHideLoadingScreen) {
-            originalHideLoadingScreen.apply(this, arguments);
-        }
-        checkNavigationAndShowTooltip();
-    };
-});
 
 async function getSetvar() {
     try {
@@ -2932,9 +2962,21 @@ document.getElementById('close-popup1').addEventListener('click', closeUpdatePop
 
 
 function hideLoadingScreen() {
+    if(!localStorage.getItem('OutOfBoxExperienceTerminee')) {
+            const iframeeee = document.getElementById("webview-frameaccueil");
+            iframeeee.src = "../oobe.html";
+    } 
     setTimeout(() => {
         const loadingScreen = document.getElementById('loading-screen');
 
+        if (localStorage.getItem('buildversion') !== window.BUILD_VERSION) {
+            toastBottomRight.info(`Updating to build ${window.BUILD_VERSION} in progress... Please wait`);
+            localStorage.setItem('buildversion', window.BUILD_VERSION);
+                setTimeout(() => {
+                    window.location.reload();
+                }, 4000);
+
+        } else {
 
         setTimeout(() => {
             const logoscr = document.getElementById('logoscr');
@@ -2944,13 +2986,10 @@ function hideLoadingScreen() {
 
             setTimeout(() => {
                 loadingScreen.style.display = 'none';
-                if(!localStorage.getItem('premierLancement')) {
-                    showUpdatePopup('https://mybusfinder.fr/updatecm/updatecm.html');
-                    showLanguageSwitcher();
-                    localStorage.setItem('premierLancement', 'true');
-                } 
+                loadingScreen.style.pointerEvents = 'none';
             }, 300);
         }, 900);
+    }
     }, 100);
 }
 
@@ -3387,6 +3426,7 @@ async function initializeGTFS() {
 async function clearGTFSCache() {
     try {
         const db = await initDB();
+        localStorage.clear();
         return new Promise((resolve, reject) => {
             const transaction = db.transaction(STORE_NAME, 'readwrite');
             const store = transaction.objectStore(STORE_NAME);
@@ -3657,7 +3697,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                 styleSheet.textContent = `
                     #menubtm * {
                         color: ${textColor};
-                        transition: color 0.5s ease;
                     }
 
                     #filtre * {
@@ -3784,7 +3823,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                 styleSheet.textContent = `
                     #menubtm * {
                         color: ${textColor};
-                        transition: color 0.5s ease;
                     }
 
                         #filtre * {
@@ -3938,10 +3976,9 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
 
                         
                         styleSheet.textContent = `
-                            #menubtm * {
-                                color: ${textColor};
-                                transition: color 0.5s ease;
-                            }
+                        #menubtm * {
+                            color: ${textColor};
+                        }
 
                             #filtre * {
                                 color: ${textColor};
@@ -5856,7 +5893,6 @@ async function fetchVehiclePositions() {
                             styleSheet.textContent = `
                                 #menubtm * {
                                     color: ${textColor};
-                                    transition: color 0.5s ease;
                                 }
 
                                 #filtre * {
@@ -7507,7 +7543,7 @@ const FluentSettingsMenu = (function() {
         transition: opacity 0.3s ease;
       }
       
-      .fluent-settings-container {
+        .fluent-settings-container {
         position: fixed;
         top: 50%;
         left: 50%;
@@ -7525,7 +7561,9 @@ const FluentSettingsMenu = (function() {
         z-index: ${options.zIndex};
         overflow: hidden;
         opacity: 0;
-      }
+        position: absolute;
+        }
+
       
       .fluent-settings-header {
         display: flex;
@@ -7651,17 +7689,21 @@ const FluentSettingsMenu = (function() {
         color: #555;
       }
       
-      .fluent-settings-submenu {
+    .fluent-settings-submenu {
         position: absolute;
         top: 0;
-        left: 100%;
+        left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(255, 255, 255, 0.85);
+        background-color: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
         transition: transform 0.3s ease;
         display: flex;
         flex-direction: column;
-      }
+        transform: translateX(100%);
+        overflow-y: auto;
+    }
       
       .fluent-switch {
         position: relative;
@@ -8100,24 +8142,26 @@ function addSubmenu(sectionId, id, options) {
         controlElement.appendChild(select);
         break;
         
-      case 'submenu':
+        case 'submenu':
         const indicator = document.createElement('span');
         indicator.className = 'fluent-settings-submenu-indicator';
         indicator.textContent = '❯';
         controlElement.appendChild(indicator);
         
         itemElement.addEventListener('click', (event) => {
-        if (item.onclick && typeof item.onclick === 'function') {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            if (item.onclick && typeof item.onclick === 'function') {
             item.onclick(event);
             safeVibrate([50], true);
-        }
-        
-        if (item.type === 'submenu') {
+            return;
+            }
+            
             const submenu = menuElement.container.querySelector(`.fluent-settings-submenu[data-submenu-id="${item.submenuId}"]`);
             if (submenu) {
             submenu.style.transform = 'translateX(0)';
             }
-        }
         });
         break;
         
@@ -8169,7 +8213,7 @@ function addSubmenu(sectionId, id, options) {
     
     const backText = document.createElement('span');
     backText.className = 'fluent-settings-back-text';
-    backText.textContent = `Retour à ${sections[parentSectionId].title}`;
+    backText.textContent = `${t("backto")} ${sections[parentSectionId].title}`;
     backButton.appendChild(backText);
     
     backButton.addEventListener('click', () => {
@@ -8233,7 +8277,7 @@ setTimeout(() => {
 }, 2000);
 
 
-
+const receivedSettings = {};
 
 window.addEventListener('message', function(event) {
 
@@ -8275,6 +8319,58 @@ window.addEventListener('message', function(event) {
         }, 10);
 
     }
+
+    if (event.data.type === 'settingUpdate') {
+        const { setting, value } = event.data;
+        receivedSettings[setting] = value;        
+        handleSettingUpdate(setting, value);
+        
+    } else if (event.data.type === 'settingsComplete') {
+        console.log('OOBE terminée !!');
+        console.log('Params', receivedSettings);
+        localStorage.setItem('OutOfBoxExperienceTerminee', 'true');
+        applyAllSettings(receivedSettings);
+    }
+
+
+
+
+    function handleSettingUpdate(setting, value) {
+    switch(setting) {
+        case 'language':
+            console.log('Redémarrage app pr changement langue...', value);
+            window.location.reload();
+            break;
+        case 'theme':
+            console.log('Thème sélectionné:', value);
+            changeColorBkg(value);
+            break;
+            
+        case 'mapview':
+            localStorage.setItem('isStandardView', value);
+            break;
+            
+        case 'transparency':
+            localStorage.setItem('transparency', value);
+            break;
+            
+        case 'locateonstart':
+            localStorage.setItem('locateonstart', value);
+            break;
+            
+        case 'spottingmode':
+            toggleSunOrientation(value);
+            break;
+            
+        case 'darkmap':
+            localStorage.setItem('darkmap', value);
+            window.location.reload();
+            break;
+            
+        default:
+            console.log('Parametre inconnu :(', setting, value);
+    }
+}
 });
 
 function afficherMenu() {
