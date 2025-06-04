@@ -2273,6 +2273,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+let globalSettings = {};
+
 async function getSetvar() {
     try {
         const response5 = await fetch('setvar/settings/theme/maincolor.txt');
@@ -2287,14 +2289,29 @@ async function getSetvar() {
         const setvar1 = await response1.text();
         const nomdureseau = setvar1.trim();  
 
-        return { colorbkg, view, nomdureseau };
+        const response2 = await fetch('setvar/settings/linkboutique.txt');
+        const setvar2 = await response2.text();
+        const boutique = setvar2.trim();  
+
+        try {
+            const boutiqueResponse = await fetch(boutique, { method: 'HEAD' });
+            window.boutiqueAvailable = boutiqueResponse.ok; 
+        } catch (error) {
+            console.error('Erreur lors de la vérification de la boutique', error);
+            window.boutiqueAvailable = false;
+        }
+
+        globalSettings = { colorbkg, view, nomdureseau, boutique };
+        return { colorbkg, view, nomdureseau, boutique };
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
+        window.boutiqueAvailable = false;
     }
 }
 
 getSetvar();
+
 
 
 const vehicleModels = {};
@@ -8298,6 +8315,26 @@ window.addEventListener('message', function(event) {
 
     if (event.data.type === 'mbh') {
         showUpdatePopup('histovec.html');
+        safeVibrate([30], true);
+    }
+
+    if (event.data.type === 'boutique') {
+        const boutiqueLink = globalSettings.boutique;
+        if (!boutiqueAvailable) {
+            showFluentPopup({
+                title: t('noboutique'),
+                message: t('noboutiqueinfo'),
+                buttons: {
+                    primary: t('understood'),
+                    primaryAction: () => {
+                        fluentPopupManager.close();
+                    }
+
+                }
+            });
+        } else {
+            showUpdatePopup(boutiqueLink); 
+        }
         safeVibrate([30], true);
     }
 
