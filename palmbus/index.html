@@ -2198,6 +2198,7 @@ tarteaucitron.init({
                             primary: understood,
                             primaryAction: () => {
                                 clearGTFSCache();
+                                clearVehicleCache()
                                 fluentPopupManager.close();
                             },
                             secondary: cancel,
@@ -2277,42 +2278,76 @@ let globalSettings = {};
 
 async function getSetvar() {
     try {
-        const response5 = await fetch('setvar/settings/theme/maincolor.txt');
-        const setvar5 = await response5.text();  
-        const colorbkg = setvar5.trim();
+        const fileConfigs = [
+            { key: 'colorbkg', path: 'setvar/settings/theme/maincolor.txt' },
+            { key: 'view', path: 'setvar/settings/map/defaultzoom.txt' },
+            { key: 'nomdureseau', path: 'setvar/settings/networkname.txt' },
+            { key: 'boutique', path: 'setvar/settings/linkboutique.txt' }
+        ];
 
-        const response = await fetch('setvar/settings/map/defaultzoom.txt');
-        const setvar = await response.text();
-        const view = setvar.trim();  
+        const filePromises = fileConfigs.map(async (config) => {
+            const response = await fetch(config.path);
+            const text = await response.text();
+            return { key: config.key, value: text.trim() };
+        });
 
-        const response1 = await fetch('setvar/settings/networkname.txt');
-        const setvar1 = await response1.text();
-        const nomdureseau = setvar1.trim();  
+        const results = await Promise.all(filePromises);
 
-        const response2 = await fetch('setvar/settings/linkboutique.txt');
-        const setvar2 = await response2.text();
-        const boutique = setvar2.trim();  
+        const settings = {};
+        results.forEach(result => {
+            settings[result.key] = result.value;
+        });
 
-        try {
-            const boutiqueResponse = await fetch(boutique, { method: 'HEAD' });
-            window.boutiqueAvailable = boutiqueResponse.ok; 
-        } catch (error) {
-            console.error('Erreur lors de la vérification de la boutique', error);
+        const boutiqueCheckPromise = checkBoutiqueAvailability(settings.boutique);
+        globalSettings = settings;
+
+        boutiqueCheckPromise.catch(() => {
             window.boutiqueAvailable = false;
-        }
+        });
 
-        globalSettings = { colorbkg, view, nomdureseau, boutique };
-        return { colorbkg, view, nomdureseau, boutique };
+        return settings;
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
         window.boutiqueAvailable = false;
+        throw error; 
     }
 }
 
+async function checkBoutiqueAvailability(boutiqueUrl) {
+    try {
+        const boutiqueResponse = await fetch(boutiqueUrl, { 
+            method: 'HEAD',
+            signal: AbortSignal.timeout(5000) 
+        });
+        window.boutiqueAvailable = boutiqueResponse.ok;
+        return boutiqueResponse.ok;
+    } catch (error) {
+        window.boutiqueAvailable = false;
+        return false;
+    }
+}
+
+let settingsCache = null;
+let cacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; 
+
+async function getSetvarWithCache() {
+    const now = Date.now();
+    
+    if (settingsCache && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
+        return settingsCache;
+    }
+    
+    const settings = await getSetvar();
+    
+    settingsCache = settings;
+    cacheTimestamp = now;
+    
+    return settings;
+}
+
 getSetvar();
-
-
 
 const vehicleModels = {};
 
@@ -4331,60 +4366,97 @@ const filtre = document.getElementById('filtre');
     }
 };
 
+// merci ChatGPT 💝
 
-
-
-
-
-
-
-
+const vehicleModelsCache = new Map();
+const CACHE_KEY = 'vehicleModels_v1';
+const CACHE_DURATION_VEHICLES = 24 * 60 * 60 * 1000; 
 
 async function loadVehicleModels() {
     try {
+        const cachedData = getCachedData();
+        if (cachedData) {
+            Object.assign(vehicleModels, cachedData.models);
+            Object.assign(vehicleTypes, cachedData.types);
+            console.log('Données chargées depuis le cache');
+            return;
+        }
+
         const response = await fetch('setvar/vehicules/index.php');
         const fileList = await response.json();
         
-        for (const file of fileList) {
-            if (file.endsWith('.txt')) {
-                await loadVehicleModelFile(file);
-            }
-        }
+        const txtFiles = fileList.filter(file => file.endsWith('.txt'));
+        
+        await loadVehicleFilesInBatches(txtFiles, 10); // Limite à 10 requêtes simultanées
+        
+        // Sauvegarder en cache
+        saveCacheData({
+            models: vehicleModels,
+            types: vehicleTypes,
+            timestamp: Date.now()
+        });
+        
+        console.log(`${txtFiles.length} modèles de véhicules chargés avec succès`);
         
     } catch (error) {
-        console.error('Erreur lors du chargement des modèles de véhicules ', error);
-        toastBottomRight.error('Erreur lors du chargement des modèles de véhicules ', error);
+        console.error('Erreur lors du chargement des modèles de véhicules', error);
+        toastBottomRight.error('Erreur lors du chargement des modèles de véhicules');
     }
 }
 
-async function loadVehicleModelFile(fileName) {
+async function loadVehicleFilesInBatches(fileList, batchSize = 10) {
+    const results = [];
+    
+    for (let i = 0; i < fileList.length; i += batchSize) {
+        const batch = fileList.slice(i, i + batchSize);
+        const batchPromises = batch.map(fileName => loadVehicleModelFileOptimized(fileName));
+        
+        try {
+            const batchResults = await Promise.allSettled(batchPromises);
+            results.push(...batchResults);
+        } catch (error) {
+            console.error(`Erreur lors du traitement du batch ${i / batchSize + 1}:`, error);
+        }
+    }
+    
+    const errors = results.filter(result => result.status === 'rejected');
+    if (errors.length > 0) {
+        console.warn(`${errors.length} fichiers n'ont pas pu être chargés`);
+    }
+}
+
+async function loadVehicleModelFileOptimized(fileName) {
     try {
         const response = await fetch(`setvar/vehicules/${fileName}`);
-        const content = await response.text();
-        const lines = content.split('\n').map(line => line.trim()).filter(line => line !== '');
         
-        if (lines.length < 8) {
-            console.error(`Format invalide pour le fichier ${fileName}`);
-            toastBottomRight.error(`Format invalide pour le fichier ${fileName}`);
-            return;
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} pour ${fileName}`);
         }
         
-        const modelName = lines[0];
-        const thumbnailPath = lines[1];
+        const content = await response.text();
+        const lines = content.split('\n')
+            .map(line => line.trim())
+            .filter(line => line !== '');
         
-        const params = {
-            isElectric: parseParamValue(lines[2]),       
-            isHybrid: parseParamValue(lines[3]),       
-            isGnv: parseParamValue(lines[4]),     
-            isUsbPlugs: parseParamValue(lines[5]),  
-            isAirConditioned: parseParamValue(lines[6]), 
-            isHeatingUnit: parseParamValue(lines[7])
-        };
+        if (lines.length < 8) {
+            throw new Error(`Format invalide - ${lines.length} lignes trouvées, 8 minimum requis`);
+        }
         
+        const [modelName, thumbnailPath, ...paramLines] = lines;
         const vehicleIds = lines.slice(8);
         
-        const modelKey = fileName.replace('.txt', '');
+        const params = {
+            isElectric: parseParamValueFast(paramLines[0]),       
+            isHybrid: parseParamValueFast(paramLines[1]),       
+            isGnv: parseParamValueFast(paramLines[2]),     
+            isUsbPlugs: parseParamValueFast(paramLines[3]),  
+            isAirConditioned: parseParamValueFast(paramLines[4]), 
+            isHeatingUnit: parseParamValueFast(paramLines[5])
+        };
         
+        const modelKey = fileName.slice(0, -4); // Plus rapide que replace
+        
+        // Stockage optimisé
         vehicleModels[modelKey] = {
             name: modelName,
             thumbnail: thumbnailPath,
@@ -4392,37 +4464,136 @@ async function loadVehicleModelFile(fileName) {
             vehicles: new Set(vehicleIds)
         };
         
-        vehicleIds.forEach(id => {
-            if (params.isElectric) vehicleTypes['elec'].add(id);
-            if (params.isHybrid) vehicleTypes['hybrid'].add(id);
-            if (params.isGnv) vehicleTypes['gnv'].add(id);
-            if (params.isUsbPlugs) vehicleTypes['usb'].add(id);
-            if (params.isAirConditioned || params.isHeatingUnit) vehicleTypes['clim'].add(id);
-        });
+        // Mise à jour des types de véhicules en une seule passe
+        updateVehicleTypes(vehicleIds, params);
         
     } catch (error) {
-        console.error(`Erreur lors du chargement du fichier ${fileName}:`, error);
-        toastBottomRight.error('Une erreur est survenue.');
-
+        console.error(`Erreur lors du chargement du fichier ${fileName}:`, error.message);
+        throw error; // Re-lancer pour Promise.allSettled
     }
 }
 
-function parseParamValue(paramLine) {
-    const parts = paramLine.split('=');
-    if (parts.length !== 2) return false;
+// Version optimisée du parsing des paramètres
+function parseParamValueFast(paramLine) {
+    const equalIndex = paramLine.indexOf('=');
+    if (equalIndex === -1) return false;
     
-    return parts[1].toLowerCase() === 'true';
+    const value = paramLine.slice(equalIndex + 1);
+    return value === 'true'; // Plus rapide que toLowerCase()
 }
 
+// Mise à jour optimisée des types de véhicules
+function updateVehicleTypes(vehicleIds, params) {
+    if (params.isElectric) {
+        vehicleIds.forEach(id => vehicleTypes['elec'].add(id));
+    }
+    if (params.isHybrid) {
+        vehicleIds.forEach(id => vehicleTypes['hybrid'].add(id));
+    }
+    if (params.isGnv) {
+        vehicleIds.forEach(id => vehicleTypes['gnv'].add(id));
+    }
+    if (params.isUsbPlugs) {
+        vehicleIds.forEach(id => vehicleTypes['usb'].add(id));
+    }
+    if (params.isAirConditioned || params.isHeatingUnit) {
+        vehicleIds.forEach(id => vehicleTypes['clim'].add(id));
+    }
+}
+
+// Système de cache optimisé
+function getCachedData() {
+    try {
+        const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+        if (!cached || Date.now() - cached.timestamp > CACHE_DURATION_VEHICLES) {
+            return null;
+        }
+        
+        // Reconstituer les Sets depuis le cache
+        const models = {};
+        const types = {
+            elec: new Set(),
+            hybrid: new Set(),
+            gnv: new Set(),
+            usb: new Set(),
+            clim: new Set()
+        };
+        
+        for (const [key, model] of Object.entries(cached.models)) {
+            models[key] = {
+                ...model,
+                vehicles: new Set(model.vehicles)
+            };
+        }
+        
+        for (const [type, vehicles] of Object.entries(cached.types)) {
+            types[type] = new Set(vehicles);
+        }
+        
+        return { models, types };
+    } catch (error) {
+        console.warn('Erreur lors de la lecture du cache:', error);
+        return null;
+    }
+}
+
+function saveCacheData(data) {
+    try {
+        // Convertir les Sets en Arrays pour le stockage JSON
+        const cacheData = {
+            models: {},
+            types: {},
+            timestamp: data.timestamp
+        };
+        
+        for (const [key, model] of Object.entries(data.models)) {
+            cacheData.models[key] = {
+                ...model,
+                vehicles: Array.from(model.vehicles)
+            };
+        }
+        
+        for (const [type, vehicles] of Object.entries(data.types)) {
+            cacheData.types[type] = Array.from(vehicles);
+        }
+        
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+    } catch (error) {
+        console.warn('Impossible de sauvegarder en cache:', error);
+    }
+}
+
+// Version optimisée de getVehicleModel avec cache local
+const vehicleModelLookupCache = new Map();
+
 function getVehicleModel(parkNumber) {
-    const parkId = String(parkNumber);    
+    const parkId = String(parkNumber);
+    
+    // Vérifier le cache de lookup d'abord
+    if (vehicleModelLookupCache.has(parkId)) {
+        return vehicleModelLookupCache.get(parkId);
+    }
+    
+    // Recherche dans les modèles
     for (const [modelKey, model] of Object.entries(vehicleModels)) {
         if (model.vehicles.has(parkId)) {
+            vehicleModelLookupCache.set(parkId, model);
             return model;
         }
     }
+    
+    vehicleModelLookupCache.set(parkId, null);
     return null;
 }
+
+// Fonction pour vider le cache si nécessaire
+function clearVehicleCache() {
+    sessionStorage.removeItem(CACHE_KEY);
+    vehicleModelLookupCache.clear();
+    console.log('Cache des véhicules vidé');
+}
+
+// qu'es-ce que ça aide l'IA maintenant... 🙂
 
 function getVehicleOptionsBadges(parkNumber) {
     const model = getVehicleModel(parkNumber);
@@ -4925,12 +5096,9 @@ function shareVehicleId(id) {
 
 
 async function fetchVehiclePositions() {
-
-    if (!gtfsInitialized) {
-        console.log("fetchVehiclePositions: GTFS pas encore initialisé, attente...");
-        return; 
-    }
-
+        if (!gtfsInitialized) {
+            return;
+        }
 
         if (!window.timeAnimationStyleAdded) {
         const timeAnimationStyle = `
@@ -5469,6 +5637,7 @@ async function fetchVehiclePositions() {
 
                                                 <svg style="display: inline-block;vertical-align: top; position: relative;" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
                                                 <span style="display: inline-block; line-height: 20px; vertical-align: middle; position: relative; top: 1px;">${(vehicle.vehicle.label || t("unknownparc")).toString().padStart(3, '0')}</span>
+                                                <span style="display: none;">${(vehicle.vehicle.label || t("unknownparc"))}</span>
 
                                                     
                                                 </span>
@@ -7225,7 +7394,7 @@ sortedLines.forEach(line => {
                 }
 
                 const mainText = document.createElement('div');
-                const labelMatch = popupContent.match(/<span style="display: inline-block[^>]*>([^<]+)<\/span>/);
+                const labelMatch = popupContent.match(/<span style="display: none[^>]*>([^<]+)<\/span>/);
                 const vehicleLabel = labelMatch ? labelMatch[1].trim() : "Véhicule inconnu";
                 const vehicleBrandHtmlLight = getVehicleBrandHtmlLight(vehicleLabel);
                 const displayLabel = vehicleLabel.replace(/Véhicule inconnu\./, "inconnu");
