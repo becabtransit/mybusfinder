@@ -4669,321 +4669,52 @@ function getVehicleOptionsBadges(parkNumber) {
     return badges;
 }
 
-// Système de cache et préchargement d'images optimisé
-class ImageOptimizer {
-    constructor() {
-        this.imageCache = new Map();
-        this.loadingPromises = new Map();
-        this.preloadedImages = new Set();
-        this.observedElements = new WeakSet();
-        this.defaultImagePath = "src/generic.png";
-        
-        // Précharger l'image par défaut immédiatement
-        this.preloadImage(this.defaultImagePath);
-        
-        // Configuration de l'Intersection Observer pour le lazy loading
-        this.intersectionObserver = new IntersectionObserver(
-            this.handleIntersection.bind(this),
-            {
-                rootMargin: '50px', // Commencer à charger 50px avant que l'élément soit visible
-                threshold: 0.1
-            }
-        );
-    }
-    
-    // Préchargement intelligent des images populaires
-    async preloadPopularImages() {
-        try {
-            // Obtenir les modèles les plus utilisés (vous pouvez adapter cette logique)
-            const popularModels = Object.values(vehicleModels)
-                .filter(model => model.vehicles.size > 5) // Modèles avec plus de 5 véhicules
-                .slice(0, 10); // Top 10
-            
-            const preloadPromises = popularModels.map(model => 
-                this.preloadImage(model.thumbnail)
-            );
-            
-            await Promise.allSettled(preloadPromises);
-            console.log(`${popularModels.length} images populaires préchargées`);
-        } catch (error) {
-            console.warn('Erreur lors du préchargement des images populaires:', error);
-        }
-    }
-    
-    // Préchargement d'une image avec cache
-    preloadImage(src) {
-        if (this.preloadedImages.has(src) || this.loadingPromises.has(src)) {
-            return this.loadingPromises.get(src) || Promise.resolve();
-        }
-        
-        const promise = new Promise((resolve, reject) => {
-            const img = new Image();
-            
-            img.onload = () => {
-                this.imageCache.set(src, {
-                    loaded: true,
-                    error: false,
-                    timestamp: Date.now()
-                });
-                this.preloadedImages.add(src);
-                resolve(img);
-            };
-            
-            img.onerror = () => {
-                this.imageCache.set(src, {
-                    loaded: false,
-                    error: true,
-                    timestamp: Date.now()
-                });
-                reject(new Error(`Failed to load image: ${src}`));
-            };
-            
-            img.src = src;
-        });
-        
-        this.loadingPromises.set(src, promise);
-        return promise;
-    }
-    
-    // Vérifier si une image est disponible en cache
-    isImageCached(src) {
-        const cached = this.imageCache.get(src);
-        return cached && cached.loaded && !cached.error;
-    }
-    
-    // Gestion de l'intersection observer pour le lazy loading
-    handleIntersection(entries) {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const img = entry.target;
-                const src = img.dataset.src;
-                
-                if (src && !img.src) {
-                    this.loadImageLazy(img, src);
-                }
-                
-                this.intersectionObserver.unobserve(img);
-            }
-        });
-    }
-    
-    // Chargement lazy d'une image
-    async loadImageLazy(imgElement, src) {
-        try {
-            imgElement.classList.add('loading');
-            
-            if (this.isImageCached(src)) {
-                imgElement.src = src;
-                imgElement.classList.remove('loading');
-                imgElement.classList.add('loaded');
-                return;
-            }
-            
-            await this.preloadImage(src);
-            imgElement.src = src;
-            imgElement.classList.remove('loading');
-            imgElement.classList.add('loaded');
-            
-        } catch (error) {
-            imgElement.src = this.defaultImagePath;
-            imgElement.classList.remove('loading');
-            imgElement.classList.add('error');
-        }
-    }
-    
-    // Observer une image pour le lazy loading
-    observeImage(imgElement) {
-        if (!this.observedElements.has(imgElement)) {
-            this.intersectionObserver.observe(imgElement);
-            this.observedElements.add(imgElement);
-        }
-    }
-}
-
-// Instance globale de l'optimiseur d'images
-const imageOptimizer = new ImageOptimizer();
-
-// Cache pour les templates HTML générés
-const htmlTemplateCache = new Map();
-
-// Version ultra-optimisée de getVehicleBrandHtml avec cache de template
 function getVehicleBrandHtml(parkNumber) {
-    const cacheKey = `brand_${parkNumber}`;
-    
-    // Vérifier le cache de template d'abord
-    if (htmlTemplateCache.has(cacheKey)) {
-        return htmlTemplateCache.get(cacheKey);
-    }
-    
     const model = getVehicleModel(parkNumber);
-    let html;
+    const defaultImagePath = "src/generic.png";
     
     if (model) {
-        const isImageCached = imageOptimizer.isImageCached(model.thumbnail);
-        const imageSrc = isImageCached ? model.thumbnail : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMSIgaGVpZ2h0PSIxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InRyYW5zcGFyZW50Ii8+PC9zdmc+';
-        
-        html = `
+        return `
             <div class="vehicle-model">
-                <img ${isImageCached ? `src="${imageSrc}"` : `data-src="${model.thumbnail}"`}
-                     onerror="this.onerror=null; this.src='${imageOptimizer.defaultImagePath}';" 
+
+                <img src="${model.thumbnail}" 
+                     onerror="this.onerror=null; this.src='${defaultImagePath}';" 
                      alt="Thumbnail ${model.name}" 
-                     class="vehicle-thumbnail ${isImageCached ? 'loaded' : 'lazy-load'}"
-                     loading="lazy" />
-                <span class="vehicle-name">${t("determinantun")} ${model.name}</span>
-            </div>
-        `;
-    } else {
-        html = `
-            <div class="vehicle-model">
-                <img src="${imageOptimizer.defaultImagePath}" 
-                     alt="Bus par défaut" 
-                     class="vehicle-thumbnail loaded" />
-                <span class="vehicle-name">${t("abus")}</span>
+                     class="vehicle-thumbnail"  />
+
+                <span style="margin-top: 6px; margin-left: 20px; font-size: 12px; ">${t("determinantun")} ${model.name}</span>
             </div>
         `;
     }
-    
-    // Mettre en cache le template généré
-    htmlTemplateCache.set(cacheKey, html);
-    
-    return html;
+
+    return `
+        <div class="vehicle-model">
+            <img src="${defaultImagePath}" 
+                 alt="Bus par défaut" 
+                 class="vehicle-thumbnail"  />
+            <span style="margin-top: 6px; margin-left: 20px; font-size: 12px;">${t("abus")}</span>
+        </div>
+    `;
 }
 
-// Version ultra-optimisée de getVehicleBrandHtmlLight
 function getVehicleBrandHtmlLight(parkNumber) {
-    const cacheKey = `light_${parkNumber}`;
-    
-    if (htmlTemplateCache.has(cacheKey)) {
-        return htmlTemplateCache.get(cacheKey);
-    }
-    
     const model = getVehicleModel(parkNumber);
-    let html = '';
+    const defaultImagePath = "src/generic.png";
     
     if (model) {
-        const isImageCached = imageOptimizer.isImageCached(model.thumbnail);
-        const imageSrc = isImageCached ? model.thumbnail : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMSIgaGVpZ2h0PSIxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InRyYW5zcGFyZW50Ii8+PC9zdmc+';
-        
-        html = `<img ${isImageCached ? `src="${imageSrc}"` : `data-src="${model.thumbnail}"`}
-                     onerror="this.style.display='none';" 
-                     alt="Thumbnail ${model.name}" 
-                     class="vehicle-thumbnaill ${isImageCached ? 'loaded' : 'lazy-load'}"
-                     loading="lazy" />`;
+        return `
+            <img src="${model.thumbnail}" 
+                onerror="this.style.display='none';" 
+                alt="Thumbnail ${model.name}" 
+                class="vehicle-thumbnaill"  />
+        `;
     }
-    
-    htmlTemplateCache.set(cacheKey, html);
-    return html;
+
+    return `
+
+    `;
 }
 
-// Fonction pour initialiser les images lazy après insertion dans le DOM
-function initializeLazyImages(container = document) {
-    const lazyImages = container.querySelectorAll('img.lazy-load');
-    
-    lazyImages.forEach(img => {
-        imageOptimizer.observeImage(img);
-    });
-}
-
-// Fonction pour précharger les images visibles bientôt
-function preloadUpcomingImages(vehicleNumbers) {
-    const imagesToPreload = vehicleNumbers
-        .map(num => getVehicleModel(num))
-        .filter(model => model && !imageOptimizer.isImageCached(model.thumbnail))
-        .slice(0, 5); // Limite à 5 images pour éviter la surcharge
-    
-    imagesToPreload.forEach(model => {
-        imageOptimizer.preloadImage(model.thumbnail);
-    });
-}
-
-// Système de nettoyage du cache pour éviter la fuite mémoire
-function cleanupImageCache() {
-    const now = Date.now();
-    const maxAge = 30 * 60 * 1000; // 30 minutes
-    
-    for (const [src, data] of imageOptimizer.imageCache.entries()) {
-        if (now - data.timestamp > maxAge) {
-            imageOptimizer.imageCache.delete(src);
-            imageOptimizer.preloadedImages.delete(src);
-            imageOptimizer.loadingPromises.delete(src);
-        }
-    }
-    
-    // Nettoyer aussi le cache HTML
-    if (htmlTemplateCache.size > 1000) {
-        htmlTemplateCache.clear();
-    }
-}
-
-// Initialisation du système d'optimisation des images
-function initializeImageOptimization() {
-    // Précharger les images populaires après le chargement des modèles
-    setTimeout(() => {
-        imageOptimizer.preloadPopularImages();
-    }, 1000);
-    
-    // Nettoyer le cache périodiquement
-    setInterval(cleanupImageCache, 5 * 60 * 1000); // Toutes les 5 minutes
-    
-    // Observer les images existantes
-    initializeLazyImages();
-    
-    console.log('Système d\'optimisation des images initialisé');
-}
-
-// CSS à ajouter pour les animations de chargement
-const imageOptimizationStyles = `
-<style>
-.vehicle-thumbnail, .vehicle-thumbnaill {
-    transition: opacity 0.3s ease-in-out;
-}
-
-.vehicle-thumbnail.loading, .vehicle-thumbnaill.loading {
-    opacity: 0.5;
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-    background-size: 200% 100%;
-    animation: loading-shimmer 2s infinite;
-}
-
-.vehicle-thumbnail.loaded, .vehicle-thumbnaill.loaded {
-    opacity: 1;
-}
-
-.vehicle-thumbnail.error, .vehicle-thumbnaill.error {
-    opacity: 0.7;
-    filter: grayscale(100%);
-}
-
-.vehicle-name {
-    margin-top: 6px; 
-    margin-left: 20px; 
-    font-size: 12px;
-}
-
-@keyframes loading-shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-}
-
-/* Optimisation pour les images hors écran */
-img[loading="lazy"] {
-    content-visibility: auto;
-}
-</style>
-`;
-
-// Injecter les styles
-document.head.insertAdjacentHTML('beforeend', imageOptimizationStyles);
-
-// API publique pour contrôler le système
-window.ImageOptimizer = {
-    preloadImage: (src) => imageOptimizer.preloadImage(src),
-    isImageCached: (src) => imageOptimizer.isImageCached(src),
-    initializeLazyImages,
-    preloadUpcomingImages,
-    cleanupCache: cleanupImageCache,
-    init: initializeImageOptimization
-};
 
 async function initializeApp() {
     try {
