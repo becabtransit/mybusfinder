@@ -8358,125 +8358,126 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await initializeSettings();
         console.log('Application prête, paramètres chargés');
+        window.addEventListener('message', function(event) {
+
+            if (event.data.type === 'schedule') {
+                showUpdatePopupPourHoraires()
+                safeVibrate([30], true);
+            }
+
+            if (event.data.type === 'news') {
+                showUpdatePopup('alerts.html');
+                safeVibrate([30], true);
+            }
+
+            if (event.data.type === 'settings') {
+                FluentSettingsMenu.open();
+                safeVibrate([30], true);
+            }
+
+            if (event.data.type === 'mbh') {
+                showUpdatePopup('histovec.html');
+                safeVibrate([30], true);
+            }
+
+            if (event.data.type === 'boutique') {
+                const boutiqueLink = globalSettings.boutique || '';
+                const boutiqueAvailable = window.boutiqueAvailable ?? false;
+                
+                if (!boutiqueAvailable || !boutiqueLink) {
+                    showFluentPopup({
+                        title: t('noboutique'),
+                        message: t('noboutiqueinfo'),
+                        buttons: {
+                            primary: t('understood'),
+                            primaryAction: () => {
+                                fluentPopupManager.close();
+                            }
+                        }
+                    });
+                } else {
+                    showUpdatePopup(boutiqueLink); 
+                }
+                safeVibrate([30], true);
+            }
+
+            if (event.data.type === 'openmap') {
+                safeVibrate([30], true);
+                const accueil = document.getElementById('accueil');
+                accueil.classList.add('hide');
+                accueil.classList.remove("affiche")
+                const menubottom1 = document.getElementById('menubtm');
+                menubottom1.style.display = 'flex';
+                window.isMenuShowed = false;
+            
+                setTimeout(() => {
+                    menubottom1.classList.remove('slide-upb');
+                    menubottom1.classList.add('slide-downb');
+                    setTimeout(() => {
+                        accueil.style.display = 'none';
+                    }, 500);
+                }, 10);
+
+            }
+
+            if (event.data.type === 'settingUpdate') {
+                const { setting, value } = event.data;
+                receivedSettings[setting] = value;        
+                handleSettingUpdate(setting, value);
+                
+            } else if (event.data.type === 'settingsComplete') {
+                console.log('OOBE terminée !!');
+                console.log('Params', receivedSettings);
+                localStorage.setItem('OutOfBoxExperienceTerminee', 'true');
+                applyAllSettings(receivedSettings);
+            }
+
+
+
+
+            function handleSettingUpdate(setting, value) {
+            switch(setting) {
+                case 'language':
+                    console.log('Redémarrage app pr changement langue...', value);
+                    window.location.reload();
+                    break;
+                case 'theme':
+                    console.log('Thème sélectionné:', value);
+                    changeColorBkg(value);
+                    break;
+                    
+                case 'mapview':
+                    localStorage.setItem('isStandardView', value);
+                    break;
+                    
+                case 'transparency':
+                    localStorage.setItem('transparency', value);
+                    break;
+                    
+                case 'locateonstart':
+                    localStorage.setItem('locateonstart', value);
+                    break;
+                    
+                case 'spottingmode':
+                    toggleSunOrientation(value);
+                    break;
+                    
+                case 'darkmap':
+                    localStorage.setItem('darkmap', value);
+                    window.location.reload();
+                    break;
+                    
+                default:
+                    console.log('Parametre inconnu :(', setting, value);
+            }
+        }
+        });
     } catch (error) {
         console.error('Erreur lors de l\'initialisation:', error);
     }
 });
 
-window.addEventListener('message', function(event) {
 
-    if (event.data.type === 'schedule') {
-        showUpdatePopupPourHoraires()
-        safeVibrate([30], true);
-    }
-
-    if (event.data.type === 'news') {
-        showUpdatePopup('alerts.html');
-        safeVibrate([30], true);
-    }
-
-    if (event.data.type === 'settings') {
-        FluentSettingsMenu.open();
-        safeVibrate([30], true);
-    }
-
-    if (event.data.type === 'mbh') {
-        showUpdatePopup('histovec.html');
-        safeVibrate([30], true);
-    }
-
-    if (event.data.type === 'boutique') {
-        const boutiqueLink = globalSettings.boutique || '';
-        const boutiqueAvailable = window.boutiqueAvailable ?? false;
-        
-        if (!boutiqueAvailable || !boutiqueLink) {
-            showFluentPopup({
-                title: t('noboutique'),
-                message: t('noboutiqueinfo'),
-                buttons: {
-                    primary: t('understood'),
-                    primaryAction: () => {
-                        fluentPopupManager.close();
-                    }
-                }
-            });
-        } else {
-            showUpdatePopup(boutiqueLink); 
-        }
-        safeVibrate([30], true);
-    }
-
-    if (event.data.type === 'openmap') {
-        safeVibrate([30], true);
-        const accueil = document.getElementById('accueil');
-        accueil.classList.add('hide');
-        accueil.classList.remove("affiche")
-        const menubottom1 = document.getElementById('menubtm');
-        menubottom1.style.display = 'flex';
-        window.isMenuShowed = false;
-    
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-            setTimeout(() => {
-                accueil.style.display = 'none';
-            }, 500);
-        }, 10);
-
-    }
-
-    if (event.data.type === 'settingUpdate') {
-        const { setting, value } = event.data;
-        receivedSettings[setting] = value;        
-        handleSettingUpdate(setting, value);
-        
-    } else if (event.data.type === 'settingsComplete') {
-        console.log('OOBE terminée !!');
-        console.log('Params', receivedSettings);
-        localStorage.setItem('OutOfBoxExperienceTerminee', 'true');
-        applyAllSettings(receivedSettings);
-    }
-
-
-
-
-    function handleSettingUpdate(setting, value) {
-    switch(setting) {
-        case 'language':
-            console.log('Redémarrage app pr changement langue...', value);
-            window.location.reload();
-            break;
-        case 'theme':
-            console.log('Thème sélectionné:', value);
-            changeColorBkg(value);
-            break;
-            
-        case 'mapview':
-            localStorage.setItem('isStandardView', value);
-            break;
-            
-        case 'transparency':
-            localStorage.setItem('transparency', value);
-            break;
-            
-        case 'locateonstart':
-            localStorage.setItem('locateonstart', value);
-            break;
-            
-        case 'spottingmode':
-            toggleSunOrientation(value);
-            break;
-            
-        case 'darkmap':
-            localStorage.setItem('darkmap', value);
-            window.location.reload();
-            break;
-            
-        default:
-            console.log('Parametre inconnu :(', setting, value);
-    }
-}
-});
 
 function afficherMenu() {
     const accueil = document.getElementById('accueil');
