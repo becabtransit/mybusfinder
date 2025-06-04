@@ -2277,61 +2277,92 @@ let globalSettings = {};
 
 async function getSetvar() {
     try {
-        // Exécution parallèle de toutes les requêtes de fichiers
-        const [response5, response, response1, response2] = await Promise.all([
-            fetch('setvar/settings/theme/maincolor.txt'),
-            fetch('setvar/settings/map/defaultzoom.txt'),
-            fetch('setvar/settings/networkname.txt'),
-            fetch('setvar/settings/linkboutique.txt')
-        ]);
+        // Définition des fichiers à charger
+        const fileConfigs = [
+            { key: 'colorbkg', path: 'setvar/settings/theme/maincolor.txt' },
+            { key: 'view', path: 'setvar/settings/map/defaultzoom.txt' },
+            { key: 'nomdureseau', path: 'setvar/settings/networkname.txt' },
+            { key: 'boutique', path: 'setvar/settings/linkboutique.txt' }
+        ];
 
-        // Conversion parallèle en texte
-        const [setvar5, setvar, setvar1, setvar2] = await Promise.all([
-            response5.text(),
-            response.text(),
-            response1.text(),
-            response2.text()
-        ]);
+        // Lancement de toutes les requêtes en parallèle
+        const filePromises = fileConfigs.map(async (config) => {
+            const response = await fetch(config.path);
+            const text = await response.text();
+            return { key: config.key, value: text.trim() };
+        });
 
-        // Traitement des données
-        const colorbkg = setvar5.trim();
-        const view = setvar.trim();
-        const nomdureseau = setvar1.trim();
-        const boutique = setvar2.trim();
+        // Attente de toutes les réponses
+        const results = await Promise.all(filePromises);
 
-        // Test de disponibilité de la boutique en parallèle
-        let boutiqueCheckPromise;
-        if (boutique) {
-            boutiqueCheckPromise = fetch(boutique, { method: 'HEAD' })
-                .then(response => response.ok)
-                .catch(() => false);
-        } else {
-            boutiqueCheckPromise = Promise.resolve(false);
-        }
+        // Construction de l'objet de résultats
+        const settings = {};
+        results.forEach(result => {
+            settings[result.key] = result.value;
+        });
 
-        // Mise à jour des settings globaux
-        globalSettings = { colorbkg, view, nomdureseau, boutique };
+        // Vérification de la disponibilité de la boutique en parallèle
+        const boutiqueCheckPromise = checkBoutiqueAvailability(settings.boutique);
 
-        // Attente du résultat du test boutique et mise à jour
-        window.boutiqueAvailable = await boutiqueCheckPromise;
+        // Attribution des valeurs globales
+        globalSettings = settings;
 
-        return { colorbkg, view, nomdureseau, boutique };
+        // Attente de la vérification boutique (sans bloquer le retour)
+        boutiqueCheckPromise.catch(() => {
+            // Gestion silencieuse des erreurs de vérification boutique
+            window.boutiqueAvailable = false;
+        });
+
+        return settings;
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
         window.boutiqueAvailable = false;
-        
-        // Retour de valeurs par défaut en cas d'erreur
-        const defaultSettings = { 
-            colorbkg: '', 
-            view: '', 
-            nomdureseau: '', 
-            boutique: '' 
-        };
-        globalSettings = defaultSettings;
-        return defaultSettings;
+        throw error; // Optionnel : relancer l'erreur pour gestion en amont
     }
 }
+
+// Fonction séparée pour vérifier la boutique (non-bloquante)
+async function checkBoutiqueAvailability(boutiqueUrl) {
+    try {
+        const boutiqueResponse = await fetch(boutiqueUrl, { 
+            method: 'HEAD',
+            // Timeout pour éviter les blocages
+            signal: AbortSignal.timeout(5000) // 5 secondes max
+        });
+        window.boutiqueAvailable = boutiqueResponse.ok;
+        return boutiqueResponse.ok;
+    } catch (error) {
+        window.boutiqueAvailable = false;
+        return false;
+    }
+}
+
+// Version encore plus optimisée avec cache (optionnelle)
+let settingsCache = null;
+let cacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+async function getSetvarWithCache() {
+    const now = Date.now();
+    
+    // Vérifier si le cache est valide
+    if (settingsCache && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
+        return settingsCache;
+    }
+    
+    // Charger les nouvelles données
+    const settings = await getSetvar();
+    
+    // Mettre à jour le cache
+    settingsCache = settings;
+    cacheTimestamp = now;
+    
+    return settings;
+}
+
+// Initialisation
+getSetvar();
 
 const vehicleModels = {};
 
