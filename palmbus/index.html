@@ -2277,107 +2277,61 @@ let globalSettings = {};
 
 async function getSetvar() {
     try {
-        const configPromises = [
+        // Exécution parallèle de toutes les requêtes de fichiers
+        const [response5, response, response1, response2] = await Promise.all([
             fetch('setvar/settings/theme/maincolor.txt'),
             fetch('setvar/settings/map/defaultzoom.txt'),
             fetch('setvar/settings/networkname.txt'),
             fetch('setvar/settings/linkboutique.txt')
-        ];
+        ]);
 
-        const responses = await Promise.all(configPromises);
+        // Conversion parallèle en texte
+        const [setvar5, setvar, setvar1, setvar2] = await Promise.all([
+            response5.text(),
+            response.text(),
+            response1.text(),
+            response2.text()
+        ]);
 
-        responses.forEach((response, index) => {
-            if (!response.ok) {
-                throw new Error(`Erreur chargement fichier ${index}: ${response.status}`);
-            }
-        });
+        // Traitement des données
+        const colorbkg = setvar5.trim();
+        const view = setvar.trim();
+        const nomdureseau = setvar1.trim();
+        const boutique = setvar2.trim();
 
-        const textPromises = responses.map(response => response.text());
-        const [colorbkg, view, nomdureseau, boutique] = await Promise.all(textPromises);
+        // Test de disponibilité de la boutique en parallèle
+        let boutiqueCheckPromise;
+        if (boutique) {
+            boutiqueCheckPromise = fetch(boutique, { method: 'HEAD' })
+                .then(response => response.ok)
+                .catch(() => false);
+        } else {
+            boutiqueCheckPromise = Promise.resolve(false);
+        }
 
-        const cleanData = {
-            colorbkg: colorbkg.trim(),
-            view: view.trim(),
-            nomdureseau: nomdureseau.trim(),
-            boutique: boutique.trim()
-        };
+        // Mise à jour des settings globaux
+        globalSettings = { colorbkg, view, nomdureseau, boutique };
 
-        checkBoutiqueAvailability(cleanData.boutique);
+        // Attente du résultat du test boutique et mise à jour
+        window.boutiqueAvailable = await boutiqueCheckPromise;
 
-        globalSettings = cleanData;
-        return cleanData;
+        return { colorbkg, view, nomdureseau, boutique };
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
         window.boutiqueAvailable = false;
         
-        const defaultSettings = {
-            colorbkg: '#000000',
-            view: '10',
-            nomdureseau: 'undefined',
-            boutique: ''
+        // Retour de valeurs par défaut en cas d'erreur
+        const defaultSettings = { 
+            colorbkg: '', 
+            view: '', 
+            nomdureseau: '', 
+            boutique: '' 
         };
         globalSettings = defaultSettings;
         return defaultSettings;
     }
 }
-
-async function checkBoutiqueAvailability(boutiqueUrl) {
-    if (!boutiqueUrl) {
-        window.boutiqueAvailable = false;
-        return;
-    }
-
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        
-        const boutiqueResponse = await fetch(boutiqueUrl, { 
-            method: 'HEAD',
-            signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        window.boutiqueAvailable = true;
-    } catch (error) {
-        window.boutiqueAvailable = false;
-    }
-}
-
-let settingsCache = null;
-let cacheTimestamp = null;
-const CACHE_DURATION = 5 * 60 * 1000;
-
-async function getSetvarWithCache() {
-    const now = Date.now();
-    
-    if (settingsCache && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
-        return settingsCache;
-    }
-    
-    // Charger les nouvelles données
-    const settings = await getSetvar();
-    
-    // Mettre à jour le cache
-    settingsCache = settings;
-    cacheTimestamp = now;
-    
-    return settings;
-}
-
-// Initialisation avec gestion d'erreur améliorée
-async function initializeSettings() {
-    try {
-        const settings = await getSetvarWithCache();
-        console.log('Settings chargés avec succès', settings);
-        return settings;
-    } catch (error) {
-        console.error('Échec du chargement des settings', error);
-        return globalSettings;
-    }
-}
-
-initializeSettings();
 
 const vehicleModels = {};
 
