@@ -2292,16 +2292,25 @@ async function getSetvar() {
         const response2 = await fetch('setvar/settings/linkboutique.txt');
         const setvar2 = await response2.text();
         const boutique = setvar2.trim();  
+
+        try {
+            const boutiqueResponse = await fetch(boutique, { method: 'HEAD' });
+            window.boutiqueAvailable = boutiqueResponse.ok; 
+        } catch (error) {
+            console.error('Erreur lors de la vérification de la boutique', error);
+            window.boutiqueAvailable = false;
+        }
+
         globalSettings = { colorbkg, view, nomdureseau, boutique };
         return { colorbkg, view, nomdureseau, boutique };
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
+        window.boutiqueAvailable = false;
     }
 }
 
 getSetvar();
-
 
 
 
@@ -8311,7 +8320,7 @@ window.addEventListener('message', function(event) {
 
     if (event.data.type === 'boutique') {
         const boutiqueLink = globalSettings.boutique;
-        if (boutiqueLink === '') {
+        if (!boutiqueAvailable) {
             showFluentPopup({
                 title: t('noboutique'),
                 message: t('noboutiqueinfo'),
@@ -8324,8 +8333,7 @@ window.addEventListener('message', function(event) {
                 }
             });
         } else {
-        showUpdatePopup(boutiqueLink); 
-
+            showUpdatePopup(boutiqueLink); 
         }
         safeVibrate([30], true);
     }
