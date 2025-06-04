@@ -2273,30 +2273,46 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-let globalSettings = {};
+let globalSettings = {
+    boutique: null,
+    boutiqueErreur: false
+};
 
 async function getSetvar() {
     try {
         const response5 = await fetch('setvar/settings/theme/maincolor.txt');
-        const setvar5 = await response5.text();  
-        const colorbkg = setvar5.trim();
+        const colorbkg = (await response5.text()).trim();
 
         const response = await fetch('setvar/settings/map/defaultzoom.txt');
-        const setvar = await response.text();
-        const view = setvar.trim();  
+        const view = (await response.text()).trim();
 
         const response1 = await fetch('setvar/settings/networkname.txt');
-        const setvar1 = await response1.text();
-        const nomdureseau = setvar1.trim();  
+        const nomdureseau = (await response1.text()).trim();
 
-        const response2 = await fetch('setvar/settings/linkboutique.txt');
-        const setvar2 = await response2.text();
-        const boutique = setvar2.trim();  
-        globalSettings = { colorbkg, view, nomdureseau, boutique };
+        let boutique = '';
+        let boutiqueErreur = false;
+
+        try {
+            const response2 = await fetch('setvar/settings/linkboutique.txt');
+            if (!response2.ok) {
+                boutiqueErreur = true;
+                console.error('Fichier linkboutique.txt introuvable/erreur HTTP ' + response2.status);
+            } else {
+                boutique = (await response2.text()).trim();
+                if (boutique === '') {
+                    boutiqueErreur = true;
+                    console.error('Le fichier linkboutique est vide !!');
+                }
+            }
+        } catch (err) {
+            boutiqueErreur = true;
+            console.error('Erreur lors de la récupération du lien boutique ', err);
+        }
         return { colorbkg, view, nomdureseau, boutique };
+        globalSettings = { colorbkg, view, nomdureseau, boutique, boutiqueErreur };
 
     } catch (error) {
-        console.error('Erreur chargement setvar ! ', error);
+        console.error('Erreur lors du chargement des paramètres :', error);
     }
 }
 
@@ -8310,10 +8326,7 @@ window.addEventListener('message', function(event) {
     }
 
     if (event.data.type === 'boutique') {
-        const boutiqueLink = globalSettings.boutique;
-        if (boutiqueLink && boutiqueLink !== '') {
-            showUpdatePopup(boutiqueLink); 
-        } else {
+        if (globalSettings.boutiqueErreur || !globalSettings.boutique) {
             showFluentPopup({
                 title: t('noboutique'),
                 message: t('noboutiqueinfo'),
@@ -8324,6 +8337,8 @@ window.addEventListener('message', function(event) {
                     }
                 }
             });
+        } else {
+            showUpdatePopup(globalSettings.boutique);
         }
         safeVibrate([30], true);
     }
