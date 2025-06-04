@@ -8376,9 +8376,20 @@ window.addEventListener('message', function(event) {
         safeVibrate([30], true);
     }
 
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            await initializeSettings();
+            console.log('Application prête, paramètres chargés');
+        } catch (error) {
+            console.error('Erreur lors de l\'initialisation:', error);
+        }
+    });
+
     if (event.data.type === 'boutique') {
-        const boutiqueLink = globalSettings.boutique;
-        if (!boutiqueAvailable) {
+        const boutiqueLink = globalSettings.boutique || '';
+        const boutiqueAvailable = window.boutiqueAvailable ?? false;
+        
+        if (!boutiqueAvailable || !boutiqueLink) {
             showFluentPopup({
                 title: t('noboutique'),
                 message: t('noboutiqueinfo'),
@@ -8387,7 +8398,6 @@ window.addEventListener('message', function(event) {
                     primaryAction: () => {
                         fluentPopupManager.close();
                     }
-
                 }
             });
         } else {
