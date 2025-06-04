@@ -2277,7 +2277,6 @@ let globalSettings = {};
 
 async function getSetvar() {
     try {
-        // Définition des fichiers à charger
         const fileConfigs = [
             { key: 'colorbkg', path: 'setvar/settings/theme/maincolor.txt' },
             { key: 'view', path: 'setvar/settings/map/defaultzoom.txt' },
@@ -2285,31 +2284,23 @@ async function getSetvar() {
             { key: 'boutique', path: 'setvar/settings/linkboutique.txt' }
         ];
 
-        // Lancement de toutes les requêtes en parallèle
         const filePromises = fileConfigs.map(async (config) => {
             const response = await fetch(config.path);
             const text = await response.text();
             return { key: config.key, value: text.trim() };
         });
 
-        // Attente de toutes les réponses
         const results = await Promise.all(filePromises);
 
-        // Construction de l'objet de résultats
         const settings = {};
         results.forEach(result => {
             settings[result.key] = result.value;
         });
 
-        // Vérification de la disponibilité de la boutique en parallèle
         const boutiqueCheckPromise = checkBoutiqueAvailability(settings.boutique);
-
-        // Attribution des valeurs globales
         globalSettings = settings;
 
-        // Attente de la vérification boutique (sans bloquer le retour)
         boutiqueCheckPromise.catch(() => {
-            // Gestion silencieuse des erreurs de vérification boutique
             window.boutiqueAvailable = false;
         });
 
@@ -2318,17 +2309,15 @@ async function getSetvar() {
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
         window.boutiqueAvailable = false;
-        throw error; // Optionnel : relancer l'erreur pour gestion en amont
+        throw error; 
     }
 }
 
-// Fonction séparée pour vérifier la boutique (non-bloquante)
 async function checkBoutiqueAvailability(boutiqueUrl) {
     try {
         const boutiqueResponse = await fetch(boutiqueUrl, { 
             method: 'HEAD',
-            // Timeout pour éviter les blocages
-            signal: AbortSignal.timeout(5000) // 5 secondes max
+            signal: AbortSignal.timeout(5000) 
         });
         window.boutiqueAvailable = boutiqueResponse.ok;
         return boutiqueResponse.ok;
@@ -2338,30 +2327,25 @@ async function checkBoutiqueAvailability(boutiqueUrl) {
     }
 }
 
-// Version encore plus optimisée avec cache (optionnelle)
 let settingsCache = null;
 let cacheTimestamp = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000; 
 
 async function getSetvarWithCache() {
     const now = Date.now();
     
-    // Vérifier si le cache est valide
     if (settingsCache && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
         return settingsCache;
     }
     
-    // Charger les nouvelles données
     const settings = await getSetvar();
     
-    // Mettre à jour le cache
     settingsCache = settings;
     cacheTimestamp = now;
     
     return settings;
 }
 
-// Initialisation
 getSetvar();
 
 const vehicleModels = {};
@@ -4381,60 +4365,97 @@ const filtre = document.getElementById('filtre');
     }
 };
 
+// merci ChatGPT 💝
 
-
-
-
-
-
-
-
+const vehicleModelsCache = new Map();
+const CACHE_KEY = 'vehicleModels_v1';
+const CACHE_DURATION_VEHICLES = 24 * 60 * 60 * 1000; 
 
 async function loadVehicleModels() {
     try {
+        const cachedData = getCachedData();
+        if (cachedData) {
+            Object.assign(vehicleModels, cachedData.models);
+            Object.assign(vehicleTypes, cachedData.types);
+            console.log('Données chargées depuis le cache');
+            return;
+        }
+
         const response = await fetch('setvar/vehicules/index.php');
         const fileList = await response.json();
         
-        for (const file of fileList) {
-            if (file.endsWith('.txt')) {
-                await loadVehicleModelFile(file);
-            }
-        }
+        const txtFiles = fileList.filter(file => file.endsWith('.txt'));
+        
+        await loadVehicleFilesInBatches(txtFiles, 10); // Limite à 10 requêtes simultanées
+        
+        // Sauvegarder en cache
+        saveCacheData({
+            models: vehicleModels,
+            types: vehicleTypes,
+            timestamp: Date.now()
+        });
+        
+        console.log(`${txtFiles.length} modèles de véhicules chargés avec succès`);
         
     } catch (error) {
-        console.error('Erreur lors du chargement des modèles de véhicules ', error);
-        toastBottomRight.error('Erreur lors du chargement des modèles de véhicules ', error);
+        console.error('Erreur lors du chargement des modèles de véhicules', error);
+        toastBottomRight.error('Erreur lors du chargement des modèles de véhicules');
     }
 }
 
-async function loadVehicleModelFile(fileName) {
+async function loadVehicleFilesInBatches(fileList, batchSize = 10) {
+    const results = [];
+    
+    for (let i = 0; i < fileList.length; i += batchSize) {
+        const batch = fileList.slice(i, i + batchSize);
+        const batchPromises = batch.map(fileName => loadVehicleModelFileOptimized(fileName));
+        
+        try {
+            const batchResults = await Promise.allSettled(batchPromises);
+            results.push(...batchResults);
+        } catch (error) {
+            console.error(`Erreur lors du traitement du batch ${i / batchSize + 1}:`, error);
+        }
+    }
+    
+    const errors = results.filter(result => result.status === 'rejected');
+    if (errors.length > 0) {
+        console.warn(`${errors.length} fichiers n'ont pas pu être chargés`);
+    }
+}
+
+async function loadVehicleModelFileOptimized(fileName) {
     try {
         const response = await fetch(`setvar/vehicules/${fileName}`);
-        const content = await response.text();
-        const lines = content.split('\n').map(line => line.trim()).filter(line => line !== '');
         
-        if (lines.length < 8) {
-            console.error(`Format invalide pour le fichier ${fileName}`);
-            toastBottomRight.error(`Format invalide pour le fichier ${fileName}`);
-            return;
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} pour ${fileName}`);
         }
         
-        const modelName = lines[0];
-        const thumbnailPath = lines[1];
+        const content = await response.text();
+        const lines = content.split('\n')
+            .map(line => line.trim())
+            .filter(line => line !== '');
         
-        const params = {
-            isElectric: parseParamValue(lines[2]),       
-            isHybrid: parseParamValue(lines[3]),       
-            isGnv: parseParamValue(lines[4]),     
-            isUsbPlugs: parseParamValue(lines[5]),  
-            isAirConditioned: parseParamValue(lines[6]), 
-            isHeatingUnit: parseParamValue(lines[7])
-        };
+        if (lines.length < 8) {
+            throw new Error(`Format invalide - ${lines.length} lignes trouvées, 8 minimum requis`);
+        }
         
+        const [modelName, thumbnailPath, ...paramLines] = lines;
         const vehicleIds = lines.slice(8);
         
-        const modelKey = fileName.replace('.txt', '');
+        const params = {
+            isElectric: parseParamValueFast(paramLines[0]),       
+            isHybrid: parseParamValueFast(paramLines[1]),       
+            isGnv: parseParamValueFast(paramLines[2]),     
+            isUsbPlugs: parseParamValueFast(paramLines[3]),  
+            isAirConditioned: parseParamValueFast(paramLines[4]), 
+            isHeatingUnit: parseParamValueFast(paramLines[5])
+        };
         
+        const modelKey = fileName.slice(0, -4); // Plus rapide que replace
+        
+        // Stockage optimisé
         vehicleModels[modelKey] = {
             name: modelName,
             thumbnail: thumbnailPath,
@@ -4442,37 +4463,136 @@ async function loadVehicleModelFile(fileName) {
             vehicles: new Set(vehicleIds)
         };
         
-        vehicleIds.forEach(id => {
-            if (params.isElectric) vehicleTypes['elec'].add(id);
-            if (params.isHybrid) vehicleTypes['hybrid'].add(id);
-            if (params.isGnv) vehicleTypes['gnv'].add(id);
-            if (params.isUsbPlugs) vehicleTypes['usb'].add(id);
-            if (params.isAirConditioned || params.isHeatingUnit) vehicleTypes['clim'].add(id);
-        });
+        // Mise à jour des types de véhicules en une seule passe
+        updateVehicleTypes(vehicleIds, params);
         
     } catch (error) {
-        console.error(`Erreur lors du chargement du fichier ${fileName}:`, error);
-        toastBottomRight.error('Une erreur est survenue.');
-
+        console.error(`Erreur lors du chargement du fichier ${fileName}:`, error.message);
+        throw error; // Re-lancer pour Promise.allSettled
     }
 }
 
-function parseParamValue(paramLine) {
-    const parts = paramLine.split('=');
-    if (parts.length !== 2) return false;
+// Version optimisée du parsing des paramètres
+function parseParamValueFast(paramLine) {
+    const equalIndex = paramLine.indexOf('=');
+    if (equalIndex === -1) return false;
     
-    return parts[1].toLowerCase() === 'true';
+    const value = paramLine.slice(equalIndex + 1);
+    return value === 'true'; // Plus rapide que toLowerCase()
 }
 
+// Mise à jour optimisée des types de véhicules
+function updateVehicleTypes(vehicleIds, params) {
+    if (params.isElectric) {
+        vehicleIds.forEach(id => vehicleTypes['elec'].add(id));
+    }
+    if (params.isHybrid) {
+        vehicleIds.forEach(id => vehicleTypes['hybrid'].add(id));
+    }
+    if (params.isGnv) {
+        vehicleIds.forEach(id => vehicleTypes['gnv'].add(id));
+    }
+    if (params.isUsbPlugs) {
+        vehicleIds.forEach(id => vehicleTypes['usb'].add(id));
+    }
+    if (params.isAirConditioned || params.isHeatingUnit) {
+        vehicleIds.forEach(id => vehicleTypes['clim'].add(id));
+    }
+}
+
+// Système de cache optimisé
+function getCachedData() {
+    try {
+        const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+        if (!cached || Date.now() - cached.timestamp > CACHE_DURATION_VEHICLES) {
+            return null;
+        }
+        
+        // Reconstituer les Sets depuis le cache
+        const models = {};
+        const types = {
+            elec: new Set(),
+            hybrid: new Set(),
+            gnv: new Set(),
+            usb: new Set(),
+            clim: new Set()
+        };
+        
+        for (const [key, model] of Object.entries(cached.models)) {
+            models[key] = {
+                ...model,
+                vehicles: new Set(model.vehicles)
+            };
+        }
+        
+        for (const [type, vehicles] of Object.entries(cached.types)) {
+            types[type] = new Set(vehicles);
+        }
+        
+        return { models, types };
+    } catch (error) {
+        console.warn('Erreur lors de la lecture du cache:', error);
+        return null;
+    }
+}
+
+function saveCacheData(data) {
+    try {
+        // Convertir les Sets en Arrays pour le stockage JSON
+        const cacheData = {
+            models: {},
+            types: {},
+            timestamp: data.timestamp
+        };
+        
+        for (const [key, model] of Object.entries(data.models)) {
+            cacheData.models[key] = {
+                ...model,
+                vehicles: Array.from(model.vehicles)
+            };
+        }
+        
+        for (const [type, vehicles] of Object.entries(data.types)) {
+            cacheData.types[type] = Array.from(vehicles);
+        }
+        
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+    } catch (error) {
+        console.warn('Impossible de sauvegarder en cache:', error);
+    }
+}
+
+// Version optimisée de getVehicleModel avec cache local
+const vehicleModelLookupCache = new Map();
+
 function getVehicleModel(parkNumber) {
-    const parkId = String(parkNumber);    
+    const parkId = String(parkNumber);
+    
+    // Vérifier le cache de lookup d'abord
+    if (vehicleModelLookupCache.has(parkId)) {
+        return vehicleModelLookupCache.get(parkId);
+    }
+    
+    // Recherche dans les modèles
     for (const [modelKey, model] of Object.entries(vehicleModels)) {
         if (model.vehicles.has(parkId)) {
+            vehicleModelLookupCache.set(parkId, model);
             return model;
         }
     }
+    
+    vehicleModelLookupCache.set(parkId, null);
     return null;
 }
+
+// Fonction pour vider le cache si nécessaire
+function clearVehicleCache() {
+    sessionStorage.removeItem(CACHE_KEY);
+    vehicleModelLookupCache.clear();
+    console.log('Cache des véhicules vidé');
+}
+
+// qu'es-ce que ça aide l'IA maintenant... 🙂
 
 function getVehicleOptionsBadges(parkNumber) {
     const model = getVehicleModel(parkNumber);
