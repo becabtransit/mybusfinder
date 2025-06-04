@@ -2273,44 +2273,30 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-globalSettings = {
-    boutique: null,
-    boutiqueErreur: false
-};
+let globalSettings = {};
 
 async function getSetvar() {
     try {
         const response5 = await fetch('setvar/settings/theme/maincolor.txt');
-        const colorbkg = (await response5.text()).trim();
+        const setvar5 = await response5.text();  
+        const colorbkg = setvar5.trim();
 
         const response = await fetch('setvar/settings/map/defaultzoom.txt');
-        const view = (await response.text()).trim();
+        const setvar = await response.text();
+        const view = setvar.trim();  
 
         const response1 = await fetch('setvar/settings/networkname.txt');
-        const nomdureseau = (await response1.text()).trim();
+        const setvar1 = await response1.text();
+        const nomdureseau = setvar1.trim();  
 
-        let boutique = '';
-        let boutiqueErreur = false;
-
-        try {
-            const response2 = await fetch('setvar/settings/linkboutique.txt');
-            if (!response2.ok) {
-                boutiqueErreur = true;
-            } else {
-                boutique = (await response2.text()).trim();
-                if (boutique === '') {
-                    boutiqueErreur = true;
-                }
-            }
-        } catch (err) {
-            boutiqueErreur = true;
-            console.error('Erreur lors de la recupération du lien boutique ', err);
-        }
+        const response2 = await fetch('setvar/settings/linkboutique.txt');
+        const setvar2 = await response2.text();
+        const boutique = setvar2.trim();  
+        globalSettings = { colorbkg, view, nomdureseau, boutique };
         return { colorbkg, view, nomdureseau, boutique };
-        globalSettings = { colorbkg, view, nomdureseau, boutique, boutiqueErreur };
 
     } catch (error) {
-        return;
+        console.error('Erreur chargement setvar ! ', error);
     }
 }
 
@@ -8324,8 +8310,10 @@ window.addEventListener('message', function(event) {
     }
 
     if (event.data.type === 'boutique') {
-        getSetvar()
-        if (globalSettings.boutiqueErreur || !globalSettings.boutique) {
+        const boutiqueLink = globalSettings.boutique;
+        if (boutiqueLink && boutiqueLink !== '') {
+            showUpdatePopup(boutiqueLink); 
+        } else {
             showFluentPopup({
                 title: t('noboutique'),
                 message: t('noboutiqueinfo'),
@@ -8334,10 +8322,9 @@ window.addEventListener('message', function(event) {
                     primaryAction: () => {
                         fluentPopupManager.close();
                     }
+
                 }
             });
-        } else {
-            showUpdatePopup(globalSettings.boutique);
         }
         safeVibrate([30], true);
     }
