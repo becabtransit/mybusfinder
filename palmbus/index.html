@@ -2277,41 +2277,107 @@ let globalSettings = {};
 
 async function getSetvar() {
     try {
-        const response5 = await fetch('setvar/settings/theme/maincolor.txt');
-        const setvar5 = await response5.text();  
-        const colorbkg = setvar5.trim();
+        const configPromises = [
+            fetch('setvar/settings/theme/maincolor.txt'),
+            fetch('setvar/settings/map/defaultzoom.txt'),
+            fetch('setvar/settings/networkname.txt'),
+            fetch('setvar/settings/linkboutique.txt')
+        ];
 
-        const response = await fetch('setvar/settings/map/defaultzoom.txt');
-        const setvar = await response.text();
-        const view = setvar.trim();  
+        const responses = await Promise.all(configPromises);
 
-        const response1 = await fetch('setvar/settings/networkname.txt');
-        const setvar1 = await response1.text();
-        const nomdureseau = setvar1.trim();  
+        responses.forEach((response, index) => {
+            if (!response.ok) {
+                throw new Error(`Erreur chargement fichier ${index}: ${response.status}`);
+            }
+        });
 
-        const response2 = await fetch('setvar/settings/linkboutique.txt');
-        const setvar2 = await response2.text();
-        const boutique = setvar2.trim();  
+        const textPromises = responses.map(response => response.text());
+        const [colorbkg, view, nomdureseau, boutique] = await Promise.all(textPromises);
 
-        try {
-            const boutiqueResponse = await fetch(boutique, { method: 'HEAD' });
-            window.boutiqueAvailable = boutiqueResponse.ok; 
-        } catch (error) {
-            window.boutiqueAvailable = false;
-        }
+        const cleanData = {
+            colorbkg: colorbkg.trim(),
+            view: view.trim(),
+            nomdureseau: nomdureseau.trim(),
+            boutique: boutique.trim()
+        };
 
-        globalSettings = { colorbkg, view, nomdureseau, boutique };
-        return { colorbkg, view, nomdureseau, boutique };
+        checkBoutiqueAvailability(cleanData.boutique);
+
+        globalSettings = cleanData;
+        return cleanData;
 
     } catch (error) {
         console.error('Erreur chargement setvar ! ', error);
         window.boutiqueAvailable = false;
+        
+        const defaultSettings = {
+            colorbkg: '#000000',
+            view: '10',
+            nomdureseau: 'undefined',
+            boutique: ''
+        };
+        globalSettings = defaultSettings;
+        return defaultSettings;
     }
 }
 
-getSetvar();
+async function checkBoutiqueAvailability(boutiqueUrl) {
+    if (!boutiqueUrl) {
+        window.boutiqueAvailable = false;
+        return;
+    }
 
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        
+        const boutiqueResponse = await fetch(boutiqueUrl, { 
+            method: 'HEAD',
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        window.boutiqueAvailable = boutiqueResponse.ok;
+    } catch (error) {
+        window.boutiqueAvailable = false;
+    }
+}
 
+let settingsCache = null;
+let cacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000;
+
+async function getSetvarWithCache() {
+    const now = Date.now();
+    
+    if (settingsCache && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
+        return settingsCache;
+    }
+    
+    // Charger les nouvelles données
+    const settings = await getSetvar();
+    
+    // Mettre à jour le cache
+    settingsCache = settings;
+    cacheTimestamp = now;
+    
+    return settings;
+}
+
+// Initialisation avec gestion d'erreur améliorée
+async function initializeSettings() {
+    try {
+        const settings = await getSetvarWithCache();
+        console.log('Settings chargés avec succès', settings);
+        return settings;
+    } catch (error) {
+        console.error('Échec du chargement des settings', error);
+        return globalSettings;
+    }
+}
+
+initializeSettings();
 
 const vehicleModels = {};
 
@@ -4924,10 +4990,6 @@ function shareVehicleId(id) {
 
 
 async function fetchVehiclePositions() {
-
-
-
-
         if (!window.timeAnimationStyleAdded) {
         const timeAnimationStyle = `
         <style id="time-animation-styles">
