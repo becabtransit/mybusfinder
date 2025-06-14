@@ -1904,6 +1904,7 @@ tarteaucitron.init({
     const fluentPopupManager = new FluentPopup();
 
     function showFluentPopup(options = {}) {
+    soundsUX('MBF_Popup');
     fluentPopupManager.open(options);
     }
 
@@ -1914,7 +1915,8 @@ tarteaucitron.init({
     if (localStorage.getItem('transparency') !== 'true') {
         if (window.innerWidth > 1024) {
             localStorage.setItem('transparency', true);
-            toastBottomRight.info('Pour votre confort à l\'utilisation de l\'app sur PC, My Bus Finder a automatiquement activé le mode transparence rétracté pour le menu Véhicules en service. Vous pourrez désactiver ce paramètre à tout moment. ')
+            toastBottomRight.info('Pour votre confort à l\'utilisation de l\'app sur PC, My Bus Finder a automatiquement activé le mode transparence rétracté pour le menu Véhicules en service. Vous pourrez désactiver ce paramètre à tout moment. ');
+            soundsUX('MBF_NotificationInfo');
         }
     }
 
@@ -1957,6 +1959,11 @@ tarteaucitron.init({
             const langversion = t("langversion");
             const erazecache = t("erazecache");
             const erazecachetext = t("erazecachetext");
+            const vibrations = t("vibrations");
+            const vibrationstext = t("vibrationstext");
+            const soundsux = t("soundsux");
+            const soundsuxtext = t("soundsuxtext");
+
                    
 
             FluentSettingsMenu.init({
@@ -1975,6 +1982,11 @@ tarteaucitron.init({
                 value: localStorage.getItem('isStandardView') === 'true',
                 onChange: function (value) {
                 toggleMapView(value);
+                if (value) {
+                    soundsUX('MBF_SettingOn');
+                } else {
+                    soundsUX('MBF_SettingOff');
+                }
                 }
             });
 
@@ -1993,6 +2005,11 @@ tarteaucitron.init({
                 ],
                 onChange: function (value) {
                 changeColorBkg(value);
+                if (value) {
+                    soundsUX('MBF_SettingOn');
+                } else {
+                    soundsUX('MBF_SettingOff');
+                }
                 }
             });
 
@@ -2003,6 +2020,11 @@ tarteaucitron.init({
                 value: localStorage.getItem('locateonstart') === 'true',
                 onChange: function (value) {
                 localStorage.setItem('locateonstart', value);
+                if (value) {
+                    soundsUX('MBF_SettingOn');
+                } else {
+                    soundsUX('MBF_SettingOff');
+                }
                 }
             });
 
@@ -2013,6 +2035,41 @@ tarteaucitron.init({
                 value: localStorage.getItem('transparency') === 'true',
                 onChange: function (value) {
                 localStorage.setItem('transparency', value);
+                if (value) {
+                    soundsUX('MBF_SettingOn');
+                } else {
+                    soundsUX('MBF_SettingOff');
+                }
+                }
+            });
+
+            FluentSettingsMenu.addToggle("general", "transparency", {
+                icon: "📳",
+                label: vibrations,
+                description: vibrationstext,
+                value: localStorage.getItem('vibrations') === 'true',
+                onChange: function (value) {
+                localStorage.setItem('vibrations', value);
+                if (value) {
+                    soundsUX('MBF_SettingOn');
+                } else {
+                    soundsUX('MBF_SettingOff');
+                }
+                }
+            });
+
+            FluentSettingsMenu.addToggle("general", "transparency", {
+                icon: "🔊",
+                label: soundsux,
+                description: soundsuxtext,
+                value: localStorage.getItem('soundsux') === 'true',
+                onChange: function (value) {
+                localStorage.setItem('soundsux', value);
+                if (value) {
+                    soundsUX('MBF_SettingOn');
+                } else {
+                    soundsUX('MBF_SettingOff');
+                }
                 }
             });
 
@@ -2040,6 +2097,11 @@ tarteaucitron.init({
                 value: false,
                 onChange: function (value) {
                 toggleSunOrientation(value);
+                if (value) {
+                    soundsUX('MBF_SettingOn');
+                } else {
+                    soundsUX('MBF_SettingOff');
+                }
                 }
             });
 
@@ -2259,7 +2321,7 @@ if ('serviceWorker' in navigator) {
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             toastBottomRight.info('Préparation en cours.')
-
+            soundsUX('MBF_NotificationInfo');
           if (!refreshing) {
             refreshing = true;
             window.location.reload();
@@ -2410,6 +2472,16 @@ setTimeout(() => {
     document.getElementById("bottom-logo").classList.add("logoscrapp");
 }, 10); 
 
+function soundsUX(soundFileName) {
+    if (localStorage.getItem('soundsux') === 'true') {
+        const audio = new Audio('../soundsUX/' + soundFileName + '.wav');
+        audio.volume = 1;
+        audio.play().catch(error => {
+            console.error('Erreur lors de la lecture du son UserXperience', error);
+        });
+    }
+}
+
 async function initMap() {
     const data = await getSetvar();
     let defaultCoords = [43.125463, 5.930077];
@@ -2558,6 +2630,7 @@ function locateUser() {
         );
     } else {
         toastBottomRight.error("La géolocalisation n'est pas supportée par votre navigateur");
+        soundsUX('MBF_NotificationError');
     }
 }
 
@@ -2894,6 +2967,7 @@ function focusOnVehicle(vehicleId) {
         
         if (!marker) {
             toastBottomRight.error('La position du véhicule est indisponible');
+            soundsUX('MBF_NotificationError');
             return;
         }
         
@@ -2905,7 +2979,7 @@ function focusOnVehicle(vehicleId) {
             const markerIcon = marker._icon.querySelector('.marker-icon');
             if (!markerIcon) {
                 toastBottomRight.error('La position du véhicule est indisponible');
-
+                soundsUX('MBF_NotificationError');
                 return;
             }
             
@@ -2916,9 +2990,11 @@ function focusOnVehicle(vehicleId) {
             
         } catch (mapError) {
             toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : manipulating marker error');
+            soundsUX('MBF_NotificationError');
         }
     } catch (error) {
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : focusOnVehicle function error');
+        soundsUX('MBF_NotificationError');
     }
 }
 
@@ -3023,6 +3099,7 @@ function hideLoadingScreen() {
 
         if (localStorage.getItem('buildversion') !== window.BUILD_VERSION) {
             toastBottomRight.info(`Updating to build ${window.BUILD_VERSION} in progress... Please wait`);
+            soundsUX('MBF_NotificationInfo');
             localStorage.setItem('buildversion', window.BUILD_VERSION);
                 setTimeout(() => {
                     window.location.reload();
@@ -3212,6 +3289,7 @@ async function getFromCache() {
 async function extractGTFSFiles() {
     try {
         toastBottomRight.info('Mise à jour de la base de données dynamiques. Cette opération va prendre quelques secondes 🙂');
+        soundsUX('MBF_Popup');
 
 
         const response = await fetch('proxy-cors/proxy_gtfs.php');
@@ -3448,6 +3526,7 @@ async function initializeGTFS() {
                 extractedFiles = result.extractedFiles;
                 await saveToCache(extractedFiles, result.metadata);
                 toastBottomRight.success('Données téléchargées avec succès !');
+                soundsUX('MBF_Success');
             } 
         }
         
@@ -3486,6 +3565,7 @@ async function clearGTFSCache() {
 
             request.onsuccess = () => {
                 toastBottomRight.success('MBF3 : Cache erased successfully !!');
+                soundsUX('MBF_Success');
                 resolve();
             };
             request.onerror = () => reject(request.error);
@@ -3493,6 +3573,7 @@ async function clearGTFSCache() {
     } catch (error) {
         console.error('Erreur lors de l\'effacement du cache', error);
         toastBottomRight.error('Erreur lors de l\'effacement du cache');
+        soundsUX('MBF_NotificationError');
         throw error;
     }
 }
@@ -3630,6 +3711,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         const menubtm = document.getElementById('menubtm');
         const filtre = document.getElementById('filtre');
             safeVibrate([50]);
+            soundsUX('MBF_VehicleOpen');
 
         if (menubtm) {
             const markerId = marker.id;
@@ -3896,6 +3978,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const menubtm = document.getElementById('menubtm');
     const filtre = document.getElementById('filtre');
     safeVibrate([50]);
+    soundsUX('MBF_VehicleClose');
     
     if (menubtm && filtre) {
         try {
@@ -4401,6 +4484,7 @@ async function loadVehicleModels() {
     } catch (error) {
         console.error('Erreur lors du chargement des modèles de véhicules', error);
         toastBottomRight.error('Erreur lors du chargement des modèles de véhicules');
+        soundsUX('MBF_NotificationError');
     }
 }
 
@@ -4595,6 +4679,10 @@ function clearVehicleCache() {
 
 // qu'es-ce que ça aide l'IA maintenant... 🙂
 
+// finalement c'est de la vraie daube son code
+// vive le code fait par des humains !
+// mais bon, ça marche, c'est l'essentiel
+
 function getVehicleOptionsBadges(parkNumber) {
     const model = getVehicleModel(parkNumber);
     let badges = '';
@@ -4729,7 +4817,7 @@ async function initializeApp() {
     } catch (error) {
         console.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
         toastBottomRight.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
-
+        soundsUX('MBF_NotificationError');
     }
 }
 
@@ -7498,6 +7586,7 @@ sortedLines.forEach(line => {
                     const mapp = document.getElementById('map');
                     mapp.style.opacity = '1';
                     safeVibrate([50, 30, 50], true);
+                    soundsUX('MBF_Menu_LineSelect');
                     const lineId = line;
                     selectedLine = lineId;
                     filterByLine(lineId);
@@ -7542,6 +7631,7 @@ sortedLines.forEach(line => {
                 busItem.onclick = (event) => {
                     event.stopPropagation();
                     safeVibrate([50, 300, 50, 30, 50], true);
+                    soundsUX('MBF_Menu_VehicleSelect');
                     map.setView(bus.vehicle.getLatLng(), 15);
                     bus.vehicle.openPopup();
                     const mapp = document.getElementById('map');
@@ -8295,7 +8385,7 @@ function addSubmenu(sectionId, id, options) {
         toggleInput.addEventListener('change', (e) => {
           item.value = e.target.checked;
           if (item.onChange) item.onChange(item.value);
-          safeVibrate([20, 30, 20], true);
+          safeVibrate([30, 40, 30], true);
         });
         
         const toggleSlider = document.createElement('span');
@@ -8708,6 +8798,7 @@ async function main() {
     } catch (error) {
         console.error("Erreur critique dans main():", error);
         toastBottomRight.error("Une erreur critique est survenue. Nous investigons actuellement sur la cause de la panne.");
+        soundsUX('MBF_NotificationError');
     }
 }
 
