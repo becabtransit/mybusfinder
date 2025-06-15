@@ -570,700 +570,668 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/protobufjs/6.11.3/protobuf.min.js"></script>
     <script>
-let currentAlerts = [];
-let currentFilter = 'all';
-let refreshTimer = null;
+        let currentAlerts = [];
+        let currentFilter = 'all';
+        let refreshTimer = null;
 
-document.addEventListener('DOMContentLoaded', () => {
-    fetchServiceAlerts();
-    initEventListeners();
-    initBackToTop();
-    initAutoRefresh();
-});
-
-// Configuration des types d'effet GTFS-RT selon la spécification
-const GTFS_EFFECTS = {
-    NO_SERVICE: 1,
-    REDUCED_SERVICE: 2,
-    SIGNIFICANT_DELAYS: 3,
-    DETOUR: 4,
-    ADDITIONAL_SERVICE: 5,
-    MODIFIED_SERVICE: 6,
-    OTHER_EFFECT: 7,
-    UNKNOWN_EFFECT: 8,
-    STOP_MOVED: 9,
-    NO_EFFECT: 10,
-    ACCESSIBILITY_ISSUE: 11
-};
-
-// Configuration des causes GTFS-RT
-const GTFS_CAUSES = {
-    UNKNOWN_CAUSE: 1,
-    OTHER_CAUSE: 2,
-    TECHNICAL_PROBLEM: 3,
-    STRIKE: 4,
-    DEMONSTRATION: 5,
-    ACCIDENT: 6,
-    HOLIDAY: 7,
-    WEATHER: 8,
-    MAINTENANCE: 9,
-    CONSTRUCTION: 10,
-    POLICE_ACTIVITY: 11,
-    MEDICAL_EMERGENCY: 12
-};
-
-async function decodeProtobuf(buffer) {
-    try {
-        const root = await protobuf.load('gtfs-realtime.proto');
-        const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
-        const message = FeedMessage.decode(new Uint8Array(buffer));
-        return FeedMessage.toObject(message, { 
-            longs: String, 
-            enums: String, 
-            defaults: true 
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchServiceAlerts();
+            initEventListeners();
+            initBackToTop();
+            initAutoRefresh();
         });
-    } catch (error) {
-        console.error('Erreur lors du décodage protobuf:', error);
-        throw error;
-    }
-}
 
-async function fetchServiceAlerts() {
-    try {
-        showLoading();
-        
-        const response = await fetch('proxy-cors/proxy_servicealerts.php');
-        if (!response.ok) {
-            throw new Error(`Erreur HTTP: ${response.status}`);
+        const GTFS_EFFECTS = {
+            NO_SERVICE: 1,
+            REDUCED_SERVICE: 2,
+            SIGNIFICANT_DELAYS: 3,
+            DETOUR: 4,
+            ADDITIONAL_SERVICE: 5,
+            MODIFIED_SERVICE: 6,
+            OTHER_EFFECT: 7,
+            UNKNOWN_EFFECT: 8,
+            STOP_MOVED: 9,
+            NO_EFFECT: 10,
+            ACCESSIBILITY_ISSUE: 11
+        };
+
+        const GTFS_CAUSES = {
+            UNKNOWN_CAUSE: 1,
+            OTHER_CAUSE: 2,
+            TECHNICAL_PROBLEM: 3,
+            STRIKE: 4,
+            DEMONSTRATION: 5,
+            ACCIDENT: 6,
+            HOLIDAY: 7,
+            WEATHER: 8,
+            MAINTENANCE: 9,
+            CONSTRUCTION: 10,
+            POLICE_ACTIVITY: 11,
+            MEDICAL_EMERGENCY: 12
+        };
+
+        async function decodeProtobuf(buffer) {
+            try {
+                const root = await protobuf.load('gtfs-realtime.proto');
+                const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
+                const message = FeedMessage.decode(new Uint8Array(buffer));
+                return FeedMessage.toObject(message, { 
+                    longs: String, 
+                    enums: String, 
+                    defaults: true 
+                });
+            } catch (error) {
+                throw error;
+            }
         }
-        
-        const buffer = await response.arrayBuffer();
-        const data = await decodeProtobuf(buffer);
 
-        const activeAlerts = [];
+        async function fetchServiceAlerts() {
+            try {
+                showLoading();
+                
+                const response = await fetch('proxy-cors/proxy_servicealerts.php');
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                const buffer = await response.arrayBuffer();
+                const data = await decodeProtobuf(buffer);
 
-        if (Array.isArray(data.entity) && data.entity.length > 0) {
-            data.entity.forEach(entity => {
-                try {
-                    const alert = entity.alert;
-                    if (alert && isAlertActive(alert)) {
-                        const processedAlert = processAlert(entity, alert);
-                        if (processedAlert) {
-                            activeAlerts.push(processedAlert);
+                const activeAlerts = [];
+
+                if (Array.isArray(data.entity) && data.entity.length > 0) {
+                    data.entity.forEach(entity => {
+                        try {
+                            const alert = entity.alert;
+                            if (alert && isAlertActive(alert)) {
+                                const processedAlert = processAlert(entity, alert);
+                                if (processedAlert) {
+                                    activeAlerts.push(processedAlert);
+                                }
+                            }
+                        } catch (error) {
+                            console.warn('Erreur lors du traitement d\'une alerte:', error, entity);
                         }
-                    }
-                } catch (error) {
-                    console.warn('Erreur lors du traitement d\'une alerte:', error, entity);
+                    });
                 }
-            });
+
+                currentAlerts = sortAlertsByPriority(activeAlerts);
+                displayAlerts(currentAlerts);
+                updateLastUpdated();
+                
+            } catch (error) {
+                showError(error.message);
+            }
         }
 
-        currentAlerts = sortAlertsByPriority(activeAlerts);
-        displayAlerts(currentAlerts);
-        updateLastUpdated();
-        
-    } catch (error) {
-        console.error('Erreur lors de la récupération des alertes de service:', error);
-        showError(error.message);
-    }
-}
-
-function isAlertActive(alert) {
-    const now = Date.now() / 1000; // Timestamp Unix en secondes
-    
-    // Si pas de période active définie, on considère l'alerte comme active
-    if (!alert.activePeriod || alert.activePeriod.length === 0) {
-        return true;
-    }
-    
-    // Vérifier chaque période active
-    return alert.activePeriod.some(period => {
-        const start = period.start ? parseInt(period.start) : 0;
-        const end = period.end ? parseInt(period.end) : Number.MAX_SAFE_INTEGER;
-        return now >= start && now <= end;
-    });
-}
-
-function processAlert(entity, alert) {
-    // Extraire les textes en français ou par défaut
-    const headerText = getLocalizedText(alert.headerText);
-    const descriptionText = getLocalizedText(alert.descriptionText);
-    const urlText = getLocalizedText(alert.url);
-    
-    if (!headerText) {
-        console.warn('Alerte sans titre, ignorée:', entity.id);
-        return null;
-    }
-    
-    // Traitement des périodes actives
-    const activePeriods = processActivePeriods(alert.activePeriod);
-    
-    // Traitement des entités affectées
-    const affectedEntities = processAffectedEntities(alert.informedEntity);
-    
-    // Debug pour voir les valeurs réelles
-    console.log('Alert effect:', alert.effect, 'type:', typeof alert.effect);
-    console.log('Alert cause:', alert.cause, 'type:', typeof alert.cause);
-    
-    return {
-        id: entity.id || generateId(),
-        header: headerText,
-        description: descriptionText || '',
-        url: urlText || '',
-        effect: normalizeEffect(alert.effect),
-        cause: normalizeCause(alert.cause),
-        severity: alert.severityLevel || 'UNKNOWN',
-        activePeriods: activePeriods,
-        affectedEntities: affectedEntities,
-        timestamp: new Date(),
-        lastModified: entity.isDeleted ? null : new Date()
-    };
-}
-
-function getLocalizedText(textObj) {
-    if (!textObj || !textObj.translation) return '';
-    
-    const translations = textObj.translation;
-    
-    // Chercher d'abord en français
-    const frTranslation = translations.find(t => t.language === 'fr' || t.language === 'fr-FR');
-    if (frTranslation && frTranslation.text) {
-        return frTranslation.text.trim();
-    }
-    
-    // Puis en anglais
-    const enTranslation = translations.find(t => t.language === 'en' || t.language === 'en-US');
-    if (enTranslation && enTranslation.text) {
-        return enTranslation.text.trim();
-    }
-    
-    // Sinon prendre la première traduction disponible
-    const firstTranslation = translations.find(t => t.text && t.text.trim());
-    return firstTranslation ? firstTranslation.text.trim() : '';
-}
-
-function processActivePeriods(activePeriods) {
-    if (!activePeriods || activePeriods.length === 0) return [];
-    
-    return activePeriods.map(period => ({
-        start: period.start ? new Date(parseInt(period.start) * 1000) : null,
-        end: period.end ? new Date(parseInt(period.end) * 1000) : null
-    })).filter(period => period.start || period.end);
-}
-
-function processAffectedEntities(informedEntities) {
-    if (!informedEntities || informedEntities.length === 0) return [];
-    
-    return informedEntities.map(entity => ({
-        agencyId: entity.agencyId || null,
-        routeId: entity.routeId || null,
-        routeType: entity.routeType || null,
-        stopId: entity.stopId || null,
-        tripId: entity.trip?.tripId || null,
-        directionId: entity.trip?.directionId || null
-    }));
-}
-
-function normalizeEffect(effect) {
-    // Si c'est undefined ou null
-    if (effect === undefined || effect === null) {
-        return 'UNKNOWN_EFFECT';
-    }
-    
-    // Si c'est déjà une chaîne, la retourner telle quelle
-    if (typeof effect === 'string') {
-        return effect;
-    }
-    
-    // Si c'est un nombre, le convertir selon les standards GTFS-RT
-    const effectNumber = parseInt(effect);
-    const effectMap = {
-        1: 'NO_SERVICE',
-        2: 'REDUCED_SERVICE', 
-        3: 'SIGNIFICANT_DELAYS',
-        4: 'DETOUR',
-        5: 'ADDITIONAL_SERVICE',
-        6: 'MODIFIED_SERVICE',
-        7: 'OTHER_EFFECT',
-        8: 'UNKNOWN_EFFECT',
-        9: 'STOP_MOVED',
-        10: 'NO_EFFECT',
-        11: 'ACCESSIBILITY_ISSUE'
-    };
-    
-    return effectMap[effectNumber] || 'UNKNOWN_EFFECT';
-}
-
-function normalizeCause(cause) {
-    // Si c'est undefined ou null
-    if (cause === undefined || cause === null) {
-        return 'UNKNOWN_CAUSE';
-    }
-    
-    // Si c'est déjà une chaîne, la retourner telle quelle
-    if (typeof cause === 'string') {
-        return cause;
-    }
-    
-    // Si c'est un nombre, le convertir selon les standards GTFS-RT
-    const causeNumber = parseInt(cause);
-    const causeMap = {
-        1: 'UNKNOWN_CAUSE',
-        2: 'OTHER_CAUSE',
-        3: 'TECHNICAL_PROBLEM',
-        4: 'STRIKE',
-        5: 'DEMONSTRATION',
-        6: 'ACCIDENT',
-        7: 'HOLIDAY',
-        8: 'WEATHER',
-        9: 'MAINTENANCE',
-        10: 'CONSTRUCTION',
-        11: 'POLICE_ACTIVITY',
-        12: 'MEDICAL_EMERGENCY'
-    };
-    
-    return causeMap[causeNumber] || 'UNKNOWN_CAUSE';
-}
-
-function showLoading() {
-    document.getElementById('alerts-container').innerHTML = `
-        <div class="loading-container">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">Chargement des alertes en cours...</div>
-        </div>
-    `;
-}
-
-function showError(errorMessage = 'Erreur inconnue') {
-    document.getElementById('alerts-container').innerHTML = `
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <div class="empty-state-title">Erreur de chargement</div>
-            <div class="empty-state-description">
-                Impossible de charger les alertes: ${errorMessage}<br>
-                <button onclick="fetchServiceAlerts()" style="margin-top: 12px; padding: 8px 16px; border: none; background: var(--fluent-primary); color: white; border-radius: 4px; cursor: pointer;">
-                    Réessayer
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-function displayAlerts(alerts) {
-    const alertsContainer = document.getElementById('alerts-container');
-    
-    if (alerts.length === 0) {
-        alertsContainer.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">
-                    <i class="fas fa-check-circle"></i>
-                </div>
-                <div class="empty-state-title">Aucune alerte active</div>
-                <div class="empty-state-description">Tous les services fonctionnent normalement.</div>
-            </div>
-        `;
-        return;
-    }
-    
-    alertsContainer.innerHTML = '';
-    
-    alerts.forEach((alert, index) => {
-        const alertCard = createAlertCard(alert, index);
-        alertsContainer.appendChild(alertCard);
-    });
-}
-
-function createAlertCard(alert, index) {
-    const effectInfo = getEffectInfo(alert.effect);
-    const causeInfo = getCauseInfo(alert.cause);
-    const alertCard = document.createElement('div');
-    alertCard.className = `alert-card fluent-reveal ${effectInfo.className}`;
-    alertCard.style.animationDelay = `${index * 0.1}s`;
-    
-    const formatTime = (date) => {
-        if (!date) return null;
-        return date.toLocaleString('fr-FR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    };
-    
-    // Formatage des périodes actives
-    const timeRanges = alert.activePeriods.map(period => {
-        if (period.start && period.end) {
-            return `Du ${formatTime(period.start)} au ${formatTime(period.end)}`;
-        } else if (period.start) {
-            return `Depuis le ${formatTime(period.start)}`;
-        } else if (period.end) {
-            return `Jusqu'au ${formatTime(period.end)}`;
-        }
-        return null;
-    }).filter(Boolean);
-
-    // Informations sur les entités affectées
-    const affectedInfo = getAffectedEntitiesInfo(alert.affectedEntities);
-
-    alertCard.innerHTML = `
-        <div class="alert-header">
-            <div class="alert-icon">
-                <i class="${effectInfo.icon}"></i>
-            </div>
-            <div class="alert-details">
-                <div class="alert-type">${effectInfo.label}</div>
-                <div class="alert-title">${escapeHtml(alert.header)}</div>
-                <div class="alert-timestamp">
-                    <i class="fas fa-clock"></i>
-                    ${formatTime(alert.timestamp)}
-                </div>
-            </div>
-        </div>
-        <div class="alert-content">
-            ${alert.description ? `
-                <div class="alert-description">
-                    ${escapeHtml(alert.description)}
-                </div>
-            ` : ''}
-            <div class="alert-metadata">
-                ${causeInfo.label !== 'Non spécifiée' ? `
-                    <div class="alert-metadata-item">
-                        <i class="${causeInfo.icon}"></i>
-                        Cause: ${causeInfo.label}
-                    </div>
-                ` : ''}
-                ${timeRanges.length > 0 ? `
-                    <div class="alert-metadata-item">
-                        <i class="fas fa-calendar-alt"></i>
-                        ${timeRanges[0]}
-                    </div>
-                ` : ''}
-                ${affectedInfo ? `
-                    <div class="alert-metadata-item">
-                        <i class="fas fa-route"></i>
-                        ${affectedInfo}
-                    </div>
-                ` : ''}
-                ${alert.url ? `
-                    <div class="alert-metadata-item">
-                        <i class="fas fa-external-link-alt"></i>
-                        <a href="${alert.url}" target="_blank" rel="noopener noreferrer">Plus d'infos</a>
-                    </div>
-                ` : ''}
-            </div>
-        </div>
-    `;
-    
-    return alertCard;
-}
-
-function getEffectInfo(effect) {
-    const effects = {
-        'NO_SERVICE': { 
-            icon: 'fas fa-ban', 
-            label: 'Service interrompu', 
-            className: 'alert-accident',
-            priority: 5 
-        },
-        'REDUCED_SERVICE': { 
-            icon: 'fas fa-arrow-down', 
-            label: 'Service réduit', 
-            className: 'alert-service-reduit',
-            priority: 3 
-        },
-        'SIGNIFICANT_DELAYS': { 
-            icon: 'fas fa-clock', 
-            label: 'Retards importants', 
-            className: 'alert-service-modifie',
-            priority: 3 
-        },
-        'DETOUR': { 
-            icon: 'fas fa-route', 
-            label: 'Déviation', 
-            className: 'alert-service-modifie',
-            priority: 2 
-        },
-        'ADDITIONAL_SERVICE': { 
-            icon: 'fas fa-plus', 
-            label: 'Service supplémentaire', 
-            className: 'alert-information',
-            priority: 1 
-        },
-        'MODIFIED_SERVICE': { 
-            icon: 'fas fa-exclamation-triangle', 
-            label: 'Service modifié', 
-            className: 'alert-service-modifie',
-            priority: 3 
-        },
-        'OTHER_EFFECT': { 
-            icon: 'fas fa-info-circle', 
-            label: 'Autre perturbation', 
-            className: 'alert-information',
-            priority: 2 
-        },
-        'UNKNOWN_EFFECT': { 
-            icon: 'fas fa-question-circle', 
-            label: 'Perturbation', 
-            className: 'alert-information',
-            priority: 1 
-        },
-        'STOP_MOVED': { 
-            icon: 'fas fa-map-marker-alt', 
-            label: 'Arrêt déplacé', 
-            className: 'alert-service-modifie',
-            priority: 2 
-        },
-        'NO_EFFECT': { 
-            icon: 'fas fa-info', 
-            label: 'Information', 
-            className: 'alert-information',
-            priority: 1 
-        },
-        'ACCESSIBILITY_ISSUE': { 
-            icon: 'fas fa-wheelchair', 
-            label: 'Problème d\'accessibilité', 
-            className: 'alert-service-modifie',
-            priority: 3 
-        }
-    };
-    
-    return effects[effect] || effects['UNKNOWN_EFFECT'];
-}
-
-function getCauseInfo(cause) {
-    const causes = {
-        'TECHNICAL_PROBLEM': { 
-            label: 'Problème technique', 
-            icon: 'fas fa-cogs' 
-        },
-        'STRIKE': { 
-            label: 'Grève', 
-            icon: 'fas fa-fist-raised' 
-        },
-        'DEMONSTRATION': { 
-            label: 'Manifestation', 
-            icon: 'fas fa-bullhorn' 
-        },
-        'ACCIDENT': { 
-            label: 'Accident', 
-            icon: 'fas fa-ambulance' 
-        },
-        'HOLIDAY': { 
-            label: 'Jour férié', 
-            icon: 'fas fa-calendar-day' 
-        },
-        'WEATHER': { 
-            label: 'Conditions météo', 
-            icon: 'fas fa-cloud-rain' 
-        },
-        'MAINTENANCE': { 
-            label: 'Maintenance', 
-            icon: 'fas fa-tools' 
-        },
-        'CONSTRUCTION': { 
-            label: 'Travaux', 
-            icon: 'fas fa-hard-hat' 
-        },
-        'POLICE_ACTIVITY': { 
-            label: 'Intervention police', 
-            icon: 'fas fa-shield-alt' 
-        },
-        'MEDICAL_EMERGENCY': { 
-            label: 'Urgence médicale', 
-            icon: 'fas fa-user-md' 
-        },
-        'OTHER_CAUSE': { 
-            label: 'Autre cause', 
-            icon: 'fas fa-question' 
-        },
-        'UNKNOWN_CAUSE': { 
-            label: 'Non spécifiée', 
-            icon: 'fas fa-question-circle' 
-        }
-    };
-    
-    return causes[cause] || causes['UNKNOWN_CAUSE'];
-}
-
-function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-}
-
-function getAffectedEntitiesInfo(entities) {
-    if (!entities || entities.length === 0) return null;
-    
-    const routes = entities.filter(e => e.routeId).map(e => e.routeId);
-    const stops = entities.filter(e => e.stopId).map(e => e.stopId);
-    
-    const parts = [];
-    if (routes.length > 0) {
-        parts.push(`Lignes: ${routes.slice(0, 3).join(', ')}${routes.length > 3 ? '...' : ''}`);
-    }
-    if (stops.length > 0) {
-        parts.push(`Arrêts: ${stops.slice(0, 2).join(', ')}${stops.length > 2 ? '...' : ''}`);
-    }
-    
-    return parts.join(' | ') || null;
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function updateLastUpdated() {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString('fr-FR');
-    const formattedTime = now.toLocaleTimeString('fr-FR');
-    document.getElementById('last-updated').innerHTML = `
-        <i class="fas fa-clock"></i>
-        <span>Dernière mise à jour : ${formattedDate} à ${formattedTime}</span>
-    `;
-}
-
-function initEventListeners() {
-    document.getElementById('refresh-button').addEventListener('click', () => {
-        clearTimeout(refreshTimer);
-        fetchServiceAlerts();
-        initAutoRefresh();
-    });
-    
-    document.querySelectorAll('.filter-chip').forEach(chip => {
-        chip.addEventListener('click', (e) => {
-            document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-            e.target.classList.add('active');
+        function isAlertActive(alert) {
+            const now = Date.now() / 1000; 
             
-            currentFilter = e.target.dataset.effect;
-            filterAlerts();
-        });
-    });
-    
-    let searchTimeout;
-    document.getElementById('search-input').addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            searchAlerts(e.target.value);
-        }, 300);
-    });
-}
-
-function filterAlerts() {
-    let filteredAlerts = currentAlerts;
-    
-    if (currentFilter !== 'all') {
-        // Convertir le filtre en chaîne pour la comparaison
-        const filterEffect = normalizeEffect(parseInt(currentFilter));
-        filteredAlerts = currentAlerts.filter(alert => alert.effect === filterEffect);
-    }
-    
-    displayAlerts(filteredAlerts);
-}
-
-function searchAlerts(searchTerm) {
-    const term = searchTerm.toLowerCase().trim();
-    
-    if (!term) {
-        filterAlerts();
-        return;
-    }
-    
-    let filteredAlerts = currentAlerts.filter(alert => {
-        return alert.header.toLowerCase().includes(term) ||
-               alert.description.toLowerCase().includes(term) ||
-               (alert.affectedEntities && alert.affectedEntities.some(entity => 
-                   (entity.routeId && entity.routeId.toLowerCase().includes(term)) ||
-                   (entity.stopId && entity.stopId.toLowerCase().includes(term))
-               ));
-    });
-    
-    if (currentFilter !== 'all') {
-        const filterEffect = normalizeEffect(parseInt(currentFilter));
-        filteredAlerts = filteredAlerts.filter(alert => alert.effect === filterEffect);
-    }
-    
-    displayAlerts(filteredAlerts);
-}
-
-function initBackToTop() {
-    const backToTop = document.getElementById('back-to-top');
-    
-    let ticking = false;
-    window.addEventListener('scroll', () => {
-        if (!ticking) {
-            requestAnimationFrame(() => {
-                if (window.scrollY > 300) {
-                    backToTop.classList.add('visible');
-                } else {
-                    backToTop.classList.remove('visible');
-                }
-                ticking = false;
+            if (!alert.activePeriod || alert.activePeriod.length === 0) {
+                return true;
+            }
+            
+            return alert.activePeriod.some(period => {
+                const start = period.start ? parseInt(period.start) : 0;
+                const end = period.end ? parseInt(period.end) : Number.MAX_SAFE_INTEGER;
+                return now >= start && now <= end;
             });
-            ticking = true;
         }
-    });
-    
-    backToTop.addEventListener('click', () => {
-        window.scrollTo({
-            top: 0,
-            behavior: 'smooth'
+
+        function processAlert(entity, alert) {
+            const headerText = getLocalizedText(alert.headerText);
+            const descriptionText = getLocalizedText(alert.descriptionText);
+            const urlText = getLocalizedText(alert.url);
+            
+            if (!headerText) {
+                return null;
+            }
+            
+            const activePeriods = processActivePeriods(alert.activePeriod);
+            const affectedEntities = processAffectedEntities(alert.informedEntity);
+
+            return {
+                id: entity.id || generateId(),
+                header: headerText,
+                description: descriptionText || '',
+                url: urlText || '',
+                effect: normalizeEffect(alert.effect),
+                cause: normalizeCause(alert.cause),
+                severity: alert.severityLevel || 'UNKNOWN',
+                activePeriods: activePeriods,
+                affectedEntities: affectedEntities,
+                timestamp: new Date(),
+                lastModified: entity.isDeleted ? null : new Date()
+            };
+        }
+
+        function getLocalizedText(textObj) {
+            if (!textObj || !textObj.translation) return '';
+            
+            const translations = textObj.translation;
+            
+            const frTranslation = translations.find(t => t.language === 'fr' || t.language === 'fr-FR');
+            if (frTranslation && frTranslation.text) {
+                return frTranslation.text.trim();
+            }
+            
+            const enTranslation = translations.find(t => t.language === 'en' || t.language === 'en-US');
+            if (enTranslation && enTranslation.text) {
+                return enTranslation.text.trim();
+            }
+            
+            const firstTranslation = translations.find(t => t.text && t.text.trim());
+            return firstTranslation ? firstTranslation.text.trim() : '';
+        }
+
+        function processActivePeriods(activePeriods) {
+            if (!activePeriods || activePeriods.length === 0) return [];
+            
+            return activePeriods.map(period => ({
+                start: period.start ? new Date(parseInt(period.start) * 1000) : null,
+                end: period.end ? new Date(parseInt(period.end) * 1000) : null
+            })).filter(period => period.start || period.end);
+        }
+
+        function processAffectedEntities(informedEntities) {
+            if (!informedEntities || informedEntities.length === 0) return [];
+            
+            return informedEntities.map(entity => ({
+                agencyId: entity.agencyId || null,
+                routeId: entity.routeId || null,
+                routeType: entity.routeType || null,
+                stopId: entity.stopId || null,
+                tripId: entity.trip?.tripId || null,
+                directionId: entity.trip?.directionId || null
+            }));
+        }
+
+        function normalizeEffect(effect) {
+            if (effect === undefined || effect === null) {
+                return 'UNKNOWN_EFFECT';
+            }
+            
+            if (typeof effect === 'string') {
+                return effect;
+            }
+            
+            const effectNumber = parseInt(effect);
+            const effectMap = {
+                1: 'NO_SERVICE',
+                2: 'REDUCED_SERVICE', 
+                3: 'SIGNIFICANT_DELAYS',
+                4: 'DETOUR',
+                5: 'ADDITIONAL_SERVICE',
+                6: 'MODIFIED_SERVICE',
+                7: 'OTHER_EFFECT',
+                8: 'UNKNOWN_EFFECT',
+                9: 'STOP_MOVED',
+                10: 'NO_EFFECT',
+                11: 'ACCESSIBILITY_ISSUE'
+            };
+            
+            return effectMap[effectNumber] || 'UNKNOWN_EFFECT';
+        }
+
+        function normalizeCause(cause) {
+            if (cause === undefined || cause === null) {
+                return 'UNKNOWN_CAUSE';
+            }
+            
+            if (typeof cause === 'string') {
+                return cause;
+            }
+            
+            const causeNumber = parseInt(cause);
+            const causeMap = {
+                1: 'UNKNOWN_CAUSE',
+                2: 'OTHER_CAUSE',
+                3: 'TECHNICAL_PROBLEM',
+                4: 'STRIKE',
+                5: 'DEMONSTRATION',
+                6: 'ACCIDENT',
+                7: 'HOLIDAY',
+                8: 'WEATHER',
+                9: 'MAINTENANCE',
+                10: 'CONSTRUCTION',
+                11: 'POLICE_ACTIVITY',
+                12: 'MEDICAL_EMERGENCY'
+            };
+            
+            return causeMap[causeNumber] || 'UNKNOWN_CAUSE';
+        }
+
+        function showLoading() {
+            document.getElementById('alerts-container').innerHTML = `
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Chargement des informations en cours...</div>
+                </div>
+            `;
+        }
+
+        function showError(errorMessage = 'Erreur inconnue') {
+            document.getElementById('alerts-container').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="empty-state-title">Erreur de chargement</div>
+                    <div class="empty-state-description">
+                        Impossible de charger les alertes : ${errorMessage}<br>
+                        <button onclick="fetchServiceAlerts()" style="margin-top: 12px; padding: 8px 16px; border: none; background: var(--fluent-primary); color: white; border-radius: 4px; cursor: pointer;">
+                            Réessayer
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function displayAlerts(alerts) {
+            const alertsContainer = document.getElementById('alerts-container');
+            
+            if (alerts.length === 0) {
+                alertsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="empty-state-title">Parfait !</div>
+                        <div class="empty-state-description">Tous les services fonctionnent normalement.</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            alertsContainer.innerHTML = '';
+            
+            alerts.forEach((alert, index) => {
+                const alertCard = createAlertCard(alert, index);
+                alertsContainer.appendChild(alertCard);
+            });
+        }
+
+        function createAlertCard(alert, index) {
+            const effectInfo = getEffectInfo(alert.effect);
+            const causeInfo = getCauseInfo(alert.cause);
+            const alertCard = document.createElement('div');
+            alertCard.className = `alert-card fluent-reveal ${effectInfo.className}`;
+            alertCard.style.animationDelay = `${index * 0.1}s`;
+            
+            const formatTime = (date) => {
+                if (!date) return null;
+                return date.toLocaleString('fr-FR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            };
+            
+            const timeRanges = alert.activePeriods.map(period => {
+                if (period.start && period.end) {
+                    return `Du ${formatTime(period.start)} au ${formatTime(period.end)}`;
+                } else if (period.start) {
+                    return `Depuis le ${formatTime(period.start)}`;
+                } else if (period.end) {
+                    return `Jusqu'au ${formatTime(period.end)}`;
+                }
+                return null;
+            }).filter(Boolean);
+
+            const affectedInfo = getAffectedEntitiesInfo(alert.affectedEntities);
+
+            alertCard.innerHTML = `
+                <div class="alert-header">
+                    <div class="alert-icon">
+                        <i class="${effectInfo.icon}"></i>
+                    </div>
+                    <div class="alert-details">
+                        <div class="alert-type">${effectInfo.label}</div>
+                        <div class="alert-title">${escapeHtml(alert.header)}</div>
+                        <div class="alert-timestamp">
+                            <i class="fas fa-clock"></i>
+                            ${formatTime(alert.timestamp)}
+                        </div>
+                    </div>
+                </div>
+                <div class="alert-content">
+                    ${alert.description ? `
+                        <div class="alert-description">
+                            ${escapeHtml(alert.description)}
+                        </div>
+                    ` : ''}
+                    <div class="alert-metadata">
+                        ${causeInfo.label !== 'Non spécifiée' ? `
+                            <div class="alert-metadata-item">
+                                <i class="${causeInfo.icon}"></i>
+                                En raison de : ${causeInfo.label}
+                            </div>
+                        ` : ''}
+                        ${timeRanges.length > 0 ? `
+                            <div class="alert-metadata-item">
+                                <i class="fas fa-calendar-alt"></i>
+                                ${timeRanges[0]}
+                            </div>
+                        ` : ''}
+                        ${affectedInfo ? `
+                            <div class="alert-metadata-item">
+                                <i class="fas fa-route"></i>
+                                ${affectedInfo}
+                            </div>
+                        ` : ''}
+                        ${alert.url ? `
+                            <div class="alert-metadata-item">
+                                <i class="fas fa-external-link-alt"></i>
+                                <a href="${alert.url}" target="_blank" rel="noopener noreferrer">Plus d'infos</a>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            
+            return alertCard;
+        }
+
+        function getEffectInfo(effect) {
+            const effects = {
+                'NO_SERVICE': { 
+                    icon: 'fas fa-ban', 
+                    label: 'Service interrompu', 
+                    className: 'alert-accident',
+                    priority: 5 
+                },
+                'REDUCED_SERVICE': { 
+                    icon: 'fas fa-arrow-down', 
+                    label: 'Service réduit', 
+                    className: 'alert-service-reduit',
+                    priority: 3 
+                },
+                'SIGNIFICANT_DELAYS': { 
+                    icon: 'fas fa-clock', 
+                    label: 'Retards importants', 
+                    className: 'alert-service-modifie',
+                    priority: 3 
+                },
+                'DETOUR': { 
+                    icon: 'fas fa-route', 
+                    label: 'Déviation', 
+                    className: 'alert-service-modifie',
+                    priority: 2 
+                },
+                'ADDITIONAL_SERVICE': { 
+                    icon: 'fas fa-plus', 
+                    label: 'Service supplémentaire', 
+                    className: 'alert-information',
+                    priority: 1 
+                },
+                'MODIFIED_SERVICE': { 
+                    icon: 'fas fa-exclamation-triangle', 
+                    label: 'Service modifié', 
+                    className: 'alert-service-modifie',
+                    priority: 3 
+                },
+                'OTHER_EFFECT': { 
+                    icon: 'fas fa-info-circle', 
+                    label: 'Autre perturbation', 
+                    className: 'alert-information',
+                    priority: 2 
+                },
+                'UNKNOWN_EFFECT': { 
+                    icon: 'fas fa-question-circle', 
+                    label: 'Perturbation', 
+                    className: 'alert-information',
+                    priority: 1 
+                },
+                'STOP_MOVED': { 
+                    icon: 'fas fa-map-marker-alt', 
+                    label: 'Arrêt déplacé', 
+                    className: 'alert-service-modifie',
+                    priority: 2 
+                },
+                'NO_EFFECT': { 
+                    icon: 'fas fa-info', 
+                    label: 'Information', 
+                    className: 'alert-information',
+                    priority: 1 
+                },
+                'ACCESSIBILITY_ISSUE': { 
+                    icon: 'fas fa-wheelchair', 
+                    label: 'Problème d\'accessibilité', 
+                    className: 'alert-service-modifie',
+                    priority: 3 
+                }
+            };
+            
+            return effects[effect] || effects['UNKNOWN_EFFECT'];
+        }
+
+        function getCauseInfo(cause) {
+            const causes = {
+                'TECHNICAL_PROBLEM': { 
+                    label: 'Problème technique', 
+                    icon: 'fas fa-cogs' 
+                },
+                'STRIKE': { 
+                    label: 'Grève', 
+                    icon: 'fas fa-fist-raised' 
+                },
+                'DEMONSTRATION': { 
+                    label: 'Manifestation', 
+                    icon: 'fas fa-bullhorn' 
+                },
+                'ACCIDENT': { 
+                    label: 'Accident', 
+                    icon: 'fas fa-ambulance' 
+                },
+                'HOLIDAY': { 
+                    label: 'Jour férié', 
+                    icon: 'fas fa-calendar-day' 
+                },
+                'WEATHER': { 
+                    label: 'Conditions météo défavorables', 
+                    icon: 'fas fa-cloud-rain' 
+                },
+                'MAINTENANCE': { 
+                    label: 'Maintenance', 
+                    icon: 'fas fa-tools' 
+                },
+                'CONSTRUCTION': { 
+                    label: 'Travaux', 
+                    icon: 'fas fa-hard-hat' 
+                },
+                'POLICE_ACTIVITY': { 
+                    label: 'Intervention forces de l\'ordre', 
+                    icon: 'fas fa-shield-alt' 
+                },
+                'MEDICAL_EMERGENCY': { 
+                    label: 'Urgence médicale', 
+                    icon: 'fas fa-user-md' 
+                },
+                'OTHER_CAUSE': { 
+                    label: 'Autre cause', 
+                    icon: 'fas fa-question' 
+                },
+                'UNKNOWN_CAUSE': { 
+                    label: 'Non spécifiée', 
+                    icon: 'fas fa-question-circle' 
+                }
+            };
+            
+            return causes[cause] || causes['UNKNOWN_CAUSE'];
+        }
+
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+        }
+
+        function getAffectedEntitiesInfo(entities) {
+            if (!entities || entities.length === 0) return null;
+            
+            const routes = entities.filter(e => e.routeId).map(e => e.routeId);
+            const stops = entities.filter(e => e.stopId).map(e => e.stopId);
+            
+            const parts = [];
+            if (routes.length > 0) {
+                parts.push(`Lignes : ${routes.join(', ')}`);
+            }
+            if (stops.length > 0) {
+                parts.push(`Arrêts : ${stops.join(', ')}`);
+            }
+            
+            return parts.join(' | ') || null;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateLastUpdated() {
+            const now = new Date();
+            const formattedDate = now.toLocaleDateString('fr-FR');
+            const formattedTime = now.toLocaleTimeString('fr-FR');
+            document.getElementById('last-updated').innerHTML = `
+                <i class="fas fa-clock"></i>
+                <span>Dernière mise à jour : ${formattedDate} à ${formattedTime}</span>
+            `;
+        }
+
+        function initEventListeners() {
+            document.getElementById('refresh-button').addEventListener('click', () => {
+                clearTimeout(refreshTimer);
+                fetchServiceAlerts();
+                initAutoRefresh();
+            });
+            
+            document.querySelectorAll('.filter-chip').forEach(chip => {
+                chip.addEventListener('click', (e) => {
+                    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+                    e.target.classList.add('active');
+                    
+                    currentFilter = e.target.dataset.effect;
+                    filterAlerts();
+                });
+            });
+            
+            let searchTimeout;
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    searchAlerts(e.target.value);
+                }, 300);
+            });
+        }
+
+        function filterAlerts() {
+            let filteredAlerts = currentAlerts;
+            
+            if (currentFilter !== 'all') {
+                const filterEffect = normalizeEffect(parseInt(currentFilter));
+                filteredAlerts = currentAlerts.filter(alert => alert.effect === filterEffect);
+            }
+            
+            displayAlerts(filteredAlerts);
+        }
+
+        function searchAlerts(searchTerm) {
+            const term = searchTerm.toLowerCase().trim();
+            
+            if (!term) {
+                filterAlerts();
+                return;
+            }
+            
+            let filteredAlerts = currentAlerts.filter(alert => {
+                return alert.header.toLowerCase().includes(term) ||
+                    alert.description.toLowerCase().includes(term) ||
+                    (alert.affectedEntities && alert.affectedEntities.some(entity => 
+                        (entity.routeId && entity.routeId.toLowerCase().includes(term)) ||
+                        (entity.stopId && entity.stopId.toLowerCase().includes(term))
+                    ));
+            });
+            
+            if (currentFilter !== 'all') {
+                const filterEffect = normalizeEffect(parseInt(currentFilter));
+                filteredAlerts = filteredAlerts.filter(alert => alert.effect === filterEffect);
+            }
+            
+            displayAlerts(filteredAlerts);
+        }
+
+        function initBackToTop() {
+            const backToTop = document.getElementById('back-to-top');
+            
+            let ticking = false;
+            window.addEventListener('scroll', () => {
+                if (!ticking) {
+                    requestAnimationFrame(() => {
+                        if (window.scrollY > 300) {
+                            backToTop.classList.add('visible');
+                        } else {
+                            backToTop.classList.remove('visible');
+                        }
+                        ticking = false;
+                    });
+                    ticking = true;
+                }
+            });
+            
+            backToTop.addEventListener('click', () => {
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            });
+        }
+
+        function initAutoRefresh() {
+            refreshTimer = setTimeout(() => {
+                fetchServiceAlerts();
+            }, 30000);
+        }
+
+        function getSeverityInfo(severity) {
+            const severities = {
+                'INFO': { label: 'Information', priority: 1 },
+                'WARNING': { label: 'Attention', priority: 2 },
+                'SEVERE': { label: 'Grave', priority: 3 },
+                'UNKNOWN': { label: 'Non spécifié', priority: 0 }
+            };
+            
+            return severities[severity] || severities['UNKNOWN'];
+        }
+
+        function sortAlertsByPriority(alerts) {
+            return alerts.sort((a, b) => {
+                const effectA = getEffectInfo(a.effect);
+                const effectB = getEffectInfo(b.effect);
+                
+                if (effectA.priority !== effectB.priority) {
+                    return effectB.priority - effectA.priority;
+                }
+                
+                const severityA = getSeverityInfo(a.severity).priority;
+                const severityB = getSeverityInfo(b.severity).priority;
+                
+                if (severityA !== severityB) {
+                    return severityB - severityA;
+                }
+                
+                const timeA = (a.activePeriods[0] && a.activePeriods[0].start) || a.timestamp;
+                const timeB = (b.activePeriods[0] && b.activePeriods[0].start) || b.timestamp;
+                
+                return timeB - timeA;
+            });
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (refreshTimer) {
+                clearTimeout(refreshTimer);
+            }
         });
-    });
-}
-
-function initAutoRefresh() {
-    // Actualisation automatique toutes les 30 secondes
-    refreshTimer = setTimeout(() => {
-        fetchServiceAlerts();
-    }, 30000);
-}
-
-function getSeverityInfo(severity) {
-    const severities = {
-        'INFO': { label: 'Information', priority: 1 },
-        'WARNING': { label: 'Attention', priority: 2 },
-        'SEVERE': { label: 'Grave', priority: 3 },
-        'UNKNOWN': { label: 'Non spécifié', priority: 0 }
-    };
-    
-    return severities[severity] || severities['UNKNOWN'];
-}
-
-function sortAlertsByPriority(alerts) {
-    return alerts.sort((a, b) => {
-        // D'abord par priorité d'effet
-        const effectA = getEffectInfo(a.effect);
-        const effectB = getEffectInfo(b.effect);
-        
-        if (effectA.priority !== effectB.priority) {
-            return effectB.priority - effectA.priority;
-        }
-        
-        // Ensuite par sévérité
-        const severityA = getSeverityInfo(a.severity).priority;
-        const severityB = getSeverityInfo(b.severity).priority;
-        
-        if (severityA !== severityB) {
-            return severityB - severityA;
-        }
-        
-        // Enfin par heure de début ou timestamp
-        const timeA = (a.activePeriods[0] && a.activePeriods[0].start) || a.timestamp;
-        const timeB = (b.activePeriods[0] && b.activePeriods[0].start) || b.timestamp;
-        
-        return timeB - timeA;
-    });
-}
-
-// Nettoyage lors du déchargement de la page
-window.addEventListener('beforeunload', () => {
-    if (refreshTimer) {
-        clearTimeout(refreshTimer);
-    }
-});
     </script>
 </body>
 </html>
