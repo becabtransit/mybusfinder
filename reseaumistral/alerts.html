@@ -7,434 +7,576 @@
     <meta name="google-adsense-account" content="ca-pub-5815761294049475">
     
     <style>
-                @font-face {
-            font-family: 'League Spartan';
-            src: url('src/fonts/leaguespartan.ttf') format('truetype');
-        }
-        :root {
-            --primary-color: #0056b3;
-            --secondary-color: #004494;
-            --text-color: #ffffff;
-            --shadow-color: rgba(0, 0, 0, 0.3);
-            --card-bg: rgba(0, 0, 0, 0.6);
-            --card-highlight: rgba(255, 255, 255, 0.1);
-            --transition-bezier: cubic-bezier(0.25, 1.5, 0.5, 1);
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600;700&display=swap');
         
+        :root {
+            --fluent-primary: #0078d4;
+            --fluent-primary-hover: #106ebe;
+            --fluent-primary-pressed: #005a9e;
+            --fluent-secondary: #2b88d8;
+            --fluent-tertiary: #c7e0f4;
+            --fluent-background: #f3f2f1;
+            --fluent-surface: #ffffff;
+            --fluent-surface-secondary: #faf9f8;
+            --fluent-surface-tertiary: #edebe9;
+            --fluent-text-primary: #323130;
+            --fluent-text-secondary: #605e5c;
+            --fluent-text-tertiary: #8a8886;
+            --fluent-border: #e1dfdd;
+            --fluent-shadow-2: 0 1px 2px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12);
+            --fluent-shadow-4: 0 2px 4px rgba(0, 0, 0, 0.14), 0 0 4px rgba(0, 0, 0, 0.12);
+            --fluent-shadow-8: 0 4px 8px rgba(0, 0, 0, 0.14), 0 2px 4px rgba(0, 0, 0, 0.12);
+            --fluent-shadow-16: 0 8px 16px rgba(0, 0, 0, 0.14), 0 4px 8px rgba(0, 0, 0, 0.12);
+            --fluent-reveal: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+            --fluent-acrylic: rgba(255, 255, 255, 0.85);
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
-        
+
         body {
-            font-family: 'League Spartan', sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            min-height: 100vh;
-            background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.7)), url('src/background.jpg') no-repeat center center fixed;
-            background-size: cover;
-            color: var(--text-color);
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+            background: var(--fluent-background);
+            color: var(--fluent-text-primary);
+            line-height: 1.5;
+            overflow-x: hidden;
         }
 
-        .portal-wrapper {
-            text-align: center;
-            padding: 20px;
+        .fluent-reveal {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .fluent-reveal::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--fluent-reveal);
+            opacity: 0;
+            transition: opacity 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            pointer-events: none;
+        }
+
+        .fluent-reveal:hover::before {
+            opacity: 1;
+        }
+
+        .header {
+            background: var(--fluent-acrylic);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--fluent-border);
+            padding: 20px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--fluent-shadow-2);
+        }
+
+        .header-content {
             max-width: 1200px;
             margin: 0 auto;
-            width: 100%;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
         }
 
-        .logo {
-            margin-bottom: 20px;
-        }
-
-        .logo h1 {
+        .header-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--fluent-primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: white;
-            font-size: 32px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-            margin-top: 20px;
-            transform: translateY(50px);
-            opacity: 0;
-            filter: blur(10px);
-            transition: transform 0.5s var(--transition-bezier), filter 0.3s ease-out, opacity 0.5s var(--transition-bezier);
-        }
-
-        .logo h1.slide-down {
-            transform: translateY(0);
-            opacity: 1;
-            filter: blur(0);
-        }
-        
-        .logo i {
-            font-size: 48px;
-            margin-bottom: 10px;
-            color: #fff;
-        }
-
-        .portal-header {
-            margin-bottom: 20px;
-            transform: translateY(30px);
-            opacity: 0;
-            filter: blur(10px);
-            transition: all 0.5s var(--transition-bezier);
-        }
-        
-        .portal-header.slide-down {
-            transform: translateY(0);
-            opacity: 1;
-            filter: blur(0);
-        }
-        
-        .portal-header h2 {
             font-size: 24px;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-        }
-        
-        .portal-header p {
-            font-size: 16px;
-            opacity: 0.9;
+            box-shadow: var(--fluent-shadow-4);
         }
 
-        .filters-container {
-            background: rgba(0, 68, 148, 0.8);
+        .header-text h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--fluent-text-primary);
+        }
+
+        .header-text p {
+            color: var(--fluent-text-secondary);
+            font-size: 14px;
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .controls-section {
+            background: var(--fluent-surface);
             border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            transform: translateY(40px);
-            opacity: 0;
-            filter: blur(10px);
-            transition: all 0.5s var(--transition-bezier);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--fluent-shadow-2);
+            border: 1px solid var(--fluent-border);
         }
-        
-        .filters-container.slide-down {
-            transform: translateY(0);
-            opacity: 1;
-            filter: blur(0);
-        }
-
 
         .search-container {
             position: relative;
-            margin: 15px auto;
-            width: 100%;
-            max-width: 500px;
+            margin-bottom: 16px;
         }
 
-        .search-container input {
+        .search-input {
             width: 100%;
-            padding: 12px 20px 12px 45px;
+            height: 48px;
+            padding: 0 16px 0 48px;
+            border: 2px solid var(--fluent-border);
+            border-radius: 6px;
+            background: var(--fluent-surface);
             font-size: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 25px;
-            background: rgba(0, 0, 0, 0.4);
-            color: #fff;
-            outline: none;
-            transition: all 0.3s var(--transition-bezier);
+            color: var(--fluent-text-primary);
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
 
-        .search-container i {
+        .search-input:focus {
+            outline: none;
+            border-color: var(--fluent-primary);
+            box-shadow: 0 0 0 1px var(--fluent-primary);
+        }
+
+        .search-icon {
             position: absolute;
-            left: 15px;
+            left: 16px;
             top: 50%;
             transform: translateY(-50%);
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 18px;
+            color: var(--fluent-text-tertiary);
+            font-size: 16px;
         }
 
-        .search-container input::placeholder {
-            color: rgba(255, 255, 255, 0.7);
-            font-style: italic;
-        }
-
-        .search-container input:focus {
-            border-color: var(--primary-color);
-            background: rgba(0, 0, 0, 0.6);
-            box-shadow: 0 0 15px rgba(0, 86, 179, 0.5);
-        }
-
-        .alerts-container {
+        .controls-row {
             display: flex;
-            flex-direction: column;
-            gap: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            background: var(--card-bg);
-            transition: transform 0.5s var(--transition-bezier), 
-                        opacity 0.3s ease-out, 
-                        filter 0.3s ease-out;
-            transform: translateY(60px); 
-            opacity: 0;
-            filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
         }
-    
-        .alerts-container.slide-down {
-            transform: translateY(0);
-            opacity: 1;
-            filter: blur(0);
+
+        .filter-chips {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-chip {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid var(--fluent-border);
+            background: var(--fluent-surface);
+            color: var(--fluent-text-secondary);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filter-chip:hover {
+            background: var(--fluent-surface-secondary);
+            border-color: var(--fluent-primary);
+        }
+
+        .filter-chip.active {
+            background: var(--fluent-primary);
+            color: white;
+            border-color: var(--fluent-primary);
+        }
+
+        .refresh-button {
+            height: 40px;
+            padding: 0 20px;
+            border: none;
+            border-radius: 6px;
+            background: var(--fluent-primary);
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            box-shadow: var(--fluent-shadow-2);
+        }
+
+        .refresh-button:hover {
+            background: var(--fluent-primary-hover);
+            box-shadow: var(--fluent-shadow-4);
+        }
+
+        .refresh-button:active {
+            background: var(--fluent-primary-pressed);
+            transform: scale(0.98);
+        }
+
+        .alerts-section {
+            display: grid;
+            gap: 16px;
         }
 
         .alert-card {
-            display: flex;
-            flex-direction: column;
-            padding: 15px;
+            background: var(--fluent-surface);
             border-radius: 12px;
-            background: rgba(0, 0, 0, 0.4);
-            cursor: pointer;
-            transition: all 0.3s var(--transition-bezier);
-            text-align: left;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transform: translateY(20px);
+            border: 1px solid var(--fluent-border);
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            box-shadow: var(--fluent-shadow-2);
             opacity: 0;
-            filter: blur(5px);
+            transform: translateY(20px);
+            animation: slideInUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
         }
-        
-        .alert-card.slide-down {
-            transform: translateY(0);
-            opacity: 1;
-            filter: blur(0);
+
+        @keyframes slideInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .alert-card:hover {
-            transform: scale(0.98);
-            background: rgba(0, 86, 179, 0.3);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: var(--fluent-shadow-8);
+            transform: translateY(-2px);
         }
 
         .alert-header {
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid var(--fluent-border);
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .alert-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
-            margin-bottom: 10px;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .alert-details {
+            flex: 1;
+            min-width: 0;
         }
 
         .alert-type {
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            padding: 5px 10px;
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.15);
-            margin-right: 10px;
-            font-size: 14px;
-        }
-
-        .alert-type i {
-            margin-right: 5px;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
         }
 
         .alert-title {
-            font-weight: bold;
             font-size: 18px;
-            flex: 1;
+            font-weight: 600;
+            color: var(--fluent-text-primary);
+            margin-bottom: 4px;
+            line-height: 1.3;
+        }
+
+        .alert-timestamp {
+            font-size: 12px;
+            color: var(--fluent-text-tertiary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
 
         .alert-content {
-            margin-top: 10px;
-            font-size: 14px;
-            line-height: 1.5;
-            color: rgba(255, 255, 255, 0.9);
+            padding: 16px 24px 20px;
         }
 
-        .loading {
+        .alert-description {
+            color: var(--fluent-text-secondary);
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .alert-metadata {
             display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 30px;
+            flex-wrap: wrap;
+            gap: 16px;
+            font-size: 14px;
+            color: var(--fluent-text-tertiary);
         }
 
-        .loading-indicator {
-            display: inline-block;
-            width: 30px;
-            height: 30px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
-            margin-right: 15px;
+        .alert-metadata-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        
+
+        /* Couleurs des types d'alertes */
+        .alert-travaux .alert-icon { background: #ff8c00; }
+        .alert-travaux .alert-type { background: #fff3e0; color: #ff8c00; }
+
+        .alert-accident .alert-icon { background: #dc3545; }
+        .alert-accident .alert-type { background: #ffebee; color: #dc3545; }
+
+        .alert-meteo .alert-icon { background: #6c757d; }
+        .alert-meteo .alert-type { background: #f8f9fa; color: #6c757d; }
+
+        .alert-panne .alert-icon { background: #e74c3c; }
+        .alert-panne .alert-type { background: #ffebee; color: #e74c3c; }
+
+        .alert-manifestation .alert-icon { background: #f39c12; }
+        .alert-manifestation .alert-type { background: #fff8e1; color: #f39c12; }
+
+        .alert-service-reduit .alert-icon { background: #fd7e14; }
+        .alert-service-reduit .alert-type { background: #fff3e0; color: #fd7e14; }
+
+        .alert-service-modifie .alert-icon { background: #ffc107; }
+        .alert-service-modifie .alert-type { background: #fffbf0; color: #f57c00; }
+
+        .alert-information .alert-icon { background: var(--fluent-primary); }
+        .alert-information .alert-type { background: var(--fluent-tertiary); color: var(--fluent-primary); }
+
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            background: var(--fluent-surface);
+            border-radius: 12px;
+            border: 1px solid var(--fluent-border);
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--fluent-border);
+            border-top-color: var(--fluent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
 
-        .no-alerts {
-            padding: 30px;
-            text-align: center;
-            font-style: italic;
-            opacity: 0.7;
+        .loading-text {
+            color: var(--fluent-text-secondary);
+            font-size: 16px;
         }
 
-        .refresh-button {
-            display: inline-flex;
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: var(--fluent-surface);
+            border-radius: 12px;
+            border: 1px solid var(--fluent-border);
+        }
+
+        .empty-state-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 16px;
+            background: var(--fluent-surface-tertiary);
+            border-radius: 50%;
+            display: flex;
             align-items: center;
             justify-content: center;
-            margin-top: 20px;
-            padding: 10px 20px;
-            border-radius: 25px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            transition: all 0.3s var(--transition-bezier);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-            transform: translateY(20px);
-            opacity: 0;
-            filter: blur(5px);
+            font-size: 24px;
+            color: var(--fluent-text-tertiary);
         }
 
-        .refresh-button.slide-down {
-            transform: translateY(0);
-            opacity: 1;
-            filter: blur(0);
+        .empty-state-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--fluent-text-primary);
         }
 
-        .refresh-button:hover {
-            background: var(--secondary-color);
-            transform: scale(0.98);
-        }
-
-        .refresh-button i {
-            margin-right: 8px;
-        }
-
-        .last-updated {
-            margin-top: 15px;
+        .empty-state-description {
+            color: var(--fluent-text-secondary);
             font-size: 14px;
-            opacity: 0.8;
-            font-style: italic;
-            transform: translateY(20px);
-            opacity: 0;
-            filter: blur(5px);
-            transition: all 0.5s var(--transition-bezier);
         }
 
-        .last-updated.slide-down {
-            transform: translateY(0);
-            opacity: 0.8;
-            filter: blur(0);
+        .update-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 16px;
+            margin-top: 24px;
+            background: var(--fluent-surface-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--fluent-border);
+            font-size: 14px;
+            color: var(--fluent-text-secondary);
         }
 
         .back-to-top {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 50px;
-            height: 50px;
+            bottom: 24px;
+            right: 24px;
+            width: 48px;
+            height: 48px;
+            border: none;
             border-radius: 50%;
-            background: var(--primary-color);
+            background: var(--fluent-primary);
             color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             cursor: pointer;
+            box-shadow: var(--fluent-shadow-8);
             opacity: 0;
-            transition: opacity 0.3s var(--transition-bezier), transform 0.3s var(--transition-bezier);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-            z-index: 10;
+            transform: scale(0.8);
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            z-index: 1000;
         }
-        
+
         .back-to-top.visible {
             opacity: 1;
+            transform: scale(1);
         }
-        
+
         .back-to-top:hover {
-            transform: scale(0.95);
-            background: var(--secondary-color);
+            background: var(--fluent-primary-hover);
+            box-shadow: var(--fluent-shadow-16);
         }
 
         @media (max-width: 768px) {
-            .portal-wrapper {
-                padding: 15px;
+            .main-container {
+                padding: 16px;
             }
             
-            .logo h1 {
-                font-size: 24px;
+            .header-content {
+                padding: 0 16px;
             }
             
-            .portal-header h2 {
-                font-size: 20px;
+            .controls-section {
+                padding: 16px;
             }
-
-            .filter-options {
+            
+            .controls-row {
                 flex-direction: column;
                 align-items: stretch;
             }
-
-            .filter-option {
-                width: 100%;
-                justify-content: center;
+            
+            .filter-chips {
+                order: 2;
+            }
+            
+            .refresh-button {
+                order: 1;
+                align-self: flex-end;
+            }
+            
+            .alert-header {
+                padding: 16px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            
+            .alert-content {
+                padding: 12px 16px 16px;
+            }
+            
+            .back-to-top {
+                bottom: 16px;
+                right: 16px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="portal-wrapper">
 
-        <div class="filters-container" id="filters-container">
+    <main class="main-container">
+        <section class="controls-section">
             <div class="search-container">
-                <i class="fas fa-search"></i>
-                <input type="text" id="search-input" placeholder="Rechercher dans les alertes...">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="search-input" class="search-input" placeholder="Rechercher dans les alertes...">
             </div>
-        </div>
-
-        <div class="alerts-container" id="alerts-container">
-            <div class="loading">
-                <div class="loading-indicator"></div>
-                <span>Chargement des alertes en cours...</span>
+            
+            <div class="controls-row">
+                <div class="filter-chips">
+                    <button class="filter-chip active" data-effect="all">
+                        <i class="fas fa-list"></i>
+                        Toutes
+                    </button>
+                    <button class="filter-chip" data-effect="1">
+                        <i class="fas fa-hard-hat"></i>
+                        Travaux
+                    </button>
+                    <button class="filter-chip" data-effect="6">
+                        <i class="fas fa-ambulance"></i>
+                        Accidents
+                    </button>
+                    <button class="filter-chip" data-effect="3">
+                        <i class="fas fa-cloud-rain"></i>
+                        Météo
+                    </button>
+                    <button class="filter-chip" data-effect="7">
+                        <i class="fas fa-cogs"></i>
+                        Pannes
+                    </button>
+                    <button class="filter-chip" data-effect="4">
+                        <i class="fas fa-arrow-down"></i>
+                        Service réduit
+                    </button>
+                </div>
+                
+                <button class="refresh-button" id="refresh-button">
+                    <i class="fas fa-sync-alt"></i>
+                    Actualiser
+                </button>
             </div>
+        </section>
+
+        <section class="alerts-section" id="alerts-container">
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Chargement des alertes en cours...</div>
+            </div>
+        </section>
+
+        <div class="update-info" id="last-updated">
+            <i class="fas fa-clock"></i>
+            <span>Dernière mise à jour : --/--/---- à --:--</span>
         </div>
+    </main>
 
-        <button class="refresh-button" id="refresh-button">
-            <i class="fas fa-sync-alt"></i> Actualiser les alertes
-        </button>
-
-        <div class="last-updated" id="last-updated">
-            Dernière mise à jour : --/--/---- à --:--
-        </div>
-    </div>
-
-    <div class="back-to-top" id="back-to-top">
+    <button class="back-to-top" id="back-to-top">
         <i class="fas fa-arrow-up"></i>
-    </div>
+    </button>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/protobufjs/6.11.3/protobuf.min.js"></script>
     <script>
+        let currentAlerts = [];
+        let currentFilter = 'all';
+
         document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => {
-                document.getElementById('logo-title').classList.add('slide-down');
-            }, 100);
-
-            setTimeout(() => {
-                document.getElementById('portal-header').classList.add('slide-down');
-            }, 300);
-
-            setTimeout(() => {
-                document.getElementById('filters-container').classList.add('slide-down');
-            }, 500);
-
-            setTimeout(() => {
-                document.getElementById('alerts-container').classList.add('slide-down');
-            }, 700);
-
-            setTimeout(() => {
-                document.getElementById('refresh-button').classList.add('slide-down');
-            }, 900);
-
-            setTimeout(() => {
-                document.getElementById('last-updated').classList.add('slide-down');
-            }, 1000);
+            fetchServiceAlerts();
+            initEventListeners();
+            initBackToTop();
         });
 
         async function decodeProtobuf(buffer) {
@@ -447,7 +589,7 @@
         async function fetchServiceAlerts() {
             try {
                 showLoading();
-
+                
                 const response = await fetch('proxy-cors/proxy_servicealerts.php'); 
                 const buffer = await response.arrayBuffer();
                 const data = await decodeProtobuf(buffer);
@@ -463,230 +605,228 @@
                             const headerText = translations.find(t => t.language === 'fr')?.text || 'Alerte de service';
                             const descriptionText = description.find(t => t.language === 'fr')?.text || '';
                             const effect = alert.effect;
+                            
+                            const activePeriod = alert.activePeriod && alert.activePeriod[0];
+                            const startTime = activePeriod?.start ? new Date(parseInt(activePeriod.start) * 1000) : null;
+                            const endTime = activePeriod?.end ? new Date(parseInt(activePeriod.end) * 1000) : null;
+                            const cause = alert.cause || 'UNKNOWN_CAUSE';
+                            const severity = alert.severityLevel || 'UNKNOWN_SEVERITY';
 
                             activeAlerts.push({
                                 id: entity.id || Math.random().toString(36).substr(2, 9),
                                 header: headerText,
                                 description: descriptionText,
-                                effect: effect
+                                effect: effect,
+                                cause: cause,
+                                severity: severity,
+                                startTime: startTime,
+                                endTime: endTime,
+                                timestamp: new Date()
                             });
                         }
                     });
                 }
 
-                displayAlerts(activeAlerts);
+                currentAlerts = activeAlerts;
+                displayAlerts(currentAlerts);
                 updateLastUpdated();
-                initFilterListeners();
-                initSearchFunction();
-                animateAlertCards();
+                
             } catch (error) {
                 console.error('Erreur lors de la récupération des alertes de service !', error);
-                document.getElementById('alerts-container').innerHTML = `
-                    <div class="no-alerts">
-                        <p>Impossible de charger les alertes de service.</p>
-                        <p>Veuillez réessayer ultérieurement.</p>
-                    </div>
-                `;
+                showError();
             }
         }
 
         function showLoading() {
             document.getElementById('alerts-container').innerHTML = `
-                <div class="loading">
-                    <div class="loading-indicator"></div>
-                    <span>Chargement des alertes en cours...</span>
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Chargement des alertes en cours...</div>
                 </div>
             `;
         }
 
-        function displayAlerts(alerts, filter = 'all') {
+        function showError() {
+            document.getElementById('alerts-container').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="empty-state-title">Erreur de chargement</div>
+                    <div class="empty-state-description">Impossible de charger les alertes. Veuillez réessayer.</div>
+                </div>
+            `;
+        }
+
+        function displayAlerts(alerts) {
             const alertsContainer = document.getElementById('alerts-container');
             
             if (alerts.length === 0) {
                 alertsContainer.innerHTML = `
-                    <div class="no-alerts">
-                        <p>Aucune alerte de service actuellement.</p>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="empty-state-title">Aucune alerte active</div>
+                        <div class="empty-state-description">Tous les services fonctionnent normalement.</div>
                     </div>
                 `;
                 return;
             }
             
-            let filteredAlerts = alerts;
-            if (filter !== 'all') {
-                const effectNumber = parseInt(filter);
-                filteredAlerts = alerts.filter(alert => alert.effect === effectNumber);
-                
-                if (filteredAlerts.length === 0) {
-                    alertsContainer.innerHTML = `
-                        <div class="no-alerts">
-                            <p>Aucune alerte ne correspond à ce filtre.</p>
-                        </div>
-                    `;
-                    return;
-                }
-            }
-            
             alertsContainer.innerHTML = '';
             
-            filteredAlerts.forEach((alert, index) => {
-                const alertCard = document.createElement('div');
-                alertCard.className = 'alert-card';
-                alertCard.dataset.index = index;
-                
-                const effectInfo = getEffectInfo(alert.effect);
-                
-                alertCard.innerHTML = `
-                    <div class="alert-header">
-                        <div class="alert-type">
-                            <i class="${effectInfo.icon}"></i> ${effectInfo.label}
-                        </div>
-                        <div class="alert-title">${alert.header}</div>
-                    </div>
-                    <div class="alert-content">
-                        ${alert.description || 'Aucune description disponible.'}
-                    </div>
-                `;
-                
+            alerts.forEach((alert, index) => {
+                const alertCard = createAlertCard(alert, index);
                 alertsContainer.appendChild(alertCard);
             });
         }
 
-        function getEffectInfo(effect) {
-            switch (effect) {
-                case 1:
-                    return { icon: 'fas fa-hard-hat', label: 'Travaux' };
-                case 6:
-                    return { icon: 'fas fa-ambulance', label: 'Accident' };
-                case 3:
-                    return { icon: 'fas fa-cloud-rain', label: 'Météo' };
-                case 7:
-                    return { icon: 'fas fa-cogs', label: 'Panne' };
-                case 5:
-                    return { icon: 'fas fa-bullhorn', label: 'Manifestation' };
-                case 4:
-                    return { icon: 'fas fa-arrow-down', label: 'Service réduit' };
-                case 2:
-                    return { icon: 'fas fa-exclamation-triangle', label: 'Service modifié' };
-                default:
-                    return { icon: 'fas fa-info-circle', label: 'Information' };
-            }
+        function createAlertCard(alert, index) {
+            const effectInfo = getEffectInfo(alert.effect);
+            const alertCard = document.createElement('div');
+            alertCard.className = `alert-card fluent-reveal ${effectInfo.className}`;
+            alertCard.style.animationDelay = `${index * 0.1}s`;
+            
+            const formatTime = (date) => {
+                if (!date) return null;
+                return date.toLocaleString('fr-FR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            };
+            
+            const timeRange = alert.startTime && alert.endTime 
+                ? `Du ${formatTime(alert.startTime)} au ${formatTime(alert.endTime)}`
+                : alert.startTime 
+                    ? `Depuis le ${formatTime(alert.startTime)}`
+                    : '';
+
+            alertCard.innerHTML = `
+                <div class="alert-header">
+                    <div class="alert-icon">
+                        <i class="${effectInfo.icon}"></i>
+                    </div>
+                    <div class="alert-details">
+                        <div class="alert-type">${effectInfo.label}</div>
+                        <div class="alert-title">${alert.header}</div>
+                        <div class="alert-timestamp">
+                            <i class="fas fa-clock"></i>
+                            ${formatTime(alert.timestamp)}
+                        </div>
+                    </div>
+                </div>
+                <div class="alert-content">
+                    <div class="alert-description">
+                        ${alert.description || 'Aucune description disponible.'}
+                    </div>
+                    ${timeRange ? `
+                        <div class="alert-metadata">
+                            <div class="alert-metadata-item">
+                                <i class="fas fa-calendar-alt"></i>
+                                ${timeRange}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            return alertCard;
         }
 
-        function getEmojiForEffect(effect) {
-            switch (effect) {
-                case 1:
-                    return '🚧 Travaux | ';
-                case 6:
-                    return '🚑 Accident | ';
-                case 3:
-                    return '🌧️ Conditions climatiques | ';
-                case 7:
-                    return '⚙️ Panne | ';
-                case 5:
-                    return '✊ Manifestations | ';
-                case 4:
-                    return '🔻 Service réduit | ';
-                case 2:
-                    return '⚠️ Service modifié | ';
-                default:
-                    return 'ℹ️ Information | ';
-            }
+        function getEffectInfo(effect) {
+            const effects = {
+                1: { icon: 'fas fa-hard-hat', label: 'Travaux', className: 'alert-travaux' },
+                6: { icon: 'fas fa-ambulance', label: 'Accident', className: 'alert-accident' },
+                3: { icon: 'fas fa-cloud-rain', label: 'Conditions météo', className: 'alert-meteo' },
+                7: { icon: 'fas fa-cogs', label: 'Panne technique', className: 'alert-panne' },
+                5: { icon: 'fas fa-bullhorn', label: 'Manifestation', className: 'alert-manifestation' },
+                4: { icon: 'fas fa-arrow-down', label: 'Service réduit', className: 'alert-service-reduit' },
+                2: { icon: 'fas fa-exclamation-triangle', label: 'Service modifié', className: 'alert-service-modifie' }
+            };
+            
+            return effects[effect] || { 
+                icon: 'fas fa-info-circle', 
+                label: 'Information', 
+                className: 'alert-information' 
+            };
         }
 
         function updateLastUpdated() {
             const now = new Date();
             const formattedDate = now.toLocaleDateString('fr-FR');
             const formattedTime = now.toLocaleTimeString('fr-FR');
-            document.getElementById('last-updated').textContent = `Dernière mise à jour: ${formattedDate} à ${formattedTime}`;
+            document.getElementById('last-updated').innerHTML = `
+                <i class="fas fa-clock"></i>
+                <span>Dernière mise à jour : ${formattedDate} à ${formattedTime}</span>
+            `;
         }
 
-        function initFilterListeners() {
-            const filterOptions = document.querySelectorAll('.filter-option');
+        function initEventListeners() {
+            document.getElementById('refresh-button').addEventListener('click', fetchServiceAlerts);
             
-            filterOptions.forEach(option => {
-                option.addEventListener('click', function() {
-                    filterOptions.forEach(opt => opt.classList.remove('active'));
-                    this.classList.add('active');
+            document.querySelectorAll('.filter-chip').forEach(chip => {
+                chip.addEventListener('click', (e) => {
+                    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+                    e.target.classList.add('active');
                     
-                    const effect = this.getAttribute('data-effect');
-                    filterAlerts(effect);
+                    currentFilter = e.target.dataset.effect;
+                    filterAlerts();
                 });
+            });
+            
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                searchAlerts(e.target.value);
             });
         }
 
-        function filterAlerts(effect) {
-            const alertCards = document.querySelectorAll('.alert-card');
+        function filterAlerts() {
+            let filteredAlerts = currentAlerts;
             
-            if (alertCards.length > 0) {
-                fetchServiceAlerts().then(() => {
-                    const alertsContainer = document.getElementById('alerts-container');
-                    const searchInput = document.getElementById('search-input');
-                    searchInput.value = '';
-                });
+            if (currentFilter !== 'all') {
+                const effectNumber = parseInt(currentFilter);
+                filteredAlerts = currentAlerts.filter(alert => alert.effect === effectNumber);
             }
+            
+            displayAlerts(filteredAlerts);
         }
 
-        function initSearchFunction() {
-            const searchInput = document.getElementById('search-input');
+        function searchAlerts(searchTerm) {
+            const term = searchTerm.toLowerCase().trim();
             
-            searchInput.addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase();
-                const alertCards = document.querySelectorAll('.alert-card');
-                
-                let visibleCount = 0;
-                
-                alertCards.forEach(card => {
-                    const title = card.querySelector('.alert-title').textContent.toLowerCase();
-                    const content = card.querySelector('.alert-content').textContent.toLowerCase();
-                    
-                    if (title.includes(searchTerm) || content.includes(searchTerm)) {
-                        card.style.display = 'flex';
-                        visibleCount++;
-                    } else {
-                        card.style.display = 'none';
-                    }
-                });
-                
-                if (visibleCount === 0) {
-                    const noResults = document.querySelector('.no-alerts');
-                    if (!noResults) {
-                        const alertsContainer = document.getElementById('alerts-container');
-                        const noResultsDiv = document.createElement('div');
-                        noResultsDiv.className = 'no-alerts';
-                        noResultsDiv.innerHTML = '<p>Aucune alerte ne correspond à votre recherche.</p>';
-                        alertsContainer.appendChild(noResultsDiv);
-                    }
-                } else {
-                    const noResults = document.querySelector('.no-alerts');
-                    if (noResults) {
-                        noResults.remove();
-                    }
-                }
-            });
-        }
-
-        function animateAlertCards() {
-            const alertCards = document.querySelectorAll('.alert-card');
+            if (!term) {
+                filterAlerts();
+                return;
+            }
             
-            alertCards.forEach((card, index) => {
-                setTimeout(() => {
-                    card.classList.add('slide-down');
-                }, 100 * index);
+            let filteredAlerts = currentAlerts.filter(alert => {
+                return alert.header.toLowerCase().includes(term) ||
+                       alert.description.toLowerCase().includes(term);
             });
+            
+            if (currentFilter !== 'all') {
+                const effectNumber = parseInt(currentFilter);
+                filteredAlerts = filteredAlerts.filter(alert => alert.effect === effectNumber);
+            }
+            
+            displayAlerts(filteredAlerts);
         }
 
         function initBackToTop() {
-            const backToTopButton = document.getElementById('back-to-top');
+            const backToTop = document.getElementById('back-to-top');
             
             window.addEventListener('scroll', () => {
                 if (window.scrollY > 300) {
-                    backToTopButton.classList.add('visible');
+                    backToTop.classList.add('visible');
                 } else {
-                    backToTopButton.classList.remove('visible');
+                    backToTop.classList.remove('visible');
                 }
             });
             
-            backToTopButton.addEventListener('click', () => {
+            backToTop.addEventListener('click', () => {
                 window.scrollTo({
                     top: 0,
                     behavior: 'smooth'
@@ -694,11 +834,39 @@
             });
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchServiceAlerts();
-            document.getElementById('refresh-button').addEventListener('click', fetchServiceAlerts);
-            initBackToTop();
-        });
+        function animateCards() {
+            const cards = document.querySelectorAll('.alert-card');
+            cards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.1}s`;
+            });
+        }
+
+        function getSeverityInfo(severity) {
+            const severities = {
+                'INFO': { label: 'Information', priority: 1 },
+                'WARNING': { label: 'Attention', priority: 2 },
+                'SEVERE': { label: 'Grave', priority: 3 },
+                'UNKNOWN_SEVERITY': { label: 'Non spécifié', priority: 0 }
+            };
+            
+            return severities[severity] || severities['UNKNOWN_SEVERITY'];
+        }
+
+        function sortAlertsByPriority(alerts) {
+            return alerts.sort((a, b) => {
+                const severityA = getSeverityInfo(a.severity).priority;
+                const severityB = getSeverityInfo(b.severity).priority;
+                
+                if (severityA !== severityB) {
+                    return severityB - severityA; 
+                }
+                
+                const timeA = a.startTime || a.timestamp;
+                const timeB = b.startTime || b.timestamp;
+                
+                return timeB - timeA;
+            });
+        }
     </script>
 </body>
 </html>
