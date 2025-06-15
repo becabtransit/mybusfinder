@@ -583,33 +583,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Configuration des types d'effet GTFS-RT selon la spécification
 const GTFS_EFFECTS = {
-    1: 'NO_SERVICE',
-    2: 'REDUCED_SERVICE', 
-    3: 'SIGNIFICANT_DELAYS',
-    4: 'DETOUR',
-    5: 'ADDITIONAL_SERVICE',
-    6: 'MODIFIED_SERVICE',
-    7: 'OTHER_EFFECT',
-    8: 'UNKNOWN_EFFECT',
-    9: 'STOP_MOVED',
-    10: 'NO_EFFECT',
-    11: 'ACCESSIBILITY_ISSUE'
+    NO_SERVICE: 1,
+    REDUCED_SERVICE: 2,
+    SIGNIFICANT_DELAYS: 3,
+    DETOUR: 4,
+    ADDITIONAL_SERVICE: 5,
+    MODIFIED_SERVICE: 6,
+    OTHER_EFFECT: 7,
+    UNKNOWN_EFFECT: 8,
+    STOP_MOVED: 9,
+    NO_EFFECT: 10,
+    ACCESSIBILITY_ISSUE: 11
 };
 
 // Configuration des causes GTFS-RT
 const GTFS_CAUSES = {
-    1: 'UNKNOWN_CAUSE',
-    2: 'OTHER_CAUSE',
-    3: 'TECHNICAL_PROBLEM',
-    4: 'STRIKE',
-    5: 'DEMONSTRATION',
-    6: 'ACCIDENT',
-    7: 'HOLIDAY',
-    8: 'WEATHER',
-    9: 'MAINTENANCE',
-    10: 'CONSTRUCTION',
-    11: 'POLICE_ACTIVITY',
-    12: 'MEDICAL_EMERGENCY'
+    UNKNOWN_CAUSE: 1,
+    OTHER_CAUSE: 2,
+    TECHNICAL_PROBLEM: 3,
+    STRIKE: 4,
+    DEMONSTRATION: 5,
+    ACCIDENT: 6,
+    HOLIDAY: 7,
+    WEATHER: 8,
+    MAINTENANCE: 9,
+    CONSTRUCTION: 10,
+    POLICE_ACTIVITY: 11,
+    MEDICAL_EMERGENCY: 12
 };
 
 async function decodeProtobuf(buffer) {
@@ -701,13 +701,17 @@ function processAlert(entity, alert) {
     // Traitement des entités affectées
     const affectedEntities = processAffectedEntities(alert.informedEntity);
     
+    // Debug pour voir les valeurs réelles
+    console.log('Alert effect:', alert.effect, 'type:', typeof alert.effect);
+    console.log('Alert cause:', alert.cause, 'type:', typeof alert.cause);
+    
     return {
         id: entity.id || generateId(),
         header: headerText,
         description: descriptionText || '',
         url: urlText || '',
-        effect: alert.effect || 8, // UNKNOWN_EFFECT par défaut
-        cause: alert.cause || 1, // UNKNOWN_CAUSE par défaut
+        effect: normalizeEffect(alert.effect),
+        cause: normalizeCause(alert.cause),
         severity: alert.severityLevel || 'UNKNOWN',
         activePeriods: activePeriods,
         affectedEntities: affectedEntities,
@@ -760,8 +764,65 @@ function processAffectedEntities(informedEntities) {
     }));
 }
 
-function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+function normalizeEffect(effect) {
+    // Si c'est undefined ou null
+    if (effect === undefined || effect === null) {
+        return 'UNKNOWN_EFFECT';
+    }
+    
+    // Si c'est déjà une chaîne, la retourner telle quelle
+    if (typeof effect === 'string') {
+        return effect;
+    }
+    
+    // Si c'est un nombre, le convertir selon les standards GTFS-RT
+    const effectNumber = parseInt(effect);
+    const effectMap = {
+        1: 'NO_SERVICE',
+        2: 'REDUCED_SERVICE', 
+        3: 'SIGNIFICANT_DELAYS',
+        4: 'DETOUR',
+        5: 'ADDITIONAL_SERVICE',
+        6: 'MODIFIED_SERVICE',
+        7: 'OTHER_EFFECT',
+        8: 'UNKNOWN_EFFECT',
+        9: 'STOP_MOVED',
+        10: 'NO_EFFECT',
+        11: 'ACCESSIBILITY_ISSUE'
+    };
+    
+    return effectMap[effectNumber] || 'UNKNOWN_EFFECT';
+}
+
+function normalizeCause(cause) {
+    // Si c'est undefined ou null
+    if (cause === undefined || cause === null) {
+        return 'UNKNOWN_CAUSE';
+    }
+    
+    // Si c'est déjà une chaîne, la retourner telle quelle
+    if (typeof cause === 'string') {
+        return cause;
+    }
+    
+    // Si c'est un nombre, le convertir selon les standards GTFS-RT
+    const causeNumber = parseInt(cause);
+    const causeMap = {
+        1: 'UNKNOWN_CAUSE',
+        2: 'OTHER_CAUSE',
+        3: 'TECHNICAL_PROBLEM',
+        4: 'STRIKE',
+        5: 'DEMONSTRATION',
+        6: 'ACCIDENT',
+        7: 'HOLIDAY',
+        8: 'WEATHER',
+        9: 'MAINTENANCE',
+        10: 'CONSTRUCTION',
+        11: 'POLICE_ACTIVITY',
+        12: 'MEDICAL_EMERGENCY'
+    };
+    
+    return causeMap[causeNumber] || 'UNKNOWN_CAUSE';
 }
 
 function showLoading() {
@@ -900,71 +961,68 @@ function createAlertCard(alert, index) {
 }
 
 function getEffectInfo(effect) {
-    // Debug: afficher la valeur reçue
-    console.log('Effect reçu:', effect, typeof effect);
-    
     const effects = {
-        1: { // NO_SERVICE
+        'NO_SERVICE': { 
             icon: 'fas fa-ban', 
             label: 'Service interrompu', 
             className: 'alert-accident',
             priority: 5 
         },
-        2: { // REDUCED_SERVICE
+        'REDUCED_SERVICE': { 
             icon: 'fas fa-arrow-down', 
             label: 'Service réduit', 
             className: 'alert-service-reduit',
             priority: 3 
         },
-        3: { // SIGNIFICANT_DELAYS
+        'SIGNIFICANT_DELAYS': { 
             icon: 'fas fa-clock', 
             label: 'Retards importants', 
             className: 'alert-service-modifie',
             priority: 3 
         },
-        4: { // DETOUR
+        'DETOUR': { 
             icon: 'fas fa-route', 
             label: 'Déviation', 
             className: 'alert-service-modifie',
             priority: 2 
         },
-        5: { // ADDITIONAL_SERVICE
+        'ADDITIONAL_SERVICE': { 
             icon: 'fas fa-plus', 
             label: 'Service supplémentaire', 
             className: 'alert-information',
             priority: 1 
         },
-        6: { // MODIFIED_SERVICE
+        'MODIFIED_SERVICE': { 
             icon: 'fas fa-exclamation-triangle', 
             label: 'Service modifié', 
             className: 'alert-service-modifie',
             priority: 3 
         },
-        7: { // OTHER_EFFECT
+        'OTHER_EFFECT': { 
             icon: 'fas fa-info-circle', 
             label: 'Autre perturbation', 
             className: 'alert-information',
             priority: 2 
         },
-        8: { // UNKNOWN_EFFECT
+        'UNKNOWN_EFFECT': { 
             icon: 'fas fa-question-circle', 
-            label: 'Effet non spécifié', 
+            label: 'Perturbation', 
             className: 'alert-information',
             priority: 1 
         },
-        9: { // STOP_MOVED
+        'STOP_MOVED': { 
             icon: 'fas fa-map-marker-alt', 
             label: 'Arrêt déplacé', 
             className: 'alert-service-modifie',
             priority: 2 
         },
-        10: { // NO_EFFECT
+        'NO_EFFECT': { 
             icon: 'fas fa-info', 
             label: 'Information', 
             className: 'alert-information',
             priority: 1 
         },
-        11: { // ACCESSIBILITY_ISSUE
+        'ACCESSIBILITY_ISSUE': { 
             icon: 'fas fa-wheelchair', 
             label: 'Problème d\'accessibilité', 
             className: 'alert-service-modifie',
@@ -972,67 +1030,66 @@ function getEffectInfo(effect) {
         }
     };
     
-    // Essayer avec la valeur directe et aussi en tant que string
-    return effects[effect] || effects[parseInt(effect)] || effects[8];
+    return effects[effect] || effects['UNKNOWN_EFFECT'];
 }
 
 function getCauseInfo(cause) {
-    // Debug: afficher la valeur reçue
-    console.log('Cause reçue:', cause, typeof cause);
-    
     const causes = {
-        1: { // UNKNOWN_CAUSE
-            label: 'Non spécifiée', 
-            icon: 'fas fa-question-circle' 
-        },
-        2: { // OTHER_CAUSE
-            label: 'Autre cause', 
-            icon: 'fas fa-question' 
-        },
-        3: { // TECHNICAL_PROBLEM
+        'TECHNICAL_PROBLEM': { 
             label: 'Problème technique', 
             icon: 'fas fa-cogs' 
         },
-        4: { // STRIKE
+        'STRIKE': { 
             label: 'Grève', 
             icon: 'fas fa-fist-raised' 
         },
-        5: { // DEMONSTRATION
+        'DEMONSTRATION': { 
             label: 'Manifestation', 
             icon: 'fas fa-bullhorn' 
         },
-        6: { // ACCIDENT
+        'ACCIDENT': { 
             label: 'Accident', 
             icon: 'fas fa-ambulance' 
         },
-        7: { // HOLIDAY
+        'HOLIDAY': { 
             label: 'Jour férié', 
             icon: 'fas fa-calendar-day' 
         },
-        8: { // WEATHER
+        'WEATHER': { 
             label: 'Conditions météo', 
             icon: 'fas fa-cloud-rain' 
         },
-        9: { // MAINTENANCE
+        'MAINTENANCE': { 
             label: 'Maintenance', 
             icon: 'fas fa-tools' 
         },
-        10: { // CONSTRUCTION
+        'CONSTRUCTION': { 
             label: 'Travaux', 
             icon: 'fas fa-hard-hat' 
         },
-        11: { // POLICE_ACTIVITY
+        'POLICE_ACTIVITY': { 
             label: 'Intervention police', 
             icon: 'fas fa-shield-alt' 
         },
-        12: { // MEDICAL_EMERGENCY
+        'MEDICAL_EMERGENCY': { 
             label: 'Urgence médicale', 
             icon: 'fas fa-user-md' 
+        },
+        'OTHER_CAUSE': { 
+            label: 'Autre cause', 
+            icon: 'fas fa-question' 
+        },
+        'UNKNOWN_CAUSE': { 
+            label: 'Non spécifiée', 
+            icon: 'fas fa-question-circle' 
         }
     };
     
-    // Essayer avec la valeur directe et aussi en tant que string
-    return causes[cause] || causes[parseInt(cause)] || causes[1];
+    return causes[cause] || causes['UNKNOWN_CAUSE'];
+}
+
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 }
 
 function getAffectedEntitiesInfo(entities) {
@@ -1098,8 +1155,9 @@ function filterAlerts() {
     let filteredAlerts = currentAlerts;
     
     if (currentFilter !== 'all') {
-        const effectNumber = parseInt(currentFilter);
-        filteredAlerts = currentAlerts.filter(alert => alert.effect === effectNumber);
+        // Convertir le filtre en chaîne pour la comparaison
+        const filterEffect = normalizeEffect(parseInt(currentFilter));
+        filteredAlerts = currentAlerts.filter(alert => alert.effect === filterEffect);
     }
     
     displayAlerts(filteredAlerts);
@@ -1123,8 +1181,8 @@ function searchAlerts(searchTerm) {
     });
     
     if (currentFilter !== 'all') {
-        const effectNumber = parseInt(currentFilter);
-        filteredAlerts = filteredAlerts.filter(alert => alert.effect === effectNumber);
+        const filterEffect = normalizeEffect(parseInt(currentFilter));
+        filteredAlerts = filteredAlerts.filter(alert => alert.effect === filterEffect);
     }
     
     displayAlerts(filteredAlerts);
