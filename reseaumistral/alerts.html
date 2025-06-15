@@ -583,33 +583,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Configuration des types d'effet GTFS-RT selon la spécification
 const GTFS_EFFECTS = {
-    NO_SERVICE: 1,
-    REDUCED_SERVICE: 2,
-    SIGNIFICANT_DELAYS: 3,
-    DETOUR: 4,
-    ADDITIONAL_SERVICE: 5,
-    MODIFIED_SERVICE: 6,
-    OTHER_EFFECT: 7,
-    UNKNOWN_EFFECT: 8,
-    STOP_MOVED: 9,
-    NO_EFFECT: 10,
-    ACCESSIBILITY_ISSUE: 11
+    1: 'NO_SERVICE',
+    2: 'REDUCED_SERVICE', 
+    3: 'SIGNIFICANT_DELAYS',
+    4: 'DETOUR',
+    5: 'ADDITIONAL_SERVICE',
+    6: 'MODIFIED_SERVICE',
+    7: 'OTHER_EFFECT',
+    8: 'UNKNOWN_EFFECT',
+    9: 'STOP_MOVED',
+    10: 'NO_EFFECT',
+    11: 'ACCESSIBILITY_ISSUE'
 };
 
 // Configuration des causes GTFS-RT
 const GTFS_CAUSES = {
-    UNKNOWN_CAUSE: 1,
-    OTHER_CAUSE: 2,
-    TECHNICAL_PROBLEM: 3,
-    STRIKE: 4,
-    DEMONSTRATION: 5,
-    ACCIDENT: 6,
-    HOLIDAY: 7,
-    WEATHER: 8,
-    MAINTENANCE: 9,
-    CONSTRUCTION: 10,
-    POLICE_ACTIVITY: 11,
-    MEDICAL_EMERGENCY: 12
+    1: 'UNKNOWN_CAUSE',
+    2: 'OTHER_CAUSE',
+    3: 'TECHNICAL_PROBLEM',
+    4: 'STRIKE',
+    5: 'DEMONSTRATION',
+    6: 'ACCIDENT',
+    7: 'HOLIDAY',
+    8: 'WEATHER',
+    9: 'MAINTENANCE',
+    10: 'CONSTRUCTION',
+    11: 'POLICE_ACTIVITY',
+    12: 'MEDICAL_EMERGENCY'
 };
 
 async function decodeProtobuf(buffer) {
@@ -706,8 +706,8 @@ function processAlert(entity, alert) {
         header: headerText,
         description: descriptionText || '',
         url: urlText || '',
-        effect: alert.effect || GTFS_EFFECTS.UNKNOWN_EFFECT,
-        cause: alert.cause || GTFS_CAUSES.UNKNOWN_CAUSE,
+        effect: alert.effect || 8, // UNKNOWN_EFFECT par défaut
+        cause: alert.cause || 1, // UNKNOWN_CAUSE par défaut
         severity: alert.severityLevel || 'UNKNOWN',
         activePeriods: activePeriods,
         affectedEntities: affectedEntities,
@@ -900,68 +900,71 @@ function createAlertCard(alert, index) {
 }
 
 function getEffectInfo(effect) {
+    // Debug: afficher la valeur reçue
+    console.log('Effect reçu:', effect, typeof effect);
+    
     const effects = {
-        [GTFS_EFFECTS.NO_SERVICE]: { 
+        1: { // NO_SERVICE
             icon: 'fas fa-ban', 
             label: 'Service interrompu', 
             className: 'alert-accident',
             priority: 5 
         },
-        [GTFS_EFFECTS.REDUCED_SERVICE]: { 
+        2: { // REDUCED_SERVICE
             icon: 'fas fa-arrow-down', 
             label: 'Service réduit', 
             className: 'alert-service-reduit',
             priority: 3 
         },
-        [GTFS_EFFECTS.SIGNIFICANT_DELAYS]: { 
+        3: { // SIGNIFICANT_DELAYS
             icon: 'fas fa-clock', 
             label: 'Retards importants', 
             className: 'alert-service-modifie',
             priority: 3 
         },
-        [GTFS_EFFECTS.DETOUR]: { 
+        4: { // DETOUR
             icon: 'fas fa-route', 
             label: 'Déviation', 
             className: 'alert-service-modifie',
             priority: 2 
         },
-        [GTFS_EFFECTS.ADDITIONAL_SERVICE]: { 
+        5: { // ADDITIONAL_SERVICE
             icon: 'fas fa-plus', 
             label: 'Service supplémentaire', 
             className: 'alert-information',
             priority: 1 
         },
-        [GTFS_EFFECTS.MODIFIED_SERVICE]: { 
+        6: { // MODIFIED_SERVICE
             icon: 'fas fa-exclamation-triangle', 
             label: 'Service modifié', 
             className: 'alert-service-modifie',
             priority: 3 
         },
-        [GTFS_EFFECTS.OTHER_EFFECT]: { 
+        7: { // OTHER_EFFECT
             icon: 'fas fa-info-circle', 
             label: 'Autre perturbation', 
             className: 'alert-information',
             priority: 2 
         },
-        [GTFS_EFFECTS.UNKNOWN_EFFECT]: { 
+        8: { // UNKNOWN_EFFECT
             icon: 'fas fa-question-circle', 
             label: 'Effet non spécifié', 
             className: 'alert-information',
             priority: 1 
         },
-        [GTFS_EFFECTS.STOP_MOVED]: { 
+        9: { // STOP_MOVED
             icon: 'fas fa-map-marker-alt', 
             label: 'Arrêt déplacé', 
             className: 'alert-service-modifie',
             priority: 2 
         },
-        [GTFS_EFFECTS.NO_EFFECT]: { 
+        10: { // NO_EFFECT
             icon: 'fas fa-info', 
             label: 'Information', 
             className: 'alert-information',
             priority: 1 
         },
-        [GTFS_EFFECTS.ACCESSIBILITY_ISSUE]: { 
+        11: { // ACCESSIBILITY_ISSUE
             icon: 'fas fa-wheelchair', 
             label: 'Problème d\'accessibilité', 
             className: 'alert-service-modifie',
@@ -969,61 +972,67 @@ function getEffectInfo(effect) {
         }
     };
     
-    return effects[effect] || effects[GTFS_EFFECTS.UNKNOWN_EFFECT];
+    // Essayer avec la valeur directe et aussi en tant que string
+    return effects[effect] || effects[parseInt(effect)] || effects[8];
 }
 
 function getCauseInfo(cause) {
+    // Debug: afficher la valeur reçue
+    console.log('Cause reçue:', cause, typeof cause);
+    
     const causes = {
-        [GTFS_CAUSES.TECHNICAL_PROBLEM]: { 
+        1: { // UNKNOWN_CAUSE
+            label: 'Non spécifiée', 
+            icon: 'fas fa-question-circle' 
+        },
+        2: { // OTHER_CAUSE
+            label: 'Autre cause', 
+            icon: 'fas fa-question' 
+        },
+        3: { // TECHNICAL_PROBLEM
             label: 'Problème technique', 
             icon: 'fas fa-cogs' 
         },
-        [GTFS_CAUSES.STRIKE]: { 
+        4: { // STRIKE
             label: 'Grève', 
             icon: 'fas fa-fist-raised' 
         },
-        [GTFS_CAUSES.DEMONSTRATION]: { 
+        5: { // DEMONSTRATION
             label: 'Manifestation', 
             icon: 'fas fa-bullhorn' 
         },
-        [GTFS_CAUSES.ACCIDENT]: { 
+        6: { // ACCIDENT
             label: 'Accident', 
             icon: 'fas fa-ambulance' 
         },
-        [GTFS_CAUSES.HOLIDAY]: { 
+        7: { // HOLIDAY
             label: 'Jour férié', 
             icon: 'fas fa-calendar-day' 
         },
-        [GTFS_CAUSES.WEATHER]: { 
+        8: { // WEATHER
             label: 'Conditions météo', 
             icon: 'fas fa-cloud-rain' 
         },
-        [GTFS_CAUSES.MAINTENANCE]: { 
+        9: { // MAINTENANCE
             label: 'Maintenance', 
             icon: 'fas fa-tools' 
         },
-        [GTFS_CAUSES.CONSTRUCTION]: { 
+        10: { // CONSTRUCTION
             label: 'Travaux', 
             icon: 'fas fa-hard-hat' 
         },
-        [GTFS_CAUSES.POLICE_ACTIVITY]: { 
+        11: { // POLICE_ACTIVITY
             label: 'Intervention police', 
             icon: 'fas fa-shield-alt' 
         },
-        [GTFS_CAUSES.MEDICAL_EMERGENCY]: { 
+        12: { // MEDICAL_EMERGENCY
             label: 'Urgence médicale', 
             icon: 'fas fa-user-md' 
-        },
-        [GTFS_CAUSES.OTHER_CAUSE]: { 
-            label: 'Autre cause', 
-            icon: 'fas fa-question' 
         }
     };
     
-    return causes[cause] || { 
-        label: 'Non spécifiée', 
-        icon: 'fas fa-question-circle' 
-    };
+    // Essayer avec la valeur directe et aussi en tant que string
+    return causes[cause] || causes[parseInt(cause)] || causes[1];
 }
 
 function getAffectedEntitiesInfo(entities) {
