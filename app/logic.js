@@ -11456,6 +11456,17 @@ const BottomSheet = (() => {
         sheetEl.style.transform = '';
         soundsUX('MBF_Popup');
         safeVibrate?.([20]);
+
+        const menubtm = document.getElementById('menubtm');
+        if (menubtm) {
+            menubtm.classList.remove('slide-downb');
+            menubtm.classList.add('slide-upb');
+            menubtm.addEventListener('transitionend', () => {
+                if (menubtm.classList.contains('slide-upb')) {
+                    menubtm.style.display = 'none';
+                }
+            }, { once: true });
+        }
     }
 
     function collapse() {
@@ -11465,6 +11476,17 @@ const BottomSheet = (() => {
         sheetEl.classList.add('bs-collapsed');
         sheetEl.style.transform = '';
         safeVibrate?.([15]);
+
+        if (!window.isMenuShowed) {
+            const menubtm = document.getElementById('menubtm');
+            if (menubtm) {
+                menubtm.style.display = 'flex';
+                setTimeout(() => {
+                    menubtm.classList.remove('slide-upb');
+                    menubtm.classList.add('slide-downb');
+                }, 10);
+            }
+        }
     }
 
     function toggle() { isExpanded ? collapse() : expand(); }
