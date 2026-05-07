@@ -1185,7 +1185,8 @@ async function initMap() {
         }
     }
     
-    const storageKey = `mapPosition_${location.pathname}`;
+    // Position scoped per network so each network keeps its own zoom/center.
+    const storageKey = `mapPosition_${window.ACTIVE_NETWORK}`;
     const savedPosition = JSON.parse(localStorage.getItem(storageKey) || "null");
 
     if (L) { 
@@ -11057,9 +11058,8 @@ main().catch(error => {
 // ------------------------------------------------------------
 //  Builds and shows a modal listing all available networks
 //  (loaded from `networks-index.json`). Selecting a network
-//  persists the choice in localStorage and reloads the app
-//  so the new configuration is fetched from
-//  `networks/{activeNetwork}/...`.
+//  triggers an in-place soft switch — no page reload — driven
+//  by `softSwitchNetwork()` further below.
 // ============================================================
 let __networksIndexCache = null;
 
@@ -11076,10 +11076,282 @@ function selectNetwork(networkId) {
         closeNetworkSwitcher();
         return;
     }
-    localStorage.setItem('activeNetwork', networkId);
-    // Hard reload so every fetch re-resolves to networks/{newNetwork}/...
-    window.location.reload();
+    closeNetworkSwitcher();
+    softSwitchNetwork(networkId);
 }
+
+// ============================================================
+//  Soft network switch (no full page reload)
+// ------------------------------------------------------------
+//  Tears down map + GTFS state for the *current* network,
+//  retargets `window.ACTIVE_NETWORK`, then re-runs the init
+//  flow that normally executes once at script load.
+//
+//  We mirror the existing `beforeunload` cleanup (the codebase
+//  already commits to that contract for tearing down the app)
+//  and add module-state resets so a fresh `main()` can run as
+//  if on a clean page load.
+// ============================================================
+let __isSwitchingNetwork = false;
+
+function showNetworkSwitchOverlay(targetNetworkId) {
+    const overlay = document.getElementById('network-switch-overlay');
+    if (!overlay) return;
+    const logo = document.getElementById('network-switch-logo');
+    if (logo && targetNetworkId) {
+        logo.src = `networks/${targetNetworkId}/src/whitelogo.png`;
+        logo.onerror = () => { logo.src = `networks/${targetNetworkId}/src/logo.png`; };
+    }
+    overlay.classList.add('visible');
+    overlay.setAttribute('aria-hidden', 'false');
+}
+
+function hideNetworkSwitchOverlay() {
+    const overlay = document.getElementById('network-switch-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('visible');
+    overlay.setAttribute('aria-hidden', 'true');
+}
+
+function _safe(fn) {
+    try { fn(); } catch (e) { console.warn('softSwitch cleanup step failed:', e); }
+}
+
+function _resetNetworkScopedState() {
+    // Settings caches
+    globalSettings = {};
+    settingsCache = null;
+    cacheTimestamp = null;
+
+    // Vehicle models / types
+    for (const k of Object.keys(vehicleModels)) delete vehicleModels[k];
+    for (const k of Object.keys(vehicleTypes)) {
+        if (vehicleTypes[k] && typeof vehicleTypes[k].clear === 'function') {
+            vehicleTypes[k].clear();
+        }
+    }
+
+    // GTFS / lines / stops
+    geoJsonLines.length = 0;
+    busStopLayers.length = 0;
+    selectedLines.length = 0;
+    allBusLines.length = 0;
+    stopIds.length = 0;
+    for (const k of Object.keys(busStopsByLine))   delete busStopsByLine[k];
+    for (const k of Object.keys(lineColors))       delete lineColors[k];
+    for (const k of Object.keys(lineName))         delete lineName[k];
+    for (const k of Object.keys(stopNameMap))      delete stopNameMap[k];
+    for (const k of Object.keys(tripUpdates))      delete tripUpdates[k];
+    for (const k of Object.keys(markers))          delete markers[k];
+
+    // Init flags
+    gtfsInitialized = false;
+    fetchInProgress = false;
+    lastTripUpdateTimestamp = 0;
+    lastActiveMarkerId = null;
+    lastActiveColor = null;
+    selectedLine = null;
+    HorairesCharges = false;
+    savedFilterState = null;
+    ligneselectionnee = false;
+    isMenuVisible = true;
+
+    // Locate state
+    locationMarker = null;
+    locationCircle = null;
+    isLocating = false;
+    if (watchId !== null && navigator.geolocation && navigator.geolocation.clearWatch) {
+        try { navigator.geolocation.clearWatch(watchId); } catch (_) {}
+    }
+    watchId = null;
+}
+
+function _stopAllTimers() {
+    if (typeof fetchTimerId !== 'undefined' && fetchTimerId) {
+        clearTimeout(fetchTimerId); fetchTimerId = null;
+    }
+    if (typeof navIntervalId !== 'undefined' && navIntervalId) {
+        clearInterval(navIntervalId); navIntervalId = null;
+    }
+    if (typeof loadingInterval !== 'undefined' && loadingInterval) {
+        try { clearInterval(loadingInterval); } catch (_) {}
+        loadingInterval = null;
+    }
+    if (typeof vibrationTimeout !== 'undefined' && vibrationTimeout) {
+        clearTimeout(vibrationTimeout); vibrationTimeout = null;
+    }
+    if (typeof _timeToggleInterval !== 'undefined' && _timeToggleInterval) {
+        clearInterval(_timeToggleInterval); _timeToggleInterval = null;
+    }
+    // Favorites realtime updater (favorites.js)
+    if (typeof stopFavoritesUpdate === 'function') {
+        _safe(() => stopFavoritesUpdate());
+    }
+}
+
+function _runManagerCleanup() {
+    // Mirror the contract from window.addEventListener('beforeunload', ...)
+    if (typeof MinimalPopupAnimationManager !== 'undefined' && MinimalPopupAnimationManager.cleanup) {
+        _safe(() => MinimalPopupAnimationManager.cleanup());
+    }
+    if (typeof mapEventHandlers !== 'undefined' && mapEventHandlers.cleanup) {
+        _safe(() => mapEventHandlers.cleanup());
+    }
+    if (typeof destroyTimeToggle === 'function') {
+        _safe(() => destroyTimeToggle());
+    }
+    if (typeof markerPool !== 'undefined' && markerPool.clear) _safe(() => markerPool.clear());
+    if (typeof eventManager !== 'undefined' && eventManager.clear) _safe(() => eventManager.clear());
+    if (typeof TooltipManager !== 'undefined' && TooltipManager.clear) _safe(() => TooltipManager.clear());
+    if (typeof StyleManager !== 'undefined' && StyleManager.clearAll) _safe(() => StyleManager.clearAll());
+    if (typeof AnimationManager !== 'undefined' && AnimationManager.cancelAll) _safe(() => AnimationManager.cancelAll());
+
+    if (typeof workerInstance !== 'undefined' && workerInstance) {
+        _safe(() => workerInstance.terminate());
+        workerInstance = null;
+    }
+    if (typeof worker !== 'undefined' && worker) {
+        _safe(() => worker.terminate && worker.terminate());
+        worker = null;
+    }
+
+    if (typeof contentCache !== 'undefined' && contentCache.clear)     _safe(() => contentCache.clear());
+    if (typeof colorCache !== 'undefined' && colorCache.clear)         _safe(() => colorCache.clear());
+    if (typeof textColorCache !== 'undefined' && textColorCache.clear) _safe(() => textColorCache.clear());
+    if (typeof TextColorUtils !== 'undefined' && TextColorUtils.clearCache) {
+        _safe(() => TextColorUtils.clearCache());
+    }
+}
+
+function _emptyMenuAndOverlays() {
+    const menuEl = document.getElementById('menu');
+    if (menuEl) {
+        menuEl.innerHTML = '';
+        menuEl.classList.add('hidden');
+        menuEl.style.display = 'none';
+    }
+    window.isMenuShowed = false;
+
+    // Make sure the bottom-bar is in its idle state
+    const menubtm = document.getElementById('menubtm');
+    if (menubtm) {
+        menubtm.classList.remove('slide-upb');
+        menubtm.style.display = 'flex';
+    }
+
+    // Ensure the map div is visible (state may have hidden it)
+    const mapDiv = document.getElementById('map');
+    if (mapDiv) {
+        mapDiv.classList.remove('hidden', 'hiddennotransition');
+        mapDiv.style.opacity = '1';
+    }
+
+    // Reset MenuManager so it rebuilds on next showMenu()
+    if (typeof MenuManager !== 'undefined') {
+        if (MenuManager.sections && MenuManager.sections.clear) {
+            _safe(() => MenuManager.sections.clear());
+        }
+        MenuManager.isInitialized = false;
+        MenuManager.busesByLineAndDestination = null;
+    }
+}
+
+function _updateNetworkChromeForSwitch(newId) {
+    // Update favicon / apple-touch-icon to new network's logo
+    const apple = document.querySelector('link[rel="apple-touch-icon"]');
+    if (apple) apple.href = `networks/${newId}/src/logo.png`;
+    const favicon = document.querySelector('link[rel="icon"]');
+    if (favicon) favicon.href = `networks/${newId}/src/logo.png`;
+
+    // Refresh the loading-screen logo (used by hideLoadingScreen on next main())
+    const logoscr = document.getElementById('logoscr');
+    if (logoscr) logoscr.src = `networks/${newId}/src/whitelogo.png`;
+}
+
+async function softSwitchNetwork(newId) {
+    if (__isSwitchingNetwork) return;
+    if (!newId || newId === window.ACTIVE_NETWORK) return;
+    __isSwitchingNetwork = true;
+
+    showNetworkSwitchOverlay(newId);
+
+    try {
+        // 1. Persist current map position for the *outgoing* network
+        if (window.mapInstance) {
+            try {
+                const c = window.mapInstance.getCenter();
+                const z = window.mapInstance.getZoom();
+                localStorage.setItem(
+                    `mapPosition_${window.ACTIVE_NETWORK}`,
+                    JSON.stringify({ center: [c.lat, c.lng], zoom: z })
+                );
+            } catch (_) {}
+        }
+
+        // 2. Stop everything that's running
+        _stopAllTimers();
+
+        // 3. Run the same cleanup as beforeunload
+        _runManagerCleanup();
+
+        // 4. Drop the current map (also detaches all its layers/listeners)
+        if (window.mapInstance) {
+            _safe(() => window.mapInstance.remove());
+            window.mapInstance = null;
+        }
+        // Belt and braces: clear the map container in case Leaflet left a stub
+        const mapDiv = document.getElementById('map');
+        if (mapDiv) {
+            mapDiv.innerHTML = '';
+            // Leaflet sets a private flag on the container
+            if (mapDiv._leaflet_id) delete mapDiv._leaflet_id;
+        }
+
+        // 5. Reset module-level state
+        _resetNetworkScopedState();
+        _emptyMenuAndOverlays();
+
+        // 6. Retarget the active network globally
+        window.ACTIVE_NETWORK = newId;
+        window.NETWORK_BASE  = `networks/${newId}`;
+        localStorage.setItem('activeNetwork', newId);
+
+        // 7. Update window chrome (favicon, loading-screen logo)
+        _updateNetworkChromeForSwitch(newId);
+
+        // 8. Re-run the same init flow as a fresh page load
+        //    - getSetvar() refreshes settings from the new network folder
+        //    - changeColorBkg() applies the new theme color
+        //    - initMap() creates a new Leaflet map at the new default zoom
+        //      (or at this network's saved position via mapPosition_{id})
+        //    - initializeApp() reloads vehicle models + vehicle positions
+        //      (normally fired on DOMContentLoaded — we replay it manually)
+        //    - main() reattaches handlers and reloads GTFS + realtime
+        await getSetvar();
+        await changeColorBkg();
+        map = await initMap();
+        await initializeApp();
+        await main();
+
+        if (typeof toastBottomRight !== 'undefined') {
+            toastBottomRight.success?.(`Réseau actif : ${newId}`);
+        }
+    } catch (err) {
+        console.error('softSwitchNetwork failed:', err);
+        if (typeof toastBottomRight !== 'undefined') {
+            toastBottomRight.error?.('Échec du changement de réseau, rechargement…');
+        }
+        // Last-resort safety net so the user is never stuck
+        setTimeout(() => window.location.reload(), 600);
+    } finally {
+        // Slight delay so the new map has time to paint before we fade
+        setTimeout(() => {
+            hideNetworkSwitchOverlay();
+            __isSwitchingNetwork = false;
+        }, 250);
+    }
+}
+window.softSwitchNetwork = softSwitchNetwork;
 
 function closeNetworkSwitcher() {
     const overlay = document.getElementById('network-switcher-overlay');

@@ -1,13 +1,18 @@
 // Favorites are scoped per network so a "ligne 1" of network A doesn't leak into network B.
-const FAVORITES_KEY = `bus_stop_favorites_${(typeof window !== 'undefined' && window.ACTIVE_NETWORK) || localStorage.getItem('activeNetwork') || 'palmbus'}`;
+// The key is resolved on every read/write so it always reflects the *current* active network,
+// even after a soft network switch (no full page reload).
+function getFavoritesKey() {
+    const net = (typeof window !== 'undefined' && window.ACTIVE_NETWORK) || localStorage.getItem('activeNetwork') || 'palmbus';
+    return `bus_stop_favorites_${net}`;
+}
 
 function getFavorites() {
-    const favorites = localStorage.getItem(FAVORITES_KEY);
+    const favorites = localStorage.getItem(getFavoritesKey());
     return favorites ? JSON.parse(favorites) : [];
 }
 
 function saveFavorites(favorites) {
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+    localStorage.setItem(getFavoritesKey(), JSON.stringify(favorites));
 }
 
 function addToFavorites(routeId, stopId, destinationId) {
