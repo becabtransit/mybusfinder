@@ -2311,3 +2311,283 @@
 .stops-icon-badge.active {
     color: #ffffff;
 }
+
+/* =====================================================
+   Network switcher modal — matches the app's design
+   language (League Spartan, signature bouncy ease,
+   8px backdrop blur, ripple feedback, network-tinted
+   active state).
+   ===================================================== */
+.ns-modal-overlay {
+    position: fixed; inset: 0;
+    z-index: 10005;
+    display: flex; align-items: center; justify-content: center;
+    background-color: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.32s ease-out;
+    font-family: "League Spartan", sans-serif;
+    padding: 20px;
+}
+.ns-modal-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ns-modal {
+    width: 100%;
+    max-width: 540px;
+    max-height: 86vh;
+    background: #ffffff;
+    border-radius: 26px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22),
+                0 4px 14px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transform: scale(0.82) translateY(28px);
+    filter: blur(14px);
+    opacity: 0;
+    transition: transform 0.55s cubic-bezier(0.25, 1.5, 0.5, 1),
+                filter 0.35s ease-out,
+                opacity 0.35s ease-out;
+    will-change: transform, filter, opacity;
+}
+.ns-modal-overlay.visible .ns-modal {
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+    opacity: 1;
+}
+.ns-modal-overlay.closing .ns-modal {
+    transform: scale(0.85) translateY(20px);
+    filter: blur(8px);
+    opacity: 0;
+    transition: transform 0.28s ease-in, filter 0.22s ease-in, opacity 0.22s ease-in;
+}
+
+.ns-header {
+    padding: 22px 26px 16px;
+    text-align: left;
+    color: #fff;
+    background: linear-gradient(135deg,
+                var(--ns-accent, #00509b) 0%,
+                var(--ns-accent-dark, #003566) 100%);
+    position: relative;
+    overflow: hidden;
+}
+.ns-header::after {
+    content: "";
+    position: absolute;
+    top: -40%; right: -20%;
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.18), transparent 70%);
+    pointer-events: none;
+}
+.ns-header h2 {
+    font-family: "League Spartan", sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+}
+.ns-header p {
+    font-family: "League Spartan", sans-serif;
+    font-size: 13px;
+    margin: 0;
+    opacity: 0.82;
+    line-height: 1.35;
+}
+
+.ns-body {
+    overflow-y: auto;
+    padding: 6px 14px 20px;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+}
+.ns-body::-webkit-scrollbar { width: 8px; }
+.ns-body::-webkit-scrollbar-track { background: transparent; }
+.ns-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 10px;
+    border: 2px solid #fff;
+}
+
+.ns-group-label {
+    font-family: "League Spartan", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #888;
+    padding: 14px 10px 6px;
+}
+
+.ns-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+    padding: 12px 14px;
+    margin: 6px 0;
+    background: #f6f7f9;
+    border: 1px solid transparent;
+    border-radius: 16px;
+    cursor: pointer;
+    color: #222;
+    font-family: "League Spartan", sans-serif;
+    transition: transform 0.25s cubic-bezier(0.25, 1.5, 0.5, 1),
+                background-color 0.25s ease,
+                border-color 0.25s ease,
+                box-shadow 0.25s ease;
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    animation: nsItemFadeIn 0.45s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
+}
+@keyframes nsItemFadeIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ns-item:hover {
+    background: #eef1f5;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+.ns-item:active {
+    transform: scale(0.98);
+}
+.ns-item.active {
+    background: linear-gradient(135deg,
+                var(--ns-accent-soft, rgba(0,80,155,0.10)) 0%,
+                var(--ns-accent-softer, rgba(0,80,155,0.04)) 100%);
+    border-color: var(--ns-accent, #00509b);
+    color: var(--ns-accent-dark, #003566);
+}
+.ns-item.active::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--ns-accent, #00509b);
+}
+
+.ns-item-logo {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    border-radius: 11px;
+    background: #fff;
+    padding: 4px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.ns-item-text {
+    flex: 1;
+    min-width: 0;
+}
+.ns-item-name {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ns-item-name .ns-nightly {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: #fde68a;
+    color: #92400e;
+    padding: 2px 6px;
+    border-radius: 6px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.ns-item-region {
+    font-size: 12px;
+    opacity: 0.65;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ns-item-arrow {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    opacity: 0.5;
+    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.2s ease;
+}
+.ns-item:hover .ns-item-arrow {
+    opacity: 1;
+    transform: translateX(3px);
+}
+.ns-item.active .ns-item-arrow {
+    opacity: 1;
+}
+
+.ns-close-btn {
+    position: absolute;
+    bottom: 18px;
+    right: 18px;
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, #007AFF 0%, #0051D5 100%);
+    box-shadow: 0 12px 32px rgba(0, 122, 255, 0.4),
+                0 4px 12px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    color: #fff;
+    border: none;
+    border-radius: 28px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+    z-index: 2;
+}
+.ns-close-btn:hover {
+    transform: scale(1.06);
+}
+.ns-close-btn:active {
+    transform: scale(0.78);
+}
+
+@media (prefers-color-scheme: dark) {
+    .ns-modal {
+        background: #1a1a24;
+        color: #f1f1f5;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6),
+                    0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+    .ns-group-label { color: #8a8a93; }
+    .ns-item {
+        background: #25252f;
+        color: #f1f1f5;
+    }
+    .ns-item:hover { background: #2c2c38; }
+    .ns-item.active {
+        background: linear-gradient(135deg,
+                    var(--ns-accent-soft, rgba(0,80,155,0.20)) 0%,
+                    var(--ns-accent-softer, rgba(0,80,155,0.08)) 100%);
+        color: #ffffff;
+    }
+    .ns-item-region { opacity: 0.55; }
+    .ns-item-logo { background: #ffffff14; }
+    .ns-body::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.18);
+        border-color: #1a1a24;
+    }
+    .ns-modal-overlay {
+        background-color: rgba(0, 0, 0, 0.55);
+    }
+}

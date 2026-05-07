@@ -1,7 +1,6 @@
 
-
         // ============================================================
-        //  Multi-network bootstrap
+        //  Multi-network bootstrap MBF3X+
         // ------------------------------------------------------------
         //  All per-network assets (settings, proxy-cors, thumbnails,
         //  logos) live in `networks/{id}/`. The active network id is
@@ -25,9 +24,9 @@
         window.NETWORK_BASE  = `networks/${window.ACTIVE_NETWORK}`;
 
         // Helper: resolve a network-relative asset path. Accepts paths like
-        //   "setvar/settings/networkname.txt"  → "networks/{id}/setvar/..."
-        //   "proxy-cors/proxy_gtfs.php"        → "networks/{id}/proxy-cors/..."
-        //   "src/thumbnail/gx127.png"          → "networks/{id}/src/thumbnail/..."
+        //   "setvar/settings/networkname.txt"   "networks/{id}/setvar/..."
+        //   "proxy-cors/proxy_gtfs.php"         "networks/{id}/proxy-cors/..."
+        //   "src/thumbnail/gx127.png"           "networks/{id}/src/thumbnail/..."
         // Absolute URLs and already-prefixed paths pass through.
         window.netPath = function netPath(rel) {
             if (!rel) return rel;
@@ -1250,6 +1249,7 @@ async function initMap() {
     const tileLayer = L.tileLayer(tileLayerUrl, {
         minZoom: 6,
         maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(mapInstance);
 
 
@@ -1261,7 +1261,8 @@ async function initMap() {
         minZoom: 6,
         maxZoom: 19,
         format: 'image/jpeg',
-        style: 'normal'
+        style: 'normal',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://geoservices.ign.fr/">IGN</a>'
     }).addTo(mapInstance);
 
 }
@@ -2898,7 +2899,7 @@ async function loadGTFSDataOptimized() {
         hideLoadingOverlay();
         
         const errorMessage = error.message || 'Erreur inconnue';
-        toastBottomRight.error(`Erreur de chargement ${errorMessage}`);
+        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : ' + errorMessage);
         soundsUX('MBF_NotificationError');
         
         throw error;
@@ -3010,7 +3011,7 @@ async function clearGTFSCache() {
             const request = store.clear();
 
             request.onsuccess = () => {
-                toastBottomRight.success('MBF3 : Cache erased successfully !!');
+                toastBottomRight.success('MBF3X+ : Cache erased successfully !!');
                 soundsUX('MBF_Success');
                 resolve();
             };
@@ -3973,7 +3974,7 @@ async function loadVehicleModels() {
         
     } catch (error) {
         console.error('Erreur lors du chargement des modèles de véhicules', error);
-        toastBottomRight.error('Erreur lors du chargement des modèles de véhicules');
+        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : unable to load vehicle models');
         soundsUX('MBF_NotificationError');
     }
 }
@@ -4453,7 +4454,7 @@ async function initializeApp() {
         await fetchVehiclePositions();
     } catch (error) {
         console.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
-        toastBottomRight.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
+        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : fatal INIT_LOGIC_ERROR');
         soundsUX('MBF_NotificationError');
     }
 }
@@ -10944,43 +10945,10 @@ async function main() {
 
         loadGeoJsonLines();
         startFetchUpdates();
-
-        setTimeout(() => {
-            toastTopRight.info('Map data from OSM contributors, licensed under ODbL.', {
-                duration: 7000,
-                buttons: [
-                    {
-                    label: 'See more',
-                    style: 'primary',
-                    onClick: (close) => {
-                        close();
-                        showFluentPopup({
-                        title: "OpenStreetMap data",
-                        message: "OpenStreetMap (OSM) is a free, collaborative mapping project built by volunteers worldwide. It provides open geographic data : roads, paths, transit stops, used by My Bus Finder to display the map. The data is licensed under the Open Database License (ODbL), which allows free use as long as attribution is preserved.",
-                        buttons: {
-                            primary: "Understood",
-                            primaryAction: () => { fluentPopupManager.close(); },
-                            secondary: "Discover more",
-                            secondaryAction: () => {
-                            window.open('https://www.openstreetmap.org', '_blank');
-                            fluentPopupManager.close();
-                            }
-                        }
-                        });
-                    }
-                    },
-                    {
-                    label: 'OK',
-                    style: 'ghost',
-                    onClick: (close) => close()
-                    }
-                ]
-            });
-        }, 3000);
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
-        toastBottomRight.error("Internal error : unable to initialize app.");
+        toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : fatal MAIN_INIT_FAIL');
         soundsUX('MBF_NotificationError');
     }
 }
@@ -11080,28 +11048,11 @@ function selectNetwork(networkId) {
     softSwitchNetwork(networkId);
 }
 
-// ============================================================
-//  Soft network switch (no full page reload)
-// ------------------------------------------------------------
-//  Tears down map + GTFS state for the *current* network,
-//  retargets `window.ACTIVE_NETWORK`, then re-runs the init
-//  flow that normally executes once at script load.
-//
-//  We mirror the existing `beforeunload` cleanup (the codebase
-//  already commits to that contract for tearing down the app)
-//  and add module-state resets so a fresh `main()` can run as
-//  if on a clean page load.
-// ============================================================
 let __isSwitchingNetwork = false;
 
 function showNetworkSwitchOverlay(targetNetworkId) {
     const overlay = document.getElementById('network-switch-overlay');
     if (!overlay) return;
-    const logo = document.getElementById('network-switch-logo');
-    if (logo && targetNetworkId) {
-        logo.src = `networks/${targetNetworkId}/src/whitelogo.png`;
-        logo.onerror = () => { logo.src = `networks/${targetNetworkId}/src/logo.png`; };
-    }
     overlay.classList.add('visible');
     overlay.setAttribute('aria-hidden', 'false');
 }
@@ -11333,9 +11284,7 @@ async function softSwitchNetwork(newId) {
         await initializeApp();
         await main();
 
-        if (typeof toastBottomRight !== 'undefined') {
-            toastBottomRight.success?.(`Réseau actif : ${newId}`);
-        }
+
     } catch (err) {
         console.error('softSwitchNetwork failed:', err);
         if (typeof toastBottomRight !== 'undefined') {
@@ -11353,13 +11302,70 @@ async function softSwitchNetwork(newId) {
 }
 window.softSwitchNetwork = softSwitchNetwork;
 
-function closeNetworkSwitcher() {
-    const overlay = document.getElementById('network-switcher-overlay');
-    if (overlay) overlay.remove();
+// ─── Helpers for the modal styling ──────────────────────
+function _hexToRgb(hex) {
+    if (!hex) return null;
+    let m = hex.replace('#', '').trim();
+    if (m.length === 3) m = m.split('').map(c => c + c).join('');
+    if (m.length === 8) m = m.slice(0, 6); // strip alpha
+    if (!/^[0-9a-f]{6}$/i.test(m)) return null;
+    return {
+        r: parseInt(m.slice(0, 2), 16),
+        g: parseInt(m.slice(2, 4), 16),
+        b: parseInt(m.slice(4, 6), 16)
+    };
 }
 
+function _shadeHex(hex, percent) {
+    // Negative percent darkens, positive lightens. Range: -100..100.
+    const rgb = _hexToRgb(hex);
+    if (!rgb) return hex;
+    const adjust = (v) => {
+        const t = percent < 0 ? 0 : 255;
+        const p = Math.abs(percent) / 100;
+        return Math.round((t - v) * p + v);
+    };
+    const toHex = (v) => v.toString(16).padStart(2, '0');
+    return '#' + toHex(adjust(rgb.r)) + toHex(adjust(rgb.g)) + toHex(adjust(rgb.b));
+}
+
+// Themes the modal with the *active* network's color so the
+// header gradient and the active-row accent match the rest of
+// the app (which already tints itself via window.colorbkg9c).
+function _applyAccentToModal(rootEl, accentHex) {
+    if (!rootEl) return;
+    const safe = accentHex || window.colorbkg || '#00509b';
+    const dark = _shadeHex(safe, -25);
+    const rgb  = _hexToRgb(safe) || { r: 0, g: 80, b: 155 };
+    rootEl.style.setProperty('--ns-accent',         safe);
+    rootEl.style.setProperty('--ns-accent-dark',    dark);
+    rootEl.style.setProperty('--ns-accent-soft',    `rgba(${rgb.r},${rgb.g},${rgb.b},0.12)`);
+    rootEl.style.setProperty('--ns-accent-softer', `rgba(${rgb.r},${rgb.g},${rgb.b},0.04)`);
+}
+
+// ─── Open / close ───────────────────────────────────────
+function closeNetworkSwitcher() {
+    const overlay = document.getElementById('network-switcher-overlay');
+    if (!overlay) return;
+    // Animate out, then remove. Mirrors the in-app popup hide pattern.
+    overlay.classList.add('closing');
+    overlay.classList.remove('visible');
+    soundsUX('MBF_SelectedVehicle_DoorClose');
+    setTimeout(() => {
+        if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        if (typeof __nsEscHandler === 'function') {
+            document.removeEventListener('keydown', __nsEscHandler);
+            __nsEscHandler = null;
+        }
+    }, 280);
+}
+
+let __nsEscHandler = null;
+
 async function openNetworkSwitcher() {
-    closeNetworkSwitcher();
+    // If one is already open (mid-animation), drop it cleanly first.
+    const existing = document.getElementById('network-switcher-overlay');
+    if (existing) existing.remove();
 
     let index;
     try {
@@ -11367,165 +11373,115 @@ async function openNetworkSwitcher() {
     } catch (err) {
         console.error('Network switcher: cannot load networks-index.json', err);
         if (typeof toastBottomRight !== 'undefined') {
-            toastBottomRight.error('Liste des réseaux indisponible.');
+            toastBottomRight.error?.('Liste des réseaux indisponible.');
         }
         return;
     }
 
+    soundsUX('MBF_SelectedVehicle_DoorOpen');
+
+    // ── Build markup using stylesheet classes (defined in style.css) ──
     const overlay = document.createElement('div');
     overlay.id = 'network-switcher-overlay';
-    overlay.style.cssText = `
-        position: fixed; inset: 0; z-index: 100000;
-        background: rgba(0,0,0,0.78);
-        backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-        display: flex; align-items: center; justify-content: center;
-        padding: 20px;
-        animation: fadeInOverlay 0.18s ease-out;
-    `;
+    overlay.className = 'ns-modal-overlay';
 
-    const card = document.createElement('div');
-    card.style.cssText = `
-        width: 100%; max-width: 520px; max-height: 85vh;
-        background: rgba(20,20,28,0.92);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 22px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-        color: white; overflow: hidden;
-        display: flex; flex-direction: column;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    `;
+    const modal = document.createElement('div');
+    modal.className = 'ns-modal';
+    _applyAccentToModal(modal, window.colorbkg);
 
     // Header
     const header = document.createElement('div');
-    header.style.cssText = `
-        padding: 20px 22px 12px;
-        border-bottom: 1px solid rgba(255,255,255,0.06);
-        display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-    `;
+    header.className = 'ns-header';
     header.innerHTML = `
-        <div>
-            <div style="font-size:18px; font-weight:700; margin-bottom:4px;">Choisissez votre réseau</div>
-            <div style="font-size:12px; opacity:.65;">Vos favoris sont conservés par réseau.</div>
-        </div>
+        <h2>Choisissez votre réseau</h2>
+        <p>Vos favoris et la position de la carte sont conservés par réseau.</p>
     `;
-
-    const closeBtn = document.createElement('button');
-    closeBtn.setAttribute('aria-label', 'Fermer');
-    closeBtn.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M6 6L18 18M6 18L18 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-    `;
-    closeBtn.style.cssText = `
-        background: rgba(255,255,255,0.08); border: none; color: white;
-        width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        flex-shrink: 0;
-    `;
-    closeBtn.onclick = closeNetworkSwitcher;
-    header.appendChild(closeBtn);
 
     // Body
     const body = document.createElement('div');
-    body.style.cssText = `
-        padding: 12px 16px 18px;
-        overflow-y: auto;
-    `;
+    body.className = 'ns-body';
 
     const groups = Array.isArray(index.groups) ? index.groups : [];
+    let stagger = 0;
+    const STEP = 35; // ms between item entrances
+
     groups.forEach(group => {
-        const groupTitle = document.createElement('div');
-        groupTitle.textContent = group.label;
-        groupTitle.style.cssText = `
-            font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
-            text-transform: uppercase; opacity: .55;
-            padding: 14px 8px 6px;
-        `;
-        body.appendChild(groupTitle);
+        const label = document.createElement('div');
+        label.className = 'ns-group-label';
+        label.textContent = group.label;
+        body.appendChild(label);
 
         (group.networks || []).forEach(net => {
-            const item = document.createElement('button');
             const isActive = net.id === window.ACTIVE_NETWORK;
-            item.style.cssText = `
-                display: flex; align-items: center; gap: 12px;
-                width: 100%; text-align: left;
-                padding: 12px 14px;
-                background: ${isActive ? 'rgba(74,222,128,0.10)' : 'rgba(255,255,255,0.04)'};
-                border: 1px solid ${isActive ? 'rgba(74,222,128,0.45)' : 'rgba(255,255,255,0.08)'};
-                border-radius: 14px;
-                color: white; cursor: pointer;
-                margin-bottom: 8px;
-                transition: background 0.15s ease, border-color 0.15s ease;
-                font-family: inherit;
-            `;
-            item.onmouseover = () => { if (!isActive) item.style.background = 'rgba(255,255,255,0.10)'; };
-            item.onmouseout  = () => { if (!isActive) item.style.background = 'rgba(255,255,255,0.04)'; };
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'ns-item ripple-container' + (isActive ? ' active' : '');
+            item.style.animationDelay = `${stagger}ms`;
+            stagger += STEP;
 
-            const logo = document.createElement('img');
-            logo.src = `networks/${net.id}/src/logo.png`;
-            logo.onerror = () => { logo.style.visibility = 'hidden'; };
-            logo.style.cssText = `
-                width: 38px; height: 38px;
-                object-fit: contain;
-                border-radius: 8px;
-                background: rgba(255,255,255,0.06);
-                flex-shrink: 0;
-            `;
-
-            const text = document.createElement('div');
-            text.style.cssText = `flex:1; min-width:0;`;
-            text.innerHTML = `
-                <div style="font-size:14px; font-weight:600; line-height:1.2;">
-                    ${net.name}${net.nightly ? ' <span style="font-size:10px; opacity:.6; font-weight:500;">· nightly</span>' : ''}
+            item.innerHTML = `
+                <img class="ns-item-logo" src="networks/${net.id}/src/logo.png" alt="" />
+                <div class="ns-item-text">
+                    <div class="ns-item-name">
+                        ${net.name}${net.nightly ? ' <span class="ns-nightly">nightly</span>' : ''}
+                    </div>
+                    <div class="ns-item-region">${net.region || ''}</div>
                 </div>
-                <div style="font-size:11px; opacity:.6; margin-top:2px;">${net.region || ''}</div>
+                ${isActive
+                    ? `<svg class="ns-item-arrow" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L20 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+                    : `<svg class="ns-item-arrow" viewBox="0 0 24 24" fill="none"><path d="M9 5L16 12L9 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
             `;
 
-            const trailing = document.createElement('div');
-            trailing.style.cssText = `flex-shrink:0; opacity:.7;`;
-            trailing.innerHTML = isActive
-                ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L20 7" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-                : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 5L16 12L9 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            // Hide logo gracefully on 404 instead of broken-image icon
+            const logoImg = item.querySelector('.ns-item-logo');
+            if (logoImg) logoImg.onerror = () => { logoImg.style.visibility = 'hidden'; };
 
-            item.appendChild(logo);
-            item.appendChild(text);
-            item.appendChild(trailing);
-            item.onclick = () => selectNetwork(net.id);
+            item.addEventListener('click', () => {
+                if (isActive) { closeNetworkSwitcher(); return; }
+                safeVibrate?.(15);
+                selectNetwork(net.id);
+            });
 
             body.appendChild(item);
         });
     });
 
-    card.appendChild(header);
-    card.appendChild(body);
-    overlay.appendChild(card);
+    // Floating close button (matches the in-app .close-btn style)
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'ns-close-btn ripple-container';
+    closeBtn.setAttribute('aria-label', 'Fermer');
+    closeBtn.innerHTML = `
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+            <path d="M6 6L18 18M6 18L18 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
+    `;
+    closeBtn.addEventListener('click', closeNetworkSwitcher);
 
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(closeBtn);
+    overlay.appendChild(modal);
+
+    // Click outside closes
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) closeNetworkSwitcher();
     });
 
-    // ESC closes the modal (registered once, removed on close)
-    const escHandler = (e) => {
-        if (e.key === 'Escape') {
-            closeNetworkSwitcher();
-            document.removeEventListener('keydown', escHandler);
-        }
+    // ESC closes
+    __nsEscHandler = (e) => {
+        if (e.key === 'Escape') closeNetworkSwitcher();
     };
-    document.addEventListener('keydown', escHandler);
-
-    // Inject one-shot keyframes
-    if (!document.getElementById('network-switcher-styles')) {
-        const style = document.createElement('style');
-        style.id = 'network-switcher-styles';
-        style.textContent = `
-            @keyframes fadeInOverlay { from { opacity: 0; } to { opacity: 1; } }
-        `;
-        document.head.appendChild(style);
-    }
+    document.addEventListener('keydown', __nsEscHandler);
 
     document.body.appendChild(overlay);
+
+    // Trigger the show transition on the next frame so CSS picks up
+    // the initial state before the .visible class adds the final state.
+    requestAnimationFrame(() => {
+        overlay.classList.add('visible');
+    });
 }
 
-window.openNetworkSwitcher = openNetworkSwitcher;
+window.openNetworkSwitcher  = openNetworkSwitcher;
 window.closeNetworkSwitcher = closeNetworkSwitcher;
-window.selectNetwork = selectNetwork;
+window.selectNetwork        = selectNetwork;
