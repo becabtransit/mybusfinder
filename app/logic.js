@@ -11417,35 +11417,21 @@ window.selectNetwork        = selectNetwork;
 
 
 const BottomSheet = (() => {
-    const COLLAPSE_VEL = 0.45; 
-    const EXPAND_VEL   = 0.45; 
-    let sheetEl, contentEl, handleZoneEl, menubtmEl;
-    let collapsedHeight = 0;
-    let expandedHeight  = 0;
+    const SWIPE_VEL = 0.45; // px/ms — fast-swipe threshold
+    let sheetEl, scrimEl, handleZoneEl, menubtmEl;
     let isExpanded = false;
     let isDragging = false;
     let dragStartY = 0;
-    let dragStartTime = 0;
     let lastY = 0;
     let lastTime = 0;
     let velocity = 0;
+    let sheetHeight = 0;
 
-    function _measure() {
-        if (!sheetEl) return;
-        const wasCollapsed = sheetEl.classList.contains('bs-collapsed');
-        if (!wasCollapsed) sheetEl.classList.add('bs-collapsed');
-        collapsedHeight = sheetEl.getBoundingClientRect().height;
-        if (!wasCollapsed) {
-            sheetEl.classList.remove('bs-collapsed');
-            sheetEl.classList.add('bs-expanded');
-            expandedHeight = Math.min(window.innerHeight * 0.88, sheetEl.scrollHeight);
-        } else {
-            sheetEl.classList.remove('bs-collapsed');
-            sheetEl.classList.add('bs-expanded');
-            expandedHeight = Math.min(window.innerHeight * 0.88, sheetEl.scrollHeight);
-            sheetEl.classList.remove('bs-expanded');
-            sheetEl.classList.add('bs-collapsed');
-        }
+    function _showMenubtm() {
+        if (menubtmEl) menubtmEl.classList.remove('menubtm-hidden');
+    }
+    function _hideMenubtm() {
+        if (menubtmEl) menubtmEl.classList.add('menubtm-hidden');
     }
 
     function expand() {
@@ -11454,6 +11440,12 @@ const BottomSheet = (() => {
         sheetEl.classList.remove('bs-collapsed');
         sheetEl.classList.add('bs-expanded');
         sheetEl.style.transform = '';
+        sheetEl.setAttribute('aria-hidden', 'false');
+        if (scrimEl) {
+            scrimEl.style.opacity = '';
+            scrimEl.classList.add('bs-visible');
+        }
+        _hideMenubtm();
         soundsUX('MBF_Popup');
         safeVibrate?.([20]);
     }
@@ -11464,44 +11456,50 @@ const BottomSheet = (() => {
         sheetEl.classList.remove('bs-expanded');
         sheetEl.classList.add('bs-collapsed');
         sheetEl.style.transform = '';
+        sheetEl.setAttribute('aria-hidden', 'true');
+        if (scrimEl) {
+            scrimEl.style.opacity = '';
+            scrimEl.classList.remove('bs-visible');
+        }
+        // Slight delay so the sheet starts sliding away before the pill fades back in
+        setTimeout(_showMenubtm, 80);
         safeVibrate?.([15]);
     }
 
     function toggle() { isExpanded ? collapse() : expand(); }
 
+    // ── Drag handlers (only meaningful while expanded — drag down to dismiss) ──
     function _onPointerDown(e) {
+        if (!isExpanded) return;
         if (e.pointerType === 'mouse' && e.button !== 0) return;
-
         isDragging = true;
         sheetEl.classList.add('bs-dragging');
         dragStartY = e.clientY;
         lastY = e.clientY;
-        dragStartTime = lastTime = performance.now();
+        lastTime = performance.now();
         velocity = 0;
-        try { handleZoneEl.setPointerCapture(e.pointerId); } catch (_) {}
+        sheetHeight = sheetEl.getBoundingClientRect().height || 1;
+        try { handleZoneEl.setPointerCapture?.(e.pointerId); } catch (_) {}
     }
 
     function _onPointerMove(e) {
         if (!isDragging) return;
         e.preventDefault?.();
         const now = performance.now();
-        const dy  = e.clientY - lastY;
-        const dt  = Math.max(1, now - lastTime);
-        velocity = dy / dt; // px / ms (positive = downward)
+        const dt = Math.max(1, now - lastTime);
+        velocity = (e.clientY - lastY) / dt;
         lastY = e.clientY;
         lastTime = now;
 
-        const totalDelta = e.clientY - dragStartY; // positive = downward
-        let translateY;
-
-        if (isExpanded) {
-            translateY = Math.max(0, totalDelta);
-            if (totalDelta < 0) translateY = totalDelta / 6;
-        } else {
-            translateY = Math.min(0, totalDelta);
-            if (totalDelta > 0) translateY = totalDelta / 6;
-        }
+        const totalDelta = e.clientY - dragStartY;
+        // Only allow downward drag, with light resistance upward
+        const translateY = totalDelta > 0 ? totalDelta : totalDelta / 5;
         sheetEl.style.transform = `translate(-50%, ${translateY}px)`;
+
+        // Fade the scrim proportionally as the sheet is pulled down
+        if (scrimEl && totalDelta > 0) {
+            scrimEl.style.opacity = String(Math.max(0, 1 - totalDelta / sheetHeight));
+        }
     }
 
     function _onPointerUp(e) {
@@ -11511,54 +11509,49 @@ const BottomSheet = (() => {
         try { handleZoneEl.releasePointerCapture?.(e.pointerId); } catch (_) {}
 
         const totalDelta = e.clientY - dragStartY;
-        const distance = Math.abs(totalDelta);
-        const fastSwipe = Math.abs(velocity) > COLLAPSE_VEL;
+        const fastDown = velocity > SWIPE_VEL;
 
-        if (isExpanded) {
-            // Collapse if dragged sufficiently down or fast swipe down
-            if ((totalDelta > 80 && distance > 0) || (fastSwipe && velocity > 0)) {
-                collapse();
-            } else {
-                expand(); // reset
-            }
+        if (totalDelta > 100 || (fastDown && totalDelta > 20)) {
+            collapse();
         } else {
-            // Expand if dragged sufficiently up or fast swipe up
-            if ((totalDelta < -60) || (fastSwipe && velocity < 0)) {
-                expand();
-            } else {
-                collapse(); // reset
-            }
+            // Snap back open
+            sheetEl.style.transform = '';
+            if (scrimEl) scrimEl.style.opacity = '';
         }
     }
 
     function init() {
-        sheetEl     = document.getElementById('bottom-sheet');
-        contentEl   = document.getElementById('bs-content');
+        sheetEl      = document.getElementById('bottom-sheet');
+        scrimEl      = document.getElementById('bs-scrim');
         handleZoneEl = document.getElementById('bs-handle-zone');
-        menubtmEl   = document.getElementById('menubtm');
+        menubtmEl    = document.getElementById('menubtm');
 
         if (!sheetEl || !handleZoneEl) return;
 
-        _measure();
-        window.addEventListener('resize', () => _measure());
-
-        // Click on the handle zone (without movement) toggles the state
-        let downX = 0, downY = 0;
+        // Drag the handle to dismiss
+        let downX = 0, downY = 0, downT = 0;
         handleZoneEl.addEventListener('pointerdown', (e) => {
-            downX = e.clientX; downY = e.clientY;
+            downX = e.clientX; downY = e.clientY; downT = performance.now();
             _onPointerDown(e);
         });
         handleZoneEl.addEventListener('pointermove', _onPointerMove);
         const upHandler = (e) => {
-            if (!isDragging) return;
+            if (!isDragging) {
+                // Tap with no drag while expanded → also collapse
+                const dx = Math.abs(e.clientX - downX);
+                const dy = Math.abs(e.clientY - downY);
+                const dt = performance.now() - downT;
+                if (isExpanded && dx < 5 && dy < 5 && dt < 250) collapse();
+                return;
+            }
             const dx = Math.abs(e.clientX - downX);
             const dy = Math.abs(e.clientY - downY);
-            if (dx < 5 && dy < 5) {
-                // Treat as a tap on the handle
+            const dt = performance.now() - downT;
+            if (dx < 5 && dy < 5 && dt < 250) {
                 isDragging = false;
                 sheetEl.classList.remove('bs-dragging');
                 sheetEl.style.transform = '';
-                toggle();
+                if (isExpanded) collapse();
                 return;
             }
             _onPointerUp(e);
@@ -11566,6 +11559,12 @@ const BottomSheet = (() => {
         handleZoneEl.addEventListener('pointerup', upHandler);
         handleZoneEl.addEventListener('pointercancel', upHandler);
 
+        // Tap the scrim to close
+        if (scrimEl) {
+            scrimEl.addEventListener('click', () => { if (isExpanded) collapse(); });
+        }
+
+        // Swipe up on the menubtm pill (anywhere not on a button) to open the sheet
         let rowStartY = 0, rowStartT = 0, rowTracking = false;
         menubtmEl?.addEventListener('pointerdown', (e) => {
             if (isExpanded) return;
@@ -11576,12 +11575,16 @@ const BottomSheet = (() => {
         menubtmEl?.addEventListener('pointerup', (e) => {
             if (!rowTracking) return;
             rowTracking = false;
-            const dy = rowStartY - e.clientY; // positive = upward
+            const dy = rowStartY - e.clientY;
             const dt = performance.now() - rowStartT;
-            // Fast upward flick on the icon row → expand
-            if (dy > 50 && dt < 350) expand();
+            if (dy > 50 && dt < 400) expand();
         });
         menubtmEl?.addEventListener('pointercancel', () => { rowTracking = false; });
+
+        // ESC closes the sheet
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isExpanded) collapse();
+        });
     }
 
     return {
@@ -11693,10 +11696,35 @@ function _wireBottomSheetButtons() {
 }
 
 function _refreshBottomSheetGreeting() {
-    const sub = document.getElementById('bs-network-name');
-    if (!sub) return;
     const id = window.ACTIVE_NETWORK || 'palmbus';
-    sub.textContent = `${id} · My Bus Finder`;
+
+    // Subtitle in the hero
+    const sub = document.getElementById('bs-network-name');
+    if (sub) sub.textContent = `Réseau · ${id}`;
+
+    // Hero logo (active network's whitelogo, with logo.png as fallback)
+    const heroLogo = document.getElementById('bs-hero-logo');
+    if (heroLogo) {
+        heroLogo.src = `networks/${id}/src/whitelogo.png`;
+        heroLogo.onerror = () => {
+            heroLogo.onerror = null;
+            heroLogo.src = `networks/${id}/src/logo.png`;
+        };
+    }
+
+    // Network switcher link's subtext
+    const linkNet = document.getElementById('bs-link-net');
+    if (linkNet) linkNet.textContent = `Actuellement : ${id}`;
+
+    // Greet by time of day
+    const title = document.getElementById('bs-hero-title');
+    if (title) {
+        const h = new Date().getHours();
+        if      (h < 6  || h >= 22) title.textContent = 'Bonsoir';
+        else if (h < 12)            title.textContent = 'Bonjour';
+        else if (h < 18)            title.textContent = 'Bon après-midi';
+        else                        title.textContent = 'Bonsoir';
+    }
 }
 
 
