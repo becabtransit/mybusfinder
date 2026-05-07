@@ -11420,7 +11420,6 @@ async function openNetworkSwitcher() {
             stagger += STEP;
 
             item.innerHTML = `
-                <img class="ns-item-logo" src="networks/${net.id}/src/logo.png" alt="" />
                 <div class="ns-item-text">
                     <div class="ns-item-name">
                         ${net.name}${net.nightly ? ' <span class="ns-nightly">nightly</span>' : ''}
@@ -11431,10 +11430,6 @@ async function openNetworkSwitcher() {
                     ? `<svg class="ns-item-arrow" viewBox="0 0 24 24" fill="none"><path d="M5 12L10 17L20 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
                     : `<svg class="ns-item-arrow" viewBox="0 0 24 24" fill="none"><path d="M9 5L16 12L9 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
             `;
-
-            // Hide logo gracefully on 404 instead of broken-image icon
-            const logoImg = item.querySelector('.ns-item-logo');
-            if (logoImg) logoImg.onerror = () => { logoImg.style.visibility = 'hidden'; };
 
             item.addEventListener('click', () => {
                 if (isActive) { closeNetworkSwitcher(); return; }
