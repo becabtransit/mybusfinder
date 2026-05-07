@@ -1152,14 +1152,12 @@ async function initMap() {
     const storageKey = `mapPosition_${location.pathname}`;
     const savedPosition = JSON.parse(localStorage.getItem(storageKey) || "null");
 
-    if (L) { 
-        window.mapInstance = L.map('map', {
-            zoomControl: false
-        }).setView(
-            savedPosition && savedPosition.center ? savedPosition.center : defaultCoords,
-            savedPosition && savedPosition.zoom ? savedPosition.zoom : defaultZoom
-        );
-    } 
+    window.mapInstance = L.map('map', {
+        zoomControl: false
+    }).setView(
+        savedPosition && savedPosition.center ? savedPosition.center : defaultCoords,
+        savedPosition && savedPosition.zoom ? savedPosition.zoom : defaultZoom
+    );
 
     mapInstance.on("moveend", () => {
         const center = mapInstance.getCenter();
@@ -2322,11 +2320,11 @@ const ProgressOverlay = {
         transform: translateX(-50%) translateY(-40px);
         z-index: 9999999;
         width: 90%;
-        background: rgba(30, 30, 30, 0);
+        background: rgba(30, 30, 30, 0.75);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0);
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
         padding: 16px 200px;
         font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', sans-serif;
         opacity: 0;
@@ -5967,7 +5965,7 @@ const MenuManager = {
             z-index: 1;
         `;
         
-        const displayLabel = vehicleLabel?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "").replace("SUM", "").replace("TCA", "").replace(/Véhicule inconnu\.?/, "inconnu");
+        const displayLabel = vehicleLabel.replace(/Véhicule inconnu\.?/, "inconnu");
         const busIdBox = document.createElement('div');
         busIdBox.className = 'bus-id';
         busIdBox.textContent = displayLabel;
@@ -6105,9 +6103,9 @@ const MenuManager = {
         `;
 
         const arrow = document.createElement('span');
-        arrow.textContent = '↬';
+        arrow.textContent = '▶';
         arrow.style.cssText = `
-            font-size: 14px;
+            font-size: 10px;
             color: ${lineSection.textColor};
             opacity: 0.6;
             transition: transform 0.25s ease;
@@ -6251,7 +6249,7 @@ const MenuManager = {
                 // Re-évalue si le statut a changé
                 const { nextStopInfo } = this._getBusInfo(
                     bus.vehicle, bus.vehicleData?.trip?.tripId,
-                    bus.vehicleData?.stopId?.replace("0:", "") || ''
+                    bus.vehicleData?.stopId?.replace("0:", "").replace("TCAR:Vehicle::", "").replace(":LOC", "") || ''
                 );
                 busItem.dataset.unavailable = (nextStopInfo === t("unavailabletrip")) ? 'true' : 'false';
             } else {
@@ -6279,7 +6277,7 @@ const MenuManager = {
     _updateBusItem(busItem, bus) {
         const marker = bus.vehicle;
         const tripId = marker.vehicleData?.trip?.tripId;
-        const stopId = marker.vehicleData?.stopId?.replace("0:", "") || '';
+        const stopId = marker.vehicleData?.stopId?.replace("0:", "").replace("TCAR:Vehicle::", "").replace(":LOC", "") || '';
         
         const { nextStopInfo, terminusInfo } = this._getBusInfo(marker, tripId, stopId);
         
@@ -6296,7 +6294,7 @@ const MenuManager = {
         const line = marker.line;
         
         let currentStopIndex = nextStops.findIndex(stop => 
-            stop.stopId.replace("0:", "") === stopId
+            stop.stopId.replace("0:", "").replace("TCAR:Vehicle::", "").replace(":LOC", "") === stopId
         );
         
         let filteredStops = [];
@@ -7760,7 +7758,7 @@ function computeDelaySeconds(tripId, stopId, rtArrivalTime) {
     const tripStops = window.staticStopTimes[tripId];
     if (!tripStops) return null;
 
-    const cleanStopId = stopId.replace("0:", "").trim();
+    const cleanStopId = stopId.replace("0:", "").replace("TCAR:Vehicle::", "").replace(":LOC", "").trim();
     
     const staticStop = tripStops[cleanStopId] 
         || tripStops["0:" + cleanStopId]
@@ -8174,7 +8172,7 @@ async function fetchVehiclePositions() {
 
 
                 const stopIdun = vehicle.stopId || 'Inconnu';
-                let stopId = stopIdun.replace("0:", "");
+                let stopId = stopIdun.replace("0:", "").replace("TCAR:Vehicle::", "").replace(":LOC", "");
                 const latitude = vehicle.position.latitude;
                 const longitude = vehicle.position.longitude;
                 const occupancyStatus = vehicle?.occupancyStatus ?? null;
@@ -8215,10 +8213,10 @@ async function fetchVehiclePositions() {
 
                 const lastStopId = tripUpdates[tripId] ? tripUpdates[tripId].lastStopId : 'Inconnu';
                 const lastStopNameun = stopNameMap[lastStopId] || 'Haut-le-Pied';
-                let lastStopName = lastStopNameun.replace("0:", "");
+                let lastStopName = lastStopNameun.replace("0:", "").replace("TCAR:Vehicle::", "").replace(":LOC", "");
                 
                 const nextStops = tripUpdates[tripId]?.nextStops || [];
-                let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
+                let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "").replace("TCAR:Vehicle::", "").replace(":LOC", "") === stopId.replace("0:", "").replace("TCAR:Vehicle::", "").replace(":LOC", ""));
                 const now = Math.floor(Date.now() / 1000);
 
                 let filteredStops = [];
@@ -8256,7 +8254,7 @@ async function fetchVehiclePositions() {
                     // le terminus de depart = premier arrêt du trip (stop_sequence la plus basse)
                     // les stops sont indexés par stopId , y faut trouver le premier
                     // On compare avec le stopId actuel du vehicule
-                    const cleanCurrentStopId = stopId.replace("0:", "").trim();
+                    const cleanCurrentStopId = stopId.replace("0:", "").replace("TCAR:Vehicle::", "").replace(":LOC", "").trim();
                     
                     // vérifier si le stopId actuel est le premier arrêt
                     // en cherchant l'heure de départ la plus tot dans le trip
@@ -8272,7 +8270,7 @@ async function fetchVehiclePositions() {
                         
                         if (earliestTime === null || secs < earliestTime) {
                             earliestTime = secs;
-                            earliestStopId = sid.replace("0:", "").trim();
+                            earliestStopId = sid.replace("0:", "").replace("TCAR:Vehicle::", "").replace(":LOC", "").trim();
                         }
                     }
                     
@@ -8803,8 +8801,8 @@ async function fetchVehiclePositions() {
                                                 <div class="options custom-scrollbar">
                                                     <span class="parc-badge">
                                                         <svg class="parc-icon" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-                                                        <span class="parc-number">${(vehicle?.vehicle?.label?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || vehicle?.vehicle?.id?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || t("unknownparc")).toString().padStart(3, '0')}</span>
-                                                        <span class="parc-number-hidden">${(vehicle?.vehicle?.label?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || vehicle?.vehicle?.id?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || t("unknownparc"))}</span>
+                                                        <span class="parc-number">${(vehicle.vehicle.label || vehicle.vehicle.id || t("unknownparc")).toString().padStart(3, '0')}</span>
+                                                        <span class="parc-number-hidden">${(vehicle.vehicle.label || vehicle.vehicle.id || t("unknownparc"))}</span>
                                                     </span>
                                                     ${vehicleOptionsBadges}
                                                 </div>
