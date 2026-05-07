@@ -8518,62 +8518,60 @@ async function fetchVehiclePositions() {
 
                 let stopsListHTML = '';
                 if (filteredStops.length > 0) {
-                stopsListHTML = filteredStops.map((stop, i) => {
-                    const stopTime = stop.arrivalTime || stop.departureTime;
-                    let mins = null;
+                    stopsListHTML = filteredStops.map(stop => {
+                        const stopTime = stop.arrivalTime || stop.departureTime;
+                        let timeLeftText = '';
 
-                    if (stopTime && stopTime.includes(':')) {
-                    const parts = stopTime.split(':').map(Number);
-                    const now = new Date();
-                    const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-                    let arrSec = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
-                    let diff = arrSec - nowSec;
-                    if (diff < -3600) diff += 86400;
-                    mins = diff <= 60 ? 0 : Math.ceil(diff / 60);
-                    } else if (stopTime && !isNaN(stopTime)) {
-                    const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
-                    mins = diff <= 60 ? 0 : Math.ceil(diff / 60);
-                    }
-
-                    const isFirst  = i === 0;
-                    const isLast   = i === filteredStops.length - 1;
-                    const isImm    = mins === 0;
-                    const isSoon   = mins !== null && mins <= 5 && !isImm;
-                    const timeLabel = mins === null ? '' : isImm ? t('imminent') : `${mins} min`;
-                    const badgeCls  = isImm ? 'imm' : isSoon ? 'soon' : 'norm';
-                    const dotColor  = isImm ? '#dc3232' : isSoon ? '#b86e00' : '#aaa';
-                    const isLive    = isImm || isSoon;
-                    const stopName  = stopNameMap[stop.stopId] || stop.stopId;
-
-                    const connTop = !isFirst
-                    ? `<div class="cl" style="top:0;bottom:50%"></div>` : '';
-                    const connBot = !isLast
-                    ? `<div class="cl" style="top:50%;bottom:0"></div>` : '';
-
-                    return `
-                    <div class="sr${isImm ? ' urgent' : ''}" style="animation-delay:${i*45}ms">
-                    <div class="dw">
-                        ${connTop}${connBot}
-                        <div class="dot${isLive ? ' live' : ''}" style="background:${dotColor}">
-                        ${isLive ? `<div class="dr" style="color:${dotColor}"></div>` : ''}
-                        </div>
-                    </div>
-                    <div class="sn" style="${isFirst ? 'font-weight:500' : ''}">${stopName}</div>
-                    ${timeLabel ? `
-                    <div class="tb ${badgeCls}">
-                        ${isLive ? `<span class="tk live" style="background:${dotColor}"></span>` : ''}
-                        ${timeLabel}
-                    </div>` : ''}
-                    </div>`;
-                }).join('');
+                        if (stopTime && stopTime.includes(':')) {
+                            const parts = stopTime.split(':').map(Number);
+                            const now = new Date();
+                            const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                            let arrivalSeconds = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
+                            
+                            let diff = arrivalSeconds - nowSeconds;
+                            if (diff < -3600) diff += 86400;
+                            
+                            timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
+                        } else if (stopTime && !isNaN(stopTime)) {
+                            const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
+                            timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
+                        }
+                        
+                        const stopName = stopNameMap[stop.stopId] || stop.stopId;
+                                                
+                        return `
+                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                            <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
+                                <div class="stop-name-wrapper" style="position: relative; display: inline-block; padding-right: 10px;">
+                                    <div class="stop-name" style="position: relative; display: inline-block;">${stopName}</div>
+                                </div>
+                            </div>
+                            <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
+                                <div class="time-display" 
+                                    data-time-left="${timeLeftText}" 
+                                    data-departure-time="${stop.arrivalTime || stop.departureTime || "Inconnu"}">
+                                    ${timeLeftText}
+                                </div>
+                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <g class="rss-waves">
+                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
+                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                    </g>
+                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
+                                </svg>
+                            </div>
+                        </li>`;
+                    }).join('');
                 }
 
                 const nextStopsHTML = `
-                <div style="position:relative; max-height:120px; overflow-y:auto; overflow-x:hidden;
-                            scrollbar-width:thin; width:100%;">
-                    ${stopsListHTML}
-                </div>
+                    <div style="position: relative; max-height: 120px;">
+                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px;">
+                            ${stopsListHTML}
+                        </ul>
+                    </div>
                 `;
+
                 initTimeToggle();
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
