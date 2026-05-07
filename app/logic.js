@@ -3442,6 +3442,8 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             lastActiveMarkerId = markerId;
             lastActiveColor = color;
         }
+        window._mbfLastOpenedVehicleId = marker.id;
+        _updateLastVehicle();
     });
 
     marker.on('popupclose', async function(e) {
@@ -7283,12 +7285,71 @@ function updateMenu() {
             nextStops: marker.rawData?.nextStops || []
         });
     });
+
+    function _updateBottomSheetStats() {
+    const vEl = document.getElementById('bs-stat-vehicles-val');
+    const lEl = document.getElementById('bs-stat-lines-val');
+    const dEl = document.getElementById('bs-stat-delay-val');
+    if (!vEl) return;
+
+    const totalV = markerPool.active.size;
+    const totalL = new Set([...markerPool.active.values()].map(m => m.line)).size;
+    vEl.textContent = totalV;
+    lEl.textContent = totalL;
+
+    if (MenuManager._computeNetworkStats) {
+        const s = MenuManager._computeNetworkStats();
+        if (s.onTimePercent !== null) {
+            dEl.textContent = s.onTimePercent + '%';
+            dEl.style.color = s.onTimePercent >= 70
+                ? '#a5f3c0' : s.onTimePercent >= 50 ? '#fde68a' : '#fca5a5';
+        } else {
+            dEl.textContent = '—';
+        }
+    }
+}
+
+function _updateLastVehicle() {
+    const consulted = parseInt(localStorage.getItem('mbf_vehicles_consulted') || '0');
+    if (consulted === 0) return;
+    const lastId = window._mbfLastOpenedVehicleId;
+    if (!lastId) return;
+    const marker = markerPool.get(lastId);
+    if (!marker) return;
+
+    const line = marker.line;
+    const color = lineColors[line] || '#555';
+    const textCol = getTextColor(color);
+    const label = String(marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || lastId)
+        .replace(/Véhicule inconnu\.?/, '?');
+
+    const wrap = document.getElementById('bs-last-vehicle');
+    const badge = document.getElementById('bs-last-vehicle-line');
+    const info  = document.getElementById('bs-last-vehicle-info');
+    const btn   = document.getElementById('bs-last-vehicle-btn');
+    if (!wrap || !badge || !info || !btn) return;
+
+    badge.textContent = lineName[line] || line;
+    badge.style.background = color;
+    badge.style.color = textCol;
+    info.textContent = `#${label} · ${marker.destination || ''}`;
+    wrap.style.display = 'block';
+
+    btn.onclick = () => {
+        safeVibrate?.([30], true);
+        collapseBottomSheet();
+        map.setView(marker.getLatLng(), 15);
+        marker.openPopup();
+    };
+}
     
     if (!MenuManager.isInitialized || MenuManager.sections.size === 0) {
         MenuManager.generateInitialStructure(busesByLineAndDestination);
     } else {
         MenuManager.updateData(busesByLineAndDestination);
     }
+    _updateBottomSheetStats();
+    _updateLastVehicle();
 }
 
 
@@ -11456,6 +11517,14 @@ const BottomSheet = (() => {
         sheetEl.style.transform = '';
         soundsUX('MBF_Popup');
         safeVibrate?.([20]);
+
+        const menubtm = document.getElementById('menubtm');
+        if (menubtm) {
+            menubtm.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+            menubtm.style.opacity = '0';
+            menubtm.style.pointerEvents = 'none';
+            menubtm.style.transform = 'translateY(20px)';
+        }
     }
 
     function collapse() {
@@ -11465,6 +11534,14 @@ const BottomSheet = (() => {
         sheetEl.classList.add('bs-collapsed');
         sheetEl.style.transform = '';
         safeVibrate?.([15]);
+
+        const menubtm = document.getElementById('menubtm');
+        if (menubtm) {
+            menubtm.style.transition = 'opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s';
+            menubtm.style.opacity = '1';
+            menubtm.style.pointerEvents = '';
+            menubtm.style.transform = '';
+        }
     }
 
     function toggle() { isExpanded ? collapse() : expand(); }
@@ -11599,8 +11676,103 @@ window.expandBottomSheet   = expandBottomSheet;
 window.collapseBottomSheet = collapseBottomSheet;
 
 function _wireBottomSheetButtons() {
-    // Note: the legacy menubtm pill (#clock, #menubutton, #histovecbutton)
-    // keeps its original onclick attributes — we don't wire it again here.
+    const bsSettingsIcon = document.getElementById('bs-settings-icon');
+    if (bsSettingsIcon) bsSettingsIcon.addEventListener('click', () => {
+        safeVibrate?.([30], true);
+        FluentSettingsMenu?.open?.();
+    });
+
+    // Localiser
+    const bsLocate = document.getElementById('bs-locate-btn');
+    if (bsLocate) bsLocate.addEventListener('click', () => {
+        safeVibrate?.([30], true);
+        collapseBottomSheet();
+        locateMe();
+    });
+
+    // Stats → ouvre le dashboard stats dans le menu
+    const bsStatsTile = document.getElementById('bs-stats-tile');
+    if (bsStatsTile) bsStatsTile.addEventListener('click', () => {
+        safeVibrate?.([30], true);
+        collapseBottomSheet();
+        showMenu();
+        setTimeout(() => MenuManager._toggleStatsView?.(), 350);
+    });
+
+    // Recherche rapide
+    const bsInput = document.getElementById('bs-line-search');
+    const bsClear = document.getElementById('bs-search-clear');
+    const bsResults = document.getElementById('bs-search-results');
+
+    function _bsSearch(query) {
+        query = query.trim().toLowerCase();
+        bsResults.innerHTML = '';
+        if (!query) { bsResults.style.display = 'none'; return; }
+
+        const results = [];
+        if (MenuManager.allBuses) {
+            MenuManager.allBuses.forEach(item => {
+                if (results.length >= 8) return;
+                if (item.line.toLowerCase().includes(query)
+                    || item.destination.toLowerCase().includes(query)
+                    || item.vehicleLabel.toLowerCase().includes(query)) {
+                    results.push(item);
+                }
+            });
+        }
+
+        if (results.length === 0) {
+            bsResults.style.display = 'none';
+            return;
+        }
+
+        bsResults.style.display = 'block';
+        results.forEach(item => {
+            const color = lineColors[item.line] || '#555';
+            const textCol = getTextColor(color);
+            const div = document.createElement('div');
+            div.className = 'bs-result-item';
+            div.innerHTML = `
+                <span class="bs-result-badge" style="background:${color};color:${textCol};">
+                    ${lineName[item.line] || item.line}
+                </span>
+                <span class="bs-result-dest">${item.destination}</span>
+                <span class="bs-result-id">#${String(item.vehicleLabel).replace(/Véhicule inconnu\.?/, '?')}</span>
+            `;
+            div.addEventListener('click', () => {
+                safeVibrate?.([30, 40, 30], true);
+                const marker = item.bus?.vehicle;
+                if (marker) {
+                    collapseBottomSheet();
+                    map.setView(marker.getLatLng(), 15);
+                    marker.openPopup();
+                }
+                bsInput.value = '';
+                bsResults.style.display = 'none';
+                bsClear.style.display = 'none';
+            });
+            bsResults.appendChild(div);
+        });
+    }
+
+    if (bsInput) {
+        bsInput.addEventListener('input', (e) => {
+            const v = e.target.value;
+            bsClear.style.display = v ? 'flex' : 'none';
+            _bsSearch(v);
+        });
+        bsInput.addEventListener('focus', () => {
+            expandBottomSheet();
+        });
+    }
+    if (bsClear) {
+        bsClear.addEventListener('click', () => {
+            bsInput.value = '';
+            bsClear.style.display = 'none';
+            bsResults.style.display = 'none';
+            bsInput.focus();
+        });
+    }
 
     const featBus = document.getElementById('bus');
     if (featBus) {
