@@ -8449,61 +8449,84 @@ async function fetchVehiclePositions() {
                     }
                 }
 
-                let stopsListHTML = '';
+               let stopsListHTML = '';
                 if (filteredStops.length > 0) {
-                    stopsListHTML = filteredStops.map(stop => {
+                    stopsListHTML = filteredStops.map((stop, i) => {
                         const stopTime = stop.arrivalTime || stop.departureTime;
                         let timeLeftText = '';
+                        let isImminent = false;
+                        let isFar = false;
 
                         if (stopTime && stopTime.includes(':')) {
                             const parts = stopTime.split(':').map(Number);
                             const now = new Date();
                             const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
                             let arrivalSeconds = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
-                            
                             let diff = arrivalSeconds - nowSeconds;
                             if (diff < -3600) diff += 86400;
-                            
-                            timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
+                            isImminent = diff <= 60;
+                            isFar = Math.ceil(diff / 60) >= 20;
+                            timeLeftText = isImminent ? t("imminent") : `${Math.ceil(diff / 60)} min`;
                         } else if (stopTime && !isNaN(stopTime)) {
                             const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
-                            timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
+                            isImminent = diff <= 60;
+                            isFar = Math.ceil(diff / 60) >= 20;
+                            timeLeftText = isImminent ? t("imminent") : `${Math.ceil(diff / 60)} min`;
                         }
-                        
+
                         const stopName = stopNameMap[stop.stopId] || stop.stopId;
-                                                
+                        const dotClass = isImminent ? 'led-dot imminent' : isFar ? 'led-dot far' : 'led-dot';
+                        const badgeClass = isImminent ? 'time-badge imminent' : 'time-badge';
+                        const signalColor = isImminent ? '#ff6b35' : '#00d4ff';
+                        const needsScroll = stopName.length > 22;
+
                         return `
-                    <li style="list-style:none; display:flex; align-items:center; justify-content:space-between; padding:6px 10px; border-radius:8px; transition:background 0.15s;"
-                        onmouseover="this.style.background='var(--color-background-secondary)'"
-                        onmouseout="this.style.background='transparent'">
-                        
-                        <div style="display:flex; align-items:center; min-width:0;">
-                            <div style="width:6px; height:6px; border-radius:50%; background:var(--color-border-primary); flex-shrink:0; margin-right:8px;"></div>
-                            <span style="font-size:13px; color:var(--color-text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;">${stopName}</span>
-                        </div>
-                        
-                        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                            <span class="time-display"
-                                data-time-left="${timeLeftText}"
-                                data-departure-time="${stop.arrivalTime || stop.departureTime || 'Inconnu'}"
-                                style="font-size:12px; font-weight:500; padding:2px 8px; border-radius:99px; border:0.5px solid; ${timeLeftText === t('imminent') ? 'background:#FAECE7; color:#993C1D; border-color:#F0997B;' : 'background:var(--color-background-secondary); color:var(--color-text-secondary); border-color:var(--color-border-tertiary);'}">
-                                ${timeLeftText}
-                            </span>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-text-tertiary); flex-shrink:0;" aria-hidden="true">
-                                <g class="rss-waves">
-                                    <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
-                                    <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
-                                </g>
-                                <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
-                            </svg>
-                        </div>
-                    </li>`;
+                        <li style="list-style:none; display:flex; align-items:center; gap:8px; padding:4px 10px; border-bottom:1px solid rgba(255,255,255,0.04); position:relative;">
+                            <div style="display:flex; flex-direction:column; align-items:center; gap:2px; min-width:10px;">
+                                <div class="${dotClass}" style="animation-delay:${i * 0.3}s"></div>
+                                <div style="width:1px; height:3px; background:rgba(0,212,255,0.2);"></div>
+                            </div>
+                            <div class="stop-name-container" style="flex:1; overflow:hidden;">
+                                <div class="stop-name ${needsScroll ? 'scrolling' : ''}" style="font-family:'Courier New',monospace; font-size:11.5px; color:#c8deff; letter-spacing:0.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${stopName}</div>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:5px; min-width:52px; justify-content:flex-end;">
+                                <svg class="signal-icon" xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="${signalColor}" stroke-width="2.5" stroke-linecap="round">
+                                    <path class="arc1" d="M4 4a16 16 0 0 1 16 16"></path>
+                                    <path class="arc2" d="M4 11a9 9 0 0 1 9 9"></path>
+                                    <circle class="dot" cx="5" cy="19" r="1" fill="${signalColor}"></circle>
+                                </svg>
+                                <div class="${badgeClass}"
+                                    data-time-left="${timeLeftText}"
+                                    data-departure-time="${stop.arrivalTime || stop.departureTime || 'Inconnu'}">
+                                    ${timeLeftText}
+                                </div>
+                            </div>
+                        </li>`;
                     }).join('');
                 }
 
                 const nextStopsHTML = `
-                    <div style="background:var(--color-background-primary); border:0.5px solid var(--color-border-tertiary); border-radius:12px; padding:6px 4px; max-height:160px; overflow:hidden;">
-                        <ul style="padding:0; margin:0; list-style:none; display:flex; flex-direction:column; gap:2px;">
+                    <style>
+                        .stops-panel { scrollbar-width:thin; scrollbar-color:#1e3a5f #0a0e1a; }
+                        .stops-panel::-webkit-scrollbar { width:4px; }
+                        .stops-panel::-webkit-scrollbar-thumb { background:#1e3a5f; border-radius:2px; }
+                        .led-dot { width:6px; height:6px; border-radius:50%; background:#00d4ff; box-shadow:0 0 4px #00d4ff, 0 0 8px rgba(0,212,255,0.4); animation:ledPulse 2s ease-in-out infinite; }
+                        .led-dot.imminent { background:#ff6b35; box-shadow:0 0 4px #ff6b35; animation:ledBlink 0.8s ease-in-out infinite; }
+                        .led-dot.far { background:#00e87a; box-shadow:0 0 4px #00e87a; animation:ledPulse 3s ease-in-out infinite; }
+                        .time-badge { font-family:'Courier New',monospace; font-size:11px; font-weight:bold; letter-spacing:0.06em; padding:1px 5px; border-radius:3px; background:rgba(0,212,255,0.1); color:#00d4ff; border:1px solid rgba(0,212,255,0.25); }
+                        .time-badge.imminent { background:rgba(255,107,53,0.15); color:#ff6b35; border-color:rgba(255,107,53,0.4); animation:flashBadge 1s ease-in-out infinite; }
+                        .signal-icon .arc1 { animation:signalArc 2.4s ease-in-out infinite; }
+                        .signal-icon .arc2 { animation:signalArc 2.4s ease-in-out infinite 0.4s; }
+                        .signal-icon .dot  { animation:signalArc 2.4s ease-in-out infinite 0.8s; }
+                        .stop-name.scrolling { animation:marquee 6s linear infinite; }
+                        @keyframes ledPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+                        @keyframes ledBlink { 0%,100%{opacity:1;transform:scale(1.1)} 50%{opacity:0.2;transform:scale(0.9)} }
+                        @keyframes flashBadge { 0%,100%{opacity:1} 50%{opacity:0.5} }
+                        @keyframes signalArc { 0%,60%,100%{opacity:0.4} 30%{opacity:1} }
+                        @keyframes marquee { 0%,30%{transform:translateX(0)} 70%{transform:translateX(calc(-100% + 90px))} 100%{transform:translateX(0)} }
+                    </style>
+                    <div class="stops-panel" style="background:#0a0e1a; border-radius:8px; padding:6px 0; max-height:120px; overflow-y:auto; overflow-x:hidden; border:1px solid #1a2a4a; position:relative;">
+                        <ul style="padding:0; margin:0; list-style-type:none;">
                             ${stopsListHTML}
                         </ul>
                     </div>
