@@ -1888,7 +1888,6 @@ function closeUpdatePopup() {
     const iframe = document.getElementById('webview-frame');
     hideLanguageSwitcher();
 
-    
     if (iframe.dataset.originalSrc) {
         const timestamp = new Date().getTime();
         iframe.src = iframe.dataset.originalSrc + (iframe.dataset.originalSrc.includes('?') ? '&' : '?') + 'cache=' + timestamp;
@@ -1901,13 +1900,21 @@ function closeUpdatePopup() {
             iframe.src = "";
         }
     }
-    
+
     popup.classList.add('closepop');
     setTimeout(() => {
-        popup.style.display = 'none'; 
-        popup1.style.display = 'none'; 
+        popup.style.display = 'none';
+        popup1.style.display = 'none';
     }, 300);
 
+    if (!BottomSheet.expanded) {
+        const menubottom1 = document.getElementById('menubtm');
+        menubottom1.style.display = 'flex';
+        setTimeout(() => {
+            menubottom1.classList.remove('slide-upb');
+            menubottom1.classList.add('slide-downb');
+        }, 10);
+    }
 }
 
 
@@ -7768,14 +7775,13 @@ function cacheBoutonsenHaut() {
 }
 
 function closeMenu() {
-    cacheBoutonsenHaut()
+    cacheBoutonsenHaut();
     safeVibrate([30], true);
     soundsUX('MBF_SelectedVehicle_DoorClose');
     const menu = document.getElementById('menu');
-    const menubottom1 = document.getElementById('menubtm');
     const mapp = document.getElementById('map');
     mapp.style.opacity = '1';
-    
+
     menu.classList.add('hidden');
     if (localStorage.getItem('transparency') === 'true') {
         const map = document.getElementById('map');
@@ -7790,19 +7796,22 @@ function closeMenu() {
         map.classList.remove('hiddennotransition');
         map.classList.remove('appearnotransition');
     }
-
     window.isMenuShowed = false;
     menu.addEventListener('animationend', function onAnimationEnd(event) {
-        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+        if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) {
             menu.style.display = 'none';
         }
     });
     isMenuVisible = false;
-    menubottom1.style.display = 'flex';
-    setTimeout(() => {
-        menubottom1.classList.remove('slide-upb');
-        menubottom1.classList.add('slide-downb');
-    }, 10);
+
+    if (!BottomSheet.expanded) {
+        const menubottom1 = document.getElementById('menubtm');
+        menubottom1.style.display = 'flex';
+        setTimeout(() => {
+            menubottom1.classList.remove('slide-upb');
+            menubottom1.classList.add('slide-downb');
+        }, 10);
+    }
 }
 
 function computeDelaySeconds(tripId, stopId, rtArrivalTime) {
@@ -9523,13 +9532,11 @@ const menubottom1 = document.getElementById('menubtm');
             map.style.opacity = '1';
             menu.classList.add('hidden');
             if (localStorage.getItem('transparency') === 'true') {
-                const map = document.getElementById('map');
                 map.classList.remove('hiddennotransition');
                 map.classList.add('appearnotransition');
                 map.classList.remove('hidden');
                 map.classList.remove('appear');
             } else {
-                const map = document.getElementById('map');
                 map.classList.remove('hidden');
                 map.classList.add('appear');
                 map.classList.remove('hiddennotransition');
@@ -9537,20 +9544,21 @@ const menubottom1 = document.getElementById('menubtm');
             }
             window.isMenuShowed = false;
             menu.addEventListener('animationend', function onAnimationEnd(event) {
-                if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) { 
+                if (event.animationName === 'slideInBounceInv' && menu.classList.contains('hidden')) {
                     menu.style.display = 'none';
                 }
             });
 
-            const menubottom1 = document.getElementById('menubtm');
-            menubottom1.style.display = 'flex';
-
-            setTimeout(() => {
-                menubottom1.classList.remove('slide-upb');
-                menubottom1.classList.add('slide-downb');
-            }, 10);
-                isMenuVisible = false; 
-            };
+            if (!BottomSheet.expanded) {
+                const menubottom1 = document.getElementById('menubtm');
+                menubottom1.style.display = 'flex';
+                setTimeout(() => {
+                    menubottom1.classList.remove('slide-upb');
+                    menubottom1.classList.add('slide-downb');
+                }, 10);
+            }
+            isMenuVisible = false;
+        };
             
         updateMenu();    
         updateActiveLines();  
@@ -11461,11 +11469,9 @@ const BottomSheet = (() => {
         if (menubtm) {
             menubtm.classList.remove('slide-downb');
             menubtm.classList.add('slide-upb');
-            menubtm.addEventListener('transitionend', () => {
-                if (menubtm.classList.contains('slide-upb')) {
-                    menubtm.style.display = 'none';
-                }
-            }, { once: true });
+            setTimeout(() => {
+                if (isExpanded) menubtm.style.display = 'none';
+            }, 350);
         }
     }
 
