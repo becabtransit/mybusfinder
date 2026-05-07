@@ -2552,65 +2552,92 @@
 .ns-close-btn:active {
     transform: scale(0.78);
 }
+/* ---------- Bottom-sheet base ---------- */
+/* The sheet is a fixed wrapper at the bottom of the viewport.
+   Two visual modes are toggled via classes on #bottom-sheet:
+     - .bs-collapsed → invisible wrapper, only the original
+       pill-shaped #menubtm shows through (legacy look).
+     - .bs-expanded  → full-width glassy sheet covering up to
+       88vh, hosting the handle, the menu content grid, and
+       the #menubtm row at the bottom edge.
+   The wrapper itself is transparent in both modes; only the
+   inner pieces draw chrome. This avoids fighting the legacy
+   #menubtm fixed positioning. */
 #bottom-sheet {
     position: fixed;
     left: 50%;
     bottom: 0;
     transform: translateX(-50%);
-    width: 100%;
-    max-width: 720px;
     z-index: 10000;
     display: flex;
     flex-direction: column;
-    background: var(--bs-bg, rgba(15, 5, 107, 0.78));
-    backdrop-filter: blur(22px) saturate(180%);
-    -webkit-backdrop-filter: blur(22px) saturate(180%);
-    border-top-left-radius: 28px;
-    border-top-right-radius: 28px;
-    border-bottom-left-radius: 28px;
-    border-bottom-right-radius: 28px;
-    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18),
-                inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    align-items: center;
     color: #fff;
+    pointer-events: none;          /* let map clicks pass around the chrome */
     transition: transform 0.55s cubic-bezier(0.25, 1.5, 0.5, 1),
-                background 0.5s ease,
-                border-radius 0.5s cubic-bezier(0.25, 1.5, 0.5, 1),
-                max-height 0.55s cubic-bezier(0.25, 1.5, 0.5, 1);
+                width 0.45s cubic-bezier(0.25, 1.5, 0.5, 1);
     will-change: transform;
-    overflow: hidden;
-    max-height: 100px;
-}
-
-/* Use the colorbkg9c of the active network as the sheet tint */
-#bottom-sheet.bs-collapsed {
-    /* Compact pill-shaped state: only the 4-icon row peeks out. */
-    max-height: 100px;
-    margin-bottom: 10px;
     width: auto;
-    background: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    box-shadow: none;
-    border-radius: 0;
+    max-width: 720px;
 }
-
-#bottom-sheet.bs-expanded {
-    /* Full sheet covering most of the screen height. */
-    max-height: 88vh;
-    width: 100%;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    margin-bottom: 0;
-}
+#bottom-sheet > * { pointer-events: auto; }
 
 /* No transition during an active drag (JS sets transform inline) */
 #bottom-sheet.bs-dragging {
     transition: none !important;
 }
+#bottom-sheet.bs-dragging .bs-sheet-pane {
+    transition: none !important;
+}
 
+/* The single visual surface that hosts the handle, the content,
+   and the #menubtm row. Its glass chrome only switches on in the
+   expanded state — in collapsed mode the pane is transparent so
+   the legacy pill #menubtm shows through unchanged. The pane
+   itself never collapses to 0 height (otherwise the menubtm
+   inside would disappear); only its handle + content shrink. */
+.bs-sheet-pane {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    box-shadow: none;
+    transition: background 0.45s ease,
+                border-radius 0.45s cubic-bezier(0.25, 1.5, 0.5, 1),
+                box-shadow 0.45s ease,
+                backdrop-filter 0.45s ease;
+}
+#bottom-sheet.bs-expanded .bs-sheet-pane {
+    background: var(--bs-bg, rgba(15, 5, 107, 0.78));
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* Collapsed mode: the wrapper takes only the size of #menubtm,
+   the sheet pane is fully collapsed (height 0). */
+#bottom-sheet.bs-collapsed {
+    width: auto;
+}
+
+/* Expanded mode: wrapper goes full-width to host the sheet pane. */
+#bottom-sheet.bs-expanded {
+    width: 100%;
+    max-width: 720px;
+}
+
+/* ---------- Handle ---------- */
 .bs-handle-zone {
     flex-shrink: 0;
-    height: 24px;
+    width: 100%;
+    height: 0;
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2618,45 +2645,53 @@
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
-    opacity: 0;
-    transition: opacity 0.3s ease, height 0.3s ease;
-    padding-top: 4px;
+    transition: height 0.45s cubic-bezier(0.25, 1.5, 0.5, 1),
+                padding 0.45s cubic-bezier(0.25, 1.5, 0.5, 1);
+    padding: 0;
 }
 #bottom-sheet.bs-expanded .bs-handle-zone {
-    opacity: 1;
     height: 28px;
+    padding-top: 6px;
 }
 .bs-handle-zone:active { cursor: grabbing; }
 .bs-handle-bar {
     width: 44px;
     height: 5px;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.45);
+    background: rgba(255, 255, 255, 0.55);
     transition: background 0.2s ease, transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 .bs-handle-zone:active .bs-handle-bar {
-    background: rgba(255, 255, 255, 0.75);
+    background: rgba(255, 255, 255, 0.85);
     transform: scaleX(1.1);
 }
 
+/* ---------- Expanded content ---------- */
 .bs-content {
-    flex: 1 1 auto;
-    overflow-y: auto;
+    flex: 0 1 auto;
+    width: 100%;
+    box-sizing: border-box;
+    max-height: 0;
+    overflow: hidden;
     -webkit-overflow-scrolling: touch;
-    padding: 4px 18px 16px;
+    padding: 0 18px;
     opacity: 0;
     transform: translateY(12px);
-    transition: opacity 0.45s ease 0.05s, transform 0.55s cubic-bezier(0.25, 1.5, 0.5, 1) 0.05s;
-    pointer-events: none;
+    transition: max-height 0.55s cubic-bezier(0.25, 1.5, 0.5, 1),
+                padding 0.45s cubic-bezier(0.25, 1.5, 0.5, 1),
+                opacity 0.4s ease,
+                transform 0.55s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
 #bottom-sheet.bs-expanded .bs-content {
+    max-height: calc(88vh - 110px);
+    overflow-y: auto;
+    padding: 4px 18px 14px;
     opacity: 1;
     transform: translateY(0);
-    pointer-events: auto;
-}
-#bottom-sheet.bs-collapsed .bs-content {
-    /* When collapsed, the content shouldn't be reachable via tab/scroll. */
-    pointer-events: none;
+    transition: max-height 0.55s cubic-bezier(0.25, 1.5, 0.5, 1),
+                padding 0.45s cubic-bezier(0.25, 1.5, 0.5, 1),
+                opacity 0.4s ease 0.1s,
+                transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1) 0.1s;
 }
 .bs-content::-webkit-scrollbar { width: 6px; }
 .bs-content::-webkit-scrollbar-thumb {
@@ -2803,21 +2838,26 @@
     min-width: 0;
 }
 
-/* When the sheet is collapsed we override the legacy fixed
-   positioning of #menubtm so it sits naturally inside #bottom-sheet. */
+/* ---------- #menubtm (icon row) inside the sheet ----------
+   Collapsed: keeps its original pill chrome (background colour,
+              border-radius 40px, blur, etc.) — see the legacy
+              .menubottom-ul rule earlier in this stylesheet.
+   Expanded: stretches to the sheet width, drops its pill chrome,
+             and gets a subtle separator from the content above. */
 #bottom-sheet #menubtm {
     position: relative;
     bottom: auto;
     left: auto;
     transform: none;
-    margin: 0 auto;
     flex-shrink: 0;
 }
-
+#bottom-sheet.bs-collapsed #menubtm {
+    /* Restore the small offset from the bottom edge (was bottom:10px) */
+    margin: 0 auto 10px;
+}
 #bottom-sheet.bs-expanded #menubtm {
-    /* In expanded state, the icon row sticks to the bottom edge but
-       borrows the sheet's tinted background (no extra pill chrome). */
-    background-color: transparent;
+    margin: 0;
+    background-color: transparent !important;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     border: none;
@@ -2825,10 +2865,7 @@
     border-radius: 0;
     padding: 6px 20px 12px;
     width: 100%;
-}
-
-@media (prefers-color-scheme: dark) {
-    #bottom-sheet { background: var(--bs-bg, rgba(15, 5, 107, 0.78)); }
+    justify-content: space-around;
 }
 
 @media (prefers-color-scheme: dark) {
