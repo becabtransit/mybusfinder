@@ -8569,7 +8569,6 @@ async function fetchVehiclePositions() {
                 }
 
                 const nextStopsHTML = `
-                ${STOPS_CSS}
                 <div style="position:relative; max-height:120px; overflow-y:auto; overflow-x:hidden;
                             scrollbar-width:thin; width:100%;">
                     ${stopsListHTML}
