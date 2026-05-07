@@ -1708,26 +1708,19 @@ function showUpdatePopupLocalBus(link) {
     
     
     popup.style.display = 'flex'; 
-    const menubottom1 = document.getElementById('menubtm');
-
-    menubottom1.classList.remove('slide-downb');
-    menubottom1.classList.add('slide-upb');
+    
     if (selectedLine) {
         resetMapView();            
     }
 
-    menubottom1.addEventListener('transitionend', () => {
-        if (menubottom1.classList.contains('slide-up')) {
-            menubottom1.style.display = 'none';
-        }
-    }, { once: true });
+    setMenuBtmVisible(false);
 }
 
 
 function showUpdatePopup(link) {
     const popup = document.getElementById('update-popup');
     const boutonFermer = document.getElementById('close-popup');
-    boutonFermer.style.display = 'fixed';
+    boutonFermer.style.display = 'flex';
     const iframe = document.getElementById('webview-frame');
     const currentLang = i18n.currentLang;
     const hasParams = link.includes('?');
@@ -1745,19 +1738,10 @@ function showUpdatePopup(link) {
     }
         
     popup.style.display = 'flex'; 
-    const menubottom1 = document.getElementById('menubtm');
-
-    menubottom1.classList.remove('slide-downb');
-    menubottom1.classList.add('slide-upb');
+    setMenuBtmVisible(false);
     if (selectedLine) {
         resetMapView();            
     }
-
-    menubottom1.addEventListener('transitionend', () => {
-        if (menubottom1.classList.contains('slide-up')) {
-            menubottom1.style.display = 'none';
-        }
-    }, { once: true });
 }
 
 
@@ -1908,12 +1892,7 @@ function closeUpdatePopup() {
     }, 300);
 
     if (!BottomSheet.expanded) {
-        const menubottom1 = document.getElementById('menubtm');
-        menubottom1.style.display = 'flex';
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-        }, 10);
+        setMenuBtmVisible(true);
     }
 }
 
@@ -7379,6 +7358,29 @@ function prepareSectionsForAnimation(sections) {
     sections[0].offsetHeight;
 }
 
+function setMenuBtmVisible(visible) {
+    const menubtm = document.getElementById('menubtm');
+    if (!menubtm) return;
+
+    if (visible && (BottomSheet.expanded || window.isMenuShowed)) return;
+
+    if (visible) {
+        menubtm.style.display = 'flex';
+        setTimeout(() => {
+            menubtm.classList.remove('slide-upb');
+            menubtm.classList.add('slide-downb');
+        }, 10);
+    } else {
+        menubtm.classList.remove('slide-downb');
+        menubtm.classList.add('slide-upb');
+        setTimeout(() => {
+            if (BottomSheet.expanded || window.isMenuShowed) {
+                menubtm.style.display = 'none';
+            }
+        }, 350);
+    }
+}
+
 async function animateFavoriteTransition(button, lineSection, line, isFavorite) {
     if (isAnimating) return;
     isAnimating = true;
@@ -7805,12 +7807,7 @@ function closeMenu() {
     isMenuVisible = false;
 
     if (!BottomSheet.expanded) {
-        const menubottom1 = document.getElementById('menubtm');
-        menubottom1.style.display = 'flex';
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-        }, 10);
+        setMenuBtmVisible(true);
     }
 }
 
@@ -9510,14 +9507,7 @@ const menubottom1 = document.getElementById('menubtm');
             }
 
             isMenuVisible = true; 
-            menubottom1.classList.remove('slide-downb');
-            menubottom1.classList.add('slide-upb');
- 
-            menubottom1.addEventListener('transitionend', () => {
-            if (menubottom1.classList.contains('slide-up')) {
-            menubottom1.style.display = 'none';
-            }
-            }, { once: true });
+            setMenuBtmVisible(false);
             MenuManager._handleScrollAnimations();
 
         }
@@ -9550,12 +9540,7 @@ const menubottom1 = document.getElementById('menubtm');
             });
 
             if (!BottomSheet.expanded) {
-                const menubottom1 = document.getElementById('menubtm');
-                menubottom1.style.display = 'flex';
-                setTimeout(() => {
-                    menubottom1.classList.remove('slide-upb');
-                    menubottom1.classList.add('slide-downb');
-                }, 10);
+                setMenuBtmVisible(true);
             }
             isMenuVisible = false;
         };
@@ -11464,15 +11449,7 @@ const BottomSheet = (() => {
         sheetEl.style.transform = '';
         soundsUX('MBF_Popup');
         safeVibrate?.([20]);
-
-        const menubtm = document.getElementById('menubtm');
-        if (menubtm) {
-            menubtm.classList.remove('slide-downb');
-            menubtm.classList.add('slide-upb');
-            setTimeout(() => {
-                if (isExpanded) menubtm.style.display = 'none';
-            }, 350);
-        }
+        setMenuBtmVisible(false);
     }
 
     function collapse() {
@@ -11482,24 +11459,15 @@ const BottomSheet = (() => {
         sheetEl.classList.add('bs-collapsed');
         sheetEl.style.transform = '';
         safeVibrate?.([15]);
-
-        if (!window.isMenuShowed) {
-            const menubtm = document.getElementById('menubtm');
-            if (menubtm) {
-                menubtm.style.display = 'flex';
-                setTimeout(() => {
-                    menubtm.classList.remove('slide-upb');
-                    menubtm.classList.add('slide-downb');
-                }, 10);
-            }
-        }
+        setMenuBtmVisible(true);
     }
 
     function toggle() { isExpanded ? collapse() : expand(); }
 
     function _onPointerDown(e) {
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        if (e.target.closest('button')) return;
 
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         isDragging = true;
         sheetEl.classList.add('bs-dragging');
         dragStartY = e.clientY;
@@ -11573,6 +11541,7 @@ const BottomSheet = (() => {
         // Click on the handle zone (without movement) toggles the state
         let downX = 0, downY = 0;
         handleZoneEl.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('button')) return; // ← ajouter
             downX = e.clientX; downY = e.clientY;
             _onPointerDown(e);
         });
@@ -11627,6 +11596,12 @@ window.expandBottomSheet   = expandBottomSheet;
 window.collapseBottomSheet = collapseBottomSheet;
 
 function _wireBottomSheetButtons() {
+    ['bs-settings-icon', 'bs-switch-network'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.addEventListener('pointerdown', e => e.stopPropagation());
+        btn.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+    });
     const bsSettings = document.getElementById('bs-settings-icon');
     if (bsSettings) bsSettings.addEventListener('click', () => {
         safeVibrate?.([30], true);
