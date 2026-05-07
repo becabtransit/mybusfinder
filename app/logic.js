@@ -11599,8 +11599,27 @@ window.expandBottomSheet   = expandBottomSheet;
 window.collapseBottomSheet = collapseBottomSheet;
 
 function _wireBottomSheetButtons() {
-    // Note: the legacy menubtm pill (#clock, #menubutton, #histovecbutton)
-    // keeps its original onclick attributes — we don't wire it again here.
+    const btnSwitch = document.getElementById('btn-network-switch');
+    if (btnSwitch) {
+        btnSwitch.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            openNetworkSwitcher();
+        });
+    }
+    const btnSchedule = document.getElementById('clock');
+    if (btnSchedule) {
+        btnSchedule.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            showUpdatePopup('schedule.html');
+        });
+    }
+    const btnNews = document.getElementById('histovecbutton');
+    if (btnNews) {
+        btnNews.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            showUpdatePopup('alerts.html');
+        });
+    }
 
     const featBus = document.getElementById('bus');
     if (featBus) {
