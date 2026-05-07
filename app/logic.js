@@ -11167,7 +11167,6 @@ async function softSwitchNetwork(newId) {
     showNetworkSwitchOverlay(newId);
 
     try {
-        // 1. Persist current map position for the *outgoing* network
         if (window.mapInstance) {
             try {
                 const c = window.mapInstance.getCenter();
@@ -11179,50 +11178,34 @@ async function softSwitchNetwork(newId) {
             } catch (_) {}
         }
 
-        // 2. Stop everything that's running
         _stopAllTimers();
 
-        // 3. Run the same cleanup as beforeunload
         _runManagerCleanup();
 
-        // 4. Drop the current map (also detaches all its layers/listeners)
         if (window.mapInstance) {
             _safe(() => window.mapInstance.remove());
             window.mapInstance = null;
         }
-        // Belt and braces: clear the map container in case Leaflet left a stub
         const mapDiv = document.getElementById('map');
         if (mapDiv) {
             mapDiv.innerHTML = '';
-            // Leaflet sets a private flag on the container
             if (mapDiv._leaflet_id) delete mapDiv._leaflet_id;
         }
 
-        // 5. Reset module-level state
         _resetNetworkScopedState();
         _emptyMenuAndOverlays();
 
-        // 6. Retarget the active network globally
         window.ACTIVE_NETWORK = newId;
         window.NETWORK_BASE  = `networks/${newId}`;
         localStorage.setItem('activeNetwork', newId);
 
-        // 7. Update window chrome (favicon, loading-screen logo)
         _updateNetworkChromeForSwitch(newId);
-
-        // 8. Re-run the same init flow as a fresh page load
-        //    - getSetvar() refreshes settings from the new network folder
-        //    - changeColorBkg() applies the new theme color
-        //    - initMap() creates a new Leaflet map at the new default zoom
-        //      (or at this network's saved position via mapPosition_{id})
-        //    - initializeApp() reloads vehicle models + vehicle positions
-        //      (normally fired on DOMContentLoaded — we replay it manually)
-        //    - main() reattaches handlers and reloads GTFS + realtime
         await getSetvar();
         await changeColorBkg();
         map = await initMap();
         await initializeApp();
         await main();
+        setMenuBtmVisible(false);
         const mapmonde = document.getElementById('map');
         mapmonde.classList.add('appearnotransition');
 
