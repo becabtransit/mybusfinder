@@ -8473,33 +8473,37 @@ async function fetchVehiclePositions() {
                         const stopName = stopNameMap[stop.stopId] || stop.stopId;
                                                 
                         return `
-                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                            <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
-                                <div class="stop-name-wrapper" style="position: relative; display: inline-block; padding-right: 10px;">
-                                    <div class="stop-name" style="position: relative; display: inline-block;">${stopName}</div>
-                                </div>
-                            </div>
-                            <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
-                                <div class="time-display" 
-                                    data-time-left="${timeLeftText}" 
-                                    data-departure-time="${stop.arrivalTime || stop.departureTime || "Inconnu"}">
-                                    ${timeLeftText}
-                                </div>
-                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <g class="rss-waves">
-                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
-                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
-                                    </g>
-                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
-                                </svg>
-                            </div>
-                        </li>`;
+                    <li style="list-style:none; display:flex; align-items:center; justify-content:space-between; padding:6px 10px; border-radius:8px; transition:background 0.15s;"
+                        onmouseover="this.style.background='var(--color-background-secondary)'"
+                        onmouseout="this.style.background='transparent'">
+                        
+                        <div style="display:flex; align-items:center; min-width:0;">
+                            <div style="width:6px; height:6px; border-radius:50%; background:var(--color-border-primary); flex-shrink:0; margin-right:8px;"></div>
+                            <span style="font-size:13px; color:var(--color-text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;">${stopName}</span>
+                        </div>
+                        
+                        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                            <span class="time-display"
+                                data-time-left="${timeLeftText}"
+                                data-departure-time="${stop.arrivalTime || stop.departureTime || 'Inconnu'}"
+                                style="font-size:12px; font-weight:500; padding:2px 8px; border-radius:99px; border:0.5px solid; ${timeLeftText === t('imminent') ? 'background:#FAECE7; color:#993C1D; border-color:#F0997B;' : 'background:var(--color-background-secondary); color:var(--color-text-secondary); border-color:var(--color-border-tertiary);'}">
+                                ${timeLeftText}
+                            </span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-text-tertiary); flex-shrink:0;" aria-hidden="true">
+                                <g class="rss-waves">
+                                    <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
+                                    <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                </g>
+                                <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
+                            </svg>
+                        </div>
+                    </li>`;
                     }).join('');
                 }
 
                 const nextStopsHTML = `
-                    <div style="position: relative; max-height: 120px;">
-                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px;">
+                    <div style="background:var(--color-background-primary); border:0.5px solid var(--color-border-tertiary); border-radius:12px; padding:6px 4px; max-height:160px; overflow:hidden;">
+                        <ul style="padding:0; margin:0; list-style:none; display:flex; flex-direction:column; gap:2px;">
                             ${stopsListHTML}
                         </ul>
                     </div>
