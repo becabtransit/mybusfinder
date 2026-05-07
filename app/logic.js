@@ -273,7 +273,7 @@
         }, 1000);
     });
 
-    VERSION_NAME = '3.6.0 Release Candidate 2';
+    VERSION_NAME = '3.6.0RC2';
 
     document.addEventListener('gesturestart', function (e) {
     e.preventDefault();

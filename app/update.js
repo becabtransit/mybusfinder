@@ -568,13 +568,11 @@
       elements = buildModal();
 
       document.getElementById("mbf-final-cta").addEventListener("click", () => {
-        // ↓ Remplacez par votre URL ou action
         closePopup();
       });
       document.addEventListener("keydown", onKeyDown);
     }
 
-    // Reset scenes
     [elements.scene1, elements.scene2, elements.scene3].forEach((s, i) => {
       s.classList.toggle("mbf-scene-active", i === 0);
       s.style.cssText = "";
