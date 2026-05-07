@@ -571,7 +571,6 @@
         // ↓ Remplacez par votre URL ou action
         closePopup();
       });
-      document.getElementById("mbf-dismiss").addEventListener("click", closePopup);
       document.addEventListener("keydown", onKeyDown);
     }
 
