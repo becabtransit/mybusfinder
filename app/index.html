@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="default">
+	<meta name="apple-mobile-web-app-title" content="MyBusFinder">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+	<link rel="canonical" href="https://mybusfinder.fr">
+	<script>
+        // Made with ♥ by BecabDev in Cannes, France ⛱️🎬
+		(function () {
+			try {
+				var p = new URLSearchParams(window.location.search);
+				var q = p.get('network');
+				if (q && /^[a-z0-9-]+$/i.test(q)) {
+					localStorage.setItem('activeNetwork', q);
+				}
+			} catch (_) {}
+			var net = localStorage.getItem('activeNetwork') || 'palmbus';
+			window.__BOOT_NETWORK = net;
+			document.write(
+				'<link rel="apple-touch-icon" href="networks/' + net + '/src/logo.png">' +
+				'<link rel="icon" type="image/png" href="networks/' + net + '/src/logo.png">'
+			);
+		})();
+	</script>
+    <title>My Bus Finder - Your bus in (real)time.</title>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://unpkg.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <script defer src="../src/defer/protobuf.js"></script>
+    <script defer src="../src/defer/leaflet.js"></script>
+    <link rel="stylesheet" href="../src/defer/L.Control.Locate.min.css" />
+    <script defer src="../src/defer/L.Control.Locate.min.js"></script>
+    <script defer src="../src/defer/suncalc.min.js"></script>
+    <link rel="stylesheet" href="../src/defer/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+    <script src="../js/errlog.js"></script>
+
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+    <meta name="googlebot" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+
+    <link rel="canonical" href="https://mybusfinder.fr/" />
+
+    <meta name="theme-color" content="#0b1220" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:site_name" content="MyBusFinder" />
+    <meta property="og:title" content="MyBusFinder — Votre bus réellement en temps réel." />
+    <meta property="og:description" content="Suivez votre bus en temps réel. Horaires fiables, perturbations instantanées, tout au même endroit." />
+    <meta property="og:image" content="https://mybusfinder.fr/src/og-mybusfinder.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MyBusFinder — Votre bus réellement en temps réel." />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MyBusFinder — Votre bus réellement en temps réel." />
+    <meta name="twitter:description" content="Suivez votre bus en temps réel. Horaires fiables, perturbations instantanées, tout au même endroit." />
+    <meta name="twitter:image" content="https://mybusfinder.fr/src/og-mybusfinder.jpg" />
+
+
+</head>
+<body>
+
+<div id="bottom-sheet" class="bs-collapsed">
+  <div id="bs-handle-zone">
+    <div class="bs-handle-bar"></div>
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 4px 43px 8px;">
+      <div>
+        <div style="font-size:24px; font-weight:500;">My Bus Finder</div>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button id="bs-settings-icon" class="bs-icon-btn" title="Paramètres" aria-label="Paramètres">
+          <i class="ti ti-settings" aria-hidden="true"></i>
+        </button>
+        <button id="bs-switch-network" class="bs-icon-btn" title="Changer de réseau" aria-label="Changer de réseau">
+          <i class="ti ti-arrows-exchange" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="bs-content">
+
+        <div id="bs-search-wrapper">
+        <div style="position:relative; display:flex; align-items:center;
+                    background:rgba(255,255,255,0.13); border-radius:100px;
+                    box-shadow:rgba(0,0,0,0.2) 0 2px 10px;">
+        <i class="ti ti-search" aria-hidden="true"style="position:absolute; left:14px; pointer-events:none; opacity:0.6;"
+            width="17" height="17">
+        </i>
+        <input id="bs-search-input" type="text"
+                style="width:100%; padding:11px 38px 11px 42px;
+                        background:transparent; border:none; outline:none;
+                        font-size:14px;
+                        font-family:'League Spartan',sans-serif;
+                        border-radius:100px;"
+                autocomplete="off" autocorrect="off" spellcheck="false" />
+        <button id="bs-search-clear"
+                style="position:absolute; right:8px; background:rgba(255,255,255,0.15);
+                        border:none; border-radius:50%; width:26px; height:26px;
+                        display:none; align-items:center; justify-content:center;
+                        cursor:pointer; font-size:14px; line-height:1;">✕</button>
+        </div>
+        <!-- Résultats -->
+        <div id="bs-search-results" style="display:none; margin-top:8px;
+            background:rgba(0,0,0,0.35); border-radius:14px;
+            backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+            max-height:260px; overflow-y:auto; padding:8px;"></div>
+    </div>
+
+    <div class="bs-grid">
+      <button id="clock-feat" class="bs-tile ripple-container">
+        <i class="ti ti-clock" aria-hidden="true"></i>
+        <span data-i18n="schedules">Horaires</span>
+      </button>
+      <button id="actu" class="bs-tile ripple-container">
+        <i class="ti ti-bell-ringing" aria-hidden="true"></i>
+        <span data-i18n="news">Actualités</span>
+      </button>
+
+    </div>
+  </div>
+</div>
+
+
+
+<div class="menubottom">
+    <ul id="menubtm" class="menubottom-ul ripple-container">
+        <li>
+            <a onclick="BottomSheet.expand()"><span class="icon"><img src="src/menu.png" id="menuicon" style="width: 30px; height: 30px;"></img></span> <span
+                class="title" data-i18n="menu">Menu</span></a>
+        </li>
+        <li>
+            <a onclick="showUpdatePopup('schedule.html')" id="clock"><span class="icon"><img src="src/horloge.png" id="myscheduleicon" style="width: 30px; height: 30px;"></img></span> <span
+                    class="title" data-i18n="schedule">Horaires</span></a>
+        </li>
+        <li>
+            <a id="menubutton"><span class="icon"><img src="src/bus.png" id="vehicleicon" style="width: 30px; height: 30px;"></img></span> <span
+                    class="title" data-i18n="network">Réseau</span></a>
+        </li>
+        <li>
+            <a onclick="showUpdatePopup('alerts.html');" id="histovecbutton"><span class="icon"><img id="actuicon" src="src/newspaper.png" style="width: 30px; height: 30px;"></img></span> <span
+                    class="title" data-i18n="news">Actualités</span></a>
+        </li>
+    </ul>
+</div>
+
+<div id="refresh-bouton-map" class="refresh-bouton ripple-container" onclick="main()">
+    <img src="src/refresh.png" style="width: 25px; height: 25px;">
+</div>
+
+<div id="locate-bouton-map" class="locate-bouton ripple-container" onclick="locateMe()">
+    <img src="src/locate.png" style="width: 25px; height: 25px;">
+</div>
+
+<!-- Vestigial element kept for backward compatibility with existing
+     code that toggles `#accueil` to show/hide the welcome screen.
+     The bottom-sheet now plays that role; #accueil is invisible. -->
+<div id="accueil" style="display:none; pointer-events:none;"></div>
+
+
+    <div id="map"></div>
+    <svg id="sun-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+
+
+
+    <div id="menu"></div>
+    <div id="update-popup" class="update-popup">
+        <div class="popup-content">
+            <button id="close-popup" class="close-btn">
+                <svg width="45" height="45" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <iframe id="webview-frame" src="" frameborder="0"></iframe>
+        </div>
+    </div>
+                
+    <div id="time-popup" class="time-popup">
+        <div class="time-content">
+            <button id="close-popup1" class="close-btn">
+                <svg width="35" height="35" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <iframe id="webview-frame1" src="" frameborder="0"></iframe>
+        </div>
+    </div>
+
+
+	
+<div id="loading-screen" class="logobkg">
+    <img id="logoscr" class="logoscr"
+         src="networks/palmbus/src/whitelogo.png"
+         onerror="this.onerror=null;this.src='src/whitelogo.png';"
+         style="display: block; margin: 0 auto; max-width: 50%; height: auto;"/>
+    <script>
+        (function () {
+            var net = (localStorage.getItem('activeNetwork') || 'palmbus');
+            var img = document.getElementById('logoscr');
+            if (img) img.src = 'networks/' + net + '/src/whitelogo.png';
+        })();
+    </script>
+
+    <div id="gearbox" class="gearbox" style="display: none;">
+    <div id="overlay" class="overlay" style="display: none;"></div>
+        <div class="gear one">
+        <div class="gear-inner">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        </div>
+        <div class="gear two">
+        <div class="gear-inner">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        </div>
+        <div class="gear three">
+        <div class="gear-inner">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        </div>
+        <div class="gear four large">
+        <div class="gear-inner">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        </div>
+    </div>
+
+    <span id="loading-text" style="display: none; font-family: SegoeUIBoot; font-size: 14px; font-weight: 300;">status</span>
+
+    <img id="bottom-logo" class="logoscr logo-bottom" src="src/credits.png" />
+</div>
+
+<div id="network-switch-overlay" aria-hidden="true">
+    <div class="ns-card">
+        <div class="ns-progress"><span></span></div>
+        <div class="ns-text">Changement de réseau…</div>
+    </div>
+</div>
+<style>
+    #network-switch-overlay {
+        position: fixed; inset: 0; z-index: 99999;
+        background: rgba(8,10,18,0.92);
+        backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.32s ease;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        color: white;
+    }
+    #network-switch-overlay.visible {
+        opacity: 1; pointer-events: auto;
+    }
+    #network-switch-overlay .ns-card {
+        display: flex; flex-direction: column; align-items: center; gap: 18px;
+        padding: 28px 32px;
+        transform: translateY(8px); opacity: 0;
+        transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease;
+    }
+    #network-switch-overlay.visible .ns-card {
+        transform: translateY(0); opacity: 1;
+    }
+    #network-switch-overlay .ns-card img {
+        width: 84px; height: 84px;
+        object-fit: contain;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.06);
+        padding: 10px;
+        animation: ns-pulse 1.6s ease-in-out infinite;
+    }
+    #network-switch-overlay .ns-progress {
+        width: 200px; height: 3px;
+        background: rgba(255,255,255,0.08);
+        border-radius: 999px; overflow: hidden;
+    }
+    #network-switch-overlay .ns-progress span {
+        display: block; height: 100%; width: 40%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.85), transparent);
+        animation: ns-slide 1.4s ease-in-out infinite;
+    }
+    #network-switch-overlay .ns-text {
+        font-size: 13px;
+        opacity: 0.7;
+        letter-spacing: 0.04em;
+    }
+    @keyframes ns-pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(0.95); opacity: 0.85; }
+    }
+    @keyframes ns-slide {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(350%); }
+    }
+</style>
+
+
+ <script src="../js/toastjs.js"></script>
+ <script src="../build.js"></script>
+ <script src="update.js"></script>
+
+<script src="logic.js"></script>
+</html>
+
