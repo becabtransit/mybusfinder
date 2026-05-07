@@ -5223,7 +5223,11 @@ const MenuManager = {
         
     _buildBusIndex() {
         this.allBuses = [];
-        
+
+        // Guard: a pending requestIdleCallback may fire after a soft network
+        // switch has nulled out busesByLineAndDestination. Bail out cleanly.
+        if (!this.busesByLineAndDestination) return;
+
         Object.entries(this.busesByLineAndDestination).forEach(([line, destinations]) => {
             Object.entries(destinations).forEach(([destination, buses]) => {
                 buses.forEach(bus => {
