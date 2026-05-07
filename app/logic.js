@@ -3442,8 +3442,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             lastActiveMarkerId = markerId;
             lastActiveColor = color;
         }
-        window._mbfLastOpenedVehicleId = marker.id;
-        _updateLastVehicle();
     });
 
     marker.on('popupclose', async function(e) {
@@ -7285,71 +7283,12 @@ function updateMenu() {
             nextStops: marker.rawData?.nextStops || []
         });
     });
-
-    function _updateBottomSheetStats() {
-    const vEl = document.getElementById('bs-stat-vehicles-val');
-    const lEl = document.getElementById('bs-stat-lines-val');
-    const dEl = document.getElementById('bs-stat-delay-val');
-    if (!vEl) return;
-
-    const totalV = markerPool.active.size;
-    const totalL = new Set([...markerPool.active.values()].map(m => m.line)).size;
-    vEl.textContent = totalV;
-    lEl.textContent = totalL;
-
-    if (MenuManager._computeNetworkStats) {
-        const s = MenuManager._computeNetworkStats();
-        if (s.onTimePercent !== null) {
-            dEl.textContent = s.onTimePercent + '%';
-            dEl.style.color = s.onTimePercent >= 70
-                ? '#a5f3c0' : s.onTimePercent >= 50 ? '#fde68a' : '#fca5a5';
-        } else {
-            dEl.textContent = '—';
-        }
-    }
-}
-
-function _updateLastVehicle() {
-    const consulted = parseInt(localStorage.getItem('mbf_vehicles_consulted') || '0');
-    if (consulted === 0) return;
-    const lastId = window._mbfLastOpenedVehicleId;
-    if (!lastId) return;
-    const marker = markerPool.get(lastId);
-    if (!marker) return;
-
-    const line = marker.line;
-    const color = lineColors[line] || '#555';
-    const textCol = getTextColor(color);
-    const label = String(marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || lastId)
-        .replace(/Véhicule inconnu\.?/, '?');
-
-    const wrap = document.getElementById('bs-last-vehicle');
-    const badge = document.getElementById('bs-last-vehicle-line');
-    const info  = document.getElementById('bs-last-vehicle-info');
-    const btn   = document.getElementById('bs-last-vehicle-btn');
-    if (!wrap || !badge || !info || !btn) return;
-
-    badge.textContent = lineName[line] || line;
-    badge.style.background = color;
-    badge.style.color = textCol;
-    info.textContent = `#${label} · ${marker.destination || ''}`;
-    wrap.style.display = 'block';
-
-    btn.onclick = () => {
-        safeVibrate?.([30], true);
-        collapseBottomSheet();
-        map.setView(marker.getLatLng(), 15);
-        marker.openPopup();
-    };
-}
     
     if (!MenuManager.isInitialized || MenuManager.sections.size === 0) {
         MenuManager.generateInitialStructure(busesByLineAndDestination);
     } else {
         MenuManager.updateData(busesByLineAndDestination);
     }
-    _updateBottomSheetStats();
-    _updateLastVehicle();
 }
 
 
@@ -11517,14 +11456,6 @@ const BottomSheet = (() => {
         sheetEl.style.transform = '';
         soundsUX('MBF_Popup');
         safeVibrate?.([20]);
-
-        const menubtm = document.getElementById('menubtm');
-        if (menubtm) {
-            menubtm.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
-            menubtm.style.opacity = '0';
-            menubtm.style.pointerEvents = 'none';
-            menubtm.style.transform = 'translateY(20px)';
-        }
     }
 
     function collapse() {
@@ -11534,14 +11465,6 @@ const BottomSheet = (() => {
         sheetEl.classList.add('bs-collapsed');
         sheetEl.style.transform = '';
         safeVibrate?.([15]);
-
-        const menubtm = document.getElementById('menubtm');
-        if (menubtm) {
-            menubtm.style.transition = 'opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s';
-            menubtm.style.opacity = '1';
-            menubtm.style.pointerEvents = '';
-            menubtm.style.transform = '';
-        }
     }
 
     function toggle() { isExpanded ? collapse() : expand(); }
@@ -11676,101 +11599,128 @@ window.expandBottomSheet   = expandBottomSheet;
 window.collapseBottomSheet = collapseBottomSheet;
 
 function _wireBottomSheetButtons() {
-    const bsSettingsIcon = document.getElementById('bs-settings-icon');
-    if (bsSettingsIcon) bsSettingsIcon.addEventListener('click', () => {
+    const bsSettings = document.getElementById('bs-settings-icon');
+    if (bsSettings) bsSettings.addEventListener('click', () => {
         safeVibrate?.([30], true);
         FluentSettingsMenu?.open?.();
     });
 
-    // Localiser
-    const bsLocate = document.getElementById('bs-locate-btn');
-    if (bsLocate) bsLocate.addEventListener('click', () => {
-        safeVibrate?.([30], true);
-        collapseBottomSheet();
-        locateMe();
-    });
+    const bsSearchInput = document.getElementById('bs-search-input');
+    const bsSearchClear = document.getElementById('bs-search-clear');
+    const bsSearchResults = document.getElementById('bs-search-results');
 
-    // Stats → ouvre le dashboard stats dans le menu
-    const bsStatsTile = document.getElementById('bs-stats-tile');
-    if (bsStatsTile) bsStatsTile.addEventListener('click', () => {
-        safeVibrate?.([30], true);
-        collapseBottomSheet();
-        showMenu();
-        setTimeout(() => MenuManager._toggleStatsView?.(), 350);
-    });
+    if (bsSearchInput) {
+        bsSearchInput.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            bsSearchClear.style.display = val ? 'flex' : 'none';
+            _bsPerformSearch(val);
+        });
 
-    // Recherche rapide
-    const bsInput = document.getElementById('bs-line-search');
-    const bsClear = document.getElementById('bs-search-clear');
-    const bsResults = document.getElementById('bs-search-results');
+        bsSearchInput.addEventListener('focus', () => {
+            if (!BottomSheet.expanded) BottomSheet.expand();
+        });
+    }
 
-    function _bsSearch(query) {
-        query = query.trim().toLowerCase();
-        bsResults.innerHTML = '';
-        if (!query) { bsResults.style.display = 'none'; return; }
+    if (bsSearchClear) {
+        bsSearchClear.addEventListener('click', () => {
+            bsSearchInput.value = '';
+            bsSearchClear.style.display = 'none';
+            bsSearchResults.style.display = 'none';
+            bsSearchInput.focus();
+        });
+    }
 
-        const results = [];
-        if (MenuManager.allBuses) {
-            MenuManager.allBuses.forEach(item => {
-                if (results.length >= 8) return;
-                if (item.line.toLowerCase().includes(query)
-                    || item.destination.toLowerCase().includes(query)
-                    || item.vehicleLabel.toLowerCase().includes(query)) {
-                    results.push(item);
-                }
-            });
+    function _bsPerformSearch(query) {
+        if (!query) {
+            bsSearchResults.style.display = 'none';
+            return;
         }
-
-        if (results.length === 0) {
-            bsResults.style.display = 'none';
+        if (!MenuManager || !MenuManager.allBuses || MenuManager.allBuses.length === 0) {
+            bsSearchResults.innerHTML =
+                '<div style="color:rgba(255,255,255,0.5);font-size:13px;padding:8px;">Données en cours de chargement…</div>';
+            bsSearchResults.style.display = 'block';
             return;
         }
 
-        bsResults.style.display = 'block';
-        results.forEach(item => {
-            const color = lineColors[item.line] || '#555';
-            const textCol = getTextColor(color);
-            const div = document.createElement('div');
-            div.className = 'bs-result-item';
-            div.innerHTML = `
-                <span class="bs-result-badge" style="background:${color};color:${textCol};">
-                    ${lineName[item.line] || item.line}
-                </span>
-                <span class="bs-result-dest">${item.destination}</span>
-                <span class="bs-result-id">#${String(item.vehicleLabel).replace(/Véhicule inconnu\.?/, '?')}</span>
-            `;
-            div.addEventListener('click', () => {
-                safeVibrate?.([30, 40, 30], true);
-                const marker = item.bus?.vehicle;
-                if (marker) {
-                    collapseBottomSheet();
-                    map.setView(marker.getLatLng(), 15);
-                    marker.openPopup();
-                }
-                bsInput.value = '';
-                bsResults.style.display = 'none';
-                bsClear.style.display = 'none';
-            });
-            bsResults.appendChild(div);
-        });
-    }
+        const q = query.toLowerCase();
+        const results = MenuManager.allBuses
+            .map(item => ({ ...item, score: MenuManager._calculateScore(item, q) }))
+            .filter(item => item.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 12);
 
-    if (bsInput) {
-        bsInput.addEventListener('input', (e) => {
-            const v = e.target.value;
-            bsClear.style.display = v ? 'flex' : 'none';
-            _bsSearch(v);
+        if (results.length === 0) {
+            bsSearchResults.innerHTML =
+                `<div style="color:rgba(255,255,255,0.5);text-align:center;padding:16px;font-size:13px;">
+                    Aucun résultat
+                </div>`;
+            bsSearchResults.style.display = 'block';
+            return;
+        }
+
+        const byLine = new Map();
+        results.forEach(item => {
+            if (!byLine.has(item.line)) byLine.set(item.line, []);
+            byLine.get(item.line).push(item);
         });
-        bsInput.addEventListener('focus', () => {
-            expandBottomSheet();
+
+        let html = '';
+        byLine.forEach((items, line) => {
+            const color = lineColors[line] || '#444';
+            const name  = lineName[line] || line;
+            const textC = getTextColor(color);
+
+            html += `<div style="margin-bottom:8px;">
+            <div style="font-size:11px;opacity:0.55;color:white;
+                        margin-bottom:4px;padding:0 4px;">Ligne ${name}</div>`;
+
+            items.slice(0, 3).forEach(item => {
+                const label = (item.vehicleLabel || '').toString()
+                    .replace('TCAR:Vehicle::', '').replace(':LOC', '').padStart(3, '0');
+                html += `
+                <div class="bs-result-item ripple-container"
+                    data-vehicle-id="${item.parkNumber}"
+                    style="display:flex;align-items:center;gap:10px;
+                            background:rgba(255,255,255,0.09); border-radius:10px;
+                            padding:8px 10px; margin-bottom:4px; cursor:pointer;">
+                <span style="background:${color};color:${textC};
+                            padding:2px 8px;border-radius:6px;
+                            font-size:12px;font-weight:600;white-space:nowrap;">${name}</span>
+                <span style="font-size:12px;font-weight:600;color:white;
+                            min-width:36px;">${label}</span>
+                <span style="font-size:12px;color:rgba(255,255,255,0.7);
+                            flex:1;overflow:hidden;text-overflow:ellipsis;
+                            white-space:nowrap;">➜ ${item.destination}</span>
+                </div>`;
+            });
+
+            if (items.length > 3) {
+                html += `<div style="font-size:11px;opacity:0.4;color:white;
+                                    text-align:center;padding:2px 0;">
+                        +${items.length - 3} autre(s)
+                        </div>`;
+            }
+            html += `</div>`;
         });
-    }
-    if (bsClear) {
-        bsClear.addEventListener('click', () => {
-            bsInput.value = '';
-            bsClear.style.display = 'none';
-            bsResults.style.display = 'none';
-            bsInput.focus();
+
+        bsSearchResults.innerHTML = html;
+        bsSearchResults.style.display = 'block';
+
+        bsSearchResults.querySelectorAll('.bs-result-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const vid = el.dataset.vehicleId;
+                const marker = markerPool && markerPool.active
+                    ? markerPool.active.get(vid) : null;
+                if (!marker) return;
+                safeVibrate?.([50, 30, 50], true);
+                soundsUX('MBF_Menu_VehicleSelect');
+                map.setView(marker.getLatLng(), 15);
+                marker.openPopup();
+                BottomSheet.collapse();
+                bsSearchInput.value = '';
+                bsSearchClear.style.display = 'none';
+                bsSearchResults.style.display = 'none';
+            });
         });
     }
 
@@ -11795,25 +11745,6 @@ function _wireBottomSheetButtons() {
             showUpdatePopup('alerts.html');
         });
     }
-    const featTicket = document.getElementById('ticket');
-    if (featTicket) {
-        featTicket.addEventListener('click', () => {
-            safeVibrate?.([30], true);
-            const link = (typeof globalSettings !== 'undefined' && globalSettings.boutique) || '';
-            if (window.boutiqueAvailable === false) {
-                showFluentPopup({
-                    title: t('noboutique'),
-                    message: t('noboutiqueinfo'),
-                    buttons: {
-                        primary: t('understood'),
-                        primaryAction: () => fluentPopupManager.close()
-                    }
-                });
-            } else if (link) {
-                showUpdatePopup(link);
-            }
-        });
-    }
 
     const linkSettings = document.getElementById('settings');
     if (linkSettings) {
@@ -11834,13 +11765,6 @@ function _wireBottomSheetButtons() {
         linkSwitch.addEventListener('click', () => {
             safeVibrate?.([30], true);
             openNetworkSwitcher();
-        });
-    }
-    const linkHome = document.getElementById('mybusfinderhome');
-    if (linkHome) {
-        linkHome.addEventListener('click', () => {
-            safeVibrate?.([30], true);
-            window.open('https://mybusfinder.fr', '_blank');
         });
     }
 }
