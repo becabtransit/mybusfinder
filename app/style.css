@@ -2552,79 +2552,92 @@
 .ns-close-btn:active {
     transform: scale(0.78);
 }
-/* =====================================================
-   Bottom sheet (replaces the welcome iframe)
-   -----------------------------------------------------
-   The sheet is a separate fixed component that slides
-   up from below. When expanded, the legacy #menubtm
-   pill is hidden (slides out & blurs); they are always
-   mutually exclusive on screen.
-   A scrim sits behind the sheet to dim + blur the map.
-   ===================================================== */
-
-/* Scrim: dimmed/blurred backdrop behind the sheet */
-#bs-scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 9998;
-    background: rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(6px) saturate(140%);
-    -webkit-backdrop-filter: blur(6px) saturate(140%);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.5s ease;
-}
-#bs-scrim.bs-visible {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-/* The sheet itself */
+/* ---------- Bottom-sheet base ---------- */
+/* The sheet is a fixed wrapper at the bottom of the viewport.
+   Two visual modes are toggled via classes on #bottom-sheet:
+     - .bs-collapsed → invisible wrapper, only the original
+       pill-shaped #menubtm shows through (legacy look).
+     - .bs-expanded  → full-width glassy sheet covering up to
+       88vh, hosting the handle, the menu content grid, and
+       the #menubtm row at the bottom edge.
+   The wrapper itself is transparent in both modes; only the
+   inner pieces draw chrome. This avoids fighting the legacy
+   #menubtm fixed positioning. */
 #bottom-sheet {
     position: fixed;
     left: 50%;
     bottom: 0;
-    width: 100%;
-    max-width: 560px;
-    max-height: 88vh;
-    z-index: 9999;
+    transform: translateX(-50%);
+    z-index: 10000;
     display: flex;
     flex-direction: column;
+    align-items: center;
     color: #fff;
-    background: var(--bs-bg, rgba(15, 5, 107, 0.82));
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
-    border-top-left-radius: 32px;
-    border-top-right-radius: 32px;
-    box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.32),
-                inset 0 1px 0 rgba(255, 255, 255, 0.20);
-    transform: translate(-50%, 105%);
-    opacity: 0;
-    filter: blur(8px);
-    pointer-events: none;
-    transition: transform 0.6s cubic-bezier(0.25, 1.5, 0.5, 1),
-                opacity 0.4s ease,
-                filter 0.4s ease,
-                background 0.5s ease;
-    will-change: transform, opacity, filter;
-    overflow: hidden;
-    font-family: "League Spartan", sans-serif;
+    pointer-events: none;          /* let map clicks pass around the chrome */
+    transition: transform 0.55s cubic-bezier(0.25, 1.5, 0.5, 1),
+                width 0.45s cubic-bezier(0.25, 1.5, 0.5, 1);
+    will-change: transform;
+    width: auto;
+    max-width: 720px;
 }
-#bottom-sheet.bs-expanded {
-    transform: translate(-50%, 0);
-    opacity: 1;
-    filter: blur(0);
-    pointer-events: auto;
-}
+#bottom-sheet > * { pointer-events: auto; }
+
+/* No transition during an active drag (JS sets transform inline) */
 #bottom-sheet.bs-dragging {
     transition: none !important;
 }
+#bottom-sheet.bs-dragging .bs-sheet-pane {
+    transition: none !important;
+}
 
-/* ---------- Drag handle ---------- */
+/* The single visual surface that hosts the handle, the content,
+   and the #menubtm row. Its glass chrome only switches on in the
+   expanded state — in collapsed mode the pane is transparent so
+   the legacy pill #menubtm shows through unchanged. The pane
+   itself never collapses to 0 height (otherwise the menubtm
+   inside would disappear); only its handle + content shrink. */
+.bs-sheet-pane {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    box-shadow: none;
+    transition: background 0.45s ease,
+                border-radius 0.45s cubic-bezier(0.25, 1.5, 0.5, 1),
+                box-shadow 0.45s ease,
+                backdrop-filter 0.45s ease;
+}
+#bottom-sheet.bs-expanded .bs-sheet-pane {
+    background: var(--bs-bg, rgba(15, 5, 107, 0.78));
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* Collapsed mode: the wrapper takes only the size of #menubtm,
+   the sheet pane is fully collapsed (height 0). */
+#bottom-sheet.bs-collapsed {
+    width: auto;
+}
+
+/* Expanded mode: wrapper goes full-width to host the sheet pane. */
+#bottom-sheet.bs-expanded {
+    width: 100%;
+    max-width: 720px;
+}
+
+/* ---------- Handle ---------- */
 .bs-handle-zone {
     flex-shrink: 0;
     width: 100%;
-    height: 28px;
+    height: 0;
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2632,210 +2645,136 @@
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
-    padding-top: 8px;
+    transition: height 0.45s cubic-bezier(0.25, 1.5, 0.5, 1),
+                padding 0.45s cubic-bezier(0.25, 1.5, 0.5, 1);
+    padding: 0;
+}
+#bottom-sheet.bs-expanded .bs-handle-zone {
+    height: 28px;
+    padding-top: 6px;
 }
 .bs-handle-zone:active { cursor: grabbing; }
 .bs-handle-bar {
     width: 44px;
     height: 5px;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.45);
+    background: rgba(255, 255, 255, 0.55);
     transition: background 0.2s ease, transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
-.bs-handle-zone:hover .bs-handle-bar { background: rgba(255, 255, 255, 0.7); }
 .bs-handle-zone:active .bs-handle-bar {
-    background: rgba(255, 255, 255, 0.9);
-    transform: scaleX(1.15);
+    background: rgba(255, 255, 255, 0.85);
+    transform: scaleX(1.1);
 }
 
-/* ---------- Hero (greeting) ---------- */
-.bs-hero {
-    flex-shrink: 0;
-    position: relative;
-    padding: 8px 24px 22px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
+/* ---------- Expanded content ---------- */
+.bs-content {
+    flex: 0 1 auto;
+    width: 100%;
+    box-sizing: border-box;
+    max-height: 0;
     overflow: hidden;
-}
-.bs-hero-bg {
-    position: absolute;
-    inset: -40% -20%;
-    background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.22), transparent 55%),
-                radial-gradient(circle at 80% 80%, rgba(255,255,255,0.10), transparent 60%);
-    pointer-events: none;
-    filter: blur(2px);
+    -webkit-overflow-scrolling: touch;
+    padding: 0 18px;
     opacity: 0;
-    transform: scale(0.85);
-    transition: opacity 0.7s ease 0.1s, transform 0.7s cubic-bezier(0.25, 1.5, 0.5, 1) 0.1s;
+    transform: translateY(12px);
+    transition: max-height 0.55s cubic-bezier(0.25, 1.5, 0.5, 1),
+                padding 0.45s cubic-bezier(0.25, 1.5, 0.5, 1),
+                opacity 0.4s ease,
+                transform 0.55s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
-#bottom-sheet.bs-expanded .bs-hero-bg {
+#bottom-sheet.bs-expanded .bs-content {
+    max-height: calc(88vh - 110px);
+    overflow-y: auto;
+    padding: 4px 18px 14px;
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0);
+    transition: max-height 0.55s cubic-bezier(0.25, 1.5, 0.5, 1),
+                padding 0.45s cubic-bezier(0.25, 1.5, 0.5, 1),
+                opacity 0.4s ease 0.1s,
+                transform 0.5s cubic-bezier(0.25, 1.5, 0.5, 1) 0.1s;
 }
-.bs-hero-logo {
-    width: 56px;
-    height: 56px;
-    flex-shrink: 0;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.16);
-    padding: 8px;
-    object-fit: contain;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22),
-                inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    transform: scale(0.7);
-    opacity: 0;
-    transition: transform 0.6s cubic-bezier(0.25, 1.5, 0.5, 1) 0.15s,
-                opacity 0.5s ease 0.15s;
+.bs-content::-webkit-scrollbar { width: 6px; }
+.bs-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
 }
-#bottom-sheet.bs-expanded .bs-hero-logo {
-    transform: scale(1);
-    opacity: 1;
+
+.bs-greeting {
+    padding: 8px 4px 18px;
 }
-.bs-hero-text {
-    flex: 1;
-    min-width: 0;
-    transform: translateX(-12px);
-    opacity: 0;
-    transition: transform 0.55s cubic-bezier(0.25, 1.5, 0.5, 1) 0.2s,
-                opacity 0.4s ease 0.2s;
-}
-#bottom-sheet.bs-expanded .bs-hero-text {
-    transform: translateX(0);
-    opacity: 1;
-}
-.bs-hero-title {
+.bs-greeting-title {
     font-family: "League Spartan", sans-serif;
     font-size: 26px;
     font-weight: 700;
-    margin: 0 0 2px;
+    margin: 0 0 4px;
     letter-spacing: -0.02em;
-    line-height: 1.05;
 }
-.bs-hero-subtitle {
+.bs-greeting-subtitle {
     font-family: "League Spartan", sans-serif;
     font-size: 14px;
     margin: 0;
     opacity: 0.78;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
 }
 
-/* ---------- Scrollable content ---------- */
-.bs-content {
-    flex: 1 1 auto;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 0 18px 22px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
-}
-.bs-content::-webkit-scrollbar { width: 6px; }
-.bs-content::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.22);
-    border-radius: 6px;
-}
-.bs-content::-webkit-scrollbar-track { background: transparent; }
-
-.bs-section { margin-top: 8px; }
-.bs-section + .bs-section { margin-top: 22px; }
-
-/* ---------- Features grid ---------- */
 .bs-features {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 14px;
+    gap: 12px;
+    margin-bottom: 22px;
 }
 .bs-feat {
-    --bs-card-tint: rgba(255, 255, 255, 0.12);
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    text-align: left;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
     gap: 8px;
-    min-height: 138px;
-    padding: 18px 16px 16px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    min-height: 116px;
+    padding: 18px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
     border-radius: 20px;
-    background:
-        linear-gradient(135deg, var(--bs-card-tint) 0%, transparent 70%),
-        rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.10);
     color: #fff;
     cursor: pointer;
     font-family: "League Spartan", sans-serif;
     transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1),
-                background 0.3s ease,
-                border-color 0.3s ease,
-                box-shadow 0.3s ease;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.10),
-                inset 0 1px 0 rgba(255, 255, 255, 0.18);
+                background 0.25s ease,
+                border-color 0.25s ease,
+                box-shadow 0.25s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
     position: relative;
     overflow: hidden;
-    transform: translateY(14px);
-    opacity: 0;
-    animation: bsFadeUp 0.55s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
-}
-.bs-feat:nth-child(1) { animation-delay: 0.20s; }
-.bs-feat:nth-child(2) { animation-delay: 0.26s; }
-.bs-feat:nth-child(3) { animation-delay: 0.32s; }
-.bs-feat:nth-child(4) { animation-delay: 0.38s; }
-#bottom-sheet:not(.bs-expanded) .bs-feat {
-    animation: none;
-    opacity: 0;
-    transform: translateY(14px);
 }
 .bs-feat:hover {
-    background:
-        linear-gradient(135deg, var(--bs-card-tint) 0%, transparent 50%),
-        rgba(255, 255, 255, 0.14);
-    border-color: rgba(255, 255, 255, 0.30);
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18),
-                inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12),
+                inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
-.bs-feat:active { transform: scale(0.96); }
-.bs-feat-icon-wrap {
-    width: 44px;
-    height: 44px;
-    border-radius: 13px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.18);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.30);
-    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1),
-                background 0.3s ease;
+.bs-feat:active {
+    transform: scale(0.96);
 }
-.bs-feat-icon-wrap svg {
-    width: 24px;
-    height: 24px;
-    color: #fff;
+.bs-feat-icon {
+    font-size: 30px;
+    line-height: 1;
+    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
 }
-.bs-feat:hover .bs-feat-icon-wrap {
-    transform: scale(1.08) rotate(-2deg);
-    background: rgba(255, 255, 255, 0.26);
-}
+.bs-feat:hover .bs-feat-icon { transform: scale(1.1); }
 .bs-feat-title {
-    font-size: 15.5px;
-    font-weight: 700;
+    font-size: 15px;
+    font-weight: 600;
     letter-spacing: -0.01em;
-    margin-top: auto;
-}
-.bs-feat-desc {
-    font-size: 12px;
-    opacity: 0.7;
-    line-height: 1.25;
-    letter-spacing: 0.01em;
 }
 
-/* ---------- Section title ---------- */
 .bs-section-title {
     font-family: "League Spartan", sans-serif;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.10em;
     text-transform: uppercase;
-    opacity: 0.55;
-    margin: 0 4px 12px;
+    opacity: 0.65;
+    margin: 0 4px 10px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2843,25 +2782,25 @@
 .bs-section-title::before {
     content: "";
     width: 4px;
-    height: 14px;
+    height: 16px;
     border-radius: 2px;
     background: rgba(255, 255, 255, 0.55);
 }
 
-/* ---------- Quick links list ---------- */
 .bs-quick-links {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
+    margin-bottom: 12px;
 }
 .bs-link {
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 13px 14px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.06);
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.07);
     color: #fff;
     cursor: pointer;
     font-family: "League Spartan", sans-serif;
@@ -2872,100 +2811,62 @@
     text-align: left;
     overflow: hidden;
     position: relative;
-    transform: translateY(10px);
-    opacity: 0;
-    animation: bsFadeUp 0.5s cubic-bezier(0.25, 1.5, 0.5, 1) forwards;
-}
-.bs-link:nth-child(1) { animation-delay: 0.42s; }
-.bs-link:nth-child(2) { animation-delay: 0.48s; }
-.bs-link:nth-child(3) { animation-delay: 0.54s; }
-.bs-link:nth-child(4) { animation-delay: 0.60s; }
-#bottom-sheet:not(.bs-expanded) .bs-link {
-    animation: none;
-    opacity: 0;
-    transform: translateY(10px);
 }
 .bs-link:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.24);
+    background: rgba(255, 255, 255, 0.13);
+    border-color: rgba(255, 255, 255, 0.25);
 }
-.bs-link:active { transform: scale(0.97); }
+.bs-link:active {
+    transform: scale(0.97);
+}
 .bs-link-icon {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
     flex-shrink: 0;
-    border-radius: 11px;
-    background: rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.10);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
-}
-.bs-link-icon svg {
-    width: 18px;
-    height: 18px;
-}
-.bs-link-text {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    font-size: 18px;
+    line-height: 1;
 }
 .bs-link-title {
-    font-size: 14.5px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+    min-width: 0;
 }
-.bs-link-sub {
-    font-size: 11.5px;
-    opacity: 0.62;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.bs-link-chevron {
+
+/* ---------- #menubtm (icon row) inside the sheet ----------
+   Collapsed: keeps its original pill chrome (background colour,
+              border-radius 40px, blur, etc.) — see the legacy
+              .menubottom-ul rule earlier in this stylesheet.
+   Expanded: stretches to the sheet width, drops its pill chrome,
+             and gets a subtle separator from the content above. */
+#bottom-sheet #menubtm {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    transform: none;
     flex-shrink: 0;
-    opacity: 0.55;
-    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1), opacity 0.2s ease;
 }
-.bs-link-chevron svg { width: 16px; height: 16px; }
-.bs-link:hover .bs-link-chevron {
-    transform: translateX(3px);
-    opacity: 1;
+#bottom-sheet.bs-collapsed #menubtm {
+    /* Restore the small offset from the bottom edge (was bottom:10px) */
+    margin: 0 auto 10px;
 }
-
-/* ---------- Animations ---------- */
-@keyframes bsFadeUp {
-    from { opacity: 0; transform: translateY(14px); filter: blur(4px); }
-    to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+#bottom-sheet.bs-expanded #menubtm {
+    margin: 0;
+    background-color: transparent !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: none;
+    box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.12);
+    border-radius: 0;
+    padding: 6px 20px 12px;
+    width: 100%;
+    justify-content: space-around;
 }
-
-/* ---------- Hide #menubtm when the sheet is showing ---------- */
-.menubtm-hidden {
-    transform: translate(-50%, 140%) !important;
-    opacity: 0 !important;
-    filter: blur(8px);
-    pointer-events: none;
-}
-
-/* ---------- Responsive ---------- */
-@media (min-width: 720px) {
-    #bottom-sheet {
-        max-width: 600px;
-        border-radius: 32px 32px 32px 32px;
-        bottom: 24px;
-    }
-}
-
-/* The legacy #menubtm pill is now a sibling of #bottom-sheet (not
-   inside it), so the original .menubottom-ul rule near line 739
-   applies unchanged. The .menubtm-hidden class above is added by
-   JS while the sheet is expanded, animating the pill off-screen. */
 
 @media (prefers-color-scheme: dark) {
     .ns-modal {
