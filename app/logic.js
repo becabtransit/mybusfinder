@@ -273,7 +273,7 @@
         }, 1000);
     });
 
-    VERSION_NAME = '3.5.1';
+    VERSION_NAME = '3.6.0 Release Candidate 2';
 
     document.addEventListener('gesturestart', function (e) {
     e.preventDefault();
@@ -1247,7 +1247,6 @@ async function initMap() {
     const tileLayer = L.tileLayer(tileLayerUrl, {
         minZoom: 6,
         maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(mapInstance);
 
 
@@ -1260,7 +1259,6 @@ async function initMap() {
         maxZoom: 19,
         format: 'image/jpeg',
         style: 'normal',
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://geoservices.ign.fr/">IGN</a>'
     }).addTo(mapInstance);
 
 }
@@ -1940,6 +1938,40 @@ function hideLoadingScreen() {
         const menubottom1 = document.getElementById('menubtm');
         menubottom1.style.display = 'flex';
         window.isMenuShowed = false;
+
+        setTimeout(() => {
+            toastTopLeft.info('Map data from OSM contributors, licensed under ODbL.', {
+                duration: 7000,
+                buttons: [
+                    {
+                    label: 'See more',
+                    style: 'primary',
+                    onClick: (close) => {
+                        close();
+                        showFluentPopup({
+                        title: "OpenStreetMap data",
+                        message: "OpenStreetMap (OSM) is a free, collaborative mapping project built by volunteers worldwide. It provides open geographic data : roads, paths, transit stops, used by My Bus Finder to display the map. The data is licensed under the Open Database License (ODbL), which allows free use as long as attribution is preserved.",
+                        buttons: {
+                            primary: "Understood",
+                            primaryAction: () => { fluentPopupManager.close(); },
+                            secondary: "Discover more",
+                            secondaryAction: () => {
+                            window.open('https://www.openstreetmap.org', '_blank');
+                            fluentPopupManager.close();
+                            }
+                        }
+                        });
+                    }
+                    },
+                    {
+                    label: 'OK',
+                    style: 'ghost',
+                    onClick: (close) => close()
+                    }
+                ]
+            });
+        }, 3000);
+
 
         if (localStorage.getItem('nepasafficheraccueil') === 'true') {
             setTimeout(() => {
@@ -5700,32 +5732,8 @@ const MenuManager = {
         statsButton.onmouseout = () => statsButton.style.background = 'transparent';
         statsButton.onclick = () => this._toggleStatsView();
 
-        const switchNetworkButton = document.createElement('div');
-        switchNetworkButton.id = 'menu-switch-network-btn';
-        switchNetworkButton.title = 'Changer de réseau';
-        switchNetworkButton.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 7H17M17 7L13 3M17 7L13 11" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M20 17H7M7 17L11 13M7 17L11 21" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-        `;
-        switchNetworkButton.style.cssText = `
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 33px;
-            transition: background 0.2s ease;
-            opacity: 0.85;
-        `;
-        switchNetworkButton.onmouseover = () => switchNetworkButton.style.background = 'rgba(255, 255, 255, 0.15)';
-        switchNetworkButton.onmouseout  = () => switchNetworkButton.style.background = 'transparent';
-        switchNetworkButton.onclick = () => openNetworkSwitcher();
-
         topBar.appendChild(backButton);
         topBar.appendChild(title);
-        topBar.appendChild(switchNetworkButton);
         topBar.appendChild(statsButton);
         this.container.appendChild(topBar);
 
@@ -10960,14 +10968,7 @@ main().catch(error => {
     soundsUX('MBF_NotificationError');
 });
 
-// ============================================================
-//  Network switcher
-// ------------------------------------------------------------
-//  Builds and shows a modal listing all available networks
-//  (loaded from `networks-index.json`). Selecting a network
-//  triggers an in-place soft switch — no page reload — driven
-//  by `softSwitchNetwork()` further below.
-// ============================================================
+
 let __networksIndexCache = null;
 
 async function loadNetworksIndex() {
