@@ -53,18 +53,12 @@
             };
         }
 
+        // Initial sheet state is now driven by the dedicated DOMContentLoaded
+        // listener installed alongside `BottomSheet.init()` further below.
+        // We only need to update the legacy `isMenuShowed` flag here so the
+        // rest of the app keeps the same boot-time semantics.
         document.addEventListener('DOMContentLoaded', () => {
-            if (localStorage.getItem('nepasafficheraccueil') === 'true') {
-                const accueil = document.getElementById('accueil');
-                accueil.classList.add('hide');
-                accueil.classList.remove("affiche");
-                window.isMenuShowed = false;
-                setTimeout(() => {
-                    accueil.style.display = 'none';
-                }, 500);
-            } else {
-                afficherMenu();
-            }
+            window.isMenuShowed = localStorage.getItem('nepasafficheraccueil') !== 'true';
         });
 
     // Ripple Effect Implementation for iOS26-like behavior - Improved by BecabDev
@@ -1140,6 +1134,10 @@ async function changeColorBkg(selectedTheme = null) {
 
     document.getElementById("menubtm").style.backgroundColor = colorWithAlpha;
     document.documentElement.style.backgroundColor = colorWithAlpha;
+
+    // Bottom-sheet expanded background uses the active network color
+    // with a deeper alpha so the glass blur stays readable.
+    document.documentElement.style.setProperty('--bs-bg', `${baseColor}c4`);
 
     window.colorbkg = baseColor;
     window.colorbkg9c = colorWithAlpha;
@@ -3040,22 +3038,9 @@ async function decodeProtobuf(buffer) {
         const routeId = event.data.routeId;
 
         safeVibrate([30], true);
-        const accueil = document.getElementById('accueil');
-        accueil.classList.add('hide');
-        accueil.classList.remove("affiche")
-        const menubottom1 = document.getElementById('menubtm');
-        menubottom1.style.display = 'flex';
         window.isMenuShowed = false;
-    
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-            setTimeout(() => {
-                accueil.style.display = 'none';
-            }, 500);
-        }, 10);
+        if (typeof BottomSheet !== 'undefined') BottomSheet.collapse();
 
-        
         const marker = findMarkerByVehicleId(vehicleId);
         if (marker) {
             map.setView(marker.getLatLng(), 17);
@@ -5729,7 +5714,6 @@ const MenuManager = {
         statsButton.onmouseout = () => statsButton.style.background = 'transparent';
         statsButton.onclick = () => this._toggleStatsView();
 
-        // ── Network switcher button ─────────────────────────────────
         const switchNetworkButton = document.createElement('div');
         switchNetworkButton.id = 'menu-switch-network-btn';
         switchNetworkButton.title = 'Changer de réseau';
@@ -10435,65 +10419,38 @@ window.addEventListener('message', function(event) {
     }
 
     if (event.data.type === 'openmap') {
-    let timespressed = parseInt(localStorage.getItem('threetimespress'), 10);
-    if (Number.isNaN(timespressed)) timespressed = 0;
+        let timespressed = parseInt(localStorage.getItem('threetimespress'), 10);
+        if (Number.isNaN(timespressed)) timespressed = 0;
+        timespressed++;
+        localStorage.setItem('threetimespress', String(timespressed));
 
-    timespressed++;
-    localStorage.setItem('threetimespress', String(timespressed));
-
-    const accueil = document.getElementById('accueil');
-
-    if (timespressed !== 3) {
-        safeVibrate([30], true);
-        accueil.classList.add('hide');
-        accueil.classList.remove("affiche")
-        const menubottom1 = document.getElementById('menubtm');
-        menubottom1.style.display = 'flex';
-        window.isMenuShowed = false;
-    
-        setTimeout(() => {
-            menubottom1.classList.remove('slide-upb');
-            menubottom1.classList.add('slide-downb');
-            setTimeout(() => {
-                accueil.style.display = 'none';
-            }, 500);
-        }, 10);
-
-    } else {
-
-        showFluentPopup({
-        title: t('threetimestitle'),
-        message: t('threetimesinfo'),
-        buttons: {
-            primary: t('yes'),
-            primaryAction: () => {
-            localStorage.setItem('nepasafficheraccueil', 'true');
+        if (timespressed !== 3) {
             safeVibrate([30], true);
-            accueil.classList.add('hide');
-            accueil.classList.remove('affiche');
-            const menubottom1 = document.getElementById('menubtm');
-            menubottom1.style.display = 'flex';
             window.isMenuShowed = false;
-
-            setTimeout(() => {
-                menubottom1.classList.remove('slide-upb');
-                menubottom1.classList.add('slide-downb');
-                setTimeout(() => (accueil.style.display = 'none'), 500);
-            }, 10);
-
-            fluentPopupManager.close();
-            },
-            secondary: t('no'),
-            secondaryAction: () => {
-                timespressed++;
-                localStorage.setItem('threetimespress', timespressed.toString());
-                fluentPopupManager.close();
-            }
-
+            if (typeof BottomSheet !== 'undefined') BottomSheet.collapse();
+        } else {
+            showFluentPopup({
+                title: t('threetimestitle'),
+                message: t('threetimesinfo'),
+                buttons: {
+                    primary: t('yes'),
+                    primaryAction: () => {
+                        localStorage.setItem('nepasafficheraccueil', 'true');
+                        safeVibrate([30], true);
+                        window.isMenuShowed = false;
+                        if (typeof BottomSheet !== 'undefined') BottomSheet.collapse();
+                        fluentPopupManager.close();
+                    },
+                    secondary: t('no'),
+                    secondaryAction: () => {
+                        timespressed++;
+                        localStorage.setItem('threetimespress', timespressed.toString());
+                        fluentPopupManager.close();
+                    }
+                }
+            });
         }
-    });
-}
-}
+    }
 
     if (event.data.type === 'settingUpdate') {
         const { setting, value } = event.data;
@@ -10549,25 +10506,10 @@ window.addEventListener('message', function(event) {
 });
 
 function afficherMenu() {
-    const accueil = document.getElementById('accueil');
-    accueil.classList.remove('hide');
-    accueil.classList.add("affiche")
-    accueil.style.display = 'block';
     window.isMenuShowed = true;
-    soundsUX('MBF_Popup');
-
-    const menubottom1 = document.getElementById('menubtm');
-
-    setTimeout(() => {
-        menubottom1.classList.add('slide-upb');
-        menubottom1.classList.remove('slide-downb');
-        setTimeout(() => {
-            menubottom1.style.display = 'none';
-            accueil.style.display = 'block';
-        }, 500);
-    }, 10);
-
-    
+    if (typeof BottomSheet !== 'undefined') {
+        BottomSheet.expand();
+    }
 }
 
 async function modeSombre() {
@@ -11296,7 +11238,6 @@ async function softSwitchNetwork(newId) {
         if (typeof toastBottomRight !== 'undefined') {
             toastBottomRight.error?.('Échec du changement de réseau, rechargement…');
         }
-        // Last-resort safety net so the user is never stuck
         setTimeout(() => window.location.reload(), 600);
     } finally {
         // Slight delay so the new map has time to paint before we fade
@@ -11308,7 +11249,6 @@ async function softSwitchNetwork(newId) {
 }
 window.softSwitchNetwork = softSwitchNetwork;
 
-// ─── Helpers for the modal styling ──────────────────────
 function _hexToRgb(hex) {
     if (!hex) return null;
     let m = hex.replace('#', '').trim();
@@ -11323,7 +11263,6 @@ function _hexToRgb(hex) {
 }
 
 function _shadeHex(hex, percent) {
-    // Negative percent darkens, positive lightens. Range: -100..100.
     const rgb = _hexToRgb(hex);
     if (!rgb) return hex;
     const adjust = (v) => {
@@ -11335,9 +11274,6 @@ function _shadeHex(hex, percent) {
     return '#' + toHex(adjust(rgb.r)) + toHex(adjust(rgb.g)) + toHex(adjust(rgb.b));
 }
 
-// Themes the modal with the *active* network's color so the
-// header gradient and the active-row accent match the rest of
-// the app (which already tints itself via window.colorbkg9c).
 function _applyAccentToModal(rootEl, accentHex) {
     if (!rootEl) return;
     const safe = accentHex || window.colorbkg || '#00509b';
@@ -11349,7 +11285,6 @@ function _applyAccentToModal(rootEl, accentHex) {
     rootEl.style.setProperty('--ns-accent-softer', `rgba(${rgb.r},${rgb.g},${rgb.b},0.04)`);
 }
 
-// ─── Open / close ───────────────────────────────────────
 function closeNetworkSwitcher() {
     const overlay = document.getElementById('network-switcher-overlay');
     if (!overlay) return;
@@ -11369,7 +11304,6 @@ function closeNetworkSwitcher() {
 let __nsEscHandler = null;
 
 async function openNetworkSwitcher() {
-    // If one is already open (mid-animation), drop it cleanly first.
     const existing = document.getElementById('network-switcher-overlay');
     if (existing) existing.remove();
 
@@ -11386,7 +11320,6 @@ async function openNetworkSwitcher() {
 
     soundsUX('MBF_SelectedVehicle_DoorOpen');
 
-    // ── Build markup using stylesheet classes (defined in style.css) ──
     const overlay = document.createElement('div');
     overlay.id = 'network-switcher-overlay';
     overlay.className = 'ns-modal-overlay';
@@ -11447,7 +11380,6 @@ async function openNetworkSwitcher() {
         });
     });
 
-    // Floating close button (matches the in-app .close-btn style)
     const closeBtn = document.createElement('button');
     closeBtn.className = 'ns-close-btn ripple-container';
     closeBtn.setAttribute('aria-label', 'Fermer');
@@ -11463,12 +11395,10 @@ async function openNetworkSwitcher() {
     modal.appendChild(closeBtn);
     overlay.appendChild(modal);
 
-    // Click outside closes
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) closeNetworkSwitcher();
     });
 
-    // ESC closes
     __nsEscHandler = (e) => {
         if (e.key === 'Escape') closeNetworkSwitcher();
     };
@@ -11476,8 +11406,6 @@ async function openNetworkSwitcher() {
 
     document.body.appendChild(overlay);
 
-    // Trigger the show transition on the next frame so CSS picks up
-    // the initial state before the .visible class adds the final state.
     requestAnimationFrame(() => {
         overlay.classList.add('visible');
     });
@@ -11486,3 +11414,312 @@ async function openNetworkSwitcher() {
 window.openNetworkSwitcher  = openNetworkSwitcher;
 window.closeNetworkSwitcher = closeNetworkSwitcher;
 window.selectNetwork        = selectNetwork;
+
+
+const BottomSheet = (() => {
+    const COLLAPSE_VEL = 0.45; 
+    const EXPAND_VEL   = 0.45; 
+    let sheetEl, contentEl, handleZoneEl, menubtmEl;
+    let collapsedHeight = 0;
+    let expandedHeight  = 0;
+    let isExpanded = false;
+    let isDragging = false;
+    let dragStartY = 0;
+    let dragStartTime = 0;
+    let lastY = 0;
+    let lastTime = 0;
+    let velocity = 0;
+
+    function _measure() {
+        if (!sheetEl) return;
+        const wasCollapsed = sheetEl.classList.contains('bs-collapsed');
+        if (!wasCollapsed) sheetEl.classList.add('bs-collapsed');
+        collapsedHeight = sheetEl.getBoundingClientRect().height;
+        if (!wasCollapsed) {
+            sheetEl.classList.remove('bs-collapsed');
+            sheetEl.classList.add('bs-expanded');
+            expandedHeight = Math.min(window.innerHeight * 0.88, sheetEl.scrollHeight);
+        } else {
+            sheetEl.classList.remove('bs-collapsed');
+            sheetEl.classList.add('bs-expanded');
+            expandedHeight = Math.min(window.innerHeight * 0.88, sheetEl.scrollHeight);
+            sheetEl.classList.remove('bs-expanded');
+            sheetEl.classList.add('bs-collapsed');
+        }
+    }
+
+    function expand() {
+        if (!sheetEl) return;
+        isExpanded = true;
+        sheetEl.classList.remove('bs-collapsed');
+        sheetEl.classList.add('bs-expanded');
+        sheetEl.style.transform = '';
+        soundsUX('MBF_Popup');
+        safeVibrate?.([20]);
+    }
+
+    function collapse() {
+        if (!sheetEl) return;
+        isExpanded = false;
+        sheetEl.classList.remove('bs-expanded');
+        sheetEl.classList.add('bs-collapsed');
+        sheetEl.style.transform = '';
+        safeVibrate?.([15]);
+    }
+
+    function toggle() { isExpanded ? collapse() : expand(); }
+
+    function _onPointerDown(e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+        isDragging = true;
+        sheetEl.classList.add('bs-dragging');
+        dragStartY = e.clientY;
+        lastY = e.clientY;
+        dragStartTime = lastTime = performance.now();
+        velocity = 0;
+        try { handleZoneEl.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    function _onPointerMove(e) {
+        if (!isDragging) return;
+        e.preventDefault?.();
+        const now = performance.now();
+        const dy  = e.clientY - lastY;
+        const dt  = Math.max(1, now - lastTime);
+        velocity = dy / dt; // px / ms (positive = downward)
+        lastY = e.clientY;
+        lastTime = now;
+
+        const totalDelta = e.clientY - dragStartY; // positive = downward
+        let translateY;
+
+        if (isExpanded) {
+            translateY = Math.max(0, totalDelta);
+            if (totalDelta < 0) translateY = totalDelta / 6;
+        } else {
+            translateY = Math.min(0, totalDelta);
+            if (totalDelta > 0) translateY = totalDelta / 6;
+        }
+        sheetEl.style.transform = `translate(-50%, ${translateY}px)`;
+    }
+
+    function _onPointerUp(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        sheetEl.classList.remove('bs-dragging');
+        try { handleZoneEl.releasePointerCapture?.(e.pointerId); } catch (_) {}
+
+        const totalDelta = e.clientY - dragStartY;
+        const distance = Math.abs(totalDelta);
+        const fastSwipe = Math.abs(velocity) > COLLAPSE_VEL;
+
+        if (isExpanded) {
+            // Collapse if dragged sufficiently down or fast swipe down
+            if ((totalDelta > 80 && distance > 0) || (fastSwipe && velocity > 0)) {
+                collapse();
+            } else {
+                expand(); // reset
+            }
+        } else {
+            // Expand if dragged sufficiently up or fast swipe up
+            if ((totalDelta < -60) || (fastSwipe && velocity < 0)) {
+                expand();
+            } else {
+                collapse(); // reset
+            }
+        }
+    }
+
+    function init() {
+        sheetEl     = document.getElementById('bottom-sheet');
+        contentEl   = document.getElementById('bs-content');
+        handleZoneEl = document.getElementById('bs-handle-zone');
+        menubtmEl   = document.getElementById('menubtm');
+
+        if (!sheetEl || !handleZoneEl) return;
+
+        _measure();
+        window.addEventListener('resize', () => _measure());
+
+        // Click on the handle zone (without movement) toggles the state
+        let downX = 0, downY = 0;
+        handleZoneEl.addEventListener('pointerdown', (e) => {
+            downX = e.clientX; downY = e.clientY;
+            _onPointerDown(e);
+        });
+        handleZoneEl.addEventListener('pointermove', _onPointerMove);
+        const upHandler = (e) => {
+            if (!isDragging) return;
+            const dx = Math.abs(e.clientX - downX);
+            const dy = Math.abs(e.clientY - downY);
+            if (dx < 5 && dy < 5) {
+                // Treat as a tap on the handle
+                isDragging = false;
+                sheetEl.classList.remove('bs-dragging');
+                sheetEl.style.transform = '';
+                toggle();
+                return;
+            }
+            _onPointerUp(e);
+        };
+        handleZoneEl.addEventListener('pointerup', upHandler);
+        handleZoneEl.addEventListener('pointercancel', upHandler);
+
+        let rowStartY = 0, rowStartT = 0, rowTracking = false;
+        menubtmEl?.addEventListener('pointerdown', (e) => {
+            if (isExpanded) return;
+            rowTracking = true;
+            rowStartY = e.clientY;
+            rowStartT = performance.now();
+        });
+        menubtmEl?.addEventListener('pointerup', (e) => {
+            if (!rowTracking) return;
+            rowTracking = false;
+            const dy = rowStartY - e.clientY; // positive = upward
+            const dt = performance.now() - rowStartT;
+            // Fast upward flick on the icon row → expand
+            if (dy > 50 && dt < 350) expand();
+        });
+        menubtmEl?.addEventListener('pointercancel', () => { rowTracking = false; });
+    }
+
+    return {
+        init,
+        expand,
+        collapse,
+        toggle,
+        get expanded() { return isExpanded; }
+    };
+})();
+
+function expandBottomSheet()   { BottomSheet.expand(); }
+function collapseBottomSheet() { BottomSheet.collapse(); }
+window.expandBottomSheet   = expandBottomSheet;
+window.collapseBottomSheet = collapseBottomSheet;
+
+function _wireBottomSheetButtons() {
+    const btnSwitch = document.getElementById('btn-network-switch');
+    if (btnSwitch) {
+        btnSwitch.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            openNetworkSwitcher();
+        });
+    }
+    const btnSchedule = document.getElementById('clock');
+    if (btnSchedule) {
+        btnSchedule.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            showUpdatePopup('schedule.html');
+        });
+    }
+    const btnNews = document.getElementById('histovecbutton');
+    if (btnNews) {
+        btnNews.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            showUpdatePopup('alerts.html');
+        });
+    }
+
+    const featBus = document.getElementById('bus');
+    if (featBus) {
+        featBus.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            collapseBottomSheet();
+        });
+    }
+    const featClock = document.getElementById('clock-feat');
+    if (featClock) {
+        featClock.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            showUpdatePopup('schedule.html');
+        });
+    }
+    const featActu = document.getElementById('actu');
+    if (featActu) {
+        featActu.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            showUpdatePopup('alerts.html');
+        });
+    }
+    const featTicket = document.getElementById('ticket');
+    if (featTicket) {
+        featTicket.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            const link = (typeof globalSettings !== 'undefined' && globalSettings.boutique) || '';
+            if (window.boutiqueAvailable === false) {
+                showFluentPopup({
+                    title: t('noboutique'),
+                    message: t('noboutiqueinfo'),
+                    buttons: {
+                        primary: t('understood'),
+                        primaryAction: () => fluentPopupManager.close()
+                    }
+                });
+            } else if (link) {
+                showUpdatePopup(link);
+            }
+        });
+    }
+
+    const linkSettings = document.getElementById('settings');
+    if (linkSettings) {
+        linkSettings.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            FluentSettingsMenu?.open?.();
+        });
+    }
+    const linkMbh = document.getElementById('mbh');
+    if (linkMbh) {
+        linkMbh.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            showUpdatePopup('histovec.html');
+        });
+    }
+    const linkSwitch = document.getElementById('bs-switch-network');
+    if (linkSwitch) {
+        linkSwitch.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            openNetworkSwitcher();
+        });
+    }
+    const linkHome = document.getElementById('mybusfinderhome');
+    if (linkHome) {
+        linkHome.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            window.open('https://mybusfinder.fr', '_blank');
+        });
+    }
+}
+
+function _refreshBottomSheetGreeting() {
+    const sub = document.getElementById('bs-network-name');
+    if (!sub) return;
+    const id = window.ACTIVE_NETWORK || 'palmbus';
+    sub.textContent = `${id} · My Bus Finder`;
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    try {
+        BottomSheet.init();
+        _wireBottomSheetButtons();
+        _refreshBottomSheetGreeting();
+
+        if (localStorage.getItem('nepasafficheraccueil') === 'true') {
+            BottomSheet.collapse();
+        } else {
+            // Slight delay so the loading screen can fade out first
+            setTimeout(() => BottomSheet.expand(), 350);
+        }
+    } catch (e) {
+        console.error('Bottom sheet init failed:', e);
+    }
+});
+
+const __origSoftSwitch = softSwitchNetwork;
+softSwitchNetwork = async function (newId) {
+    await __origSoftSwitch(newId);
+    _refreshBottomSheetGreeting();
+};
+window.softSwitchNetwork = softSwitchNetwork;

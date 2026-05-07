@@ -2552,6 +2552,284 @@
 .ns-close-btn:active {
     transform: scale(0.78);
 }
+#bottom-sheet {
+    position: fixed;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 720px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    background: var(--bs-bg, rgba(15, 5, 107, 0.78));
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    border-bottom-left-radius: 28px;
+    border-bottom-right-radius: 28px;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    color: #fff;
+    transition: transform 0.55s cubic-bezier(0.25, 1.5, 0.5, 1),
+                background 0.5s ease,
+                border-radius 0.5s cubic-bezier(0.25, 1.5, 0.5, 1),
+                max-height 0.55s cubic-bezier(0.25, 1.5, 0.5, 1);
+    will-change: transform;
+    overflow: hidden;
+    max-height: 100px;
+}
+
+/* Use the colorbkg9c of the active network as the sheet tint */
+#bottom-sheet.bs-collapsed {
+    /* Compact pill-shaped state: only the 4-icon row peeks out. */
+    max-height: 100px;
+    margin-bottom: 10px;
+    width: auto;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+
+#bottom-sheet.bs-expanded {
+    /* Full sheet covering most of the screen height. */
+    max-height: 88vh;
+    width: 100%;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-bottom: 0;
+}
+
+/* No transition during an active drag (JS sets transform inline) */
+#bottom-sheet.bs-dragging {
+    transition: none !important;
+}
+
+.bs-handle-zone {
+    flex-shrink: 0;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 0.3s ease, height 0.3s ease;
+    padding-top: 4px;
+}
+#bottom-sheet.bs-expanded .bs-handle-zone {
+    opacity: 1;
+    height: 28px;
+}
+.bs-handle-zone:active { cursor: grabbing; }
+.bs-handle-bar {
+    width: 44px;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.45);
+    transition: background 0.2s ease, transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+.bs-handle-zone:active .bs-handle-bar {
+    background: rgba(255, 255, 255, 0.75);
+    transform: scaleX(1.1);
+}
+
+.bs-content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 18px 16px;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.45s ease 0.05s, transform 0.55s cubic-bezier(0.25, 1.5, 0.5, 1) 0.05s;
+    pointer-events: none;
+}
+#bottom-sheet.bs-expanded .bs-content {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+#bottom-sheet.bs-collapsed .bs-content {
+    /* When collapsed, the content shouldn't be reachable via tab/scroll. */
+    pointer-events: none;
+}
+.bs-content::-webkit-scrollbar { width: 6px; }
+.bs-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+}
+
+.bs-greeting {
+    padding: 8px 4px 18px;
+}
+.bs-greeting-title {
+    font-family: "League Spartan", sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: -0.02em;
+}
+.bs-greeting-subtitle {
+    font-family: "League Spartan", sans-serif;
+    font-size: 14px;
+    margin: 0;
+    opacity: 0.78;
+}
+
+.bs-features {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 22px;
+}
+.bs-feat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    min-height: 116px;
+    padding: 18px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.10);
+    color: #fff;
+    cursor: pointer;
+    font-family: "League Spartan", sans-serif;
+    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1),
+                background 0.25s ease,
+                border-color 0.25s ease,
+                box-shadow 0.25s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    position: relative;
+    overflow: hidden;
+}
+.bs-feat:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12),
+                inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.bs-feat:active {
+    transform: scale(0.96);
+}
+.bs-feat-icon {
+    font-size: 30px;
+    line-height: 1;
+    transition: transform 0.3s cubic-bezier(0.25, 1.5, 0.5, 1);
+}
+.bs-feat:hover .bs-feat-icon { transform: scale(1.1); }
+.bs-feat-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.bs-section-title {
+    font-family: "League Spartan", sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    opacity: 0.65;
+    margin: 0 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.bs-section-title::before {
+    content: "";
+    width: 4px;
+    height: 16px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.bs-quick-links {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.bs-link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    cursor: pointer;
+    font-family: "League Spartan", sans-serif;
+    transition: transform 0.25s cubic-bezier(0.25, 1.5, 0.5, 1),
+                background 0.2s ease,
+                border-color 0.2s ease;
+    width: 100%;
+    text-align: left;
+    overflow: hidden;
+    position: relative;
+}
+.bs-link:hover {
+    background: rgba(255, 255, 255, 0.13);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+.bs-link:active {
+    transform: scale(0.97);
+}
+.bs-link-icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.10);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+}
+.bs-link-title {
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+    min-width: 0;
+}
+
+/* When the sheet is collapsed we override the legacy fixed
+   positioning of #menubtm so it sits naturally inside #bottom-sheet. */
+#bottom-sheet #menubtm {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    margin: 0 auto;
+    flex-shrink: 0;
+}
+
+#bottom-sheet.bs-expanded #menubtm {
+    /* In expanded state, the icon row sticks to the bottom edge but
+       borrows the sheet's tinted background (no extra pill chrome). */
+    background-color: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: none;
+    box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.12);
+    border-radius: 0;
+    padding: 6px 20px 12px;
+    width: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+    #bottom-sheet { background: var(--bs-bg, rgba(15, 5, 107, 0.78)); }
+}
 
 @media (prefers-color-scheme: dark) {
     .ns-modal {
