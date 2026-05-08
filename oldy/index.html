@@ -1,0 +1,1696 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="default">
+	<meta name="apple-mobile-web-app-title" content="MyBusFinder Réseau Mistral">
+	<link rel="canonical" href="https://sudtransports.fr/toulon">
+	<link rel="apple-touch-icon" href="logo.png">
+    <title>MyBusFinder Palm Transports</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/protobufjs/6.11.2/protobuf.min.js"></script>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js" charset="utf-8"></script>
+	<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5815761294049475"
+			crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+	<link rel="manifest" href="/manifest.json">
+        <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'League Spartan', sans-serif;
+            background-color: #f4f4f4; 
+            color: #333; 
+            transition: background-color 0.5s ease; 
+        }
+
+        @font-face {
+            font-family: 'League Spartan';
+            src: url('leaguespartan.ttf') format('truetype');
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+			
+			
+.update-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none; 
+    justify-content: center;
+    align-items: center;
+    z-index: 10001;
+	background-color: rgba(255, 255, 255, 0.5); 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background-color: #00000000;
+  box-shadow: none !important;
+  padding: 0px;
+
+}
+
+.leaflet-popup-close-button {
+visibility: hidden;
+}
+
+
+
+.popup-content {
+    background-color: #f4f4f4;
+    padding: 20px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 500px;
+    max-height: 80%;
+    overflow-y: auto;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    animation: fadeInPopup 0.5s forwards;
+}
+
+#alerts-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.836); 
+    z-index: 1000;
+    display: none;
+}
+
+#alerts-menu {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #ffffff; 
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(255, 255, 255, 0.5);
+    max-height: 80%;
+    width: 90%;
+    max-width: 500px;
+    z-index: 1001;
+    overflow-y: auto;
+    opacity: 0; /* Commence invisible */
+}
+
+@keyframes fadeInPopupSvc {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -20%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+@keyframes fadeOutPopupSvc {
+    from {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+    to {
+        opacity: 0;
+        transform: translate(-50%, -20%);
+    }
+}
+
+@keyframes fadeInPopup {
+    from {
+        opacity: 0;
+        transform: translate(0%, 30%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(0%, 0%);
+    }
+}
+
+@keyframes fadeOutPopup {
+    from {
+        opacity: 1;
+        transform: translate(0%, -30%);
+    }
+    to {
+        opacity: 0;
+        transform: translate(0%, 0%);
+    }
+}
+
+/* Barre de défilement pour PC */
+.custom-scrollbar::-webkit-scrollbar {
+    height: 1px; /* Hauteur pour les barres horizontales */
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #888;
+    border-radius: 10px;
+    border: 2px solid #f1f1f1;
+}
+
+/* Ajustement pour la compatibilité mobile */
+.custom-scrollbar {
+    -webkit-overflow-scrolling: touch; /* Permet un défilement fluide sur iOS */
+}
+
+			
+.popup-content h2 {
+    font-size: 24px;
+    font-family: 'League Spartan', sans-serif;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+#update-notes {
+    font-family: 'League Spartan', sans-serif;
+    font-size: 16px;
+    color: #555;
+    line-height: 1;
+}
+
+#update-notes li {
+    margin-bottom: 10px;
+}
+
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: transparent;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #333;
+    transition: color 0.3s ease;
+}
+
+.close-btn:hover {
+    color: #e63946;
+}
+
+#menu {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    background-color: #e4a70077;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 10px;
+    border-radius: 0px 0px 0px 0px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 1);
+    z-index: 1000;
+    height: 98vh; 
+    overflow-y: auto;
+    opacity: 0.9;
+    transition: all 0.3s ease;
+    display: none;
+}
+
+			
+
+
+        #toggleMenuButton {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 12px;
+    border: none;
+    background-color: #e4a70077;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: white;
+    border-radius: 30px;
+    cursor: pointer;
+    z-index: 9999;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5); /* Ombre noire */
+}
+
+
+        #toggleMenuButton:hover {
+            transform: scale(1.05); 
+        }
+
+
+
+        #loading-text {
+            margin-top: 20px;
+            font-size: 18px;
+            color: white; 
+        }
+
+        .ripple {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ripple::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            transform: scale(0);
+            opacity: 0;
+            animation: ripple-animation 0.6s linear forwards;
+        }
+
+        @keyframes ripple-animation {
+            to {
+                transform: scale(4);
+                opacity: 1;
+            }
+        }
+
+        ul {
+    padding: 0;
+    margin: 0;
+    list-style-type: none;
+    padding-inline-start: 0;
+}
+
+
+        .menu-item {
+            cursor: pointer;
+            padding: 6px;
+            transition: background-color 0.3s ease; 
+            border-radius: 5px;
+        }
+
+        .menu-item:hover {
+            background-color: #343b61; 
+            animation: jspcommentlappelercettekeyframe 0.1s linear forwards;
+        }
+
+        @keyframes jspcommentlappelercettekeyframe {
+            to {
+                transform: scale(1.05);
+            }
+        }
+
+        .popup-content {
+            font-family: 'League Spartan', sans-serif;
+            font-size: 12px;
+            line-height: 1.1;
+        }
+
+        .popup-header {
+            padding: 5px;
+            border-radius: 10px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+#loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: white; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    flex-direction: column;
+    opacity: 1; 
+}
+
+#alerts-menu {
+    background-color: rgba(255, 255, 255, 0.911); 
+    backdrop-filter: blur(5px); 
+}
+
+#alerts-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6); 
+    z-index: 1000;
+    display: none;
+}
+
+
+.loading-animation, #loading-text {
+    opacity: 0; 
+    animation: textFadeIn 1.5s ease forwards; 
+    color: transparent; 
+}
+
+@keyframes textFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0); 
+    }
+}
+
+.loading-animation {
+    font-family: 'League Spartan', sans-serif;
+    font-size: 50px;  
+    font-weight: bold;
+    background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0); 
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: gradientTextAnimation 3s ease infinite; 
+}
+
+.share-btn {
+    margin-top: 10px;
+    padding: 10px 15px;
+    background-color: #007aff;
+    color: #fff;
+	font-family: 'League Spartan', sans-serif;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.share-btn:hover {
+    background-color: #0056b3;
+}
+
+.donate-btn {
+    margin-top: 10px;
+    padding: 10px 15px;
+    background-color: #ffd900;
+    color: #000000;
+	font-family: 'League Spartan', sans-serif;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.donate-btn:hover {
+    background-color: #c4a600;
+}
+
+.share-btn, .donate-btn {
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@keyframes slideInBounce {
+    0% {
+        right: -100%; 
+    }
+    100% {
+        right: 0; 
+    }
+}
+
+#menu {
+    animation: slideInBounce 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; 
+}
+
+@keyframes bounceIn {
+    0% {
+        transform: scale(0.9);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Animation de fondu avec zoom pour les popups */
+.popup-content {
+    animation: zoomFadeIn 0.6s forwards;
+}
+@keyframes zoomFadeIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+
+
+
+.marker-icon {
+    animation: zoomInOut 2s infinite;
+}
+
+@keyframes zoomInOut {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.13); }
+}
+
+/* Apparition en cascade des éléments du menu */
+.menu-item {
+    opacity: 0;
+    animation: fadeInCascade 0.5s forwards;
+}
+@keyframes fadeInCascade {
+    0% { opacity: 0; transform: translateX(20px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+
+/* Animation sur les badges des options de véhicule */
+span[style*="padding: 5px 10px;"] {
+    animation: badgePulse 1.5s infinite;
+}
+@keyframes badgePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Effet de fondu sur le texte défilant horizontalement */
+#nextStopsContent div {
+    animation: fadeInScroll 0.3s ease-in;
+}
+@keyframes fadeInScroll {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Animation pour les marqueurs au survol */
+.marker-icon:hover {
+    animation: hoverBounce 0.3s ease-in-out;
+}
+@keyframes hoverBounce {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+
+			
+@keyframes gradientTextAnimation {
+    0% {
+        background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0);
+    }
+    50% {
+        background: linear-gradient(45deg, #ffffff, #f0f0f0, #ffffff);
+    }
+    100% {
+        background: linear-gradient(45deg, #f0f0f0, #ffffff, #f0f0f0);
+    }
+}
+
+#loading-screen img {
+    display: none; 
+}
+
+#progress-bar-container {
+    width: 80%;
+    height: 10px;
+    background-color: #e0e0e0;
+    border-radius: 5px;
+    margin-top: 20px;
+    opacity: 0;
+    animation: barFadeIn forwards 0.3s; 
+}
+
+
+@keyframes barFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(60px); 
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0); 
+    }
+}
+
+#progress-bar {
+    height: 100%;
+    width: 0%;
+    background-color: #00ffcc;
+    border-radius: 5px;
+    animation: loadingBarAnimation 5s infinite; 
+}
+			
+.next-stops-container {
+	max-height: 100px;
+    padding: 10px;
+    background: #f9f9f9;
+    border-top: 1px solid #ddd;
+    position: relative;
+}
+
+.next-stops-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.next-stops-content {
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+    padding-inline-start: 0;
+    list-style-type: none; 
+    overflow-y: auto;
+}
+
+.popup {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: fadeInPopup 0.5s forwards;
+    background-color: #ffffff; 
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(255, 255, 255, 0.5);
+    max-height: 80%;
+    width: 90%;
+    max-width: 500px;
+    z-index: 1001;
+    overflow-y: auto;
+    opacity: 0; 
+        }
+
+        .popup-content {
+            text-align: center;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            font-size: 18px;
+            color: #000;
+            cursor: pointer;
+        }
+
+        .close-btn:hover {
+            color: red;
+        }
+
+
+
+@keyframes loadingBarAnimation {
+    0% {
+        width: 0%;
+    }
+    50% {
+        width: 100%;
+    }
+    100% {
+        width: 100%;
+    }
+}
+
+
+        .marker-icon:hover {
+        transform: scale(0.8);
+        transition: transform 0.2s ease;
+        }
+
+      
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        @keyframes zoomOut {
+            from {
+                transform: scale(1);
+                opacity: 1;
+            }
+            to {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+    </style>
+
+</head>
+<body>
+	
+	
+	<amp-auto-ads type="adsense"
+        data-ad-client="ca-pub-5815761294049475">
+</amp-auto-ads>
+<div id="service-alerts-banner" style="
+width: 100%;
+background-color: #e4a70077;; 
+backdrop-filter: blur(8px); 
+-webkit-backdrop-filter: blur(8px);
+font-weight: bold;
+padding: 10px 0;
+font-family: 'League Spartan', sans-serif;
+font-size: 16px;
+overflow: hidden;
+white-space: nowrap;
+position: fixed;
+top: 0;
+left: 0;
+z-index: 1000;
+display: none;
+cursor: pointer;
+">
+<span id="service-alerts-text" style="padding-left: 100%; display: inline-block;"></span>
+</div>
+
+<div id="alerts-overlay"></div>
+
+<div id="alerts-menu">
+    <button id="close-alerts-menu" class="close-btn">✖</button>
+    <h2>🚨 Actualités transport</h2>
+    <div id="alerts-content"></div>
+</div>
+
+
+
+
+    <div id="map"></div>
+    <div id="alerts-overlay"></div>
+    <div id="menu"></div>
+    <button id="toggleMenuButton" style="font-size: 18px;">🚌</button>
+
+    <div id="update-popup" class="update-popup">
+        <div class="popup-content">
+            <button id="close-popup" class="close-btn">✖</button>
+            <h2>👋 Bienvenue My Bus Finder 2.O.1 release</h2>
+            <ul id="update-notes">
+                <li>🖌️ Une interface répondant à la norme internationale WCAG</li>
+                <li>✍️ Des informations spécifiques à chaque véhicule en direct</li>
+                <li>📌 Une localisation toujours plus précise et en temps-réel</li>
+                <li>🕰️ Les horaires sont désormais indiqués pour les 6 prochains arrêts</li>
+                <li>🚧 Les déviations ainsi que les perturbations désormais disponibles</li>
+            </ul>
+			            <h4>La version 2.O.1 apporte des corrections de bugs et une meilleure stabilité.</h4>
+            <button id="share-button" class="share-btn">📲 Ajouter à l'écran d'accueil</button>
+    
+            <button id="donate-button" class="donate-btn">
+                🙏 Soutenez un site 1OO% gratuit et faites un don
+            </button>
+
+            <h5>Créé avec 💖 à Cannes - Copyright Sud Transports - Bechir A.</h5>
+
+
+            <script>
+                document.getElementById('donate-button').addEventListener('click', function() {
+                    window.location.href = "https://www.paypal.com/donate?hosted_button_id=DBPTANEYJAAUQ";
+                });
+            </script>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('donate-button').addEventListener('click', function() {
+            var container = document.getElementById('paypal-button-container');
+            container.style.display = 'block'; 
+        });
+    </script>
+	
+	
+    <script async custom-element="amp-auto-ads"
+        src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
+</script>
+
+
+	
+    <div id="loading-screen">
+    <div class="loading-animation">MyBusFinder 1.1</div><br>
+    <p id="loading-text">Chargement des données...</p>
+
+    <!-- Barre de progression -->
+    <div id="progress-bar-container">
+        <div id="progress-bar"></div>
+    </div>
+</div>
+
+        
+    <script>
+        var map = L.map('map', {
+    zoomControl: false 
+}).setView([43.552261, 7.020710], 13);
+		L.popup({
+        closeButton: false
+		})
+        L.control.locate().addTo(map);
+
+
+        const markers = {};
+		        const lineTerminusMap = {
+            'LINE-1': { '0': 'Terminus A', '1': 'Terminus C' },
+            'LINE-2': { '0': 'Terminus B', '1': 'Terminus D' }
+        };
+        const stopNameMap = {};
+        const lineColors = {};
+        const lineName = {};
+        const stopIds = [];
+        let tripUpdates = {};
+        let loadingInterval;
+        function randomDelay(min = 500, max = 1500) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+
+
+
+        function showLoadingScreen() {
+    const loadingScreen = document.getElementById('loading-screen');
+    loadingScreen.style.display = 'flex';
+
+
+    loadingInterval = setInterval(() => {
+        
+
+    }, 4050);
+}
+		
+function isMobileDevice() {
+            return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        }
+
+        function isStandalone() {
+            return window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+        }
+
+        function showSmartphonePopup() {
+            const popup = document.getElementById('smartphone-popup');
+            popup.style.display = 'flex';
+        }
+
+        function closeSmartphonePopup() {
+            const popup = document.getElementById('smartphone-popup');
+            popup.style.display = 'none';
+        }
+
+        function showUpdatePopup() {
+            const popup = document.getElementById('update-popup');
+            popup.style.display = 'flex';
+        }
+
+        function closeUpdatePopup() {
+            const popup = document.getElementById('update-popup');
+            popup.style.display = 'none';
+        }
+
+        window.onload = function() {
+
+
+            if (!isStandalone()) {
+                setTimeout(() => {
+                    showUpdatePopup();
+                }, 1200);
+            }
+
+            if (!isMobileDevice()) {
+                setTimeout(() => {
+                    showSmartphonePopup();
+                }, 1100);  // Popup smartphone après 700ms
+            }
+
+            const closeSmartphoneButton = document.getElementById('close-smartphone-popup');
+            const closeUpdateButton = document.getElementById('close-popup');
+
+            if (closeSmartphoneButton) {
+                closeSmartphoneButton.addEventListener('click', closeSmartphonePopup);
+            }
+
+            if (closeUpdateButton) {
+                closeUpdateButton.addEventListener('click', closeUpdatePopup);
+            }
+
+            const shareButton = document.getElementById('share-button');
+            if (shareButton) {
+                shareButton.addEventListener('click', openShareMenu);
+            }
+        };
+
+        function openShareMenu() {
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            if (isIOS) {
+                alert("Pour ajouter cette application à votre écran d'accueil, cliquez sur l'icône de partage (carré avec une flèche vers le haut) puis sélectionnez 'Ajouter à l'écran d'accueil'.");
+            } else {
+                alert("La fonctionnalité n'est pas supportée sur votre appareil.");
+            }
+        }
+
+document.getElementById('close-popup').addEventListener('click', closeUpdatePopup);
+
+
+
+
+function hideLoadingScreen() {
+    const loadingScreen = document.getElementById('loading-screen');
+    loadingScreen.style.display = 'none';
+    
+    clearInterval(loadingInterval);
+}
+
+function simulateDataLoading(callback) {
+
+    showLoadingScreen();
+
+    setTimeout(() => {
+        hideLoadingScreen();
+
+        callback();
+    }, 1500);
+}
+
+
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+
+        async function loadLineColors() {
+            const response = await fetch('routes_palmbus_1.1.txt');
+            const text = await response.text();
+            const lines = text.split('\n').slice(1);
+            lines.forEach(line => {
+                const columns = line.split(',');
+                const routeId = columns[0];
+				const routeLongName = `#${columns[2]}`;
+                const routeColor = `#${columns[7]}`;
+				let cleanedLineName = routeLongName
+  			  .replace("#", "")
+                lineColors[routeId] = routeColor;
+				lineName[routeId] = cleanedLineName;
+				
+            });
+            console.log("Couleurs lignes chargées:", lineColors);
+        }
+		
+        async function loadStopIds() {
+            const response = await fetch('STOP-PT-1.xml');
+            const text = await response.text();
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(text, "text/xml");
+
+            const stops = xmlDoc.getElementsByTagName('stop');
+            for (let stop of stops) {
+                const stopId = stop.getAttribute('id');
+                if (stopId) {
+                    stopIds.push(stopId);
+                }
+            }
+            console.log("StopIds chargés:", stopIds);
+        }
+		
+		  
+
+        async function loadLineTerminusData() {
+            const response = await fetch('STOP-PT-1.xml');
+            const text = await response.text();
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(text, "text/xml");
+
+            const quays = xmlDoc.getElementsByTagName('Quay');
+            for (let quay of quays) {
+                const quayId = quay.getAttribute('id');
+                const quayName = quay.getElementsByTagName('Name')[0].textContent;
+                stopNameMap[quayId] = quayName;
+            }
+            console.log("Contenu de stopNameMap:", stopNameMap);
+        }
+
+        async function decodeProtobuf(buffer) {
+            const root = await protobuf.load('gtfs-realtime.proto');
+            const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
+            const message = FeedMessage.decode(new Uint8Array(buffer));
+            return FeedMessage.toObject(message, { longs: String });
+        }
+
+        function createColoredMarker(lat, lon, route_id) {
+    const color = lineColors[route_id] || '#000000';
+    const markerHtmlStyles = `
+        background-color: ${color};
+        width: 12px;
+        height: 12px;
+        display: block;
+        left: -6px;
+        top: -6px;
+        position: relative;
+        border-radius: 50%;
+        border: 2px solid black;
+        transition: transform 0.2s ease; /* Ajout de la transition pour l'animation */
+    `;
+
+    const icon = L.divIcon({
+        className: "my-custom-pin",
+        iconAnchor: [0, 0],
+        popupAnchor: [5, 20],
+        html: `<span style="${markerHtmlStyles}" class="marker-icon" />`
+    });
+
+    return L.marker([lat, lon], { icon });
+}
+
+
+       function animateMarker(marker, newPosition) {
+    const startLatLng = marker.getLatLng();
+    const endLatLng = L.latLng(newPosition[0], newPosition[1]);
+    const duration = 1000; 
+    const startTime = performance.now();
+
+    if (marker.animationFrame) {
+        cancelAnimationFrame(marker.animationFrame);
+    }
+
+    function animate(time) {
+        const elapsed = time - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * progress;
+        const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * progress;
+        
+        marker.setLatLng([lat, lng]);
+
+        if (progress < 1) {
+            marker.animationFrame = requestAnimationFrame(animate);
+        }
+    }
+
+    marker.animationFrame = requestAnimationFrame(animate);
+}
+
+        async function loadGeoJsonLines() {
+    const response = await fetch('palmbus.geojson'); 
+    const geoJsonData = await response.json();
+
+    L.geoJSON(geoJsonData, {
+        filter: function(feature) {
+            return feature.geometry.type === 'LineString'; 
+        },
+        style: function(feature) {
+            return {
+                color: lineColors[feature.properties.route_id] || '#000000',
+                weight: 2
+            };
+        },
+        onEachFeature: function(feature, layer) {
+            const lineId = feature.properties.route_id;
+            const terminusData = lineTerminusMap[lineId];
+
+            const terminus0 = terminusData ? (terminusData['0'] || 'Inconnu') : 'Inconnu';
+            const terminus1 = terminusData ? (terminusData['1'] || 'Inconnu') : 'Inconnu';
+
+            
+        }
+    }).addTo(map);
+}
+
+
+const vehicleTypes = {
+    'extra-long': new Set(),
+    'long': new Set(),
+    'reduit': new Set(),
+    'minibus': new Set(),
+    'elec': new Set(),
+    'hybrid': new Set(),
+    'gnv': new Set(),
+    'usb': new Set(),
+    'clim': new Set(),
+	'linium': new Set()
+
+};
+
+async function loadVehicleNumbers(filePath, vehicleSet) {
+    try {
+        const response = await fetch(filePath);
+        const text = await response.text();
+        const numbers = text.split('\n').map(line => line.trim()).filter(line => line !== '');
+        numbers.forEach(number => vehicleSet.add(number));
+    } catch (error) {
+        console.error(`Erreur lors du chargement du fichier ${filePath}:`, error);
+    }
+}
+
+async function initVehicleTypes() {
+    await loadVehicleNumbers('vehicules_extra_long.txt', vehicleTypes['extra-long']);
+    await loadVehicleNumbers('vehicules_long.txt', vehicleTypes['long']);
+    await loadVehicleNumbers('vehicules_reduit.txt', vehicleTypes['reduit']);
+    await loadVehicleNumbers('minibus.txt', vehicleTypes['minibus']);
+    await loadVehicleNumbers('elec.txt', vehicleTypes['elec']);
+    await loadVehicleNumbers('gnv.txt', vehicleTypes['gnv']);
+    await loadVehicleNumbers('hybrid.txt', vehicleTypes['hybrid']);
+    await loadVehicleNumbers('clim.txt', vehicleTypes['clim']);
+    await loadVehicleNumbers('usb.txt', vehicleTypes['usb']);
+	await loadVehicleNumbers('linium.txt', vehicleTypes['linium']);
+
+}
+
+function getVehicleOptionsBadges(parkNumber) {
+    const badges = [];
+
+	badges.push(`<span style="padding: 6px 10px; background-color: #C21E56; color: white; border-radius: 10px;">En direct</span>`);
+        if (vehicleTypes['extra-long'].has(parkNumber)) {
+        badges.push(`<span style="padding: 6px 10px; background-color: #8e8e93; color: white; border-radius: 10px;">🚍 Très grand bus</span>`);
+    }
+    if (vehicleTypes['long'].has(parkNumber)) {
+        badges.push(`<span style="padding: 6px 10px; background-color: #8e8e93; color: white; border-radius: 10px;">🚌 Bus standard</span>`);
+    }
+    if (vehicleTypes['reduit'].has(parkNumber)) {
+        badges.push(`<span style="padding: 6px 10px; background-color: #8e8e93; color: white; border-radius: 10px;">🚐 Bus réduit</span>`);
+    }
+    if (vehicleTypes['minibus'].has(parkNumber)) {
+        badges.push(`<span style="padding: 6px 10px; background-color: #8e8e93; color: white; border-radius: 10px;">🚐 Minibus</span>`);
+    }
+	if (vehicleTypes['linium'].has(parkNumber)) {
+        badges.push(`<span style="padding: 6px 10px; background-color: #77b5fe; color: white; border-radius: 10px;">✨ GX LINIUM</span>`);
+    }
+    if (vehicleTypes['elec'].has(parkNumber)) {
+        badges.push(`<span style="padding: 6px 10px; background-color: #34c759; color: black; border-radius: 10px;">🌿 Électrique</span>`);
+    }
+    if (vehicleTypes['hybrid'].has(parkNumber)) {
+        badges.push(`<span style="padding: 6px 10px; background-color: #34c759; color: white; border-radius: 10px;">🌿 Hybride</span>`);
+    }
+    if (vehicleTypes['gnv'].has(parkNumber)) {
+        badges.push(`<span style="padding: 6px 10px; background-color: #34c759; color: white; border-radius: 10px;">🌿 Gaz Naturel</span>`);
+    }
+    if (vehicleTypes['usb'].has(parkNumber)) {
+        badges.push(`<span style="padding: 6px 10px; background-color: #5856d6; color: white; border-radius: 10px;">⚡ USB</span>`);
+    }
+    if (vehicleTypes['clim'].has(parkNumber)) {
+        badges.push(`<span style="padding: 6px 10px; background-color: #ADD8E6; color: black; border-radius: 10px;">❄️ Climatisé</span>`);
+    }
+
+
+    return badges.join(' '); 
+}
+
+       async function fetchVehiclePositions() {
+            try {
+				
+                const response = await fetch('proxy_vehpos.php');
+                const buffer = await response.arrayBuffer();
+                const data = await decodeProtobuf(buffer);
+
+                data.entity.forEach(entity => {
+                    const vehicle = entity.vehicle;
+                    if (vehicle) {
+                        const id = vehicle.vehicle.id;
+                        const vehicleOptionsBadges = getVehicleOptionsBadges(id);
+                        const line = vehicle.trip && vehicle.trip.routeId ? vehicle.trip.routeId : 'Chargement...';
+                        const directionId = vehicle.trip ? vehicle.trip.directionId : undefined;
+
+                const statusMap = {
+                    0: '❌ Hors service commercial',
+                    1: ' En service - Portes ouvertes',
+                    2: ' En service'
+                };
+                const status = statusMap[vehicle.currentStatus] || 'Inconnu';
+
+                const stopIdun = vehicle.stopId || 'Inconnu';
+                let stopId = stopIdun
+  			  .replace("0:", "")
+                const latitude = vehicle.position.latitude;
+                const longitude = vehicle.position.longitude;
+
+                if (isNaN(latitude) || isNaN(longitude)) {
+                    return; 
+                }
+
+                const speed = vehicle.position.speed ? (vehicle.position.speed).toFixed(0) + ' km/h' : 'Arrêté';
+                const bearing = vehicle.position.bearing || 'Inconnu';
+                const tripId = vehicle.trip && vehicle.trip.tripId ? vehicle.trip.tripId : 'Inconnu';
+
+                const lastStopId = tripUpdates[tripId] ? tripUpdates[tripId].lastStopId : 'Inconnu';
+                const lastStopNameun = stopNameMap[lastStopId] || 'Inconnu';
+                let lastStopName = lastStopNameun
+  			  .replace("0:", "")
+				
+				const nextStops = tripUpdates[tripId]?.nextStops || [];
+
+let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
+
+let nextStopsHTML = `
+    <div style="position: relative; max-height: 120px; ">  <!-- Conteneur avec fond au bas -->
+        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px; ">
+`;
+
+if (currentStopIndex !== -1) {
+    let filteredStops = nextStops.slice(currentStopIndex);  // Filtrer les arrêts à partir de l'arrêt actuel
+
+    filteredStops.forEach(stop => {
+        nextStopsHTML += `
+            <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+    <div>${stopNameMap[stop.stopId] || stop.stopId}</div>
+    <div>${stop.departureTime ? `ᯤ${stop.departureTime}` : "Inconnu"}</div>
+</li>
+
+        `;
+    });
+} 
+
+nextStopsHTML += `
+        </ul>
+
+    </div>
+`;
+
+const popupContentElement = document.querySelector('#popup-content'); 
+if (popupContentElement) {
+    popupContentElement.innerHTML = `
+        <div style="padding: 10px; background: #f9f9f9; border-top: 1px solid #ddd;">
+            <h4 style="margin: 0; font-size: 16px; font-weight: bold;">Heures de passage prévues</h4>
+            ${nextStopsHTML}
+        </div>
+    `;
+}
+
+
+
+                
+						
+function getTextColorForBackground(bgColor) {
+    const color = bgColor.replace('#', '');
+    const r = parseInt(color.substring(0, 2), 16);
+    const g = parseInt(color.substring(2, 4), 16);
+    const b = parseInt(color.substring(4, 6), 16);
+    const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+    return brightness > 150 ? '#000000' : '#FFFFFF';
+}
+
+const backgroundColor = lineColors[line] || '#000000';
+const textColor = getTextColorForBackground(backgroundColor);
+
+const timestamp = vehicle.timestamp; // Récupère le timestamp des données de position
+
+                // Calcul de l'heure actuelle en secondes
+                const currentTimeInSeconds = Math.floor(Date.now() / 1000);
+
+                let delayMessage = 'À l\'heure';
+                let delayColor = '#4CAF50'; // Couleur par défaut (à l'heure)
+
+                // Si nous avons un timestamp, comparons-le avec l'heure actuelle
+                if (timestamp) {
+                    const timeDifference = timestamp - currentTimeInSeconds; // en secondes
+
+                    if (timeDifference > 0) {
+                        const minutesEarly = Math.abs(Math.floor(timeDifference / 60)); // Avance en minutes
+                        delayMessage = `En avance de ${minutesEarly} min`;
+                        delayColor = 'blue'; // Bleu pour avance
+                    } else if (timeDifference < 0) {
+                        const minutesDelay = Math.ceil(Math.abs(timeDifference) / 60); // Retard en minutes
+                        delayMessage = `Retard de ${minutesDelay} min`;
+                        delayColor = 'red'; // Rouge pour retard
+                    } else {
+                        delayMessage = 'À l\'heure';
+                        delayColor = '#4CAF50'; // Vert pour à l'heure
+                    }
+                }
+
+                console.log(delayMessage); // Affichage du message de retard ou d'avance
+
+
+const popupContent = `
+    <div style="position: relative; font-family: 'League Spartan', sans-serif; font-size: 14px; line-height: 1.4; color: #333; border-radius: 12px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); overflow: hidden; background-color: ${backgroundColor}77; color: ${textColor}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+        
+        <!-- En-tête avec numéro de parc en arrière-plan -->
+        <div style="position: relative; padding: 10px; color: ${textColor}; text-align: center; overflow: hidden; display: flex; justify-content: space-between; align-items: center; ">
+            <!-- Texte principal -->
+            <div style="z-index: 2; text-align: left; width: 100%;">
+                <strong style="font-size: 20px;">Ligne ${lineName[line] || "interne au réseau"}</strong>
+                <p style="margin: 0; font-size: 14px;">🌴 <span style="color: ${textColor};">Palm Transports</span></p>
+                <p style="margin: 0; font-size: 14px;">➡️ Destination : <strong style="color: ${textColor};">${lastStopName}</strong></p>
+            </div>
+
+            <div style="
+                position: absolute;
+                right: 10px;
+                top: 0;
+                bottom: 0;
+                z-index: 1;
+                opacity: 0.1;
+                font-size: 100px;
+                font-weight: bold;
+                color: ${textColor};
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                white-space: nowrap;
+            ">
+                Ligne ${lineName[line]}
+            </div>
+        </div>
+        
+<div style="padding: 10px;">
+    <div style="position: relative; display: flex; align-items: center; ">
+        <!-- Conteneur txt défilant  -->
+        <div style="
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+            border-radius: 10px;
+
+        ">
+            <!-- Contenu défilant horizontalement -->
+            <div style="
+                display: flex;
+                gap: 10px;
+                padding: 0px;
+                white-space: nowrap;
+                overflow-x: auto;
+                scrollbar-width: thin; 
+                scrollbar-color: #888 #f1f1f1;
+            " class="custom-scrollbar">
+                <!-- Numéro de parc -->
+                <span style="
+                    background: #ffffff;
+                    color: #000000;
+                    padding: 6px 15px;
+                    border-radius: 10px;
+                    font-weight: normal;
+                    font-size: 14px;
+                    white-space: nowrap;
+                    -webkit-backdrop-filter: blur(8px); 
+                ">
+                    Véhicule ${vehicle.vehicle.label}
+                </span>
+                
+                <!-- Badges des options du véhicule -->
+                ${vehicleOptionsBadges}
+            </div>
+
+            </div>
+        </div>
+    </div>
+
+
+
+            <div style="color: ${textColor};">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; margin-left: 10px; margin-right: 10px;">
+        <span>🚌 <strong>État</strong></span>
+        <span>${status}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; margin-left: 10px; margin-right: 10px;">
+        <span>📍 <strong>Prochain arrêt</strong></span>
+        <span>${stopNameMap[stopId] || stopId}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-left: 10px; margin-right: 10px;">
+        <span>💨 <strong>Vitesse</strong></span>
+        <span>${speed}</span>
+    </div>
+</div>
+
+			<!-- Prochains arrêts -->
+                <div style="padding-top: 10px; padding-left: 10px; padding-right: 10px; color: ${textColor};">
+                    <h2 style="margin: 0; font-size: 18px; font-weight: bold;">Arrêts à l'approche</h2>
+                    <ul>
+					<div id="nextStopsContent" class="next-stops-content">
+       					 ${nextStopsHTML}
+    			</div>   
+                </div>
+        
+        
+        <!-- Informations débug -->
+        <div style="color: ${textColor}; padding: 10px; font-size: 12px; ">
+            <p style="margin: 0;">
+                <strong>Informations de débogage :</strong><br>
+                <strong>ID d'arrêt :</strong> ${stopId}<br>
+				<strong>Orientation :</strong> ${bearing}<br>
+            </p>
+        </div>
+        </div>
+    </div>
+`;
+
+						
+
+
+
+
+if (markers[id]) {
+
+    animateMarker(markers[id], [latitude, longitude]);
+
+
+    const existingPopup = markers[id].getPopup();
+    const currentContent = existingPopup ? existingPopup.getContent() : '';
+
+
+    if (existingPopup && currentContent === popupContent) {
+        return;
+    }
+
+
+    markers[id].setPopupContent(popupContent);
+
+    if (markers[id].isPopupOpen()) {
+        markers[id].openPopup();
+    }
+} else {
+
+    const marker = createColoredMarker(latitude, longitude, line).addTo(map);
+    markers[id] = marker;
+    markers[id].line = line;
+    markers[id].id = id;
+
+    marker.bindPopup(popupContent);
+}
+
+                    }
+                });
+				
+			let isMenuVisible = true;
+
+        function updateMenu() {
+            const menu = document.getElementById('menu');
+            menu.innerHTML = ''; 
+
+
+            const busesByLine = {};
+
+            Object.keys(markers).forEach(id => {
+                const vehicle = markers[id];
+                const line = vehicle.line;  
+                const parkNumber = vehicle.id;
+
+                if (!busesByLine[line]) {
+                    busesByLine[line] = [];
+                }
+
+                busesByLine[line].push({
+                    parkNumber,
+                    vehicle
+                });
+            });
+
+Object.keys(busesByLine)
+  .sort((a, b) => {
+    // Trier d'abord les lettres
+    if (isNaN(a) && isNaN(b)) {
+      return a.localeCompare(b); // Comparer les lettres par ordre alphabétique
+    }
+    // Trier les chiffres
+    if (isNaN(a)) return 1; // Si 'a' est une lettre et 'b' est un chiffre, 'a' doit être avant
+    if (isNaN(b)) return -1; // Si 'b' est une lettre et 'a' est un chiffre, 'b' doit être avant
+    return parseInt(a) - parseInt(b); // Trier les chiffres du plus petit au plus grand
+  })
+  .forEach(line => {
+				const lineNameText = lineName[line] || "Inconnue"; 
+                const lineColor = lineColors[line] || '#000000';
+
+                const lineSection = document.createElement('div');
+                lineSection.style.backgroundColor = lineColor;
+                lineSection.style.marginBottom = '10px';
+                lineSection.style.padding = '10px';
+                lineSection.style.borderRadius = '8px';
+
+                const lineTitle = document.createElement('div');
+                lineTitle.textContent = `Ligne ${lineNameText}`;
+                lineTitle.style.fontSize = '18px';
+                lineTitle.style.fontWeight = 'bold';
+                lineTitle.style.color = '#fff';
+                lineSection.appendChild(lineTitle);
+
+                busesByLine[line].forEach(bus => {
+                    const busItem = document.createElement('div');
+                    busItem.textContent = `Bus ${bus.parkNumber}`;
+                    busItem.style.cursor = 'pointer';
+                    busItem.classList.add('menu-item');
+                    busItem.style.fontFamily = 'League Spartan';
+                    busItem.style.color = 'white';
+                    busItem.style.padding = '5px 10px';
+                    busItem.style.marginBottom = '5px';
+                    busItem.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+                    busItem.style.borderRadius = '8px';
+
+                    busItem.onclick = () => {
+                        map.setView(bus.vehicle.getLatLng(), 17);
+                        bus.vehicle.openPopup();
+						menu.style.display = 'none'; 
+                isMenuVisible = false; 
+                toggleMenuButton.style.display = 'block'; 
+                    };
+
+                    lineSection.appendChild(busItem);
+                });
+
+                menu.appendChild(lineSection);
+            });
+
+            const closeButton = document.createElement('div');
+            closeButton.textContent = ' ✖️ Fermer'; 
+            closeButton.style.cursor = 'pointer';
+            closeButton.className = 'toggle-close'; 
+            closeButton.style.textAlign = 'left'; 
+            closeButton.style.color = 'white';
+            closeButton.style.marginTop = '10px';
+            closeButton.style.marginBottom = '10px'; 
+            closeButton.onclick = () => {
+                menu.style.display = 'none'; 
+                isMenuVisible = false; 
+                toggleMenuButton.style.display = 'block'; 
+            };
+
+            menu.appendChild(closeButton);
+        }
+
+        function showMenu() {
+            const menu = document.getElementById('menu');
+            menu.style.display = 'block'; 
+            isMenuVisible = true; 
+            toggleMenuButton.style.display = 'none'; 
+        }
+
+        const toggleMenuButton = document.getElementById('toggleMenuButton');
+        toggleMenuButton.onclick = showMenu; 
+
+        const closeMap = document.getElementById('map');
+        closeMap.onclick = () => {
+            menu.style.display = 'none'; 
+            isMenuVisible = false; 
+            toggleMenuButton.style.display = 'block'; 
+        };
+
+        updateMenu();
+
+    } catch (error) {
+        console.error('Erreur lors de la récupération des données :', error);
+    }
+}
+		
+async function fetchServiceAlerts() {
+    try {
+        const response = await fetch('proxy_servicealerts.php'); 
+        const buffer = await response.arrayBuffer();
+        const data = await decodeProtobuf(buffer);
+
+        const activeAlerts = [];
+
+        if (Array.isArray(data.entity) && data.entity.length > 0) {
+            data.entity.forEach(entity => {
+                const alert = entity.alert;
+                if (alert && alert.headerText) {
+                    const translations = alert.headerText.translation || [];
+                    const description = alert.descriptionText?.translation || [];
+                    const headerText = translations.find(t => t.language === 'fr')?.text || 'Alerte de service';
+                    const descriptionText = description.find(t => t.language === 'fr')?.text || '';
+                    const cause = alert.cause || 'OTHER_CAUSE';
+
+                    activeAlerts.push({
+                        header: headerText,
+                        description: descriptionText,
+                        cause: cause
+                    });
+                }
+            });
+        }
+
+        updateServiceAlertsBanner(activeAlerts);
+    } catch (error) {
+        console.error('Erreur lors de la récupération des alertes de service :', error);
+    }
+}
+
+function updateServiceAlertsBanner(alerts) {
+    const banner = document.getElementById('service-alerts-banner');
+    const textElement = document.getElementById('service-alerts-text');
+    const alertsContent = document.getElementById('alerts-content');
+
+    if (alerts.length === 0) {
+        textElement.textContent = '✔️ Le réseau fonctionne normalement'; 
+        banner.style.display = 'block';
+        alertsContent.innerHTML = '<p style="color: green;">✔️ Le réseau fonctionne normalement</p>';
+    } else {
+        const alertText = alerts.map(alert => `${alert.header}`).join(' | ');
+        textElement.textContent = alertText; 
+        banner.style.display = 'block';
+
+        alertsContent.innerHTML = alerts.map(alert => {
+            const emoji = getEmojiForCause(alert.cause);
+            return `
+                <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                    <h4>${emoji} ${alert.header}</h4>
+                    <p>${alert.description}</p>
+                </div>
+            `;
+        }).join('');
+    }
+
+    animateScrollingText();
+}
+
+function getEmojiForCause(cause) {
+    switch (cause) {
+        case 'CONSTRUCTION':
+            return '🚧';
+        case 'ACCIDENT':
+            return '🚑';
+        case 'WEATHER':
+            return '🌧️';
+        case 'TECHNICAL_PROBLEM':
+            return '⚙️';
+        case 'STRIKE':
+            return '✊';
+        case 'REDUCED_SERVICE':
+            return '🔻';
+        case 'MODIFIED_SERVICE':
+            return '⚠️';
+        default:
+            return 'ℹ️'; 
+    }
+}
+
+function animateScrollingText() {
+    const textElement = document.getElementById('service-alerts-text');
+    let startPosition = textElement.parentElement.offsetWidth;
+
+    const speed = 2; 
+    function scroll() {
+        startPosition -= speed;
+        if (startPosition < -textElement.offsetWidth) {
+            startPosition = textElement.parentElement.offsetWidth;
+        }
+        textElement.style.transform = `translateX(${startPosition}px)`;
+        requestAnimationFrame(scroll);
+    }
+    scroll();
+}
+
+
+function showAlertsMenu() {
+    const menu = document.getElementById('alerts-menu');
+    const overlay = document.getElementById('alerts-overlay');
+
+    overlay.style.display = 'block';
+    menu.style.display = 'block';
+    menu.style.opacity = '0';
+    menu.style.animation = 'fadeInPopupSvc 0.5s forwards';
+}
+
+function closeAlertsMenu() {
+    const menu = document.getElementById('alerts-menu');
+    const overlay = document.getElementById('alerts-overlay');
+
+    menu.style.animation = 'fadeOutPopupSvc 0.5s forwards';
+    setTimeout(() => {
+        menu.style.display = 'none';
+        overlay.style.display = 'none';
+    }, 500);
+}
+
+document.getElementById('service-alerts-banner').addEventListener('click', showAlertsMenu);
+document.getElementById('close-alerts-menu').addEventListener('click', closeAlertsMenu);
+document.getElementById('alerts-overlay').addEventListener('click', closeAlertsMenu);
+
+
+
+
+
+let lastTripUpdateTimestamp = 0; // Timestamp de la dernière mise à jour des trajets
+
+// Créez un Web Worker
+const worker = new Worker('worker.js');
+
+// Fonction pour récupérer les mises à jour des trajets
+async function fetchTripUpdates() {
+    try {
+        const response = await fetch('proxy_tripupdate.php');
+        const buffer = await response.arrayBuffer();
+        const data = await decodeProtobuf(buffer);
+
+        // Envoi des données au Web Worker pour traitement
+        worker.postMessage(data);
+
+        // Lorsque le Worker a fini le traitement, il renverra les données traitées
+        worker.onmessage = function(e) {
+            const processedData = e.data;
+
+            // Mettez à jour la variable globale ou l'état avec les données traitées
+            tripUpdates = processedData;
+
+            // Vous pouvez aussi déclencher un autre processus ici pour la mise à jour du rendu.
+        };
+    } catch (error) {
+        console.error('Erreur lors de la récupération des mises à jour des trajets:', error);
+    }
+}
+
+
+		
+
+
+async function main() {
+    await Promise.all([
+        loadLineColors(),
+        loadStopIds(),
+        loadLineTerminusData(),
+        loadGeoJsonLines(),
+        initVehicleTypes(),
+        fetchTripUpdates(),
+        fetchVehiclePositions(),
+        fetchServiceAlerts()
+    ]);
+
+    simulateDataLoading(async () => {
+        await fetchVehiclePositions();
+
+        function fetchRegularUpdates() {
+            fetchVehiclePositions();
+        	fetchTripUpdates(),
+
+            setTimeout(fetchRegularUpdates, 8000);
+        }
+
+        setTimeout(fetchRegularUpdates, 8000);
+    });
+}
+
+
+main();
+    </script>
+</html>
