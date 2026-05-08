@@ -419,6 +419,7 @@
       </div>
       <div class="mbf-cta-wrap" id="mbf-s3-cta">
         <button class="mbf-btn mbf-btn-primary" id="mbf-final-cta">Découvrir →</button>
+        <button class="mbf-btn mbf-btn-ghost" id="mbf-dismiss">Voir les notes de mise à jour</button>
       </div>
     `;
 
@@ -569,6 +570,9 @@
 
       document.getElementById("mbf-final-cta").addEventListener("click", () => {
         closePopup();
+      });
+      document.getElementById("mbf-dismiss").addEventListener("click", () => {
+        window.open('https://github.com/becabdev/mybusfinder/releases','_blank');
       });
       document.addEventListener("keydown", onKeyDown);
     }
