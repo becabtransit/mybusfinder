@@ -11964,7 +11964,7 @@ function _refreshBottomSheetFavorites() {
     favorites.slice(0, 6).forEach((favorite, idx) => {
         const routeId   = favorite.routeId   || '';
         const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
-        const destName  = (favorite.destinationName || favorite.destinationId || '').substring(0, 24);
+        const destName  = (favorite.destinationName || favorite.destinationId || '');
         const lineName_ = favorite.routeName || lineName[routeId] || routeId;
         const lineColor = lineColors[routeId] || '#444';
         const textColor = getTextColor(lineColor);
