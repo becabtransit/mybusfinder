@@ -10993,9 +10993,11 @@ async function main(refreshParam = false) {
             fetchVehiclePositions(),
             loadGeoJsonLines(),
             modeSombre(),
-            refreshParam ? hideLoadingScreen() : Promise.resolve()
         ]);
 
+        if (refreshParam) {
+            hideLoadingScreen();
+        }
         loadGeoJsonLines();
         startFetchUpdates();
         
