@@ -11915,31 +11915,60 @@ function _refreshBottomSheetFavorites() {
 
     const favorites = getFavoriteSchedules();
     if (!favorites.length) {
-        section.style.display = 'none';
-        list.innerHTML = '';
+        section.style.display = 'block';
+        list.innerHTML = `
+            <div style="padding:20px 16px; text-align:center; color:#ffffffaa; font-size:14px; line-height:1.4;">
+                <div style="font-size:24px; margin-bottom:12px;">⭐</div>
+                <div style="font-weight:500; margin-bottom:8px;">Aucun horaire favori</div>
+                <div style="opacity:0.8;">
+                    Ajoutez vos arrêts préférés en ouvrant les horaires et en cliquant sur l'étoile ⭐ à côté du nom de la ligne.
+                </div>
+            </div>
+        `;
         return;
     }
 
     section.style.display = 'block';
     list.innerHTML = '';
 
-    favorites.slice(0, 6).forEach(favorite => {
-        const item = document.createElement('button');
-        item.type = 'button';
+    favorites.slice(0, 6).forEach(async (favorite) => {
+        const item = document.createElement('div');
         item.className = 'bs-favorite-item';
-        item.style.cssText = 'width:100%; display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border:none; border-radius:16px; background:rgba(255,255,255,0.08); color:#fff; text-align:left; cursor:pointer;';
-        item.innerHTML = `
-            <span style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
+        item.style.cssText = 'width:100%; display:flex; flex-direction:column; padding:12px 14px; border:none; border-radius:16px; background:rgba(255,255,255,0.08); color:#fff; text-align:left; cursor:pointer; margin-bottom:8px;';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;';
+        header.innerHTML = `
+            <span style="display:flex; flex-direction:column; gap:2px;">
                 <strong style="font-size:14px; color:#fff;">${favorite.routeName || favorite.routeId}</strong>
                 <span style="font-size:12px; color:#e8e8e8;">${favorite.stopName || favorite.stopId} → ${favorite.destinationName || favorite.destinationId}</span>
             </span>
             <span style="font-size:18px; opacity:0.85;">›</span>
         `;
-        item.addEventListener('click', () => {
+
+        const realtimeContainer = document.createElement('div');
+        realtimeContainer.className = 'bs-favorite-realtime';
+        realtimeContainer.style.cssText = 'display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;';
+        realtimeContainer.innerHTML = '<div style="font-size:12px; color:#cccccc; opacity:0.7;">Chargement...</div>';
+
+        item.appendChild(header);
+        item.appendChild(realtimeContainer);
+
+        header.addEventListener('click', () => {
             BottomSheet.collapse();
             openFavoriteSchedule(favorite);
         });
+
         list.appendChild(item);
+
+        // Load realtime data
+        try {
+            const arrivals = await fetchRealtimeDataForFavorite(favorite);
+            displayRealtimeArrivalsInFavorite(realtimeContainer, arrivals);
+        } catch (error) {
+            console.error('Error loading realtime for favorite:', error);
+            realtimeContainer.innerHTML = '<div style="font-size:12px; color:#cccccc; opacity:0.7;">Données indisponibles</div>';
+        }
     });
 }
 
@@ -11949,6 +11978,78 @@ function openFavoriteSchedule(favorite) {
     const stop = encodeURIComponent(favorite.stopId);
     const destination = encodeURIComponent(favorite.destinationId);
     showUpdatePopup(`schedule.html?route=${route}&stop=${stop}&destination=${destination}`);
+}
+
+async function fetchRealtimeDataForFavorite(favorite) {
+    const GTFS_RT_URL = `${window.NETWORK_BASE}/proxy-cors/proxy_tripupdate.php`;
+
+    try {
+        const response = await fetch(GTFS_RT_URL);
+        if (!response.ok) throw new Error('Network response was not ok');
+
+        const buffer = await response.arrayBuffer();
+        const root = await protobuf.load('src/gtfs-realtime.proto');
+        const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
+        const message = FeedMessage.decode(new Uint8Array(buffer));
+
+        return processRealtimeDataForFavorite(message, favorite.routeId, favorite.stopId);
+    } catch (error) {
+        console.error('Error fetching realtime data:', error);
+        return [];
+    }
+}
+
+function processRealtimeDataForFavorite(message, routeId, stopId) {
+    const arrivals = [];
+    const now = Date.now() / 1000;
+
+    message.entity.forEach(entity => {
+        if (!entity.tripUpdate) return;
+
+        const tu = entity.tripUpdate;
+        const td = tu.trip;
+
+        const tripId = td.tripId || td.trip_id;
+        if (!tripId) return;
+
+        const rtRouteId = td.routeId || td.route_id;
+        if (rtRouteId && String(rtRouteId) !== String(routeId)) return;
+
+        tu.stopTimeUpdate?.forEach(update => {
+            if (update.stopId !== stopId) return;
+
+            const arrivalTime = update.arrival?.time || update.departure?.time;
+            if (!arrivalTime || arrivalTime <= now) return;
+
+            arrivals.push({
+                time: arrivalTime,
+                tripId: tripId,
+                headsign: td.tripHeadsign || td.trip_headsign || 'Destination'
+            });
+        });
+    });
+
+    return arrivals.sort((a, b) => a.time - b.time).slice(0, 3); // Only show next 3 arrivals
+}
+
+function displayRealtimeArrivalsInFavorite(container, arrivals) {
+    container.innerHTML = '';
+
+    if (!arrivals || arrivals.length === 0) {
+        container.innerHTML = '<div style="font-size:12px; color:#cccccc; opacity:0.7;">Aucun passage prévu</div>';
+        return;
+    }
+
+    arrivals.forEach(arrival => {
+        const timeDiff = Math.floor((arrival.time - (Date.now() / 1000)) / 60);
+        const timeStr = timeDiff <= 0 ? 'Maintenant' : `${timeDiff} min`;
+
+        const timeEl = document.createElement('div');
+        timeEl.style.cssText = 'font-size:12px; color:#4ade80; background:rgba(74,222,128,0.1); padding:2px 6px; border-radius:8px; font-weight:500;';
+        timeEl.textContent = timeStr;
+
+        container.appendChild(timeEl);
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
