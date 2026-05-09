@@ -5917,26 +5917,13 @@ const MenuManager = {
         favoriteButton.className = 'favorite-button';
         favoriteButton.style.cssText = `
             position: absolute;
-            right: 12px;
-            top: 12px;
-            width: 44px;
-            height: 44px;
-            background: linear-gradient(135deg, 
-                rgba(255, 255, 255, 0.4) 0%, 
-                rgba(255, 255, 255, 0.25) 100%);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1.5px solid rgba(255, 255, 255, 0.25);
-            border-radius: 50%;
+            right: 5px;
+            top: 5px;
+            background: none;
+            border: none;
             color: ${textColor};
-            font-size: 18px;
+            font-size: 20px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: var(--transition-smooth);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.4);
             z-index: 10;
         `;
         favoriteButton.innerHTML = favoriteLines.has(line) ? '★' : '☆';
@@ -7771,19 +7758,15 @@ animationStyle.textContent = `
     }
     
     .favorite-button {
-        transition: var(--transition-smooth);
+        transition: transform 0.2s ease-out, opacity 0.2s ease-out;
     }
     
     .favorite-button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        transform: scale(1.1);
     }
     
     .favorite-button:active {
-        transform: scale(0.95);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1),
-                    inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        transform: scale(0.9);
     }
     
     #menu-search-input::placeholder {
@@ -11966,10 +11949,7 @@ function _refreshBottomSheetFavorites() {
         const realtimeContainer = document.createElement('div');
         realtimeContainer.className = 'bs-favorite-realtime';
         realtimeContainer.style.cssText = 'display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;';
-        
-        // Show theoretical times immediately, then replace with realtime
-        const theoreticalTimes = await getTheoreticalTimesForFavorite(favorite);
-        displayRealtimeArrivalsInFavorite(realtimeContainer, theoreticalTimes, true);
+        realtimeContainer.innerHTML = '<div style="font-size:12px; color:#cccccc; opacity:0.7;">Chargement...</div>';
 
         item.appendChild(header);
         item.appendChild(realtimeContainer);
@@ -11981,15 +11961,13 @@ function _refreshBottomSheetFavorites() {
 
         list.appendChild(item);
 
-        // Load realtime data in background and update
+        // Load realtime data
         try {
             const arrivals = await fetchRealtimeDataForFavorite(favorite);
-            if (arrivals && arrivals.length > 0) {
-                displayRealtimeArrivalsInFavorite(realtimeContainer, arrivals, false);
-            }
+            displayRealtimeArrivalsInFavorite(realtimeContainer, arrivals);
         } catch (error) {
             console.error('Error loading realtime for favorite:', error);
-            // Keep theoretical times if realtime fails
+            realtimeContainer.innerHTML = '<div style="font-size:12px; color:#cccccc; opacity:0.7;">Données indisponibles</div>';
         }
     });
 }
@@ -12002,108 +11980,23 @@ function openFavoriteSchedule(favorite) {
     showUpdatePopup(`schedule.html?route=${route}&stop=${stop}&destination=${destination}`);
 }
 
-async function getTheoreticalTimesForFavorite(favorite) {
-    try {
-        // Load route data if not already loaded
-        if (!state.loadedRoutes.has(favorite.routeId)) {
-            await loadTripsAndStopTimesForRoute(favorite.routeId);
-        }
+async function fetchRealtimeDataForFavorite(favorite) {
+    const GTFS_RT_URL = `${window.NETWORK_BASE}/proxy-cors/proxy_tripupdate.php`;
 
-        const now = new Date();
-        const currentTime = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-        const today = now.toISOString().split('T')[0];
-        
-        // Get service IDs for today
-        const serviceIds = new Set(getServiceIdsForDate(today));
-        
-        const arrivals = [];
-        const stopTimes = state.stopTimes[favorite.routeId] || {};
-        
-        // Find trips for this route that stop at our stop
-        for (const tripId in stopTimes) {
-            const trip = state.trips[tripId];
-            if (!trip || !serviceIds.has(trip.service_id)) continue;
-            
-            const stopTime = stopTimes[tripId][favorite.stopId];
-            if (!stopTime) continue;
-            
-            const departureTime = stopTime.departure_time;
-            if (!departureTime) continue;
-            
-            const [hours, minutes, seconds] = departureTime.split(':').map(Number);
-            const tripTime = hours * 3600 + minutes * 60 + (seconds || 0);
-            
-            // Only show future departures within next 2 hours
-            if (tripTime >= currentTime && tripTime <= currentTime + 7200) {
-                const timeDiff = tripTime - currentTime;
-                const minutesDiff = Math.floor(timeDiff / 60);
-                
-                let timeText;
-                if (minutesDiff === 0) {
-                    timeText = 'Maintenant';
-                } else if (minutesDiff < 60) {
-                    timeText = `${minutesDiff} min`;
-                } else {
-                    const hoursDiff = Math.floor(minutesDiff / 60);
-                    const remainingMinutes = minutesDiff % 60;
-                    timeText = `${hoursDiff}h${remainingMinutes.toString().padStart(2, '0')}`;
-                }
-                
-                arrivals.push({
-                    time: timeText,
-                    scheduled: true
-                });
-                
-                if (arrivals.length >= 3) break; // Only show next 3 arrivals
-            }
-        }
-        
-        // Sort by time
-        arrivals.sort((a, b) => {
-            if (a.time === 'Maintenant') return -1;
-            if (b.time === 'Maintenant') return 1;
-            return a.time.localeCompare(b.time);
-        });
-        
-        return arrivals.slice(0, 3);
+    try {
+        const response = await fetch(GTFS_RT_URL);
+        if (!response.ok) throw new Error('Network response was not ok');
+
+        const buffer = await response.arrayBuffer();
+        const root = await protobuf.load('src/gtfs-realtime.proto');
+        const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
+        const message = FeedMessage.decode(new Uint8Array(buffer));
+
+        return processRealtimeDataForFavorite(message, favorite.routeId, favorite.stopId);
     } catch (error) {
-        console.error('Error getting theoretical times:', error);
+        console.error('Error fetching realtime data:', error);
         return [];
     }
-}
-
-function getServiceIdsForDate(dateStr) {
-    const date = new Date(dateStr);
-    const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()];
-    const gtfsDate = dateStr.replace(/-/g, '');
-    
-    // Use the same logic as schedule.html getActiveServiceIds
-    const cacheKey = `${dayOfWeek}_${gtfsDate}`;
-    if (cache.serviceIds.has(cacheKey)) return cache.serviceIds.get(cacheKey);
-    
-    let serviceIds = [];
-    
-    // Check calendar.txt
-    for (const [serviceId, calendar] of Object.entries(state.calendar)) {
-        if (calendar[dayOfWeek] === '1') {
-            serviceIds.push(serviceId);
-        }
-    }
-    
-    // Check calendar_dates.txt for exceptions
-    if (state.calendarDates[gtfsDate]) {
-        for (const exception of state.calendarDates[gtfsDate]) {
-            const id = exception.service_id;
-            if (exception.exception_type === '1') {
-                if (!serviceIds.includes(id)) serviceIds.push(id);
-            } else if (exception.exception_type === '2') {
-                serviceIds = serviceIds.filter(sid => sid !== id);
-            }
-        }
-    }
-    
-    cache.serviceIds.set(cacheKey, serviceIds);
-    return serviceIds;
 }
 
 function processRealtimeDataForFavorite(message, routeId, stopId) {
@@ -12139,7 +12032,7 @@ function processRealtimeDataForFavorite(message, routeId, stopId) {
     return arrivals.sort((a, b) => a.time - b.time).slice(0, 3); // Only show next 3 arrivals
 }
 
-function displayRealtimeArrivalsInFavorite(container, arrivals, isTheoretical = false) {
+function displayRealtimeArrivalsInFavorite(container, arrivals) {
     container.innerHTML = '';
 
     if (!arrivals || arrivals.length === 0) {
@@ -12148,17 +12041,12 @@ function displayRealtimeArrivalsInFavorite(container, arrivals, isTheoretical = 
     }
 
     arrivals.forEach(arrival => {
+        const timeDiff = Math.floor((arrival.time - (Date.now() / 1000)) / 60);
+        const timeStr = timeDiff <= 0 ? 'Maintenant' : `${timeDiff} min`;
+
         const timeEl = document.createElement('div');
-        
-        if (isTheoretical) {
-            // Theoretical times - show in blue/gray
-            timeEl.style.cssText = 'font-size:12px; color:#93c5fd; background:rgba(147,197,253,0.15); padding:2px 6px; border-radius:8px; font-weight:500;';
-            timeEl.textContent = arrival.time;
-        } else {
-            // Realtime data - show in green
-            timeEl.style.cssText = 'font-size:12px; color:#4ade80; background:rgba(74,222,128,0.1); padding:2px 6px; border-radius:8px; font-weight:500;';
-            timeEl.textContent = arrival.time;
-        }
+        timeEl.style.cssText = 'font-size:12px; color:#4ade80; background:rgba(74,222,128,0.1); padding:2px 6px; border-radius:8px; font-weight:500;';
+        timeEl.textContent = timeStr;
 
         container.appendChild(timeEl);
     });
