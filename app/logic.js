@@ -635,20 +635,21 @@
 
 
     document.addEventListener('DOMContentLoaded', () => {
-
-    const ParametresUrl = new URLSearchParams(window.location.search);
-    if (ParametresUrl.get('redirectedfromlegacy') === 'true') {
-        showFluentPopup({
-            title: t("hello"),
-            message: t("redirectedtext"),
-            buttons: {
-                primary: t("understood"),
-                primaryAction: () => {
-                    fluentPopupManager.close();
+    setTimeout(() => {
+        const ParametresUrl = new URLSearchParams(window.location.search);
+        if (ParametresUrl.get('redirectedfromlegacy') === 'true') {
+            showFluentPopup({
+                title: t("hello"),
+                message: t("redirectedtext"),
+                buttons: {
+                    primary: t("understood"),
+                    primaryAction: () => {
+                        fluentPopupManager.close();
+                    }
                 }
-            }
-        });
-    }
+            });
+        }
+    }, 1500);
 
     if (localStorage.getItem('premiereuutilisation') !== 'true') {
         if (localStorage.getItem('transparency') !== 'true') {
@@ -1865,13 +1866,15 @@ function focusOnVehicle(vehicleId) {
             toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : manipulating marker error');
             showFluentPopup({
                 title: t("crashed"),
-                message: t("crashedtext"),
+                message: `${t("crashedtext")} MANIPULATE_MARKER_ERROR`,
                 buttons: {
                     primary: t("clearcache"),
                     primaryAction: () => {
                         clearGTFSCache();
                         clearVehicleCache()
-                        window.location.reload();
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
                     },
                     secondary: t("understood"),
                     secondaryAction: () => {
@@ -1885,13 +1888,15 @@ function focusOnVehicle(vehicleId) {
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : focusOnVehicle function error');
             showFluentPopup({
                 title: t("crashed"),
-                message: t("crashedtext"),
+                message: `${t("crashedtext")} FOCUS_ON_VEHICLE_ERROR`,
                 buttons: {
                     primary: t("clearcache"),
                     primaryAction: () => {
                         clearGTFSCache();
                         clearVehicleCache()
-                        window.location.reload();
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
                     },
                     secondary: t("understood"),
                     secondaryAction: () => {
@@ -2975,13 +2980,15 @@ async function loadGTFSDataOptimized() {
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : ' + errorMessage);
             showFluentPopup({
                 title: t("crashed"),
-                message: t("crashedtext"),
+                message: `${t("crashedtext")} ${errorMessage}`,
                 buttons: {
                     primary: t("clearcache"),
                     primaryAction: () => {
                         clearGTFSCache();
                         clearVehicleCache()
-                        window.location.reload();
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
                     },
                     secondary: t("understood"),
                     secondaryAction: () => {
@@ -4053,13 +4060,15 @@ async function loadVehicleModels() {
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : unable to load vehicle models');
         showFluentPopup({
             title: t("crashed"),
-            message: t("crashedtext"),
+            message: `${t("crashedtext")} unable to load vehicle models`,
             buttons: {
                 primary: t("clearcache"),
                 primaryAction: () => {
                     clearGTFSCache();
                     clearVehicleCache()
-                    window.location.reload();
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
                 },
                 secondary: t("understood"),
                 secondaryAction: () => {
@@ -4548,13 +4557,15 @@ async function initializeApp() {
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : fatal INIT_LOGIC_ERROR');
         showFluentPopup({
             title: t("crashed"),
-            message: t("crashedtext"),
+            message: `${t("crashedtext")} fatal INIT_LOGIC_ERROR`,
             buttons: {
                 primary: t("clearcache"),
                 primaryAction: () => {
                     clearGTFSCache();
                     clearVehicleCache()
-                    window.location.reload();
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
                 },
                 secondary: t("understood"),
                 secondaryAction: () => {
@@ -10887,6 +10898,10 @@ function startFetchUpdates() {
             });
 
             FetchManager.onSuccess();
+
+            if (BottomSheet.expanded) {
+                _refreshBottomSheetFavorites();
+            }
         } catch (error) {
             console.warn('Erreur lors des mises à jour', error);
         } finally {
@@ -11004,13 +11019,15 @@ async function main() {
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : fatal MAIN_INIT_FAIL');
         showFluentPopup({
             title: t("crashed"),
-            message: t("crashedtext"),
+            message: `${t("crashedtext")} fatal MAIN_INIT_FAIL`,
             buttons: {
                 primary: t("clearcache"),
                 primaryAction: () => {
                     clearGTFSCache();
                     clearVehicleCache()
-                    window.location.reload();
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
                 },
                 secondary: t("understood"),
                 secondaryAction: () => {
@@ -11089,13 +11106,15 @@ main().catch(error => {
     toastBottomRight.error("Critical error: unable to start the application.");
     showFluentPopup({
         title: t("crashed"),
-        message: t("crashedtext"),
+        message: `${t("crashedtext")} fatal INIT_LOGIC_ERROR`,
         buttons: {
             primary: t("clearcache"),
             primaryAction: () => {
                 clearGTFSCache();
                 clearVehicleCache()
-                window.location.reload();
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
             },
             secondary: t("understood"),
             secondaryAction: () => {
@@ -11798,7 +11817,7 @@ function _wireBottomSheetButtons() {
 
             html += `<div style="margin-bottom:8px;">
             <div style="font-size:11px;opacity:0.55;color:white;
-                        margin-bottom:4px;padding:0 4px;">Ligne ${name}</div>`;
+                        margin-bottom:4px;padding:0 4px;">${t("line")} ${name}</div>`;
 
             items.slice(0, 3).forEach(item => {
                 const label = (item.vehicleLabel || '').toString()
@@ -11931,9 +11950,9 @@ function _refreshBottomSheetFavorites() {
                                          12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                     </svg>
                 </div>
-                <p class="bs-fav-empty-title">Aucun horaire favori</p>
+                <p class="bs-fav-empty-title">${t("no_favorites")}</p>
                 <p class="bs-fav-empty-desc">
-                    Ouvrez les horaires et appuyez sur ⭐ à côté d'une ligne pour l'épingler ici.
+                    ${t("nofavorites_info")}
                 </p>
             </div>`;
         return;
@@ -12024,7 +12043,7 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor) {
     if (!container) return;
 
     if (!arrivals || arrivals.length === 0) {
-        container.innerHTML = `<span class="bs-fav-no-data">Aucun passage</span>`;
+        container.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
         return;
     }
 
@@ -12033,7 +12052,7 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor) {
 
     arrivals.slice(0, 3).forEach(arrival => {
         const diffMin = Math.round((arrival.time - now) / 60);
-        const label   = diffMin <= 0 ? 'Maintenant' : `${diffMin} min`;
+        const label   = diffMin <= 0 ? t("imminent") : `${diffMin} ${t("min")}`;
         const isNow   = diffMin <= 0;
 
         const pill = document.createElement('span');
@@ -12056,22 +12075,53 @@ function openFavoriteSchedule(favorite) {
 }
 
 async function fetchRealtimeDataForFavorite(favorite) {
-    const GTFS_RT_URL = `${window.NETWORK_BASE}/proxy-cors/proxy_tripupdate.php`;
+    const routeId = favorite.routeId || '';
+    const stopId  = favorite.stopId  || '';
+    const now     = Date.now() / 1000;
+    const results = [];
 
-    try {
-        const response = await fetch(GTFS_RT_URL);
-        if (!response.ok) throw new Error('Network response was not ok');
+    Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+        const nextStops = tripData.nextStops || [];
 
-        const buffer = await response.arrayBuffer();
-        const root = await protobuf.load('src/gtfs-realtime.proto');
-        const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
-        const message = FeedMessage.decode(new Uint8Array(buffer));
+        const stopMatch = nextStops.find(s =>
+            s.stopId === stopId ||
+            s.stopId === `0:${stopId}` ||
+            s.stopId.replace('0:', '') === stopId.replace('0:', '')
+        );
 
-        return processRealtimeDataForFavorite(message, favorite.routeId, favorite.stopId);
-    } catch (error) {
-        console.error('Error fetching realtime data:', error);
-        return [];
-    }
+        if (!stopMatch) return;
+
+        // Vérifie que ce trip correspond bien à la route voulue
+        const markerForTrip = [...markerPool.active.values()]
+            .find(m => m.vehicleData?.trip?.tripId === tripId);
+
+        if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
+
+        const stopTime = stopMatch.arrivalTime || stopMatch.departureTime;
+        if (!stopTime) return;
+
+        let arrivalSecs;
+        if (typeof stopTime === 'string' && stopTime.includes(':')) {
+            const parts = stopTime.split(':').map(Number);
+            const d     = new Date();
+            arrivalSecs = new Date(
+                d.getFullYear(), d.getMonth(), d.getDate(),
+                parts[0], parts[1], parts[2] || 0
+            ).getTime() / 1000;
+            //passage minuit
+            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
+        } else if (typeof stopTime === 'number' && stopTime > 86400) {
+            arrivalSecs = stopTime;
+        } else {
+            return;
+        }
+
+        if (arrivalSecs < now - 60) return; // déjà passé
+
+        results.push({ time: arrivalSecs, tripId });
+    });
+
+    return results.sort((a, b) => a.time - b.time).slice(0, 3);
 }
 
 function processRealtimeDataForFavorite(message, routeId, stopId) {
