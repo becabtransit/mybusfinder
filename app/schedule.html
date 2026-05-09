@@ -271,6 +271,89 @@ body {
     box-shadow: var(--glass-shadow-pressed);
 }
 
+.favorite-schedule-btn {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, 
+        rgba(255, 255, 255, 0.4) 0%, 
+        rgba(255, 255, 255, 0.25) 100%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+    border-radius: var(--radius-pill);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    font-size: 20px;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.favorite-schedule-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, 
+        rgba(255, 59, 48, 0.15) 0%, 
+        rgba(255, 149, 0, 0.1) 100%);
+    opacity: 0;
+    transition: var(--transition-standard);
+    pointer-events: none;
+}
+
+.favorite-schedule-btn.active {
+    background: linear-gradient(135deg, 
+        rgba(255, 59, 48, 0.2) 0%, 
+        rgba(255, 149, 0, 0.15) 100%);
+    border-color: rgba(255, 59, 48, 0.3);
+    color: var(--accent-red);
+    box-shadow: 0 4px 12px rgba(255, 59, 48, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.favorite-schedule-btn.active::before {
+    opacity: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+    .favorite-schedule-btn {
+        background: linear-gradient(135deg, 
+            rgba(255, 255, 255, 0.18) 0%, 
+            rgba(255, 255, 255, 0.1) 100%);
+        border-color: rgba(255, 255, 255, 0.2);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    
+    .favorite-schedule-btn.active {
+        background: linear-gradient(135deg, 
+            rgba(255, 59, 48, 0.25) 0%, 
+            rgba(255, 149, 0, 0.2) 100%);
+        border-color: rgba(255, 59, 48, 0.4);
+        box-shadow: 0 4px 12px rgba(255, 59, 48, 0.3),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+}
+
+.favorite-schedule-btn:active {
+    transform: scale(0.92);
+    box-shadow: var(--glass-shadow-pressed);
+}
+
+.favorite-schedule-btn.pressing {
+    transform: scale(0.92);
+    box-shadow: var(--glass-shadow-pressed);
+}
+
 .bus-item.pressing, .destination-item.pressing, .stop-item.pressing {
     transform: scale(0.97);
     box-shadow: var(--glass-shadow-pressed);
@@ -687,6 +770,19 @@ body {
     }
 }
 
+@keyframes favoritePulse {
+    0%, 100% {
+        box-shadow: 0 12px 40px rgba(255, 59, 48, 0.3),
+                    0 4px 12px rgba(0, 0, 0, 0.15),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+    50% {
+        box-shadow: 0 16px 56px rgba(255, 59, 48, 0.4),
+                    0 6px 16px rgba(0, 0, 0, 0.2),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+}
+
 .realtime-item {
     background: var(--glass-bg-light);
     backdrop-filter: var(--glass-blur-mobile) saturate(180%);
@@ -931,7 +1027,14 @@ function updateFavoriteButtonState() {
     btn.style.display = state.currentRoute && state.currentStop && state.currentDestination ? 'flex' : 'none';
     btn.classList.toggle('active', isFavorite);
     btn.title = isFavorite ? 'Retirer cet horaire des favoris' : 'Ajouter cet horaire aux favoris';
-    btn.innerHTML = `<i class="fas fa-star"></i>`;
+    
+    // Animation subtile pour indiquer le changement d'état
+    if (btn.style.display !== 'none') {
+        btn.style.animation = 'none';
+        setTimeout(() => {
+            btn.style.animation = isFavorite ? 'favoritePulse 0.6s ease-out' : 'fabPulse 0.6s ease-out';
+        }, 10);
+    }
 }
 
 function renderFavoriteSchedulesList() {
