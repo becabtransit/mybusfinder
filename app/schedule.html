@@ -1536,7 +1536,9 @@ function renderStopsList(stops, routeId, destinationId) {
         const item = document.createElement('div');
         item.className = 'stop-item';
         item.style.animationDelay = `${i * 0.04}s`;
-        const hasCoords = stop.stop_lat && stop.stop_lon;
+        const lat = parseFloat(stop.stop_lat);
+        const lon = parseFloat(stop.stop_lon);
+        const hasCoords = !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0;
         item.innerHTML = `
             <div class="stop-header">
                 <div class="stop-dot"></div>
@@ -1544,7 +1546,7 @@ function renderStopsList(stops, routeId, destinationId) {
                 ${hasCoords ? `<i class="fas fa-map-marker-alt" style="color:var(--accent-blue);font-size:14px;flex-shrink:0;" title="Voir sur la carte"></i>` : ''}
                 <i class="fas fa-chevron-right bus-chevron"></i>
             </div>
-            ${hasCoords ? `<div class="stop-meta"><i class="fas fa-location-dot" style="font-size:11px;margin-right:4px"></i>${stop.stop_lat.toFixed(4)}, ${stop.stop_lon.toFixed(4)}</div>` : ''}
+            ${hasCoords ? `<div class="stop-meta"><i class="fas fa-location-dot" style="font-size:11px;margin-right:4px"></i>${lat.toFixed(4)}, ${lon.toFixed(4)}</div>` : ''}
         `;
         addTouchFeedback(item, () => {
             if (hasCoords) showStopDetail(stop, routeId, destinationId);
@@ -1569,23 +1571,27 @@ function filterStops(q) {
 function showStopDetail(stop, routeId, destinationId) {
     const route = state.routes[routeId];
     const dest = state.stops[destinationId];
+    const lat = parseFloat(stop.stop_lat);
+    const lon = parseFloat(stop.stop_lon);
+    const hasCoords = !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0;
+
     document.getElementById('sheet-stop-name').textContent = stop.stop_name;
     document.getElementById('sheet-stop-line').textContent = `Ligne ${route.route_short_name} → ${dest?.stop_name || ''}`;
 
     // Coords chips
     const coordsEl = document.getElementById('sheet-coords');
     coordsEl.innerHTML = `
-        <div class="sheet-coord-chip"><i class="fas fa-crosshairs" style="font-size:11px"></i> Lat: ${stop.stop_lat?.toFixed(5) || '–'}</div>
-        <div class="sheet-coord-chip"><i class="fas fa-crosshairs" style="font-size:11px"></i> Lon: ${stop.stop_lon?.toFixed(5) || '–'}</div>
+        <div class="sheet-coord-chip"><i class="fas fa-crosshairs" style="font-size:11px"></i> Lat: ${hasCoords ? lat.toFixed(5) : '–'}</div>
+        <div class="sheet-coord-chip"><i class="fas fa-crosshairs" style="font-size:11px"></i> Lon: ${hasCoords ? lon.toFixed(5) : '–'}</div>
     `;
 
     // Actions
     const actionsEl = document.getElementById('sheet-actions');
     actionsEl.innerHTML = '';
-    if (stop.stop_lat && stop.stop_lon) {
+    if (hasCoords) {
         const mapsBtn = document.createElement('a');
         mapsBtn.className = 'sheet-action-btn';
-        mapsBtn.href = `https://www.google.com/maps?q=${stop.stop_lat},${stop.stop_lon}`;
+        mapsBtn.href = `https://www.google.com/maps?q=${lat},${lon}`;
         mapsBtn.target = '_blank';
         mapsBtn.innerHTML = '<i class="fas fa-map"></i> Google Maps';
         actionsEl.appendChild(mapsBtn);
@@ -1600,19 +1606,19 @@ function showStopDetail(stop, routeId, destinationId) {
     actionsEl.appendChild(goBtn);
 
     // Sheet map
-    if (stop.stop_lat && stop.stop_lon) {
+    if (hasCoords) {
         setTimeout(() => {
             const mapEl = document.getElementById('sheet-map');
             mapEl.style.display = 'block';
             if (sheetMap) { sheetMap.remove(); sheetMap = null; }
             sheetMap = L.map('sheet-map', { zoomControl: false, attributionControl: false })
-                .setView([stop.stop_lat, stop.stop_lon], 16);
+                .setView([lat, lon], 16);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(sheetMap);
             const busIcon = L.divIcon({
                 html: `<div style="background:var(--accent-blue);width:36px;height:36px;border-radius:50%;border:3px solid white;box-shadow:0 4px 16px rgba(0,122,255,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:16px;">🚌</div>`,
                 className: '', iconSize: [36, 36], iconAnchor: [18, 18]
             });
-            L.marker([stop.stop_lat, stop.stop_lon], { icon: busIcon })
+            L.marker([lat, lon], { icon: busIcon })
                 .addTo(sheetMap)
                 .bindPopup(`<b>${stop.stop_name}</b>`)
                 .openPopup();
@@ -1681,19 +1687,23 @@ function initStopMap(stop) {
 
     mapNameEl.textContent = stop.stop_name;
 
-    if (!stop.stop_lat || !stop.stop_lon) {
+    const lat = parseFloat(stop.stop_lat);
+    const lon = parseFloat(stop.stop_lon);
+    const hasCoords = !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0;
+
+    if (!hasCoords) {
         section.style.display = 'none';
         return;
     }
     section.style.display = 'block';
-    mapCoordsEl.textContent = `${stop.stop_lat.toFixed(4)}, ${stop.stop_lon.toFixed(4)}`;
+    mapCoordsEl.textContent = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 
     // Destroy previous map
     if (leafletMap) { leafletMap.remove(); leafletMap = null; mapMarker = null; }
 
     setTimeout(() => {
         leafletMap = L.map('stop-map', { zoomControl: false, attributionControl: false, dragging: false, touchZoom: false, scrollWheelZoom: false })
-            .setView([stop.stop_lat, stop.stop_lon], 16);
+            .setView([lat, lon], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafletMap);
         const pulse = L.divIcon({
             html: `<div style="position:relative;">
@@ -1702,7 +1712,7 @@ function initStopMap(stop) {
             </div>`,
             className: '', iconSize: [20, 20], iconAnchor: [10, 10]
         });
-        mapMarker = L.marker([stop.stop_lat, stop.stop_lon], { icon: pulse }).addTo(leafletMap);
+        mapMarker = L.marker([lat, lon], { icon: pulse }).addTo(leafletMap);
         leafletMap.invalidateSize();
         mapExpanded = false;
         document.getElementById('stop-map').classList.remove('expanded');
