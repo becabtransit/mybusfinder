@@ -11672,7 +11672,7 @@ const BottomSheet = (() => {
     function init() {
         sheetEl     = document.getElementById('bottom-sheet');
         contentEl   = document.getElementById('bs-content');
-        handleZoneEl = document.getElementById('bottom-sheet');
+        handleZoneEl = document.getElementById('bs-handle-zone');
         menubtmEl   = document.getElementById('menubtm');
 
         if (!sheetEl || !handleZoneEl) return;
@@ -12059,7 +12059,10 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor) {
             pill.style.cssText =
                 `background:${lineColor};color:${textColor};font-weight:700;`;
         }
-        pill.textContent = label;
+        const labelNum = arrival.vehicleLabel 
+            ? String(arrival.vehicleLabel).padStart(3,'0').replace(/[A-Z]+:/,'')
+            : null;
+        pill.textContent = labelNum ? `${label} · ${labelNum}` : label;
         container.appendChild(pill);
     });
 }
@@ -12095,8 +12098,9 @@ async function fetchRealtimeDataForFavorite(favorite) {
 
         if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
 
-        const stopTime = stopMatch.arrivalTime || stopMatch.departureTime;
+        const stopTime = stopMatch.departureTime || stopMatch.arrivalTime;
         if (!stopTime) return;
+        if (stopMatch.arrivalTime && !stopMatch.departureTime) return;
 
         let arrivalSecs;
         if (typeof stopTime === 'string' && stopTime.includes(':')) {
@@ -12116,7 +12120,13 @@ async function fetchRealtimeDataForFavorite(favorite) {
 
         if (arrivalSecs < now - 60) return; // déjà passé
 
-        results.push({ time: arrivalSecs, tripId });
+        results.push({ 
+            time: arrivalSecs, 
+            tripId,
+            vehicleLabel: markerForTrip?.vehicleData?.vehicle?.label 
+                    || markerForTrip?.vehicleData?.vehicle?.id 
+                    || null
+        });
     });
 
     return results.sort((a, b) => a.time - b.time).slice(0, 3);
