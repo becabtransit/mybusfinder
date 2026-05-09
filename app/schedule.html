@@ -1023,8 +1023,13 @@ function isCurrentScheduleFavorite() {
 function updateFavoriteButtonState() {
     const btn = document.getElementById('favorite-schedule-btn');
     if (!btn) return;
+    
+    // Only show button if we're in the schedule view
+    const scheduleView = document.getElementById('schedule-view');
+    const isInScheduleView = scheduleView && scheduleView.classList.contains('active');
+    
     const isFavorite = isCurrentScheduleFavorite();
-    btn.style.display = state.currentRoute && state.currentStop && state.currentDestination ? 'flex' : 'none';
+    btn.style.display = isInScheduleView && state.currentRoute && state.currentStop && state.currentDestination ? 'flex' : 'none';
     btn.classList.toggle('active', isFavorite);
     btn.title = isFavorite ? 'Retirer cet horaire des favoris' : 'Ajouter cet horaire aux favoris';
     
@@ -1104,6 +1109,11 @@ function toggleFavoriteSchedule() {
     saveFavoriteSchedules(favorites);
     updateFavoriteButtonState();
     renderFavoriteSchedulesList();
+    
+    // Refresh bottom sheet in parent window
+    if (window.opener && window.opener._refreshBottomSheetFavorites) {
+        window.opener._refreshBottomSheetFavorites();
+    }
 }
 
 const scrollState = {

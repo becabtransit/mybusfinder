@@ -11934,22 +11934,46 @@ function _refreshBottomSheetFavorites() {
     favorites.slice(0, 6).forEach(async (favorite) => {
         const item = document.createElement('div');
         item.className = 'bs-favorite-item';
-        item.style.cssText = 'width:100%; display:flex; flex-direction:column; padding:12px 14px; border:none; border-radius:16px; background:rgba(255,255,255,0.08); color:#fff; text-align:left; cursor:pointer; margin-bottom:8px;';
+        item.style.cssText = 'width:100%; display:flex; flex-direction:column; padding:12px 14px; border:none; border-radius:16px; background:rgba(255,255,255,0.08); color:#fff; text-align:left; cursor:pointer; transition:all 0.3s ease;';
 
+        // Header: Route number and stop
         const header = document.createElement('div');
-        header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;';
-        header.innerHTML = `
-            <span style="display:flex; flex-direction:column; gap:2px;">
-                <strong style="font-size:14px; color:#fff;">${favorite.routeName || favorite.routeId}</strong>
-                <span style="font-size:12px; color:#e8e8e8;">${favorite.stopName || favorite.stopId} → ${favorite.destinationName || favorite.destinationId}</span>
-            </span>
-            <span style="font-size:18px; opacity:0.85;">›</span>
+        header.style.cssText = 'display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;';
+        
+        const routeNumberEl = document.createElement('div');
+        routeNumberEl.style.cssText = 'display:inline-flex; align-items:center; justify-content:center; min-width:44px; height:36px; background:linear-gradient(135deg, rgba(0,122,255,0.3) 0%, rgba(168,85,247,0.2) 100%); border-radius:10px; font-weight:700; font-size:16px; color:#4ade80;';
+        routeNumberEl.textContent = favorite.routeName || favorite.routeId;
+        
+        const stopEl = document.createElement('div');
+        stopEl.style.cssText = 'flex:1; margin-left:10px; display:flex; flex-direction:column; gap:2px;';
+        stopEl.innerHTML = `
+            <div style="font-size:13px; font-weight:600; color:#e8e8e8; word-break:break-word;">${favorite.stopName || favorite.stopId}</div>
+            <div style="font-size:11px; color:#b8b8b8; opacity:0.8;">Arrêt</div>
         `;
+        
+        const arrowEl = document.createElement('div');
+        arrowEl.style.cssText = 'font-size:18px; color:#ffffff66; margin-top:2px;';
+        arrowEl.textContent = '›';
+        
+        header.appendChild(routeNumberEl);
+        header.appendChild(stopEl);
+        header.appendChild(arrowEl);
 
+        // Realtime section: Destination and times
         const realtimeContainer = document.createElement('div');
         realtimeContainer.className = 'bs-favorite-realtime';
-        realtimeContainer.style.cssText = 'display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;';
-        realtimeContainer.innerHTML = '<div style="font-size:12px; color:#cccccc; opacity:0.7;">Chargement...</div>';
+        realtimeContainer.style.cssText = 'display:flex; align-items:center; gap:8px; margin-top:6px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1);';
+        
+        const destinationEl = document.createElement('div');
+        destinationEl.style.cssText = 'font-size:11px; color:#b8b8b8; font-weight:500; min-width:60px; flex-shrink:0;';
+        destinationEl.textContent = `→ ${(favorite.destinationName || favorite.destinationId).substring(0, 20)}`;
+        
+        const timesEl = document.createElement('div');
+        timesEl.style.cssText = 'display:flex; gap:6px; flex-wrap:wrap;';
+        timesEl.innerHTML = '<div style="font-size:11px; color:#cccccc; opacity:0.7;">Chargement...</div>';
+        
+        realtimeContainer.appendChild(destinationEl);
+        realtimeContainer.appendChild(timesEl);
 
         item.appendChild(header);
         item.appendChild(realtimeContainer);
@@ -11959,15 +11983,25 @@ function _refreshBottomSheetFavorites() {
             openFavoriteSchedule(favorite);
         });
 
+        item.addEventListener('mouseenter', () => {
+            item.style.background = 'rgba(255,255,255,0.12)';
+            item.style.transform = 'translateY(-2px)';
+        });
+        
+        item.addEventListener('mouseleave', () => {
+            item.style.background = 'rgba(255,255,255,0.08)';
+            item.style.transform = 'translateY(0)';
+        });
+
         list.appendChild(item);
 
         // Load realtime data
         try {
             const arrivals = await fetchRealtimeDataForFavorite(favorite);
-            displayRealtimeArrivalsInFavorite(realtimeContainer, arrivals);
+            displayRealtimeArrivalsInFavorite(timesEl, arrivals);
         } catch (error) {
             console.error('Error loading realtime for favorite:', error);
-            realtimeContainer.innerHTML = '<div style="font-size:12px; color:#cccccc; opacity:0.7;">Données indisponibles</div>';
+            timesEl.innerHTML = '<div style="font-size:11px; color:#cccccc; opacity:0.7;">Indisponible</div>';
         }
     });
 }
@@ -12036,16 +12070,16 @@ function displayRealtimeArrivalsInFavorite(container, arrivals) {
     container.innerHTML = '';
 
     if (!arrivals || arrivals.length === 0) {
-        container.innerHTML = '<div style="font-size:12px; color:#cccccc; opacity:0.7;">Aucun passage prévu</div>';
+        container.innerHTML = '<div style="font-size:11px; color:#cccccc; opacity:0.7;">Aucun passage</div>';
         return;
     }
 
     arrivals.forEach(arrival => {
         const timeDiff = Math.floor((arrival.time - (Date.now() / 1000)) / 60);
-        const timeStr = timeDiff <= 0 ? 'Maintenant' : `${timeDiff} min`;
+        const timeStr = timeDiff <= 0 ? 'Maintenant' : `${timeDiff}m`;
 
         const timeEl = document.createElement('div');
-        timeEl.style.cssText = 'font-size:12px; color:#4ade80; background:rgba(74,222,128,0.1); padding:2px 6px; border-radius:8px; font-weight:500;';
+        timeEl.style.cssText = 'font-size:11px; color:#4ade80; background:rgba(74,222,128,0.15); padding:3px 7px; border-radius:6px; font-weight:600; white-space:nowrap;';
         timeEl.textContent = timeStr;
 
         container.appendChild(timeEl);
