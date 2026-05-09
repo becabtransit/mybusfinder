@@ -998,14 +998,23 @@ const cache = {
     stops: new Map()
 };
 
-const FAVORITE_SCHEDULES_KEY = 'favoriteSchedules';
+function getFavoriteSchedulesStorageKey() {
+    return `favoriteSchedules_${__ACTIVE_NETWORK}`;
+}
 
 function getFavoriteSchedules() {
-    return JSON.parse(localStorage.getItem(FAVORITE_SCHEDULES_KEY) || '[]');
+    const key = getFavoriteSchedulesStorageKey();
+    const raw = localStorage.getItem(key) || localStorage.getItem('favoriteSchedules');
+    try {
+        return JSON.parse(raw || '[]');
+    } catch (e) {
+        return [];
+    }
 }
 
 function saveFavoriteSchedules(items) {
-    localStorage.setItem(FAVORITE_SCHEDULES_KEY, JSON.stringify(items));
+    const key = getFavoriteSchedulesStorageKey();
+    localStorage.setItem(key, JSON.stringify(items));
 }
 
 function getFavoriteScheduleId(routeId, stopId, destinationId) {

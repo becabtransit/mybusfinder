@@ -11343,6 +11343,8 @@ async function softSwitchNetwork(newId) {
         map = await initMap();
         await initializeApp();
         await main();
+        _refreshBottomSheetGreeting();
+        _refreshBottomSheetFavorites();
         setMenuBtmVisible(false);
         const mapmonde = document.getElementById('map');
         mapmonde.classList.add('appearnotransition');
@@ -11901,8 +11903,10 @@ function _refreshBottomSheetGreeting() {
 }
 
 function getFavoriteSchedules() {
+    const key = `favoriteSchedules_${window.ACTIVE_NETWORK || 'palmbus'}`;
+    const raw = localStorage.getItem(key) || localStorage.getItem('favoriteSchedules');
     try {
-        return JSON.parse(localStorage.getItem('favoriteSchedules') || '[]');
+        return JSON.parse(raw || '[]');
     } catch (e) {
         return [];
     }
