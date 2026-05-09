@@ -1524,12 +1524,12 @@ async function fetchCityName(stopId, lat, lon) {
 
     try {
         const r = await fetch(
-            `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&lang=fr`
+            `..app/networks/proxy-geocode.php?lat=${lat}&lon=${lon}`
         );
         const d = await r.json();
-        const props = d.features?.[0]?.properties || {};
-        const city = props.city || props.town || props.village || '';
-        const district = props.district || props.suburb || '';
+        const addr = d.address || {};
+        const city = addr.city || addr.town || addr.village || addr.municipality || '';
+        const district = addr.suburb || addr.neighbourhood || addr.quarter || '';
         const label = district ? `${district}, ${city}` : city || '';
         geocodeCache.set(key, label);
         el.style.opacity = '1';
