@@ -1110,9 +1110,12 @@ function toggleFavoriteSchedule() {
     updateFavoriteButtonState();
     renderFavoriteSchedulesList();
     
-    // Refresh bottom sheet in parent window
-    if (window.opener && window.opener._refreshBottomSheetFavorites) {
-        window.opener._refreshBottomSheetFavorites();
+    // Notify parent iframe about favorite change
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+            action: 'favoriteChanged',
+            favorites: favorites
+        }, '*');
     }
 }
 

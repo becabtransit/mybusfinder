@@ -12104,6 +12104,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+window.addEventListener('message', (event) => {
+    if (event.data && event.data.action === 'favoriteChanged') {
+        console.log('Favorite changed, refreshing bottom sheet...');
+        _refreshBottomSheetFavorites();
+    }
+});
+
 const __origSoftSwitch = softSwitchNetwork;
 softSwitchNetwork = async function (newId) {
     await __origSoftSwitch(newId);
