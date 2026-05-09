@@ -11914,99 +11914,136 @@ function getFavoriteSchedules() {
 
 function _refreshBottomSheetFavorites() {
     const section = document.getElementById('bs-favorites-section');
-    const list = document.getElementById('bs-favorites-list');
+    const list    = document.getElementById('bs-favorites-list');
     if (!section || !list) return;
 
     const favorites = getFavoriteSchedules();
+
     if (!favorites.length) {
         section.style.display = 'block';
         list.innerHTML = `
-            <div style="padding:20px 16px; text-align:center; color:#ffffffaa; font-size:14px; line-height:1.4;">
-                <div style="font-size:24px; margin-bottom:12px;">⭐</div>
-                <div style="font-weight:500; margin-bottom:8px;">Aucun horaire favori</div>
-                <div style="opacity:0.8;">
-                    Ajoutez vos arrêts préférés en ouvrant les horaires et en cliquant sur l'étoile ⭐ à côté du nom de la ligne.
+            <div class="bs-fav-empty">
+                <div class="bs-fav-empty-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="1.4"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02
+                                         12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
                 </div>
-            </div>
-        `;
+                <p class="bs-fav-empty-title">Aucun horaire favori</p>
+                <p class="bs-fav-empty-desc">
+                    Ouvrez les horaires et appuyez sur ⭐ à côté d'une ligne pour l'épingler ici.
+                </p>
+            </div>`;
         return;
     }
 
     section.style.display = 'block';
     list.innerHTML = '';
 
-    favorites.slice(0, 6).forEach(async (favorite) => {
-        const item = document.createElement('div');
-        item.className = 'bs-favorite-item';
-        item.style.cssText = 'width:100%; display:flex; flex-direction:column; padding:12px 14px; border:none; border-radius:16px; background:rgba(255,255,255,0.08); color:#fff; text-align:left; cursor:pointer; transition:all 0.3s ease;';
+    favorites.slice(0, 6).forEach((favorite, idx) => {
+        const routeId   = favorite.routeId   || '';
+        const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
+        const destName  = (favorite.destinationName || favorite.destinationId || '').substring(0, 24);
+        const lineName_ = favorite.routeName || lineName[routeId] || routeId;
+        const lineColor = lineColors[routeId] || '#444';
+        const textColor = getTextColor(lineColor);
 
-        // Header: Route number and stop
-        const header = document.createElement('div');
-        header.style.cssText = 'display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;';
-        
-        const routeNumberEl = document.createElement('div');
-        routeNumberEl.style.cssText = 'display:inline-flex; align-items:center; justify-content:center; min-width:44px; height:36px; background:linear-gradient(135deg, rgba(0,122,255,0.3) 0%, rgba(168,85,247,0.2) 100%); border-radius:10px; font-weight:700; font-size:16px; color:#4ade80;';
-        routeNumberEl.textContent = favorite.routeName || favorite.routeId;
-        
-        const stopEl = document.createElement('div');
-        stopEl.style.cssText = 'flex:1; margin-left:10px; display:flex; flex-direction:column; gap:2px;';
-        stopEl.innerHTML = `
-            <div style="font-size:13px; font-weight:600; color:#e8e8e8; word-break:break-word;">${favorite.stopName || favorite.stopId}</div>
-            <div style="font-size:11px; color:#b8b8b8; opacity:0.8;">Arrêt</div>
-        `;
-        
-        const arrowEl = document.createElement('div');
-        arrowEl.style.cssText = 'font-size:18px; color:#ffffff66; margin-top:2px;';
-        arrowEl.textContent = '›';
-        
-        header.appendChild(routeNumberEl);
-        header.appendChild(stopEl);
-        header.appendChild(arrowEl);
+        const card = document.createElement('div');
+        card.className    = 'bs-fav-card ripple-container';
+        card.style.cssText = `animation-delay:${idx * 55}ms`;
 
-        // Realtime section: Destination and times
-        const realtimeContainer = document.createElement('div');
-        realtimeContainer.className = 'bs-favorite-realtime';
-        realtimeContainer.style.cssText = 'display:flex; align-items:center; gap:8px; margin-top:6px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1);';
-        
-        const destinationEl = document.createElement('div');
-        destinationEl.style.cssText = 'font-size:11px; color:#b8b8b8; font-weight:500; min-width:60px; flex-shrink:0;';
-        destinationEl.textContent = `→ ${(favorite.destinationName || favorite.destinationId).substring(0, 20)}`;
-        
-        const timesEl = document.createElement('div');
-        timesEl.style.cssText = 'display:flex; gap:6px; flex-wrap:wrap;';
-        timesEl.innerHTML = '<div style="font-size:11px; color:#cccccc; opacity:0.7;">Chargement...</div>';
-        
-        realtimeContainer.appendChild(destinationEl);
-        realtimeContainer.appendChild(timesEl);
+        card.innerHTML = `
+            <div class="bs-fav-card-header" style="background:${lineColor};">
+                <div class="bs-fav-beam bs-fav-beam1"></div>
+                <div class="bs-fav-beam bs-fav-beam2"></div>
+                <div class="bs-fav-line-badge" style="color:${textColor};">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
+                                 V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
+                                 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
+                                 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
+                                 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                    </svg>
+                    <span>Ligne ${lineName_}</span>
+                </div>
+                <p class="bs-fav-dest" style="color:${textColor};">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.5"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                    ${destName}
+                </p>
+            </div>
+            <div class="bs-fav-card-body">
+                <div class="bs-fav-stop-row">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round"
+                         aria-hidden="true" style="flex-shrink:0;opacity:.55;">
+                        <circle cx="12" cy="10" r="3"/>
+                        <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+                    </svg>
+                    <span class="bs-fav-stop-name">${stopName}</span>
+                </div>
+                <div class="bs-fav-times" id="bs-fav-times-${idx}">
+                    <div class="bs-fav-loading">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round"
+                             style="opacity:.5" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <span>Chargement…</span>
+                    </div>
+                </div>
+            </div>`;
 
-        item.appendChild(header);
-        item.appendChild(realtimeContainer);
-
-        header.addEventListener('click', () => {
+        card.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            soundsUX('MBF_Menu_LineSelect');
             BottomSheet.collapse();
             openFavoriteSchedule(favorite);
         });
 
-        item.addEventListener('mouseenter', () => {
-            item.style.background = 'rgba(255,255,255,0.12)';
-            item.style.transform = 'translateY(-2px)';
-        });
-        
-        item.addEventListener('mouseleave', () => {
-            item.style.background = 'rgba(255,255,255,0.08)';
-            item.style.transform = 'translateY(0)';
-        });
+        list.appendChild(card);
 
-        list.appendChild(item);
+        fetchRealtimeDataForFavorite(favorite)
+            .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor))
+            .catch(() => _displayFavTimes(idx, [], lineColor, textColor));
+    });
+}
 
-        // Load realtime data
-        try {
-            const arrivals = await fetchRealtimeDataForFavorite(favorite);
-            displayRealtimeArrivalsInFavorite(timesEl, arrivals);
-        } catch (error) {
-            console.error('Error loading realtime for favorite:', error);
-            timesEl.innerHTML = '<div style="font-size:11px; color:#cccccc; opacity:0.7;">Indisponible</div>';
+function _displayFavTimes(idx, arrivals, lineColor, textColor) {
+    const container = document.getElementById(`bs-fav-times-${idx}`);
+    if (!container) return;
+
+    if (!arrivals || arrivals.length === 0) {
+        container.innerHTML = `<span class="bs-fav-no-data">Aucun passage</span>`;
+        return;
+    }
+
+    const now = Date.now() / 1000;
+    container.innerHTML = '';
+
+    arrivals.slice(0, 3).forEach(arrival => {
+        const diffMin = Math.round((arrival.time - now) / 60);
+        const label   = diffMin <= 0 ? 'Maintenant' : `${diffMin} min`;
+        const isNow   = diffMin <= 0;
+
+        const pill = document.createElement('span');
+        pill.className = 'bs-fav-time-pill';
+        if (isNow) {
+            pill.style.cssText =
+                `background:${lineColor};color:${textColor};font-weight:700;`;
         }
+        pill.textContent = label;
+        container.appendChild(pill);
     });
 }
 
