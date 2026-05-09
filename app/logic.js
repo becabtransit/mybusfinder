@@ -10980,7 +10980,7 @@ window.addEventListener('message', e => {
 });
 
 
-async function main(refreshParam = false) {
+async function main() {
     try {
         initWorker();
         await initializeGTFS();
@@ -10993,11 +10993,9 @@ async function main(refreshParam = false) {
             fetchVehiclePositions(),
             loadGeoJsonLines(),
             modeSombre(),
+            hideLoadingScreen()
         ]);
-
-        if (refreshParam) {
-            hideLoadingScreen();
-        }
+            
         loadGeoJsonLines();
         startFetchUpdates();
         
