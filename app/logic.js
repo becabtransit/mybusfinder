@@ -11672,7 +11672,7 @@ const BottomSheet = (() => {
     function init() {
         sheetEl     = document.getElementById('bottom-sheet');
         contentEl   = document.getElementById('bs-content');
-        handleZoneEl = document.getElementById('bs-handle-zone');
+        handleZoneEl = document.getElementById('bottom-sheet');
         menubtmEl   = document.getElementById('menubtm');
 
         if (!sheetEl || !handleZoneEl) return;
@@ -11680,10 +11680,9 @@ const BottomSheet = (() => {
         _measure();
         window.addEventListener('resize', () => _measure());
 
-        // Click on the handle zone (without movement) toggles the state
         let downX = 0, downY = 0;
         handleZoneEl.addEventListener('pointerdown', (e) => {
-            if (e.target.closest('button')) return; // ← ajouter
+            if (e.target.closest('button')) return; 
             downX = e.clientX; downY = e.clientY;
             _onPointerDown(e);
         });
@@ -11717,7 +11716,6 @@ const BottomSheet = (() => {
             rowTracking = false;
             const dy = rowStartY - e.clientY; // positive = upward
             const dt = performance.now() - rowStartT;
-            // Fast upward flick on the icon row → expand
             if (dy > 50 && dt < 350) expand();
         });
         menubtmEl?.addEventListener('pointercancel', () => { rowTracking = false; });
