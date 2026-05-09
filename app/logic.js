@@ -273,7 +273,7 @@
         }, 1000);
     });
 
-    VERSION_NAME = '3.6.0RC2';
+    VERSION_NAME = '3.6.0.1';
 
     document.addEventListener('gesturestart', function (e) {
     e.preventDefault();
@@ -635,6 +635,21 @@
 
 
     document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        const ParametresUrl = new URLSearchParams(window.location.search);
+        if (ParametresUrl.get('redirectedfromlegacy') === 'true') {
+            showFluentPopup({
+                title: t("hello"),
+                message: t("redirectedtext"),
+                buttons: {
+                    primary: t("understood"),
+                    primaryAction: () => {
+                        fluentPopupManager.close();
+                    }
+                }
+            });
+        }
+    }, 1500);
 
     if (localStorage.getItem('premiereuutilisation') !== 'true') {
         if (localStorage.getItem('transparency') !== 'true') {
@@ -1026,6 +1041,11 @@ if ('serviceWorker' in navigator) {
         });
         
         registration.update();
+        
+        // Vérifier les mises à jour du service worker toutes les 5 minutes
+        setInterval(() => {
+          registration.update();
+        }, 5 * 60 * 1000);
       })
       .catch(error => {
         console.error('Erreur lors de l\'enregistrement du service Worker:', error);
@@ -1844,10 +1864,46 @@ function focusOnVehicle(vehicleId) {
             
         } catch (mapError) {
             toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : manipulating marker error');
+            showFluentPopup({
+                title: t("crashed"),
+                message: `${t("crashedtext")} MANIPULATE_MARKER_ERROR`,
+                buttons: {
+                    primary: t("clearcache"),
+                    primaryAction: () => {
+                        clearGTFSCache();
+                        clearVehicleCache()
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    },
+                    secondary: t("understood"),
+                    secondaryAction: () => {
+                        fluentPopupManager.close();
+                    }
+                }
+            });
             soundsUX('MBF_NotificationError');
         }
     } catch (error) {
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : focusOnVehicle function error');
+            showFluentPopup({
+                title: t("crashed"),
+                message: `${t("crashedtext")} FOCUS_ON_VEHICLE_ERROR`,
+                buttons: {
+                    primary: t("clearcache"),
+                    primaryAction: () => {
+                        clearGTFSCache();
+                        clearVehicleCache()
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    },
+                    secondary: t("understood"),
+                    secondaryAction: () => {
+                        fluentPopupManager.close();
+                    }
+                }
+            });
         soundsUX('MBF_NotificationError');
     }
 }
@@ -1943,7 +1999,7 @@ function hideLoadingScreen() {
             if (localStorage.getItem('osmattr') !== 'true') {
                 localStorage.setItem('osmattr', 'true');
                 toastTopLeft.info('Map data from OSM contributors, licensed under ODbL.', {
-                    duration: 7000,
+                    duration: 2000,
                     buttons: [
                         {
                         label: 'See more',
@@ -2922,6 +2978,24 @@ async function loadGTFSDataOptimized() {
         
         const errorMessage = error.message || 'Erreur inconnue';
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : ' + errorMessage);
+            showFluentPopup({
+                title: t("crashed"),
+                message: `${t("crashedtext")} ${errorMessage}`,
+                buttons: {
+                    primary: t("clearcache"),
+                    primaryAction: () => {
+                        clearGTFSCache();
+                        clearVehicleCache()
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    },
+                    secondary: t("understood"),
+                    secondaryAction: () => {
+                        fluentPopupManager.close();
+                    }
+                }
+            });
         soundsUX('MBF_NotificationError');
         
         throw error;
@@ -3984,6 +4058,24 @@ async function loadVehicleModels() {
     } catch (error) {
         console.error('Erreur lors du chargement des modèles de véhicules', error);
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : unable to load vehicle models');
+        showFluentPopup({
+            title: t("crashed"),
+            message: `${t("crashedtext")} unable to load vehicle models`,
+            buttons: {
+                primary: t("clearcache"),
+                primaryAction: () => {
+                    clearGTFSCache();
+                    clearVehicleCache()
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                },
+                secondary: t("understood"),
+                secondaryAction: () => {
+                    fluentPopupManager.close();
+                }
+            }
+        });
         soundsUX('MBF_NotificationError');
     }
 }
@@ -4321,7 +4413,6 @@ function getVehicleModel(parkNumber) {
 }
 
 function clearVehicleCache() {
-    sessionStorage.removeItem(CACHE_KEY);
     vehicleModelLookupCache.clear();
     console.log('Cache des véhicules vidé');
 }
@@ -4464,6 +4555,24 @@ async function initializeApp() {
     } catch (error) {
         console.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : fatal INIT_LOGIC_ERROR');
+        showFluentPopup({
+            title: t("crashed"),
+            message: `${t("crashedtext")} fatal INIT_LOGIC_ERROR`,
+            buttons: {
+                primary: t("clearcache"),
+                primaryAction: () => {
+                    clearGTFSCache();
+                    clearVehicleCache()
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                },
+                secondary: t("understood"),
+                secondaryAction: () => {
+                    fluentPopupManager.close();
+                }
+            }
+        });
         soundsUX('MBF_NotificationError');
     }
 }
@@ -4796,7 +4905,7 @@ function applyMapView() {
     });
 
     if (!isStandardView) {
-    const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         minZoom: 6,
         maxZoom: 19,
     }).addTo(map);
@@ -7782,16 +7891,7 @@ animationStyle.textContent = `
 document.head.appendChild(animationStyle);
 
 
-function cacheBoutonsenHaut() {
-    const actualiserbtn = document.getElementById('refresh-bouton-map');
-    const localiserbtn = document.getElementById('locate-bouton-map');
-
-    actualiserbtn.classList.toggle('hideblur');
-    localiserbtn.classList.toggle('hideblur');
-}
-
 function closeMenu() {
-    cacheBoutonsenHaut();
     safeVibrate([30], true);
     soundsUX('MBF_SelectedVehicle_DoorClose');
     const menu = document.getElementById('menu');
@@ -9493,7 +9593,7 @@ const menubottom1 = document.getElementById('menubtm');
 
 
         function showMenu() {
-            cacheBoutonsenHaut();
+            // cacheBoutonsenHaut();
             soundsUX('MBF_SelectedVehicle_DoorOpen');
             window.isMenuShowed = true;
             const mapp = document.getElementById('map');
@@ -10798,6 +10898,10 @@ function startFetchUpdates() {
             });
 
             FetchManager.onSuccess();
+
+            if (BottomSheet.expanded) {
+                _refreshBottomSheetFavorites();
+            }
         } catch (error) {
             console.warn('Erreur lors des mises à jour', error);
         } finally {
@@ -10807,6 +10911,17 @@ function startFetchUpdates() {
 
     scheduleFetch();
 }
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        if (fetchTimerId) {
+            clearTimeout(fetchTimerId);
+            fetchTimerId = null;
+        }
+        FetchManager.reset(); 
+        startFetchUpdates();
+    }
+});
 
 let navWindow = null;
 let navVehicleId = null;
@@ -10895,13 +11010,31 @@ async function main() {
             modeSombre(),
             hideLoadingScreen()
         ]);
-
+            
         loadGeoJsonLines();
         startFetchUpdates();
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : fatal MAIN_INIT_FAIL');
+        showFluentPopup({
+            title: t("crashed"),
+            message: `${t("crashedtext")} fatal MAIN_INIT_FAIL`,
+            buttons: {
+                primary: t("clearcache"),
+                primaryAction: () => {
+                    clearGTFSCache();
+                    clearVehicleCache()
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                },
+                secondary: t("understood"),
+                secondaryAction: () => {
+                    fluentPopupManager.close();
+                }
+            }
+        });
         soundsUX('MBF_NotificationError');
     }
 }
@@ -10971,6 +11104,24 @@ if (performance && performance.memory) {
 main().catch(error => {
     console.error("Erreur critique lors de l'initialisation de l'application :", error);
     toastBottomRight.error("Critical error: unable to start the application.");
+    showFluentPopup({
+        title: t("crashed"),
+        message: `${t("crashedtext")} fatal INIT_LOGIC_ERROR`,
+        buttons: {
+            primary: t("clearcache"),
+            primaryAction: () => {
+                clearGTFSCache();
+                clearVehicleCache()
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            },
+            secondary: t("understood"),
+            secondaryAction: () => {
+                fluentPopupManager.close();
+            }
+        }
+    });
     soundsUX('MBF_NotificationError');
 });
 
@@ -11211,6 +11362,8 @@ async function softSwitchNetwork(newId) {
         map = await initMap();
         await initializeApp();
         await main();
+        _refreshBottomSheetGreeting();
+        _refreshBottomSheetFavorites();
         setMenuBtmVisible(false);
         const mapmonde = document.getElementById('map');
         mapmonde.classList.add('appearnotransition');
@@ -11311,21 +11464,19 @@ async function openNetworkSwitcher() {
     modal.className = 'ns-modal';
     _applyAccentToModal(modal, window.colorbkg);
 
-    // Header
     const header = document.createElement('div');
     header.className = 'ns-header';
     header.innerHTML = `
-        <h2>Choisissez votre réseau</h2>
-        <p>Vos favoris et la position de la carte sont conservés par réseau.</p>
+        <h2>${t("choose_network")}</h2>
+        <p>${t("network_switcher_info")}</p>
     `;
 
-    // Body
     const body = document.createElement('div');
     body.className = 'ns-body';
 
     const groups = Array.isArray(index.groups) ? index.groups : [];
     let stagger = 0;
-    const STEP = 35; // ms between item entrances
+    const STEP = 35; 
 
     groups.forEach(group => {
         const label = document.createElement('div');
@@ -11433,6 +11584,7 @@ const BottomSheet = (() => {
 
     function expand() {
         if (!sheetEl) return;
+        _refreshBottomSheetFavorites();
         isExpanded = true;
         sheetEl.classList.remove('bs-collapsed');
         sheetEl.classList.add('bs-expanded');
@@ -11665,7 +11817,7 @@ function _wireBottomSheetButtons() {
 
             html += `<div style="margin-bottom:8px;">
             <div style="font-size:11px;opacity:0.55;color:white;
-                        margin-bottom:4px;padding:0 4px;">Ligne ${name}</div>`;
+                        margin-bottom:4px;padding:0 4px;">${t("line")} ${name}</div>`;
 
             items.slice(0, 3).forEach(item => {
                 const label = (item.vehicleLabel || '').toString()
@@ -11769,12 +11921,268 @@ function _refreshBottomSheetGreeting() {
     sub.textContent = `${id} · My Bus Finder`;
 }
 
+function getFavoriteSchedules() {
+    const key = `favoriteSchedules_${window.ACTIVE_NETWORK || 'palmbus'}`;
+    const raw = localStorage.getItem(key) || localStorage.getItem('favoriteSchedules');
+    try {
+        return JSON.parse(raw || '[]');
+    } catch (e) {
+        return [];
+    }
+}
+
+function _refreshBottomSheetFavorites() {
+    const section = document.getElementById('bs-favorites-section');
+    const list    = document.getElementById('bs-favorites-list');
+    if (!section || !list) return;
+
+    const favorites = getFavoriteSchedules();
+
+    if (!favorites.length) {
+        section.style.display = 'block';
+        list.innerHTML = `
+            <div class="bs-fav-empty">
+                <div class="bs-fav-empty-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="1.4"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02
+                                         12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                </div>
+                <p class="bs-fav-empty-title">${t("no_favorites")}</p>
+                <p class="bs-fav-empty-desc">
+                    ${t("nofavorites_info")}
+                </p>
+            </div>`;
+        return;
+    }
+
+    section.style.display = 'block';
+    list.innerHTML = '';
+
+    favorites.slice(0, 6).forEach((favorite, idx) => {
+        const routeId   = favorite.routeId   || '';
+        const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
+        const destName  = (favorite.destinationName || favorite.destinationId || '').substring(0, 24);
+        const lineName_ = favorite.routeName || lineName[routeId] || routeId;
+        const lineColor = lineColors[routeId] || '#444';
+        const textColor = getTextColor(lineColor);
+
+        const card = document.createElement('div');
+        card.className    = 'bs-fav-card ripple-container';
+        card.style.cssText = `animation-delay:${idx * 55}ms`;
+
+        card.innerHTML = `
+            <div class="bs-fav-card-header" style="background:${lineColor};">
+                <div class="bs-fav-beam bs-fav-beam1"></div>
+                <div class="bs-fav-beam bs-fav-beam2"></div>
+                <div class="bs-fav-line-badge" style="color:${textColor};">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
+                                 V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
+                                 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
+                                 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
+                                 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                    </svg>
+                    <span>Ligne ${lineName_}</span>
+                </div>
+                <p class="bs-fav-dest" style="color:${textColor};">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.5"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                    ${destName}
+                </p>
+            </div>
+            <div class="bs-fav-card-body">
+                <div class="bs-fav-stop-row">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round"
+                         aria-hidden="true" style="flex-shrink:0;opacity:.55;">
+                        <circle cx="12" cy="10" r="3"/>
+                        <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+                    </svg>
+                    <span class="bs-fav-stop-name">${stopName}</span>
+                </div>
+                <div class="bs-fav-times" id="bs-fav-times-${idx}">
+                    <div class="bs-fav-loading">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round"
+                             style="opacity:.5" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <span>Chargement…</span>
+                    </div>
+                </div>
+            </div>`;
+
+        card.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            soundsUX('MBF_Menu_LineSelect');
+            BottomSheet.collapse();
+            openFavoriteSchedule(favorite);
+        });
+
+        list.appendChild(card);
+
+        fetchRealtimeDataForFavorite(favorite)
+            .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor))
+            .catch(() => _displayFavTimes(idx, [], lineColor, textColor));
+    });
+}
+
+function _displayFavTimes(idx, arrivals, lineColor, textColor) {
+    const container = document.getElementById(`bs-fav-times-${idx}`);
+    if (!container) return;
+
+    if (!arrivals || arrivals.length === 0) {
+        container.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+        return;
+    }
+
+    const now = Date.now() / 1000;
+    container.innerHTML = '';
+
+    arrivals.slice(0, 3).forEach(arrival => {
+        const diffMin = Math.round((arrival.time - now) / 60);
+        const label   = diffMin <= 0 ? t("imminent") : `${diffMin} ${t("min")}`;
+        const isNow   = diffMin <= 0;
+
+        const pill = document.createElement('span');
+        pill.className = 'bs-fav-time-pill';
+        if (isNow) {
+            pill.style.cssText =
+                `background:${lineColor};color:${textColor};font-weight:700;`;
+        }
+        pill.textContent = label;
+        container.appendChild(pill);
+    });
+}
+
+function openFavoriteSchedule(favorite) {
+    if (!favorite || !favorite.routeId || !favorite.stopId || !favorite.destinationId) return;
+    const route = encodeURIComponent(favorite.routeId);
+    const stop = encodeURIComponent(favorite.stopId);
+    const destination = encodeURIComponent(favorite.destinationId);
+    showUpdatePopup(`schedule.html?route=${route}&stop=${stop}&destination=${destination}`);
+}
+
+async function fetchRealtimeDataForFavorite(favorite) {
+    const routeId = favorite.routeId || '';
+    const stopId  = favorite.stopId  || '';
+    const now     = Date.now() / 1000;
+    const results = [];
+
+    Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+        const nextStops = tripData.nextStops || [];
+
+        const stopMatch = nextStops.find(s =>
+            s.stopId === stopId ||
+            s.stopId === `0:${stopId}` ||
+            s.stopId.replace('0:', '') === stopId.replace('0:', '')
+        );
+
+        if (!stopMatch) return;
+
+        // Vérifie que ce trip correspond bien à la route voulue
+        const markerForTrip = [...markerPool.active.values()]
+            .find(m => m.vehicleData?.trip?.tripId === tripId);
+
+        if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
+
+        const stopTime = stopMatch.arrivalTime || stopMatch.departureTime;
+        if (!stopTime) return;
+
+        let arrivalSecs;
+        if (typeof stopTime === 'string' && stopTime.includes(':')) {
+            const parts = stopTime.split(':').map(Number);
+            const d     = new Date();
+            arrivalSecs = new Date(
+                d.getFullYear(), d.getMonth(), d.getDate(),
+                parts[0], parts[1], parts[2] || 0
+            ).getTime() / 1000;
+            //passage minuit
+            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
+        } else if (typeof stopTime === 'number' && stopTime > 86400) {
+            arrivalSecs = stopTime;
+        } else {
+            return;
+        }
+
+        if (arrivalSecs < now - 60) return; // déjà passé
+
+        results.push({ time: arrivalSecs, tripId });
+    });
+
+    return results.sort((a, b) => a.time - b.time).slice(0, 3);
+}
+
+function processRealtimeDataForFavorite(message, routeId, stopId) {
+    const arrivals = [];
+    const now = Date.now() / 1000;
+
+    message.entity.forEach(entity => {
+        if (!entity.tripUpdate) return;
+
+        const tu = entity.tripUpdate;
+        const td = tu.trip;
+
+        const tripId = td.tripId || td.trip_id;
+        if (!tripId) return;
+
+        const rtRouteId = td.routeId || td.route_id;
+        if (rtRouteId && String(rtRouteId) !== String(routeId)) return;
+
+        tu.stopTimeUpdate?.forEach(update => {
+            if (update.stopId !== stopId) return;
+
+            const arrivalTime = update.arrival?.time || update.departure?.time;
+            if (!arrivalTime || arrivalTime <= now) return;
+
+            arrivals.push({
+                time: arrivalTime,
+                tripId: tripId,
+                headsign: td.tripHeadsign || td.trip_headsign || 'Destination'
+            });
+        });
+    });
+
+    return arrivals.sort((a, b) => a.time - b.time).slice(0, 3); // Only show next 3 arrivals
+}
+
+function displayRealtimeArrivalsInFavorite(container, arrivals) {
+    container.innerHTML = '';
+
+    if (!arrivals || arrivals.length === 0) {
+        container.innerHTML = '<div style="font-size:11px; color:#cccccc; opacity:0.7;">Aucun passage</div>';
+        return;
+    }
+
+    arrivals.forEach(arrival => {
+        const timeDiff = Math.floor((arrival.time - (Date.now() / 1000)) / 60);
+        const timeStr = timeDiff <= 0 ? 'Maintenant' : `${timeDiff}m`;
+
+        const timeEl = document.createElement('div');
+        timeEl.style.cssText = 'font-size:11px; color:#4ade80; background:rgba(74,222,128,0.15); padding:3px 7px; border-radius:6px; font-weight:600; white-space:nowrap;';
+        timeEl.textContent = timeStr;
+
+        container.appendChild(timeEl);
+    });
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     try {
         BottomSheet.init();
         _wireBottomSheetButtons();
         _refreshBottomSheetGreeting();
+        _refreshBottomSheetFavorites();
 
         if (localStorage.getItem('nepasafficheraccueil') === 'true') {
             BottomSheet.collapse();
@@ -11784,6 +12192,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } catch (e) {
         console.error('Bottom sheet init failed:', e);
+    }
+});
+
+window.addEventListener('message', (event) => {
+    if (event.data && event.data.action === 'favoriteChanged') {
+        console.log('Favorite changed, refreshing bottom sheet...');
+        _refreshBottomSheetFavorites();
     }
 });
 
