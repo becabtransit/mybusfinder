@@ -30,6 +30,13 @@ self.addEventListener('activate', event => {
   );
 });
 
+// Vérifier les mises à jour périodiquement
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', event => {
   if (event.request.mode === 'navigate') {
     event.respondWith(

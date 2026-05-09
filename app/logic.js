@@ -273,7 +273,7 @@
         }, 1000);
     });
 
-    VERSION_NAME = '3.6.0RC2';
+    VERSION_NAME = '3.6.0.1';
 
     document.addEventListener('gesturestart', function (e) {
     e.preventDefault();
@@ -635,6 +635,20 @@
 
 
     document.addEventListener('DOMContentLoaded', () => {
+
+    const ParametresUrl = new URLSearchParams(window.location.search);
+    if (ParametresUrl.get('redirectedfromlegacy') === 'true') {
+        showFluentPopup({
+            title: t("hello"),
+            message: t("redirectedtext"),
+            buttons: {
+                primary: t("understood"),
+                primaryAction: () => {
+                    fluentPopupManager.close();
+                }
+            }
+        });
+    }
 
     if (localStorage.getItem('premiereuutilisation') !== 'true') {
         if (localStorage.getItem('transparency') !== 'true') {
@@ -1026,6 +1040,11 @@ if ('serviceWorker' in navigator) {
         });
         
         registration.update();
+        
+        // Vérifier les mises à jour du service worker toutes les 5 minutes
+        setInterval(() => {
+          registration.update();
+        }, 5 * 60 * 1000);
       })
       .catch(error => {
         console.error('Erreur lors de l\'enregistrement du service Worker:', error);
@@ -1844,10 +1863,42 @@ function focusOnVehicle(vehicleId) {
             
         } catch (mapError) {
             toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : manipulating marker error');
+            showFluentPopup({
+                title: t("crashed"),
+                message: t("crashedtext"),
+                buttons: {
+                    primary: t("clearcache"),
+                    primaryAction: () => {
+                        clearGTFSCache();
+                        clearVehicleCache()
+                        window.location.reload();
+                    },
+                    secondary: t("understood"),
+                    secondaryAction: () => {
+                        fluentPopupManager.close();
+                    }
+                }
+            });
             soundsUX('MBF_NotificationError');
         }
     } catch (error) {
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : focusOnVehicle function error');
+            showFluentPopup({
+                title: t("crashed"),
+                message: t("crashedtext"),
+                buttons: {
+                    primary: t("clearcache"),
+                    primaryAction: () => {
+                        clearGTFSCache();
+                        clearVehicleCache()
+                        window.location.reload();
+                    },
+                    secondary: t("understood"),
+                    secondaryAction: () => {
+                        fluentPopupManager.close();
+                    }
+                }
+            });
         soundsUX('MBF_NotificationError');
     }
 }
@@ -1943,7 +1994,7 @@ function hideLoadingScreen() {
             if (localStorage.getItem('osmattr') !== 'true') {
                 localStorage.setItem('osmattr', 'true');
                 toastTopLeft.info('Map data from OSM contributors, licensed under ODbL.', {
-                    duration: 7000,
+                    duration: 2000,
                     buttons: [
                         {
                         label: 'See more',
@@ -2922,6 +2973,22 @@ async function loadGTFSDataOptimized() {
         
         const errorMessage = error.message || 'Erreur inconnue';
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : ' + errorMessage);
+            showFluentPopup({
+                title: t("crashed"),
+                message: t("crashedtext"),
+                buttons: {
+                    primary: t("clearcache"),
+                    primaryAction: () => {
+                        clearGTFSCache();
+                        clearVehicleCache()
+                        window.location.reload();
+                    },
+                    secondary: t("understood"),
+                    secondaryAction: () => {
+                        fluentPopupManager.close();
+                    }
+                }
+            });
         soundsUX('MBF_NotificationError');
         
         throw error;
@@ -3984,6 +4051,22 @@ async function loadVehicleModels() {
     } catch (error) {
         console.error('Erreur lors du chargement des modèles de véhicules', error);
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : unable to load vehicle models');
+        showFluentPopup({
+            title: t("crashed"),
+            message: t("crashedtext"),
+            buttons: {
+                primary: t("clearcache"),
+                primaryAction: () => {
+                    clearGTFSCache();
+                    clearVehicleCache()
+                    window.location.reload();
+                },
+                secondary: t("understood"),
+                secondaryAction: () => {
+                    fluentPopupManager.close();
+                }
+            }
+        });
         soundsUX('MBF_NotificationError');
     }
 }
@@ -4321,7 +4404,6 @@ function getVehicleModel(parkNumber) {
 }
 
 function clearVehicleCache() {
-    sessionStorage.removeItem(CACHE_KEY);
     vehicleModelLookupCache.clear();
     console.log('Cache des véhicules vidé');
 }
@@ -4464,6 +4546,22 @@ async function initializeApp() {
     } catch (error) {
         console.error('BECAB Launcher : erreur lors de l\'initialisation :', error);
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : fatal INIT_LOGIC_ERROR');
+        showFluentPopup({
+            title: t("crashed"),
+            message: t("crashedtext"),
+            buttons: {
+                primary: t("clearcache"),
+                primaryAction: () => {
+                    clearGTFSCache();
+                    clearVehicleCache()
+                    window.location.reload();
+                },
+                secondary: t("understood"),
+                secondaryAction: () => {
+                    fluentPopupManager.close();
+                }
+            }
+        });
         soundsUX('MBF_NotificationError');
     }
 }
@@ -4796,7 +4894,7 @@ function applyMapView() {
     });
 
     if (!isStandardView) {
-    const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         minZoom: 6,
         maxZoom: 19,
     }).addTo(map);
@@ -7782,16 +7880,7 @@ animationStyle.textContent = `
 document.head.appendChild(animationStyle);
 
 
-function cacheBoutonsenHaut() {
-    const actualiserbtn = document.getElementById('refresh-bouton-map');
-    const localiserbtn = document.getElementById('locate-bouton-map');
-
-    actualiserbtn.classList.toggle('hideblur');
-    localiserbtn.classList.toggle('hideblur');
-}
-
 function closeMenu() {
-    cacheBoutonsenHaut();
     safeVibrate([30], true);
     soundsUX('MBF_SelectedVehicle_DoorClose');
     const menu = document.getElementById('menu');
@@ -9493,7 +9582,7 @@ const menubottom1 = document.getElementById('menubtm');
 
 
         function showMenu() {
-            cacheBoutonsenHaut();
+            // cacheBoutonsenHaut();
             soundsUX('MBF_SelectedVehicle_DoorOpen');
             window.isMenuShowed = true;
             const mapp = document.getElementById('map');
@@ -10808,6 +10897,17 @@ function startFetchUpdates() {
     scheduleFetch();
 }
 
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        if (fetchTimerId) {
+            clearTimeout(fetchTimerId);
+            fetchTimerId = null;
+        }
+        FetchManager.reset(); 
+        startFetchUpdates();
+    }
+});
+
 let navWindow = null;
 let navVehicleId = null;
 let navIntervalId = null;
@@ -10880,7 +10980,7 @@ window.addEventListener('message', e => {
 });
 
 
-async function main() {
+async function main(refreshParam = false) {
     try {
         initWorker();
         await initializeGTFS();
@@ -10893,7 +10993,7 @@ async function main() {
             fetchVehiclePositions(),
             loadGeoJsonLines(),
             modeSombre(),
-            hideLoadingScreen()
+            refreshParam ? hideLoadingScreen() : Promise.resolve()
         ]);
 
         loadGeoJsonLines();
@@ -10902,6 +11002,22 @@ async function main() {
     } catch (error) {
         console.error("Erreur critique dans main():", error);
         toastBottomRight.error('Une erreur interne est survenue ! Prière contacter le support MyBusFinder en leur indiquant ce code d\'erreur : fatal MAIN_INIT_FAIL');
+        showFluentPopup({
+            title: t("crashed"),
+            message: t("crashedtext"),
+            buttons: {
+                primary: t("clearcache"),
+                primaryAction: () => {
+                    clearGTFSCache();
+                    clearVehicleCache()
+                    window.location.reload();
+                },
+                secondary: t("understood"),
+                secondaryAction: () => {
+                    fluentPopupManager.close();
+                }
+            }
+        });
         soundsUX('MBF_NotificationError');
     }
 }
@@ -10971,6 +11087,22 @@ if (performance && performance.memory) {
 main().catch(error => {
     console.error("Erreur critique lors de l'initialisation de l'application :", error);
     toastBottomRight.error("Critical error: unable to start the application.");
+    showFluentPopup({
+        title: t("crashed"),
+        message: t("crashedtext"),
+        buttons: {
+            primary: t("clearcache"),
+            primaryAction: () => {
+                clearGTFSCache();
+                clearVehicleCache()
+                window.location.reload();
+            },
+            secondary: t("understood"),
+            secondaryAction: () => {
+                fluentPopupManager.close();
+            }
+        }
+    });
     soundsUX('MBF_NotificationError');
 });
 
@@ -11311,21 +11443,19 @@ async function openNetworkSwitcher() {
     modal.className = 'ns-modal';
     _applyAccentToModal(modal, window.colorbkg);
 
-    // Header
     const header = document.createElement('div');
     header.className = 'ns-header';
     header.innerHTML = `
-        <h2>Choisissez votre réseau</h2>
-        <p>Vos favoris et la position de la carte sont conservés par réseau.</p>
+        <h2>${t("choose_network")}</h2>
+        <p>${t("network_switcher_info")}</p>
     `;
 
-    // Body
     const body = document.createElement('div');
     body.className = 'ns-body';
 
     const groups = Array.isArray(index.groups) ? index.groups : [];
     let stagger = 0;
-    const STEP = 35; // ms between item entrances
+    const STEP = 35; 
 
     groups.forEach(group => {
         const label = document.createElement('div');
@@ -11433,6 +11563,7 @@ const BottomSheet = (() => {
 
     function expand() {
         if (!sheetEl) return;
+        _refreshBottomSheetFavorites();
         isExpanded = true;
         sheetEl.classList.remove('bs-collapsed');
         sheetEl.classList.add('bs-expanded');
@@ -11769,12 +11900,63 @@ function _refreshBottomSheetGreeting() {
     sub.textContent = `${id} · My Bus Finder`;
 }
 
+function getFavoriteSchedules() {
+    try {
+        return JSON.parse(localStorage.getItem('favoriteSchedules') || '[]');
+    } catch (e) {
+        return [];
+    }
+}
+
+function _refreshBottomSheetFavorites() {
+    const section = document.getElementById('bs-favorites-section');
+    const list = document.getElementById('bs-favorites-list');
+    if (!section || !list) return;
+
+    const favorites = getFavoriteSchedules();
+    if (!favorites.length) {
+        section.style.display = 'none';
+        list.innerHTML = '';
+        return;
+    }
+
+    section.style.display = 'block';
+    list.innerHTML = '';
+
+    favorites.slice(0, 6).forEach(favorite => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'bs-favorite-item';
+        item.style.cssText = 'width:100%; display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border:none; border-radius:16px; background:rgba(255,255,255,0.08); color:#fff; text-align:left; cursor:pointer;';
+        item.innerHTML = `
+            <span style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
+                <strong style="font-size:14px; color:#fff;">${favorite.routeName || favorite.routeId}</strong>
+                <span style="font-size:12px; color:#e8e8e8;">${favorite.stopName || favorite.stopId} → ${favorite.destinationName || favorite.destinationId}</span>
+            </span>
+            <span style="font-size:18px; opacity:0.85;">›</span>
+        `;
+        item.addEventListener('click', () => {
+            BottomSheet.collapse();
+            openFavoriteSchedule(favorite);
+        });
+        list.appendChild(item);
+    });
+}
+
+function openFavoriteSchedule(favorite) {
+    if (!favorite || !favorite.routeId || !favorite.stopId || !favorite.destinationId) return;
+    const route = encodeURIComponent(favorite.routeId);
+    const stop = encodeURIComponent(favorite.stopId);
+    const destination = encodeURIComponent(favorite.destinationId);
+    showUpdatePopup(`schedule.html?route=${route}&stop=${stop}&destination=${destination}`);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     try {
         BottomSheet.init();
         _wireBottomSheetButtons();
         _refreshBottomSheetGreeting();
+        _refreshBottomSheetFavorites();
 
         if (localStorage.getItem('nepasafficheraccueil') === 'true') {
             BottomSheet.collapse();

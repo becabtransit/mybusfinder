@@ -815,6 +815,9 @@ body {
             <button class="back-btn" id="back-btn">
                 <i class="fas fa-arrow-left"></i>
             </button>
+            <button class="favorite-schedule-btn" id="favorite-schedule-btn" aria-label="Ajouter cet horaire aux favoris" title="Ajouter cet horaire aux favoris" style="display:none;">
+                <i class="fas fa-star"></i>
+            </button>
             <div class="header-icon">
                 <i class="fas fa-bus"></i>
             </div>
@@ -874,6 +877,7 @@ const GTFS_API_URL = `${__NETWORK_BASE}/proxy-cors/proxy_gtfs.php`;
 const GTFS_RT_URL = `${__NETWORK_BASE}/proxy-cors/proxy_tripupdate.php`;
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 const CACHE_VERSION = '1.1';
+const CACHE_NAMESPACE = `gtfs_${__ACTIVE_NETWORK}`;
 
 const state = {
     routes: {},
@@ -897,6 +901,107 @@ const cache = {
     destinations: new Map(),
     stops: new Map()
 };
+
+const FAVORITE_SCHEDULES_KEY = 'favoriteSchedules';
+
+function getFavoriteSchedules() {
+    return JSON.parse(localStorage.getItem(FAVORITE_SCHEDULES_KEY) || '[]');
+}
+
+function saveFavoriteSchedules(items) {
+    localStorage.setItem(FAVORITE_SCHEDULES_KEY, JSON.stringify(items));
+}
+
+function getFavoriteScheduleId(routeId, stopId, destinationId) {
+    return `${routeId}::${stopId}::${destinationId}`;
+}
+
+function isCurrentScheduleFavorite() {
+    if (!state.currentRoute || !state.currentStop || !state.currentDestination) return false;
+    return getFavoriteSchedules().some(item =>
+        getFavoriteScheduleId(item.routeId, item.stopId, item.destinationId) ===
+        getFavoriteScheduleId(state.currentRoute, state.currentStop, state.currentDestination)
+    );
+}
+
+function updateFavoriteButtonState() {
+    const btn = document.getElementById('favorite-schedule-btn');
+    if (!btn) return;
+    const isFavorite = isCurrentScheduleFavorite();
+    btn.style.display = state.currentRoute && state.currentStop && state.currentDestination ? 'flex' : 'none';
+    btn.classList.toggle('active', isFavorite);
+    btn.title = isFavorite ? 'Retirer cet horaire des favoris' : 'Ajouter cet horaire aux favoris';
+    btn.innerHTML = `<i class="fas fa-star"></i>`;
+}
+
+function renderFavoriteSchedulesList() {
+    const section = document.getElementById('favorites-section');
+    const list = document.getElementById('favorites-list');
+    if (!section || !list) return;
+    const favorites = getFavoriteSchedules();
+    if (favorites.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = 'block';
+    list.innerHTML = '';
+    favorites.slice(0, 10).forEach((favorite, index) => {
+        const item = document.createElement('div');
+        item.className = 'favorite-item';
+        item.style.animationDelay = `${index * 0.04}s`;
+        item.innerHTML = `
+            <div class="favorite-info">
+                <strong>${favorite.routeName || favorite.routeId}</strong>
+                <div class="favorite-details">${favorite.stopName || favorite.stopId} → ${favorite.destinationName || favorite.destinationId}</div>
+            </div>
+            <div class="favorite-times">
+                <button class="favorite-action" type="button">Voir</button>
+            </div>
+        `;
+        item.addEventListener('click', () => showFavoriteSchedule(favorite));
+        const actionBtn = item.querySelector('.favorite-action');
+        if (actionBtn) {
+            actionBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showFavoriteSchedule(favorite);
+            });
+        }
+        list.appendChild(item);
+    });
+}
+
+function showFavoriteSchedule(favorite) {
+    if (!favorite || !favorite.routeId || !favorite.stopId || !favorite.destinationId) return;
+    loadTripsAndStopTimesForRoute(favorite.routeId).then(() => {
+        showSchedule(favorite.routeId, favorite.stopId, favorite.destinationId);
+    });
+}
+
+function toggleFavoriteSchedule() {
+    if (!state.currentRoute || !state.currentStop || !state.currentDestination) return;
+    const favorites = getFavoriteSchedules();
+    const id = getFavoriteScheduleId(state.currentRoute, state.currentStop, state.currentDestination);
+    const index = favorites.findIndex(item => getFavoriteScheduleId(item.routeId, item.stopId, item.destinationId) === id);
+    const route = state.routes[state.currentRoute] || {};
+    const stop = state.stops[state.currentStop] || {};
+    const destStop = state.stops[state.currentDestination] || {};
+    if (index !== -1) {
+        favorites.splice(index, 1);
+    } else {
+        favorites.unshift({
+            routeId: state.currentRoute,
+            stopId: state.currentStop,
+            destinationId: state.currentDestination,
+            routeName: route.route_short_name || route.route_long_name || state.currentRoute,
+            stopName: stop.stop_name || state.currentStop,
+            destinationName: destStop.stop_name || state.currentDestination,
+            updatedAt: Date.now()
+        });
+    }
+    saveFavoriteSchedules(favorites);
+    updateFavoriteButtonState();
+    renderFavoriteSchedulesList();
+}
 
 const scrollState = {
     positions: {}
@@ -964,6 +1069,22 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
     await loadGtfsCore();
     showLines();
+    renderFavoriteSchedulesList();
+
+    const favoriteBtn = document.getElementById('favorite-schedule-btn');
+    if (favoriteBtn) {
+        addTouchFeedback(favoriteBtn, toggleFavoriteSchedule);
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const routeParam = params.get('route');
+    const stopParam = params.get('stop');
+    const destinationParam = params.get('destination') || params.get('dest');
+    if (routeParam && stopParam && destinationParam) {
+        await loadTripsAndStopTimesForRoute(routeParam);
+        showSchedule(routeParam, stopParam, destinationParam);
+    }
+
     initScrollEffects();
 }
 
@@ -1134,7 +1255,7 @@ async function loadTripsAndStopTimesForRoute(routeId) {
 
 function getCachedData(key) {
     try {
-        const item = localStorage.getItem(`gtfs_${key}`);
+        const item = localStorage.getItem(`${CACHE_NAMESPACE}_${key}`);
         if (!item) return null;
         
         const data = JSON.parse(item);
@@ -1155,7 +1276,7 @@ function setCachedData(key, value) {
             return; // Ignore, serveur gère cache
         }
         
-        localStorage.setItem(`gtfs_${key}`, JSON.stringify({
+        localStorage.setItem(`${CACHE_NAMESPACE}_${key}`, JSON.stringify({
             version: CACHE_VERSION,
             timestamp: Date.now(),
             value
@@ -1193,6 +1314,9 @@ function showLines() {
     } else {
         scrollToTop();
     }
+
+    updateFavoriteButtonState();
+    renderFavoriteSchedulesList();
 
     const linesList = document.getElementById('lines-list');
     linesList.innerHTML = '';
@@ -1348,6 +1472,9 @@ function showSchedule(routeId, stopId, destinationId) {
     
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('date-picker').value = today;
+
+    updateFavoriteButtonState();
+    renderFavoriteSchedulesList();
     
     updateScheduleByDate(routeId, stopId, destinationId, today);
 }
