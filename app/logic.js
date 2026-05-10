@@ -12063,6 +12063,9 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
         const label   = diffMin <= 0 ? t("imminent") : `${diffMin} ${t("min")}`;
         const isNow   = diffMin <= 0;
         const isRT    = arrival.realtime === true;
+        if (!arrival.vehicleLabel) {
+            return;
+        }
 
         const pill = document.createElement('span');
         pill.style.cssText = `
