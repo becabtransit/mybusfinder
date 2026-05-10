@@ -11962,13 +11962,13 @@ function _refreshBottomSheetFavorites() {
     favorites.slice(0, 6).forEach((favorite, idx) => {
         const routeId   = favorite.routeId   || '';
         const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
-        const destName  = (favorite.destinationName || favorite.destinationId || '');
+        const destName  = favorite.destinationName || favorite.destinationId || '';
         const lineName_ = favorite.routeName || lineName[routeId] || routeId;
         const lineColor = lineColors[routeId] || '#444';
         const textColor = getTextColor(lineColor);
 
         const card = document.createElement('div');
-        card.className    = 'bs-fav-card ripple-container';
+        card.className     = 'bs-fav-card ripple-container';
         card.style.cssText = `animation-delay:${idx * 55}ms`;
 
         card.innerHTML = `
@@ -12031,12 +12031,12 @@ function _refreshBottomSheetFavorites() {
         list.appendChild(card);
 
         fetchRealtimeDataForFavorite(favorite)
-            .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor))
-            .catch(() => _displayFavTimes(idx, [], lineColor, textColor));
+            .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor, favorite))
+            .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
     });
 }
 
-function _displayFavTimes(idx, arrivals, lineColor, textColor) {
+function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
     const container = document.getElementById(`bs-fav-times-${idx}`);
     if (!container) return;
 
@@ -12048,51 +12048,104 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor) {
     const now = Date.now() / 1000;
     container.innerHTML = '';
 
-    const rssIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:2px;opacity:0.85;">
-        <path d="M4 4a16 16 0 0 1 16 16"></path>
-        <path d="M4 11a9 9 0 0 1 9 9"></path>
-        <circle cx="5" cy="19" r="1"></circle>
+    const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        style="flex-shrink:0;" aria-label="Temps réel">
+        <g>
+            <path d="M4 4a16 16 0 0 1 16 16"/>
+            <path d="M4 11a9 9 0 0 1 9 9"/>
+        </g>
+        <circle cx="5" cy="19" r="1"/>
     </svg>`;
 
-    arrivals.slice(0, 3).forEach(arrival => {
+    arrivals.slice(0, 4).forEach(arrival => {
         const diffMin = Math.round((arrival.time - now) / 60);
+        const label   = diffMin <= 0 ? t("imminent") : `${diffMin} ${t("min")}`;
         const isNow   = diffMin <= 0;
-        const label   = isNow ? t("imminent") : `${diffMin} ${t("min")}`;
-        const isRealtime = !!arrival.isRealtime;
+        const isRT    = arrival.realtime === true;
 
         const pill = document.createElement('span');
-        pill.className = 'bs-fav-time-pill';
+        pill.style.cssText = `
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: ${isRT ? '600' : '400'};
+            padding: 3px 9px;
+            border-radius: 20px;
+            white-space: nowrap;
+            border: 1px solid rgba(255,255,255,0.18);
+            cursor: ${isRT && arrival.marker ? 'pointer' : 'default'};
+            transition: background 0.15s ease, transform 0.15s ease;
+        `;
 
-        if (isNow) {
-            pill.style.cssText = `background:${lineColor};color:${textColor};font-weight:700;display:inline-flex;align-items:center;gap:2px;`;
+        if (isNow && isRT) {
+            pill.style.background = lineColor;
+            pill.style.color      = textColor;
+            pill.style.fontWeight = '700';
+        } else if (isRT) {
+            pill.style.background = 'rgba(255,255,255,0.14)';
+            pill.style.color      = 'rgba(255,255,255,0.9)';
         } else {
-            pill.style.cssText = `display:inline-flex;align-items:center;gap:2px;`;
+            pill.style.background = 'rgba(255,255,255,0.05)';
+            pill.style.color      = 'rgba(255,255,255,0.38)';
+            pill.style.borderColor = 'rgba(255,255,255,0.07)';
+            pill.style.fontStyle  = 'italic';
         }
 
+        if (isRT) {
+            pill.innerHTML = rssIcon;
+        }
+
+        const labelEl = document.createElement('span');
         const labelNum = arrival.vehicleLabel
-            ? String(arrival.vehicleLabel).padStart(3, '0').replace(/[A-Z]+:/, '').replace('TCAR:Vehicle::', '').replace(':LOC', '')
+            ? String(arrival.vehicleLabel).padStart(3,'0').replace(/[A-Z]+:/g,'')
             : null;
+        labelEl.textContent = labelNum ? `${label} · ${labelNum}` : label;
+        pill.appendChild(labelEl);
 
-        const timeText = labelNum ? `${label} · ${labelNum}` : label;
+        if (isRT && arrival.marker) {
+            const marker = arrival.marker;
+            pill.addEventListener('click', (e) => {
+                e.stopPropagation();
+                safeVibrate?.([30, 20, 30], true);
+                soundsUX('MBF_Menu_VehicleSelect');
+                map.setView(marker.getLatLng(), 15);
+                marker.openPopup();
+                BottomSheet.collapse();
+            });
+            pill.addEventListener('pointerenter', () => {
+                pill.style.transform = 'scale(1.05)';
+                pill.style.background = isNow ? lineColor : 'rgba(255,255,255,0.22)';
+            });
+            pill.addEventListener('pointerleave', () => {
+                pill.style.transform = 'scale(1)';
+                pill.style.background = isNow ? lineColor : 'rgba(255,255,255,0.14)';
+            });
+        }
 
-        pill.innerHTML = (isRealtime ? rssIcon : '') + timeText;
         container.appendChild(pill);
     });
 }
 
 function openFavoriteSchedule(favorite) {
-    if (!favorite || !favorite.routeId || !favorite.stopId || !favorite.destinationId) return;
-    const route = encodeURIComponent(favorite.routeId);
-    const stop = encodeURIComponent(favorite.stopId);
-    const destination = encodeURIComponent(favorite.destinationId);
-    showUpdatePopup(`schedule.html?route=${route}&stop=${stop}&destination=${destination}`);
+    if (!favorite || !favorite.routeId || !favorite.stopId) return;
+    const route       = encodeURIComponent(favorite.routeId);
+    const stop        = encodeURIComponent(favorite.stopId);
+    const destination = favorite.destinationId
+        ? encodeURIComponent(favorite.destinationId) : '';
+    const url = destination
+        ? `schedule.html?route=${route}&stop=${stop}&destination=${destination}`
+        : `schedule.html?route=${route}&stop=${stop}`;
+    showUpdatePopup(url);
 }
 
 async function fetchRealtimeDataForFavorite(favorite) {
-    const routeId = favorite.routeId || '';
-    const stopId  = favorite.stopId  || '';
-    const now     = Date.now() / 1000;
-    const results = [];
+    const routeId  = favorite.routeId  || '';
+    const stopId   = favorite.stopId   || '';
+    const destId   = favorite.destinationId || '';
+    const now      = Date.now() / 1000;
+    const results  = [];
 
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
@@ -12102,47 +12155,89 @@ async function fetchRealtimeDataForFavorite(favorite) {
             s.stopId === `0:${stopId}` ||
             s.stopId.replace('0:', '') === stopId.replace('0:', '')
         );
-
         if (!stopMatch) return;
 
-        // Vérifie que ce trip correspond bien à la route voulue
         const markerForTrip = [...markerPool.active.values()]
             .find(m => m.vehicleData?.trip?.tripId === tripId);
 
         if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
 
+        if (destId && markerForTrip && markerForTrip.destination) {
+            const dest = markerForTrip.destination.toLowerCase();
+            if (!dest.includes(destId.toLowerCase()) && destId.toLowerCase() !== dest) {
+                const favDest = (favorite.destinationName || destId).toLowerCase();
+                if (!dest.includes(favDest) && !favDest.includes(dest)) return;
+            }
+        }
+
         const stopTime = stopMatch.departureTime || stopMatch.arrivalTime;
         if (!stopTime) return;
-        if (stopMatch.arrivalTime && !stopMatch.departureTime) return;
 
         let arrivalSecs;
         if (typeof stopTime === 'string' && stopTime.includes(':')) {
             const parts = stopTime.split(':').map(Number);
-            const d     = new Date();
+            const d = new Date();
             arrivalSecs = new Date(
                 d.getFullYear(), d.getMonth(), d.getDate(),
                 parts[0], parts[1], parts[2] || 0
             ).getTime() / 1000;
-            //passage minuit
             if (arrivalSecs < now - 3600) arrivalSecs += 86400;
         } else if (typeof stopTime === 'number' && stopTime > 86400) {
             arrivalSecs = stopTime;
-        } else {
-            return;
-        }
+        } else return;
 
-        if (arrivalSecs < now - 60) return; // déjà passé
+        if (arrivalSecs < now - 60) return;
 
-        results.push({ 
-            time: arrivalSecs, 
+        results.push({
+            time:         arrivalSecs,
             tripId,
-            vehicleLabel: markerForTrip?.vehicleData?.vehicle?.label 
-                    || markerForTrip?.vehicleData?.vehicle?.id 
-                    || null
+            vehicleLabel: markerForTrip?.vehicleData?.vehicle?.label
+                       || markerForTrip?.vehicleData?.vehicle?.id
+                       || null,
+            marker:       markerForTrip || null,
+            realtime:     true
         });
     });
 
-    return results.sort((a, b) => a.time - b.time).slice(0, 3);
+    if (window.stopTimesReady && window.staticStopTimes) {
+        const rtTripIds = new Set(results.map(r => r.tripId));
+
+        Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
+            if (rtTripIds.has(tripId)) return; // déjà dans le temps réel
+
+            const markerForTrip = [...markerPool.active.values()]
+                .find(m => m.vehicleData?.trip?.tripId === tripId);
+            if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
+
+            const cleanStop = stopId.replace('0:', '');
+            const stopData  = tripStops[cleanStop]
+                           || tripStops[`0:${cleanStop}`]
+                           || tripStops[stopId];
+            if (!stopData) return;
+
+            const timeStr = stopData.d || stopData.a;
+            if (!timeStr) return;
+
+            const parts = timeStr.split(':').map(Number);
+            const d = new Date();
+            let arrivalSecs = new Date(
+                d.getFullYear(), d.getMonth(), d.getDate(),
+                parts[0], parts[1], parts[2] || 0
+            ).getTime() / 1000;
+            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
+            if (arrivalSecs < now - 60)  return;
+
+            results.push({
+                time:         arrivalSecs,
+                tripId,
+                vehicleLabel: null,
+                marker:       markerForTrip || null,
+                realtime:     false 
+            });
+        });
+    }
+
+    return results.sort((a, b) => a.time - b.time).slice(0, 5);
 }
 
 function processRealtimeDataForFavorite(message, routeId, stopId) {
