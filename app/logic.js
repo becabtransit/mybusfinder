@@ -8677,7 +8677,6 @@ async function fetchVehiclePositions() {
                             <div style="display:flex;align-items:stretch;gap:0;">
                                 <div style="width:24px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;">
                                     <div style="${dotStyle}"></div>
-                                    ${lineSegment}
                                 </div>
                                 <div style="flex:1;display:flex;justify-content:space-between;align-items:flex-start;padding:2px 0 ${isLast ? 2 : 10}px 8px;">
                                     <div style="min-width:0;">
