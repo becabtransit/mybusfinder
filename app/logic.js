@@ -12313,3 +12313,384 @@ softSwitchNetwork = async function (newId) {
     _refreshBottomSheetGreeting();
 };
 window.softSwitchNetwork = softSwitchNetwork;
+
+
+// DYNAMIC SHEET FIND MODE - guidage étape par étape
+const BsFindMode = {
+  _selectedLine: null,
+  _selectedStop: null,
+  _liveInterval: null,
+
+  open() {
+    document.getElementById('bs-find-mode').style.display = 'block';
+    this.back(0);
+    BottomSheet.expand();
+  },
+
+  back(toStep) {
+    [1,2,3].forEach(s => {
+      document.getElementById(`bs-find-step${s}`).style.display = s === toStep + 1 ? 'block' : 'none';
+    });
+    if (this._liveInterval && toStep < 2) {
+      clearInterval(this._liveInterval);
+      this._liveInterval = null;
+    }
+    if (toStep === 0) this._renderLines();
+    BsBreadcrumb.update();
+  },
+
+  _renderLines() {
+    const container = document.getElementById('bs-find-lines-list');
+    container.innerHTML = '';
+    const sorted = Object.keys(lineColors).sort((a,b) => {
+      const na = parseInt(lineName[a]||a), nb = parseInt(lineName[b]||b);
+      return isNaN(na)||isNaN(nb) ? (lineName[a]||a).localeCompare(lineName[b]||b) : na - nb;
+    });
+    sorted.forEach(routeId => {
+      const color = lineColors[routeId] || '#444';
+      const name  = lineName[routeId]  || routeId;
+      const textC = getTextColor(color);
+      const btn = document.createElement('button');
+      btn.className = 'bs-find-line-btn ripple-container';
+      btn.style.background = color;
+      btn.innerHTML = `
+        <span style="background:rgba(0,0,0,0.2);padding:3px 10px;border-radius:8px;font-size:13px;">${name}</span>
+        <span style="font-size:13px;font-weight:400;opacity:0.85;color:${textC};">Ligne ${name}</span>
+        <span style="margin-left:auto;opacity:0.6;font-size:18px;color:${textC};">›</span>
+      `;
+      btn.style.color = textC;
+      btn.onclick = () => { this._selectedLine = routeId; this._showStops(routeId); };
+      container.appendChild(btn);
+    });
+  },
+
+  _showStops(routeId) {
+    document.getElementById('bs-find-step1').style.display = 'none';
+    document.getElementById('bs-find-step2').style.display = 'block';
+    document.getElementById('bs-find-step3').style.display = 'none';
+    const name = lineName[routeId] || routeId;
+    document.getElementById('bs-find-step2-title').textContent = `Arrêts · Ligne ${name}`;
+    const container = document.getElementById('bs-find-stops-list');
+    container.innerHTML = '';
+
+    const stops = new Set();
+    markerPool.active.forEach(marker => {
+      if (marker.line !== routeId) return;
+      const tripId = marker.vehicleData?.trip?.tripId;
+      const nexts  = tripUpdates[tripId]?.nextStops || [];
+      nexts.forEach(s => stops.add(s.stopId));
+    });
+
+    if (stops.size === 0) {
+      container.innerHTML = '<div style="color:rgba(255,255,255,0.5);font-size:13px;padding:8px;">Aucun arrêt disponible actuellement.</div>';
+      return;
+    }
+
+    [...stops].slice(0, 30).forEach(stopId => {
+      const stopName = stopNameMap[stopId] || stopId;
+      const btn = document.createElement('button');
+      btn.className = 'bs-find-stop-btn ripple-container';
+      btn.innerHTML = `<span>${stopName}</span><span style="opacity:0.45;font-size:18px;">›</span>`;
+      btn.onclick = () => { this._selectedStop = stopId; this._showLive(routeId, stopId); };
+      container.appendChild(btn);
+    });
+
+    BsBreadcrumb.update();
+  },
+
+  _showLive(routeId, stopId) {
+    document.getElementById('bs-find-step2').style.display = 'none';
+    document.getElementById('bs-find-step3').style.display = 'block';
+    const stopName = stopNameMap[stopId] || stopId;
+    document.getElementById('bs-find-step3-title').textContent = `🛑 ${stopName}`;
+    this._renderLive(routeId, stopId);
+    this._liveInterval = setInterval(() => this._renderLive(routeId, stopId), 5000);
+    BsBreadcrumb.update();
+  },
+
+  _renderLive(routeId, stopId) {
+    const container = document.getElementById('bs-find-live');
+    container.innerHTML = '';
+    const now = Date.now() / 1000;
+    const results = [];
+
+    markerPool.active.forEach(marker => {
+      if (marker.line !== routeId) return;
+      const tripId = marker.vehicleData?.trip?.tripId;
+      const nexts  = tripUpdates[tripId]?.nextStops || [];
+      const match  = nexts.find(s => s.stopId === stopId || s.stopId === `0:${stopId}`);
+      if (!match) return;
+      const t = match.departureTime || match.arrivalTime;
+      if (!t) return;
+      let secs;
+      if (typeof t === 'string' && t.includes(':')) {
+        const p = t.split(':').map(Number);
+        const d = new Date();
+        secs = new Date(d.getFullYear(),d.getMonth(),d.getDate(),p[0],p[1],p[2]||0).getTime()/1000;
+        if (secs < now - 3600) secs += 86400;
+      } else { secs = Number(t); }
+      if (secs < now - 60) return;
+      results.push({ marker, secs });
+    });
+
+    results.sort((a,b) => a.secs - b.secs);
+
+    if (results.length === 0) {
+      container.innerHTML = '<div style="color:rgba(255,255,255,0.45);font-size:13px;padding:8px;">Aucun bus en approche.</div>';
+      return;
+    }
+
+    const color = lineColors[routeId] || '#444';
+    const textC = getTextColor(color);
+
+    results.slice(0, 5).forEach(({marker, secs}) => {
+      const diff = Math.max(0, Math.round((secs - now) / 60));
+      const label = marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || '?';
+      const card = document.createElement('div');
+      card.className = 'bs-find-live-card ripple-container';
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="background:${color};color:${textC};padding:3px 10px;border-radius:8px;font-weight:700;font-size:13px;">${lineName[routeId]||routeId}</span>
+          <div>
+            <div style="font-size:14px;font-weight:600;">➜ ${marker.destination||'?'}</div>
+            <div style="font-size:11px;opacity:0.6;">Bus ${String(label).padStart(3,'0')}</div>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:20px;font-weight:700;color:${diff<=1?'#22c55e':diff<=5?'#f97316':'#fff'};">${diff<=0?'Imm.':diff+'min'}</div>
+          <div style="font-size:10px;opacity:0.5;">temps réel</div>
+        </div>
+      `;
+      card.onclick = () => {
+        map.setView(marker.getLatLng(), 16);
+        marker.openPopup();
+        BottomSheet.collapse();
+      };
+
+      card.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        BsTransfer.pin(marker, routeId, secs);
+      });
+
+      container.appendChild(card);
+    });
+  },
+
+  close() {
+    document.getElementById('bs-find-mode').style.display = 'none';
+    if (this._liveInterval) { clearInterval(this._liveInterval); this._liveInterval = null; }
+    BsBreadcrumb.update();
+  }
+};
+
+// DYNAMIC SHEET BREADCRUMB - fil d'Ariane contextuel
+const BsBreadcrumb = {
+  update() {
+    const el = document.getElementById('bs-breadcrumb');
+    if (!el) return;
+    const parts = ['My Bus Finder'];
+
+    if (BsFindMode._selectedLine) {
+      parts.push(`Ligne ${lineName[BsFindMode._selectedLine] || BsFindMode._selectedLine}`);
+    }
+    if (BsFindMode._selectedStop) {
+      parts.push(stopNameMap[BsFindMode._selectedStop] || BsFindMode._selectedStop);
+    }
+
+    const openMarker = [...markerPool.active.values()].find(m => m.isPopupOpen());
+    if (openMarker) {
+      const label = openMarker.vehicleData?.vehicle?.label || openMarker.vehicleData?.vehicle?.id;
+      parts.push(`Bus ${String(label||'?').padStart(3,'0')}`);
+    }
+
+    if (selectedLine && !BsFindMode._selectedLine) {
+      parts.push(`Ligne ${lineName[selectedLine] || selectedLine} (filtrée)`);
+    }
+
+    if (parts.length <= 1) { el.style.display = 'none'; return; }
+
+    el.style.display = 'flex';
+    el.innerHTML = parts.map((p,i) =>
+      i < parts.length - 1
+        ? `<span style="cursor:pointer;opacity:0.55;">${p}</span><span style="opacity:0.35;">›</span>`
+        : `<span style="font-weight:600;opacity:0.9;">${p}</span>`
+    ).join('');
+  }
+};
+
+// DYNAMIC SHEET TRANSFER - minuteur de correspondance
+const BsTransfer = {
+  _pins: [],
+  _interval: null,
+
+  pin(marker, routeId, arrivalSecs) {
+    if (this._pins.length >= 2) {
+      toastBottomRight?.info?.('Max 2 bus épinglés. Effacez d\'abord la correspondance.');
+      return;
+    }
+    const label = marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || '?';
+    this._pins.push({ marker, routeId, arrivalSecs, label });
+    soundsUX?.('MBF_Popup');
+    safeVibrate?.([30, 20, 30], true);
+    toastBottomRight?.info?.(`Bus ${String(label).padStart(3,'0')} épinglé ! (appui long sur un 2ème bus pour la correspondance)`);
+    this._render();
+    document.getElementById('bs-transfer-section').style.display = 'block';
+    if (!this._interval) this._interval = setInterval(() => this._render(), 5000);
+  },
+
+  clear() {
+    this._pins = [];
+    if (this._interval) { clearInterval(this._interval); this._interval = null; }
+    document.getElementById('bs-transfer-section').style.display = 'none';
+    document.getElementById('bs-transfer-cards').innerHTML = '';
+  },
+
+  _render() {
+    const container = document.getElementById('bs-transfer-cards');
+    container.innerHTML = '';
+    const now = Date.now() / 1000;
+
+    this._pins.forEach((pin, i) => {
+      const diff = Math.max(0, Math.round((pin.arrivalSecs - now) / 60));
+      const color = lineColors[pin.routeId] || '#444';
+      const textC = getTextColor(color);
+      const card = document.createElement('div');
+      card.style.cssText = `background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;`;
+      card.innerHTML = `
+        <span style="background:${color};color:${textC};padding:3px 10px;border-radius:8px;font-weight:700;font-size:14px;">${lineName[pin.routeId]||pin.routeId}</span>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">Bus ${String(pin.label).padStart(3,'0')}</div>
+          <div style="font-size:11px;opacity:0.55;">➜ ${pin.marker.destination||'?'}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:22px;font-weight:700;color:${diff<=2?'#22c55e':diff<=6?'#f97316':'#ef4444'};">${diff<=0?'🚌 Maintenant':diff+'min'}</div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+
+    if (this._pins.length === 2) {
+      const [a, b] = this._pins;
+      const gap = Math.round((b.arrivalSecs - a.arrivalSecs) / 60);
+      const ok  = gap >= 0 && gap <= 15;
+      const banner = document.createElement('div');
+      banner.style.cssText = `background:${ok?'rgba(34,197,94,0.18)':'rgba(239,68,68,0.18)'};border:1px solid ${ok?'rgba(34,197,94,0.4)':'rgba(239,68,68,0.4)'};border-radius:12px;padding:10px 14px;text-align:center;font-size:13px;font-family:'League Spartan',sans-serif;color:#fff;`;
+      banner.innerHTML = ok
+        ? `✅ Correspondance faisable - ${gap} min de marge`
+        : (gap < 0 ? `❌ Correspondance manquée - trop tard` : `⚠️ Correspondance serrée - ${gap} min`);
+      container.appendChild(banner);
+    }
+  }
+};
+
+// DYNAMIC SHEET NEARBY - "autour de moi" dynamique
+const BsNearby = {
+  _interval: null,
+  _userPos: null,
+
+  start() {
+    const section = document.getElementById('bs-nearby-section');
+    if (!navigator.geolocation) return;
+    section.style.display = 'block';
+    navigator.geolocation.getCurrentPosition(pos => {
+      this._userPos = L.latLng(pos.coords.latitude, pos.coords.longitude);
+      this._render();
+      if (!this._interval) this._interval = setInterval(() => this._render(), 6000);
+    }, () => { section.style.display = 'none'; });
+  },
+
+  stop() {
+    if (this._interval) { clearInterval(this._interval); this._interval = null; }
+    document.getElementById('bs-nearby-section').style.display = 'none';
+  },
+
+  _render() {
+    if (!this._userPos) return;
+    const list = document.getElementById('bs-nearby-list');
+    list.innerHTML = '';
+    const results = [];
+
+    markerPool.active.forEach(marker => {
+      const dist = this._userPos.distanceTo(marker.getLatLng());
+      results.push({ marker, dist });
+    });
+
+    results.sort((a,b) => a.dist - b.dist);
+
+    if (results.length === 0) {
+      list.innerHTML = '<div style="color:rgba(255,255,255,0.4);font-size:13px;padding:8px;">Aucun bus détecté à proximité.</div>';
+      return;
+    }
+
+    results.slice(0, 6).forEach(({ marker, dist }) => {
+      const color = lineColors[marker.line] || '#444';
+      const textC = getTextColor(color);
+      const label = marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || '?';
+      const distTxt = dist < 1000 ? `${Math.round(dist)} m` : `${(dist/1000).toFixed(1)} km`;
+      const card = document.createElement('div');
+      card.className = 'bs-find-live-card ripple-container';
+      card.style.cursor = 'pointer';
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="background:${color};color:${textC};padding:3px 10px;border-radius:8px;font-weight:700;font-size:13px;flex-shrink:0;">${lineName[marker.line]||marker.line}</span>
+          <div>
+            <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;">➜ ${marker.destination||'?'}</div>
+            <div style="font-size:11px;opacity:0.55;">Bus ${String(label).padStart(3,'0')}</div>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:15px;font-weight:700;">${distTxt}</div>
+          <div style="font-size:10px;opacity:0.45;">distance</div>
+        </div>
+      `;
+      card.onclick = () => {
+        map.setView(marker.getLatLng(), 16);
+        marker.openPopup();
+        BottomSheet.collapse();
+      };
+      list.appendChild(card);
+    });
+  }
+};
+
+// BRANCHEMENTS - hooks sur les événements existants
+
+const _origFetchVehiclePositions = fetchVehiclePositions;
+
+(function _hookBreadcrumb() {
+  const _origFilterByLine = filterByLine;
+  window.filterByLine = function(lineId) {
+    _origFilterByLine(lineId);
+    BsBreadcrumb.update();
+  };
+  const _origResetMapView = resetMapView;
+  window.resetMapView = function() {
+    _origResetMapView();
+    BsBreadcrumb.update();
+  };
+})();
+
+const _origExpand = BottomSheet.expand.bind(BottomSheet);
+BottomSheet.expand = function() {
+  _origExpand();
+  BsNearby.start();
+  BsBreadcrumb.update();
+};
+
+const _origCollapse = BottomSheet.collapse.bind(BottomSheet);
+BottomSheet.collapse = function() {
+  _origCollapse();
+  BsNearby.stop();
+};
+
+
+document.addEventListener('DOMContentLoaded', () => {
+  const busTile = document.getElementById('bus');
+  if (busTile) {
+    busTile.addEventListener('click', () => {
+      BsFindMode.open();
+    });
+  }
+});
+
+setInterval(() => { if (BottomSheet.expanded) BsBreadcrumb.update(); }, 3000);
