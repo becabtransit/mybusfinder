@@ -12322,6 +12322,7 @@ window.softSwitchNetwork = softSwitchNetwork;
 
 const GpsGuide = (() => {
 
+    // ── État ──────────────────────────────────────────────────
     let _userLatLng   = null;
     let _destLatLng   = null;
     let _destName     = '';
@@ -12330,29 +12331,51 @@ const GpsGuide = (() => {
     let _navActive    = false;
     let _watchId      = null;
     let _stepMarkers  = [];
-    let _stopCoords   = null;
-    let _stopLines    = null; // stopId > Set<routeId>
-    let _lineStops    = null; //routeId > [stopId ordered]
+    let _stopCoords   = null; 
+    let _graph        = null; 
+    let _graphBuiltAt = 0;
     let _searchTimer  = null;
 
-    const WALK_SPEED_KMH   = 4.8;
-    const BUS_SPEED_KMH    = 22;
-    const TRANSFER_PENALTY = 4; // minutes par correspondance
-    const MAX_WALK_BOARD   = 0.7; //km
-    const MAX_WALK_ALIGHT  = 0.8;
-    const MAX_TRANSFERS    = 2;
+    const WALK_SPEED_KMH    = 4.8;
+    const BUS_SPEED_KMH     = 20;   // conservateur (arrêts, trafic)
+    const TRANSFER_PENALTY  = 5;    // minutes par correspondance
+    const WALK_RADII        = [0.4, 0.8, 1.5]; // essayés en cascade si aucun arrêt
+    const MAX_WALK_ALIGHT   = 1.5;  // km
+    const MAX_TRANSFERS     = 2;
+    const GRAPH_TTL_MS      = 90_000; // 1m30 avant de reconstruire le graphe
+    const MAX_WAIT_MIN      = 60;   // ignorer un bus qui met plus d'1h à passer
 
     function _dist(a, b) {
         const R = 6371,
-              dLat = (b.lat - a.lat) * Math.PI / 180,
-              dLng = (b.lng - a.lng) * Math.PI / 180;
-        const x = Math.sin(dLat/2)**2 +
-                  Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;
-        return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+              φ1 = a.lat * Math.PI/180, φ2 = b.lat * Math.PI/180,
+              Δφ = (b.lat - a.lat) * Math.PI/180,
+              Δλ = (b.lng - a.lng) * Math.PI/180;
+        const s = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+        return 2 * R * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
     }
     function _walkMin(km) { return km / WALK_SPEED_KMH * 60; }
 
-    // chargement données GTFS
+    function _nowSecs() {
+        const n = new Date();
+        return n.getHours()*3600 + n.getMinutes()*60 + n.getSeconds();
+    }
+    function _timeStr2secs(t) {
+        if (!t) return null;
+        if (typeof t === 'number' && t > 86400) {
+            const d = new Date(t * 1000);
+            return d.getHours()*3600 + d.getMinutes()*60 + d.getSeconds();
+        }
+        if (typeof t === 'string' && t.includes(':')) {
+            const p = t.split(':').map(Number);
+            return p[0]*3600 + p[1]*60 + (p[2]||0);
+        }
+        return null;
+    }
+    function _normSecs(secs, now) {
+        if (secs < now - 3600) return secs + 86400;
+        return secs;
+    }
+
     async function _ensureStopCoords() {
         if (_stopCoords) return _stopCoords;
         try {
@@ -12362,190 +12385,281 @@ const GpsGuide = (() => {
             Object.entries(data).forEach(([id, s]) => {
                 if (s.lat && s.lon) _stopCoords[id] = { lat: +s.lat, lng: +s.lon, name: s.n || id };
             });
-        } catch(e) { _stopCoords = {}; }
+        } catch(e) { console.warn('GpsGuide: stops fetch failed', e); _stopCoords = {}; }
         return _stopCoords;
     }
 
-    // construit l'index stopId > lignes ET routeId > ordre des arrêts depuis
-    // les tripUpdates en mémoire + stopNameMap (pas de fetch supplémentaire)
-    function _buildGraphFromLiveData() {
-        if (_stopLines && _lineStops) return;
-        _stopLines = {};
-        _lineStops = {};
+    function _buildGraph() {
+        const now = Date.now();
+        if (_graph && (now - _graphBuiltAt) < GRAPH_TTL_MS) return;
 
-        //depuis les markers actifs (trips en cours)
+        const stopLines = {}; 
+        const lineTrips = {};
+
+        // tripId → routeId vient des markers actifs ET de window.routes si dispo
+        const tripRoute = {};
         markerPool.active.forEach(marker => {
-            const routeId = marker.line;
-            if (!routeId) return;
-            const tripId  = marker.vehicleData?.trip?.tripId;
-            if (!tripId) return;
-            const nextStops = tripUpdates[tripId]?.nextStops || [];
-            if (!nextStops.length) return;
+            const tid = marker.vehicleData?.trip?.tripId;
+            const rid = marker.line;
+            if (tid && rid) tripRoute[tid] = rid;
+        });
 
-            if (!_lineStops[routeId]) _lineStops[routeId] = [];
+        // Complément depuis window.routes si défini (GTFS routes.txt)
+        if (window.routes) {
+            // routes[routeId] = { short_name, ... } — pas de tripId direct ici
+            // On utilise uniquement tripRoute depuis markerPool + tripUpdates
+        }
 
-            nextStops.forEach(s => {
-                const sid = s.stopId.replace('0:', '').trim();
-                if (!_stopLines[sid]) _stopLines[sid] = new Set();
-                _stopLines[sid].add(routeId);
-                if (!_lineStops[routeId].includes(sid)) _lineStops[routeId].push(sid);
+        // parcours de staticStopTimes
+        const sst = window.staticStopTimes || {};
+        Object.entries(sst).forEach(([tripId, stopsObj]) => {
+            const routeId = tripRoute[tripId];
+            if (!routeId) return; // trip non lié à une ligne active visible
+
+            const stopsArr = Object.entries(stopsObj)
+                .map(([sid, times]) => ({
+                    stopId:  sid.replace('0:', '').trim(),
+                    seq:     times.seq != null ? +times.seq : 9999,
+                    depSecs: _timeStr2secs(times.d || times.a)
+                }))
+                .filter(s => s.depSecs !== null)
+                .sort((a, b) => a.seq - b.seq || a.depSecs - b.depSecs);
+
+            if (stopsArr.length < 2) return;
+
+            if (!lineTrips[routeId]) lineTrips[routeId] = [];
+            lineTrips[routeId].push({ tripId, stops: stopsArr });
+
+            stopsArr.forEach(s => {
+                if (!stopLines[s.stopId]) stopLines[s.stopId] = new Set();
+                stopLines[s.stopId].add(routeId);
             });
         });
+
+        _graph = { stopLines, lineTrips };
+        _graphBuiltAt = now;
     }
 
-    //trouver arrêts proches
-    function _nearestStops(latlng, maxKm = MAX_WALK_BOARD, maxN = 8) {
+    // arrêts proches avec fallback de rayon
+    function _nearestStops(latlng, radii = WALK_RADII, maxN = 10) {
         if (!_stopCoords) return [];
-        return Object.entries(_stopCoords)
+        const all = Object.entries(_stopCoords)
             .map(([id, s]) => ({ id, ...s, d: _dist(latlng, s) }))
-            .filter(s => s.d <= maxKm)
-            .sort((a, b) => a.d - b.d)
-            .slice(0, maxN);
+            .sort((a, b) => a.d - b.d);
+        // essaye chaque rayon jusqu'à en trouver au moins 1
+        for (const r of radii) {
+            const filtered = all.filter(s => s.d <= r).slice(0, maxN);
+            if (filtered.length > 0) return filtered;
+        }
+        // dernier recours : les 3 plus proches peu importe la distance
+        return all.slice(0, 3);
     }
 
-    function _timeStr2secs(t) {
-        if (!t || !t.includes(':')) return null;
-        const p = t.split(':').map(Number);
-        return p[0]*3600 + p[1]*60 + (p[2]||0);
-    }
-    function _nowSecs() {
-        const n = new Date();
-        return n.getHours()*3600 + n.getMinutes()*60 + n.getSeconds();
-    }
-
-    //prochain passage dune ligne à un arret (depuis tripupdates)
-    function _nextBusAt(routeId, stopId) {
+    // prochain départ théorique d'un trip à un arrêt
+    // Cherche dans les stops triés du trip le premier départ >= atTimeSecs
+    function _nextDepInTrip(tripStops, stopId, atTimeSecs) {
         const now = _nowSecs();
-        let best = null;
-        markerPool.active.forEach(marker => {
-            if (marker.line !== routeId) return;
-            const tripId = marker.vehicleData?.trip?.tripId;
-            const ns     = tripUpdates[tripId]?.nextStops || [];
-            const match  = ns.find(s => s.stopId.replace('0:','') === stopId ||
-                                        s.stopId === stopId);
-            if (!match) return;
-            const t = match.departureTime || match.arrivalTime;
-            let secs = _timeStr2secs(t);
-            if (secs === null) {
-                if (typeof t === 'number' && t > 86400) {
-                    const d = new Date(t*1000);
-                    secs = d.getHours()*3600 + d.getMinutes()*60 + d.getSeconds();
-                } else return;
-            }
-            if (secs < now - 120) secs += 86400;
-            if (best === null || secs < best) best = secs;
-        });
-        return best; // null si aucun
+        const s = tripStops.find(s => s.stopId === stopId);
+        if (!s) return null;
+        let dep = _normSecs(s.depSecs, atTimeSecs);
+        if (dep < atTimeSecs - 60) return null; // déjà passé
+        return dep;
     }
 
-    // recherche en largeur (BFS) sur le graphe lignes/arrets
-    // avec au maximum MAX_TRANSFERS changements.
-    // Retourne un tableau de plans triés par score (temps total estimé).
+    // si GTFS-RT donne un temps pour ce trip+stop, on l'utilise à la place
+    function _rtAdjust(tripId, stopId, theoreticalSecs) {
+        const ns = tripUpdates[tripId]?.nextStops || [];
+        const match = ns.find(s =>
+            s.stopId === stopId ||
+            s.stopId === `0:${stopId}` ||
+            s.stopId.replace('0:','') === stopId
+        );
+        if (!match) return theoreticalSecs;
+        const rtRaw = match.departureTime || match.arrivalTime;
+        const rtSecs = _timeStr2secs(rtRaw);
+        if (rtSecs === null) return theoreticalSecs;
+        return _normSecs(rtSecs, theoreticalSecs);
+    }
+
+    // temps de trajet entre deux arrêts dans un trip
+    //utilise la différence d'horaires théoriques, corrigée RT si dispo
+    function _busLegDuration(tripId, tripStops, boardStopId, alightStopId) {
+        const bs = tripStops.find(s => s.stopId === boardStopId);
+        const as = tripStops.find(s => s.stopId === alightStopId);
+        if (!bs || !as) {
+            const bc = _stopCoords[boardStopId];
+            const ac = _stopCoords[alightStopId];
+            if (bc && ac) return _dist(bc, ac) / BUS_SPEED_KMH * 60;
+            return 10;
+        }
+        const depRaw  = _normSecs(bs.depSecs, _nowSecs());
+        const arrRaw  = _normSecs(as.depSecs, depRaw);
+        const arrRT   = _rtAdjust(tripId, alightStopId, arrRaw);
+        const depRT   = _rtAdjust(tripId, boardStopId,  depRaw);
+        return Math.max(1, (arrRT - depRT) / 60);
+    }
+
     async function _computePlans(fromLL, toLL) {
         await _ensureStopCoords();
-        _buildGraphFromLiveData();
+        _buildGraph();
 
-        const now   = _nowSecs();
-        const origins = _nearestStops(fromLL, MAX_WALK_BOARD, 6);
-        const dests   = _nearestStops(toLL,   MAX_WALK_ALIGHT, 6);
+        const now     = _nowSecs();
+        const origins = _nearestStops(fromLL);
+        const dests   = _nearestStops(toLL, WALK_RADII, 10);
 
-        if (!origins.length || !dests.length) return [];
+        if (!origins.length) return [];
 
         const destSet = new Map(dests.map(d => [d.id, d]));
-        const plans   = [];
 
-        // BFS state: { legs, currentStopId, currentTime, transfers }
-        // leg = { type, routeId, boardStop, alightStop, boardTime, alightTime }
+        const directDist = _dist(fromLL, toLL);
+        const walkOnlyPlans = directDist < 1.8 ? [{
+            legs: [{
+                type: 'walk', from: fromLL, to: toLL,
+                distKm: directDist, durationMin: _walkMin(directDist)
+            }],
+            totalMin: _walkMin(directDist),
+            transfers: 0,
+            score: _walkMin(directDist)
+        }] : [];
+
+        const plans = [...walkOnlyPlans];
+
+        // etat BFS : { legs, currentStopId, currentTimeSecs, transfers, seenRoutes }
         const queue = [];
-
         origins.forEach(orig => {
-            const walkMin = _walkMin(orig.d);
+            const wm = _walkMin(orig.d);
             queue.push({
                 legs: [{
-                    type:      'walk',
-                    from:      fromLL,
-                    to:        orig,
-                    distKm:    orig.d,
-                    durationMin: walkMin
+                    type: 'walk', from: fromLL, to: orig,
+                    distKm: orig.d, durationMin: wm
                 }],
-                currentStopId: orig.id,
-                currentTimeSecs: now + walkMin * 60,
-                transfers: 0
+                currentStopId:   orig.id,
+                currentTimeSecs: now + wm * 60,
+                transfers:       0,
+                seenRoutes:      new Set()
             });
         });
 
-        const visited = new Map(); 
+        const visited = new Map();
 
         while (queue.length > 0) {
             const state = queue.shift();
-            const { currentStopId, currentTimeSecs, transfers, legs } = state;
+            const { currentStopId, currentTimeSecs, transfers, legs, seenRoutes } = state;
 
             const vKey = `${currentStopId}|${transfers}`;
-            if ((visited.get(vKey) || Infinity) <= currentTimeSecs) continue;
+            if ((visited.get(vKey) ?? Infinity) <= currentTimeSecs) continue;
             visited.set(vKey, currentTimeSecs);
 
             const destStop = destSet.get(currentStopId);
             if (destStop) {
-                const finalWalk = _walkMin(destStop.d);
+                const walkDest = _walkMin(destStop.d);
+                const destCoord = _stopCoords[currentStopId];
                 plans.push({
                     legs: [...legs, {
-                        type:        'walk',
-                        from:        _stopCoords[currentStopId],
-                        to:          toLL,
-                        distKm:      destStop.d,
-                        durationMin: finalWalk
+                        type: 'walk', from: destCoord, to: toLL,
+                        distKm: destStop.d, durationMin: walkDest
                     }],
-                    totalMin:  (currentTimeSecs - now)/60 + finalWalk,
+                    totalMin:  (currentTimeSecs - now)/60 + walkDest,
                     transfers: Math.max(0, transfers - 1)
+                });
+            }
+
+            // vérifier aussi les arrêts proches à pied pour correspondance
+            // (permet de changer de ligne en marchant un peu)
+            if (transfers < MAX_TRANSFERS) {
+                const nearby = _nearestStops(
+                    _stopCoords[currentStopId] || fromLL, [0.25], 4
+                );
+                nearby.forEach(nb => {
+                    if (nb.id === currentStopId) return;
+                    const wm = _walkMin(nb.d);
+                    const arr = currentTimeSecs + wm*60;
+                    const nKey = `${nb.id}|${transfers}`;
+                    if ((visited.get(nKey) ?? Infinity) > arr) {
+                        queue.push({
+                            legs: [...legs, {
+                                type: 'walk', from: _stopCoords[currentStopId], to: nb,
+                                distKm: nb.d, durationMin: wm
+                            }],
+                            currentStopId:   nb.id,
+                            currentTimeSecs: arr,
+                            transfers,
+                            seenRoutes: new Set(seenRoutes)
+                        });
+                    }
                 });
             }
 
             if (transfers >= MAX_TRANSFERS) continue;
 
-            const lines = _stopLines[currentStopId] || new Set();
-            lines.forEach(routeId => {
-                const lineStopArr = _lineStops[routeId] || [];
-                const boardIdx    = lineStopArr.indexOf(currentStopId);
-                if (boardIdx === -1) return;
+            const lines = _graph.stopLines[currentStopId] || new Set();
 
-                const boardTime   = _nextBusAt(routeId, currentStopId);
-                if (boardTime === null) return;
-                const waitMin     = Math.max(0, (boardTime - currentTimeSecs) / 60);
+            for (const routeId of lines) {
+                if (seenRoutes.has(routeId)) continue; //evite les boucles
 
-                for (let ai = boardIdx + 1; ai < lineStopArr.length; ai++) {
-                    const alightId = lineStopArr[ai];
-                    const alightS  = _stopCoords[alightId];
-                    if (!alightS) continue;
+                const trips = _graph.lineTrips[routeId] || [];
 
-                    const distBus      = _dist(
-                        _stopCoords[currentStopId] || fromLL, alightS
+                let bestTrip = null, bestDep = Infinity;
+
+                for (const trip of trips) {
+                    const dep = _nextDepInTrip(trip.stops, currentStopId, currentTimeSecs);
+                    if (dep === null) continue;
+                    // ajustement temps réel
+                    const depRT = _rtAdjust(trip.tripId, currentStopId, dep);
+                    const normDep = _normSecs(depRT, currentTimeSecs);
+                    if (normDep < currentTimeSecs - 60) continue;
+                    const wait = (normDep - currentTimeSecs) / 60;
+                    if (wait > MAX_WAIT_MIN) continue;
+                    if (normDep < bestDep) {
+                        bestDep = normDep;
+                        bestTrip = { ...trip, boardDep: normDep, waitMin: wait };
+                    }
+                }
+
+                if (!bestTrip) continue;
+
+                const boardIdx = bestTrip.stops.findIndex(s => s.stopId === currentStopId);
+                if (boardIdx === -1) continue;
+
+                const boardStop = _stopCoords[currentStopId];
+                const newSeenRoutes = new Set(seenRoutes);
+                newSeenRoutes.add(routeId);
+
+                for (let ai = boardIdx + 1; ai < bestTrip.stops.length; ai++) {
+                    const alightStop = bestTrip.stops[ai];
+                    const alightCoord = _stopCoords[alightStop.stopId];
+                    if (!alightCoord) continue;
+
+                    const travelMin = _busLegDuration(
+                        bestTrip.tripId, bestTrip.stops,
+                        currentStopId, alightStop.stopId
                     );
-                    const busTravelMin = distBus / BUS_SPEED_KMH * 60;
-                    const alightTime   = boardTime + busTravelMin * 60;
-                    const legDuration  = waitMin + busTravelMin;
+                    const alightTimeSecs = bestTrip.boardDep + travelMin * 60;
 
                     const newLeg = {
-                        type:          'bus',
+                        type:         'bus',
                         routeId,
-                        lineName:      lineName[routeId] || routeId,
-                        lineColor:     lineColors[routeId] || '#444',
-                        boardStop:     _stopCoords[currentStopId],
-                        alightStop:    alightS,
-                        boardStopId:   currentStopId,
-                        alightStopId:  alightId,
-                        waitMin,
-                        busTravelMin,
-                        durationMin:   legDuration
+                        lineName:     lineName[routeId] || routeId,
+                        lineColor:    lineColors[routeId] || '#444',
+                        boardStop,
+                        boardStopId:  currentStopId,
+                        alightStop:   alightCoord,
+                        alightStopId: alightStop.stopId,
+                        waitMin:      bestTrip.waitMin,
+                        busTravelMin: travelMin,
+                        durationMin:  bestTrip.waitMin + travelMin,
+                        tripId:       bestTrip.tripId
                     };
 
                     queue.push({
-                        legs: [...legs, newLeg],
-                        currentStopId:   alightId,
-                        currentTimeSecs: alightTime,
-                        transfers:       transfers + 1
+                        legs:            [...legs, newLeg],
+                        currentStopId:   alightStop.stopId,
+                        currentTimeSecs: alightTimeSecs,
+                        transfers:       transfers + 1,
+                        seenRoutes:      newSeenRoutes
                     });
                 }
-            });
+            }
         }
 
         if (!plans.length) return [];
@@ -12554,18 +12668,27 @@ const GpsGuide = (() => {
             const walkTotal = p.legs
                 .filter(l => l.type === 'walk')
                 .reduce((s, l) => s + l.durationMin, 0);
-            p.score = p.totalMin + p.transfers * TRANSFER_PENALTY + walkTotal * 0.3;
+            const busLegs = p.legs.filter(l => l.type === 'bus');
+            const waitTotal = busLegs.reduce((s, l) => s + (l.waitMin||0), 0);
+            p.score = p.totalMin
+                    + (p.transfers||0) * TRANSFER_PENALTY
+                    + walkTotal * 0.4
+                    + waitTotal * 0.2;
+            p.transfers = p.transfers || 0;
         });
 
         plans.sort((a, b) => a.score - b.score);
 
         const seen = new Set();
         return plans.filter(p => {
-            const key = p.legs.filter(l=>l.type==='bus').map(l=>l.routeId).join('>');
+            const key = p.legs
+                .filter(l => l.type === 'bus')
+                .map(l => `${l.routeId}:${l.boardStopId}→${l.alightStopId}`)
+                .join('|');
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
-        }).slice(0, 3);
+        }).slice(0, 4);
     }
 
     async function _geocode(query) {
@@ -12679,7 +12802,7 @@ const GpsGuide = (() => {
             if (busLegs.indexOf(leg) < busLegs.length - 1) {
                 const arr = document.createElement('span');
                 arr.style.cssText = 'font-size:14px;opacity:0.5;';
-                arr.textContent = '>';
+                arr.textContent = '→';
                 summary.appendChild(arr);
             }
         });
@@ -12736,7 +12859,7 @@ const GpsGuide = (() => {
                     <div style="font-size:13px;font-weight:600;">Ligne ${leg.lineName}</div>
                     <div style="font-size:11px;opacity:0.55;">
                         De <b style="opacity:0.85">${leg.boardStop?.name||'?'}</b>
-                        > <b style="opacity:0.85">${leg.alightStop?.name||'?'}</b>
+                        → <b style="opacity:0.85">${leg.alightStop?.name||'?'}</b>
                     </div>
                     <div style="font-size:10.5px;opacity:0.45;">
                         Attente ~${_humanMin(leg.waitMin)} · trajet ~${_humanMin(leg.busTravelMin)}
@@ -12902,7 +13025,7 @@ const GpsGuide = (() => {
         if (sub) {
             sub.textContent = leg.type === 'walk'
                 ? `${_humanDist(leg.distKm)} · ~${_humanMin(leg.durationMin)}`
-                : `De "${leg.boardStop?.name||'?'}" > "${leg.alightStop?.name||'?'}"`;
+                : `De "${leg.boardStop?.name||'?'}" → "${leg.alightStop?.name||'?'}"`;
         }
 
         if (remain) {
@@ -13117,7 +13240,6 @@ const GpsGuide = (() => {
             </div>`;
         if (summaryEl) summaryEl.textContent = '';
 
-        // geolocalisation
         if (!_userLatLng) {
             await new Promise(resolve => {
                 if (!navigator.geolocation) { resolve(); return; }
