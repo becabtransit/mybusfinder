@@ -8610,93 +8610,62 @@ async function fetchVehiclePositions() {
                 }
 
                 let stopsListHTML = '';
-                    if (filteredStops.length > 0) {
-                        const lastIdx = filteredStops.length - 1;
-                        stopsListHTML = filteredStops.map((stop, index) => {
-                            const isFirst    = index === 0;
-                            const isLast     = index === lastIdx;
-                            const stopTime   = stop.arrivalTime || stop.departureTime;
+                if (filteredStops.length > 0) {
+                    stopsListHTML = filteredStops.map(stop => {
+                        const stopTime = stop.arrivalTime || stop.departureTime;
+                        let timeLeftText = '';
 
-                            let timeLeftText = '', absoluteTime = '';
-                            if (stopTime && stopTime.includes(':')) {
-                                const parts = stopTime.split(':').map(Number);
-                                const now   = new Date();
-                                const nowS  = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-                                let arrS    = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
-                                let diff    = arrS - nowS;
-                                if (diff < -3600) diff += 86400;
-                                timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
-                                absoluteTime = `${String(parts[0]).padStart(2,'0')}:${String(parts[1]).padStart(2,'0')}`;
-                            } else if (stopTime && !isNaN(stopTime)) {
-                                const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
-                                timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
-                                const d = new Date(Number(stopTime) * 1000);
-                                absoluteTime = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                            }
-
-                            const stopName = stopNameMap[stop.stopId] || stop.stopId;
-
-                            const dotStyle = isFirst
-                                ? `width:11px;height:11px;border-radius:50%;background:#fff;border:2px solid rgba(255,255,255,0.7);box-shadow:0 0 0 3px rgba(255,255,255,0.18);margin-top:5px;flex-shrink:0;`
-                                : isLast
-                                    ? `width:11px;height:11px;border-radius:50%;background:transparent;border:2px solid rgba(255,255,255,0.35);margin-top:5px;flex-shrink:0;`
-                                    : `width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,${index < 2 ? 0.9 : 0.3});border:1.5px solid rgba(255,255,255,${index < 2 ? 0.5 : 0.2});margin-top:6px;flex-shrink:0;`;
-
-                            const nameStyle = isFirst
-                                ? `font-size:14px;font-weight:700;line-height:1.2;`
-                                : index < 2
-                                    ? `font-size:13px;font-weight:500;line-height:1.2;opacity:0.88;`
-                                    : `font-size:13px;font-weight:400;line-height:1.2;opacity:${isLast ? 0.45 : 0.6};`;
-
-                            const timeMainStyle = isFirst
-                                ? `font-size:15px;font-weight:700;color:#4ade80;line-height:1;`
-                                : index < 2
-                                    ? `font-size:14px;font-weight:600;line-height:1;`
-                                    : `font-size:13px;font-weight:400;opacity:${isLast ? 0.35 : 0.55};line-height:1;`;
-
-                            const firstBadge = isFirst ? `
-                                <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:600;margin-top:4px;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3);color:#4ade80;">
-                                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                    ${t("nextstop") || "Prochain arrêt"}
-                                </span>` : '';
-
-                            const terminusBadge = isLast && filteredStops.length > 1 ? `
-                                <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:500;margin-top:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.5);">
-                                    ${t("terminus") || "Terminus"} · ${timeLeftText}
-                                </span>` : '';
-
-                            const absTimeEl = absoluteTime
-                                ? `<div style="font-size:10px;opacity:${isFirst ? 0.45 : 0.28};margin-top:2px;">${absoluteTime}</div>`
-                                : '';
-
-                            const timeEl = (isLast && filteredStops.length > 1)
-                                ? absTimeEl
-                                : `<div style="${timeMainStyle}">${timeLeftText}</div>${absTimeEl}`;
-
-                            return `
-                            <div style="display:flex;align-items:stretch;gap:0;">
-                                <div style="flex:1;display:flex;justify-content:space-between;align-items:flex-start;padding:2px 0 0 2px;">
-                                    <div style="min-width:0;">
-                                        <div class="stop-name-container" style="overflow:hidden;max-width:100%;">
-                                            <div style="${nameStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${stopName}</div>
-                                        </div>
-                                        ${terminusBadge}
-                                    </div>
-                                    <div style="text-align:right;flex-shrink:0;margin-left:8px;">
-                                        ${timeEl}
-                                    </div>
+                        if (stopTime && stopTime.includes(':')) {
+                            const parts = stopTime.split(':').map(Number);
+                            const now = new Date();
+                            const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                            let arrivalSeconds = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
+                            
+                            let diff = arrivalSeconds - nowSeconds;
+                            if (diff < -3600) diff += 86400;
+                            
+                            timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
+                        } else if (stopTime && !isNaN(stopTime)) {
+                            const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
+                            timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
+                        }
+                        
+                        const stopName = stopNameMap[stop.stopId] || stop.stopId;
+                                                
+                        return `
+                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
+                            <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
+                                <div class="stop-name-wrapper" style="position: relative; display: inline-block; padding-right: 10px;">
+                                    <div class="stop-name" style="position: relative; display: inline-block;">${stopName}</div>
                                 </div>
-                            </div>`;
-                        }).join('');
-                    }
+                            </div>
+                            <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
+                                <div class="time-display" 
+                                    data-time-left="${timeLeftText}" 
+                                    data-departure-time="${stop.arrivalTime || stop.departureTime || "Inconnu"}">
+                                    ${timeLeftText}
+                                </div>
+                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <g class="rss-waves">
+                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
+                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                    </g>
+                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
+                                </svg>
+                            </div>
+                        </li>`;
+                    }).join('');
+                }
 
                 const nextStopsHTML = `
-                    <div>
-                        <div style="max-height:185px;overflow-y:auto;overflow-x:hidden;">
+                    <div style="position: relative; max-height: 120px;">
+                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px;">
                             ${stopsListHTML}
-                        </div>
+                        </ul>
                     </div>
                 `;
+
+                initTimeToggle();
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
 
