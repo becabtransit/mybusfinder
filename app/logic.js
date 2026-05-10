@@ -8671,13 +8671,10 @@ async function fetchVehiclePositions() {
 
                             const timeEl = (isLast && filteredStops.length > 1)
                                 ? absTimeEl
-                                : `<div style="${timeMainStyle}">${timeLeftText}</div>`;
+                                : `<div style="${timeMainStyle}">${timeLeftText}</div>${absTimeEl}`;
 
                             return `
                             <div style="display:flex;align-items:stretch;gap:0;">
-                                <div style="width:24px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;">
-                                    <div style="${dotStyle}"></div>
-                                </div>
                                 <div style="flex:1;display:flex;justify-content:space-between;align-items:flex-start;padding:2px 0 ${isLast ? 2 : 10}px 8px;">
                                     <div style="min-width:0;">
                                         <div class="stop-name-container" style="overflow:hidden;max-width:100%;">
@@ -8695,7 +8692,6 @@ async function fetchVehiclePositions() {
 
                 const nextStopsHTML = `
                     <div>
-                        <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;opacity:0.45;margin-bottom:10px;padding-left:4px;">${t("nextstops") || "Prochains arrêts"}</div>
                         <div style="max-height:185px;overflow-y:auto;overflow-x:hidden;">
                             ${stopsListHTML}
                         </div>
