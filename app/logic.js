@@ -1691,7 +1691,7 @@ let globalStopSpinner = null;
 let HorairesCharges = false;
 
 function showUpdatePopupPourHoraires() {
-    window.open('schedule.html', '_blank');
+    window.open('schedule.html?lang=' + (window.i18n ? window.i18n.currentLang : 'fr'), '_blank');
 }
 
 function showUpdatePopupLocalBus(link) {
@@ -10475,7 +10475,7 @@ const receivedSettings = {};
 window.addEventListener('message', function(event) {
 
     if (event.data.type === 'schedule') {
-        showUpdatePopup('schedule.html')
+        showUpdatePopup('schedule.html?lang=' + (window.i18n ? window.i18n.currentLang : 'fr'));
         safeVibrate([30], true);
     }
 
@@ -11867,14 +11867,14 @@ function _wireBottomSheetButtons() {
     if (featClock) {
         featClock.addEventListener('click', () => {
             safeVibrate?.([30], true);
-            showUpdatePopup('schedule.html');
+            showUpdatePopup('schedule.html?lang=' + (window.i18n ? window.i18n.currentLang : 'fr'));
         });
     }
     const featActu = document.getElementById('actu');
     if (featActu) {
         featActu.addEventListener('click', () => {
             safeVibrate?.([30], true);
-            showUpdatePopup('alerts.html');
+            showUpdatePopup('alerts.html?lang=' + (window.i18n ? window.i18n.currentLang : 'fr'));
         });
     }
 
@@ -11889,7 +11889,7 @@ function _wireBottomSheetButtons() {
     if (linkMbh) {
         linkMbh.addEventListener('click', () => {
             safeVibrate?.([30], true);
-            showUpdatePopup('histovec.html');
+            showUpdatePopup('histovec.html?lang=' + (window.i18n ? window.i18n.currentLang : 'fr'));
         });
     }
     const linkSwitch = document.getElementById('bs-switch-network');
@@ -12124,8 +12124,8 @@ function openFavoriteSchedule(favorite) {
     const destination = favorite.destinationId
         ? encodeURIComponent(favorite.destinationId) : '';
     const url = destination
-        ? `schedule.html?route=${route}&stop=${stop}&destination=${destination}`
-        : `schedule.html?route=${route}&stop=${stop}`;
+        ? `schedule.html?lang=${window.i18n?.currentLang || 'fr'}&route=${route}&stop=${stop}&destination=${destination}`
+        : `schedule.html?lang=${window.i18n?.currentLang || 'fr'}&route=${route}&stop=${stop}`;
     showUpdatePopup(url);
 }
 
