@@ -6,1187 +6,1217 @@
     <title>MBS - My Bus Schedule</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/protobufjs/6.11.2/protobuf.min.js"></script>
-    <style>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
 :root {
-    --glass-bg-light: rgba(255, 255, 255, 0.72);
-    --glass-bg-light-strong: rgba(255, 255, 255, 0.88);
-    --glass-bg-dark: rgba(28, 28, 30, 0.78);
-    --glass-bg-dark-strong: rgba(28, 28, 30, 0.9);
-    
-    --glass-blur-mobile: blur(20px);
-    --glass-blur-tablet: blur(32px);
+    --glass-bg-light: rgba(255,255,255,0.72);
+    --glass-bg-light-strong: rgba(255,255,255,0.92);
+    --glass-bg-dark: rgba(28,28,30,0.78);
+    --glass-bg-dark-strong: rgba(28,28,30,0.95);
+    --glass-blur: blur(24px);
     --glass-blur-strong: blur(40px);
-    
-    --glass-border-light: rgba(255, 255, 255, 0.18);
-    --glass-border-dark: rgba(0, 0, 0, 0.08);
-    --glass-border-highlight: rgba(255, 255, 255, 0.35);
-    
-    --glass-shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.08), 
-                          0 2px 8px rgba(0, 0, 0, 0.04),
-                          inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    --glass-shadow-hover: 0 12px 48px rgba(0, 0, 0, 0.12), 
-                           0 4px 12px rgba(0, 0, 0, 0.08),
-                           inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    --glass-shadow-pressed: 0 4px 16px rgba(0, 0, 0, 0.08),
-                             inset 0 2px 6px rgba(0, 0, 0, 0.1);
-    
+    --glass-border-light: rgba(255,255,255,0.22);
+    --glass-border-dark: rgba(255,255,255,0.1);
+    --glass-shadow: 0 8px 32px rgba(0,0,0,0.08),0 2px 8px rgba(0,0,0,0.04),inset 0 1px 0 rgba(255,255,255,0.3);
+    --glass-shadow-hover: 0 16px 48px rgba(0,0,0,0.14),0 4px 16px rgba(0,0,0,0.08),inset 0 1px 0 rgba(255,255,255,0.4);
+    --glass-shadow-pressed: 0 4px 16px rgba(0,0,0,0.1),inset 0 2px 6px rgba(0,0,0,0.12);
     --accent-blue: #007AFF;
-    --accent-blue-glow: rgba(0, 122, 255, 0.3);
+    --accent-blue-glow: rgba(0,122,255,0.28);
     --accent-purple: #8b5cf6;
     --accent-red: #FF3B30;
     --accent-orange: #FF9500;
-    --accent-yellow: #FFCC00;
     --accent-green: #34C759;
+    --accent-yellow: #FFCC00;
     --accent-gray: #8E8E93;
-    
-    --text-primary: rgba(0, 0, 0, 0.92);
-    --text-secondary: rgba(0, 0, 0, 0.68);
-    --text-tertiary: rgba(0, 0, 0, 0.48);
-    
-    --bg-gradient-start: rgba(0, 122, 255, 0.08);
-    --bg-gradient-mid: rgba(168, 85, 247, 0.05);
-    --bg-gradient-end: rgba(255, 149, 0, 0.06);
-    
-    --spacing-xs: 8px;
-    --spacing-sm: 12px;
-    --spacing-md: 16px;
-    --spacing-lg: 24px;
-    --spacing-xl: 32px;
-    
-    --radius-sm: 12px;
-    --radius-md: 16px;
-    --radius-lg: 20px;
-    --radius-xl: 24px;
-    --radius-pill: 50px;
-    
-    --transition-smooth: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    --transition-standard: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --text-primary: rgba(0,0,0,0.92);
+    --text-secondary: rgba(0,0,0,0.62);
+    --text-tertiary: rgba(0,0,0,0.42);
+    --bg-base: #f0f4ff;
+    --spacing-xs: 8px; --spacing-sm: 12px; --spacing-md: 16px;
+    --spacing-lg: 24px; --spacing-xl: 32px;
+    --radius-sm: 12px; --radius-md: 16px; --radius-lg: 20px;
+    --radius-xl: 24px; --radius-pill: 999px;
+    --ease-spring: cubic-bezier(0.34,1.56,0.64,1);
+    --ease-smooth: cubic-bezier(0.4,0,0.2,1);
 }
-
 @media (prefers-color-scheme: dark) {
     :root {
-        --glass-bg-light: rgba(44, 44, 46, 0.82);
-        --glass-bg-light-strong: rgba(44, 44, 46, 0.95);
-        --glass-bg-dark: rgba(28, 28, 30, 0.88);
-        --glass-bg-dark-strong: rgba(28, 28, 30, 0.96);
-        
-        --glass-border-light: rgba(255, 255, 255, 0.15);
-        --glass-border-dark: rgba(255, 255, 255, 0.08);
-        --glass-border-highlight: rgba(255, 255, 255, 0.25);
-        
-        --glass-shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.4), 
-                              0 2px 8px rgba(0, 0, 0, 0.3),
-                              inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        --glass-shadow-hover: 0 12px 48px rgba(0, 0, 0, 0.5), 
-                               0 4px 12px rgba(0, 0, 0, 0.35),
-                               inset 0 1px 0 rgba(255, 255, 255, 0.15);
-        --glass-shadow-pressed: 0 4px 16px rgba(0, 0, 0, 0.5),
-                                 inset 0 2px 6px rgba(0, 0, 0, 0.4);
-        
-        --text-primary: rgba(255, 255, 255, 0.95);
-        --text-secondary: rgba(255, 255, 255, 0.72);
-        --text-tertiary: rgba(255, 255, 255, 0.52);
-        
+        --glass-bg-light: rgba(38,38,42,0.85);
+        --glass-bg-light-strong: rgba(38,38,42,0.96);
+        --glass-bg-dark: rgba(22,22,24,0.9);
+        --glass-bg-dark-strong: rgba(22,22,24,0.98);
+        --glass-border-light: rgba(255,255,255,0.14);
+        --glass-border-dark: rgba(255,255,255,0.07);
+        --glass-shadow: 0 8px 32px rgba(0,0,0,0.45),0 2px 8px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.1);
+        --glass-shadow-hover: 0 16px 56px rgba(0,0,0,0.55),0 4px 16px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.15);
         --accent-blue: #0A84FF;
-        --accent-blue-glow: rgba(10, 132, 255, 0.4);
-        --accent-purple: #a78bfa;
+        --accent-blue-glow: rgba(10,132,255,0.35);
         --accent-red: #FF453A;
         --accent-orange: #FF9F0A;
-        --accent-yellow: #FFD60A;
         --accent-green: #32D74B;
-        
-        --bg-gradient-start: rgba(10, 132, 255, 0.12);
-        --bg-gradient-mid: rgba(167, 139, 250, 0.08);
-        --bg-gradient-end: rgba(255, 159, 10, 0.1);
+        --text-primary: rgba(255,255,255,0.95);
+        --text-secondary: rgba(255,255,255,0.68);
+        --text-tertiary: rgba(255,255,255,0.45);
+        --bg-base: #000;
     }
 }
 
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    -webkit-tap-highlight-color: transparent;
-}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+
+html { scroll-behavior: smooth; }
 
 body {
-    font-family: 'League Spartan', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg, 
-        var(--bg-gradient-start) 0%, 
-        var(--bg-gradient-mid) 50%,
-        var(--bg-gradient-end) 100%);
-    background-attachment: fixed;
+    font-family:'League Spartan',-apple-system,BlinkMacSystemFont,sans-serif;
+    background: #f0f4ff00;
     color: var(--text-primary);
-    line-height: 1.5;
-    overflow-x: hidden;
-    -webkit-font-smoothing: antialiased;
-    min-height: 100vh;
+    line-height:1.5;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
 }
 
+body::before {
+    content:'';
+    position:fixed;
+    inset:0;
+    background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(0,122,255,0.1) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 85% 80%, rgba(139,92,246,0.08) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 60% 50%, rgba(255,149,0,0.05) 0%, transparent 50%);
+    pointer-events:none;
+    z-index:0;
+}
 @media (prefers-color-scheme: dark) {
-    body {
-        background: linear-gradient(135deg, 
-            #000000 0%,
-            #0a0a0c 50%,
-            #000000 100%);
-        background-attachment: fixed;
-    }
-    
     body::before {
-        content: '';
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: radial-gradient(circle at 20% 30%, var(--bg-gradient-start) 0%, transparent 50%),
-                    radial-gradient(circle at 80% 70%, var(--bg-gradient-end) 0%, transparent 50%),
-                    radial-gradient(circle at 50% 50%, var(--bg-gradient-mid) 0%, transparent 50%);
-        pointer-events: none;
-        z-index: 0;
+        background:
+            radial-gradient(ellipse 80% 60% at 20% 10%, rgba(10,132,255,0.15) 0%, transparent 60%),
+            radial-gradient(ellipse 60% 50% at 85% 80%, rgba(139,92,246,0.12) 0%, transparent 55%),
+            radial-gradient(ellipse 50% 40% at 60% 50%, rgba(255,159,10,0.07) 0%, transparent 50%);
     }
 }
 
-.gpu-accelerated {
-    transform: translateZ(0);
-    backface-visibility: hidden;
-    perspective: 1000px;
+@keyframes slideDown { from{opacity:0;transform:translateY(-32px) scale(0.96)} to{opacity:1;transform:none} }
+@keyframes fadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:none} }
+@keyframes cardIn { to{opacity:1;transform:none} }
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+@keyframes ripple {
+    0%{transform:scale(0);opacity:0.4}
+    100%{transform:scale(2.5);opacity:0}
+}
+@keyframes shimmer {
+    0%{background-position:-200% 0}
+    100%{background-position:200% 0}
+}
+@keyframes bounceIn {
+    0%{transform:scale(0.3);opacity:0}
+    50%{transform:scale(1.08)}
+    100%{transform:scale(1);opacity:1}
+}
+@keyframes mapReveal {
+    from{opacity:0;transform:translateY(20px) scale(0.97)}
+    to{opacity:1;transform:none}
+}
+@keyframes nextBusPulse {
+    0%,100%{box-shadow:0 0 0 0 rgba(52,199,89,0.4)}
+    50%{box-shadow:0 0 0 8px rgba(52,199,89,0)}
+}
+@keyframes timeCountdown {
+    0%{transform:scale(1)}
+    50%{transform:scale(1.04)}
+    100%{transform:scale(1)}
 }
 
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-40px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
+.search-bar-container {
+    position:relative;
+    margin-bottom:var(--spacing-md);
 }
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.search-bar {
+    width:100%;
+    background:var(--glass-bg-light);
+    backdrop-filter:var(--glass-blur) saturate(180%);
+    -webkit-backdrop-filter:var(--glass-blur) saturate(180%);
+    border:1.5px solid var(--glass-border-light);
+    border-radius:var(--radius-pill);
+    padding:14px 20px 14px 48px;
+    color:var(--text-primary);
+    font-family:'League Spartan',sans-serif;
+    font-size:16px;
+    font-weight:500;
+    box-shadow:var(--glass-shadow);
+    transition:all 0.3s var(--ease-smooth);
+    outline:none;
 }
-
-@keyframes cardAppear {
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
+.search-bar:focus {
+    border-color:var(--accent-blue);
+    box-shadow:0 0 0 4px var(--accent-blue-glow), var(--glass-shadow);
 }
+.search-bar::placeholder { color:var(--text-tertiary); }
+.search-icon {
+    position:absolute;
+    left:16px;
+    top:50%;
+    transform:translateY(-50%);
+    color:var(--text-tertiary);
+    font-size:16px;
+    pointer-events:none;
+    transition:color 0.2s;
+}
+.search-bar:focus ~ .search-icon, .search-bar-container:focus-within .search-icon {
+    color:var(--accent-blue);
+}
+.search-clear {
+    position:absolute;
+    right:14px;
+    top:50%;
+    transform:translateY(-50%);
+    width:28px; height:28px;
+    background:var(--accent-gray);
+    border-radius:50%;
+    border:none;
+    color:#fff;
+    font-size:12px;
+    cursor:pointer;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    transition:all 0.2s;
+    opacity:0.7;
+}
+.search-clear:hover { opacity:1; transform:translateY(-50%) scale(1.1); }
+.search-clear.visible { display:flex; }
 
 .header {
-    position: sticky;
-    top: var(--spacing-md);
-    z-index: 1000;
-    margin: var(--spacing-md);
-    animation: slideDown 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position:sticky;
+    top:var(--spacing-md);
+    z-index:1000;
+    margin:var(--spacing-md) var(--spacing-md) 0;
+    animation:slideDown 0.6s var(--ease-spring);
 }
-
 .header-glass {
-    background: var(--glass-bg-light);
-    backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    -webkit-backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    border: 1px solid var(--glass-border-light);
-    border-radius: var(--radius-xl);
-    padding: var(--spacing-lg);
-    box-shadow: var(--glass-shadow-soft);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    transition: var(--transition-standard);
+    background:var(--glass-bg-light);
+    backdrop-filter:var(--glass-blur) saturate(180%);
+    -webkit-backdrop-filter:var(--glass-blur) saturate(180%);
+    border:1px solid var(--glass-border-light);
+    border-radius:var(--radius-xl);
+    padding:var(--spacing-md) var(--spacing-lg);
+    box-shadow:var(--glass-shadow);
+    display:flex;
+    align-items:center;
+    gap:var(--spacing-md);
+    transition:all 0.3s var(--ease-smooth);
 }
-
-@media (prefers-color-scheme: dark) {
-    .header-glass {
-        background: var(--glass-bg-dark);
-        border-color: rgba(255, 255, 255, 0.15);
-    }
-}
-
 .header.scrolled .header-glass {
-    background: var(--glass-bg-light-strong);
-    backdrop-filter: var(--glass-blur-strong) saturate(200%);
-    -webkit-backdrop-filter: var(--glass-blur-strong) saturate(200%);
-    box-shadow: var(--glass-shadow-hover);
+    background:var(--glass-bg-light-strong);
+    backdrop-filter:var(--glass-blur-strong) saturate(200%);
+    box-shadow:var(--glass-shadow-hover);
+    padding-top:12px; padding-bottom:12px;
 }
 
-@media (prefers-color-scheme: dark) {
-    .header.scrolled .header-glass {
-        background: var(--glass-bg-dark-strong);
-    }
+.btn-circle {
+    width:48px; height:48px;
+    background:var(--glass-bg-light);
+    backdrop-filter:blur(10px);
+    border:1.5px solid var(--glass-border-light);
+    border-radius:var(--radius-pill);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--text-primary);
+    font-size:18px;
+    cursor:pointer;
+    transition:all 0.25s var(--ease-spring);
+    box-shadow:var(--glass-shadow);
+    flex-shrink:0;
+    position:relative;
+    overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
+    border:none;
 }
+.btn-circle:active { transform:scale(0.9); box-shadow:var(--glass-shadow-pressed); }
+.btn-circle.hidden { display:none; }
 
-.back-btn {
-    width: 56px;
-    height: 56px;
-    background: linear-gradient(135deg, 
-        rgba(255, 255, 255, 0.4) 0%, 
-        rgba(255, 255, 255, 0.25) 100%);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1.5px solid rgba(255, 255, 255, 0.25);
-    border-radius: var(--radius-pill);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-primary);
-    font-size: 20px;
-    cursor: pointer;
-    transition: var(--transition-smooth);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05),
-                inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    flex-shrink: 0;
-}
-
-@media (prefers-color-scheme: dark) {
-    .back-btn {
-        background: linear-gradient(135deg, 
-            rgba(255, 255, 255, 0.18) 0%, 
-            rgba(255, 255, 255, 0.1) 100%);
-        border-color: rgba(255, 255, 255, 0.2);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-    }
-}
-
-.back-btn:active {
-    transform: scale(0.92);
-    box-shadow: var(--glass-shadow-pressed);
-}
-
-.back-btn.pressing {
-    transform: scale(0.92);
-    box-shadow: var(--glass-shadow-pressed);
-}
-
-.favorite-schedule-btn {
-    width: 56px;
-    height: 56px;
-    background: linear-gradient(135deg, 
-        rgba(255, 255, 255, 0.4) 0%, 
-        rgba(255, 255, 255, 0.25) 100%);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1.5px solid rgba(255, 255, 255, 0.25);
-    border-radius: var(--radius-pill);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-primary);
-    font-size: 20px;
-    cursor: pointer;
-    transition: var(--transition-smooth);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05),
-                inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
-}
-
-.favorite-schedule-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, 
-        rgba(255, 59, 48, 0.15) 0%, 
-        rgba(255, 149, 0, 0.1) 100%);
-    opacity: 0;
-    transition: var(--transition-standard);
-    pointer-events: none;
-}
-
-.favorite-schedule-btn.active {
-    background: linear-gradient(135deg, 
-        rgba(255, 59, 48, 0.2) 0%, 
-        rgba(255, 149, 0, 0.15) 100%);
-    border-color: rgba(255, 59, 48, 0.3);
-    color: var(--accent-red);
-    box-shadow: 0 4px 12px rgba(255, 59, 48, 0.2),
-                inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-.favorite-schedule-btn.active::before {
-    opacity: 1;
-}
-
-@media (prefers-color-scheme: dark) {
-    .favorite-schedule-btn {
-        background: linear-gradient(135deg, 
-            rgba(255, 255, 255, 0.18) 0%, 
-            rgba(255, 255, 255, 0.1) 100%);
-        border-color: rgba(255, 255, 255, 0.2);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-    }
-    
-    .favorite-schedule-btn.active {
-        background: linear-gradient(135deg, 
-            rgba(255, 59, 48, 0.25) 0%, 
-            rgba(255, 149, 0, 0.2) 100%);
-        border-color: rgba(255, 59, 48, 0.4);
-        box-shadow: 0 4px 12px rgba(255, 59, 48, 0.3),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    }
-}
-
-.favorite-schedule-btn:active {
-    transform: scale(0.92);
-    box-shadow: var(--glass-shadow-pressed);
-}
-
-.favorite-schedule-btn.pressing {
-    transform: scale(0.92);
-    box-shadow: var(--glass-shadow-pressed);
-}
-
-.bus-item.pressing, .destination-item.pressing, .stop-item.pressing {
-    transform: scale(0.97);
-    box-shadow: var(--glass-shadow-pressed);
-}
-
-.bus-item.pressing::before, .destination-item.pressing::before, .stop-item.pressing::before {
-    opacity: 1;
+.btn-circle.fav-active {
+    background:linear-gradient(135deg,rgba(255,59,48,0.18),rgba(255,149,0,0.12));
+    border-color:rgba(255,59,48,0.3);
+    color:var(--accent-red);
 }
 
 .header-icon {
-    width: 56px;
-    height: 56px;
-    background: linear-gradient(135deg, var(--accent-blue) 0%, #0051D5 100%);
-    border-radius: var(--radius-pill);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 28px;
-    box-shadow: 0 8px 24px rgba(0, 122, 255, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    flex-shrink: 0;
-    transition: var(--transition-smooth);
+    width:48px; height:48px;
+    background:linear-gradient(135deg, var(--accent-blue) 0%, #0051D5 100%);
+    border-radius:var(--radius-pill);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:22px;
+    box-shadow:0 6px 20px var(--accent-blue-glow), inset 0 1px 0 rgba(255,255,255,0.3);
+    flex-shrink:0;
 }
 
-@media (prefers-color-scheme: dark) {
-    .header-icon {
-        background: linear-gradient(135deg, var(--accent-blue) 0%, #0066E5 100%);
-        box-shadow: 0 8px 24px var(--accent-blue-glow),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    }
-}
-
-.header-icon:active {
-    transform: scale(0.92);
-}
-
-.header-text {
-    flex: 1;
-    min-width: 0;
-}
-
+.header-text { flex:1; min-width:0; }
 .header-text h1 {
-    font-size: 22px;
-    font-weight: 700;
-    margin-bottom: 2px;
-    letter-spacing: -0.5px;
+    font-size:20px; font-weight:800;
+    letter-spacing:-0.5px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    transition:all 0.3s;
+}
+.header-text p {
+    font-size:13px; color:var(--text-secondary); font-weight:500;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 
-.header-text p {
-    font-size: 14px;
-    color: var(--text-secondary);
-    font-weight: 500;
+.breadcrumb {
+    display:flex; align-items:center; gap:6px;
+    padding:0 4px;
+    margin-bottom:var(--spacing-md);
+    flex-wrap:wrap;
+    animation:fadeUp 0.4s var(--ease-spring);
 }
+.breadcrumb-item {
+    font-size:13px; font-weight:600;
+    color:var(--text-tertiary);
+    cursor:pointer;
+    padding:4px 8px;
+    border-radius:8px;
+    transition:all 0.2s;
+    background:none;
+    border:none;
+    font-family:'League Spartan',sans-serif;
+}
+.breadcrumb-item:hover { color:var(--accent-blue); background:rgba(0,122,255,0.08); }
+.breadcrumb-item.current { color:var(--text-primary); cursor:default; }
+.breadcrumb-item.current:hover { background:transparent; }
+.breadcrumb-sep { color:var(--text-tertiary); font-size:12px; }
 
 .main-container {
-    padding: 20px var(--spacing-md) var(--spacing-xl);
-    max-width: 1200px;
-    margin: 0 auto;
-    position: relative;
-    z-index: 1;
+    padding:16px var(--spacing-md) var(--spacing-xl);
+    max-width:900px; margin:0 auto;
+    position:relative; z-index:1;
 }
 
-.loading {
-    text-align: center;
-    padding: var(--spacing-xl);
-}
-
+.loading { text-align:center; padding:var(--spacing-xl); }
 .loading-spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid rgba(0, 122, 255, 0.2);
-    border-top-color: var(--accent-blue);
-    border-radius: 50%;
-    animation: spin 1s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
-    margin: 0 auto var(--spacing-md);
+    width:44px; height:44px;
+    border:3px solid rgba(0,122,255,0.15);
+    border-top-color:var(--accent-blue);
+    border-radius:50%;
+    animation:spin 0.9s linear infinite;
+    margin:0 auto var(--spacing-md);
 }
+.state-title { font-size:18px; font-weight:700; margin-bottom:6px; }
+.state-description { color:var(--text-secondary); font-size:15px; font-weight:500; }
 
-@media (prefers-color-scheme: dark) {
-    .loading-spinner {
-        border-color: rgba(10, 132, 255, 0.3);
-        border-top-color: var(--accent-blue);
-    }
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-.state-title {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: var(--spacing-xs);
-    letter-spacing: -0.3px;
-}
-
-.state-description {
-    color: var(--text-secondary);
-    font-size: 15px;
-    font-weight: 500;
-    line-height: 1.5;
-}
-
-.view {
-    display: none;
-    animation: fadeInUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s backwards;
-}
-
-.view.active {
-    display: block;
-}
+.view { display:none; }
+.view.active { display:block; animation:fadeUp 0.5s var(--ease-spring) 0.05s backwards; }
 
 .section-title {
-    font-size: 18px;
-    font-weight: 700;
-    margin: var(--spacing-lg) 0 var(--spacing-md);
-    padding-left: 5px;
-    letter-spacing: -0.3px;
+    font-size:13px; font-weight:700;
+    text-transform:uppercase; letter-spacing:0.8px;
+    color:var(--text-tertiary);
+    margin:var(--spacing-lg) 0 var(--spacing-sm);
+    padding-left:4px;
+    display:flex; align-items:center; gap:8px;
 }
+.section-title i { font-size:11px; }
 
-.bus-item, .favorite-item, .destination-item, .stop-item {
-    background: var(--glass-bg-light);
-    backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    -webkit-backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    border: 1px solid var(--glass-border-light);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-lg);
-    margin-bottom: var(--spacing-sm);
-    cursor: pointer;
-    transition: var(--transition-smooth);
-    box-shadow: var(--glass-shadow-soft);
-    position: relative;
-    overflow: hidden;
-    opacity: 0;
-    transform: translateY(30px) scale(0.95);
-    animation: cardAppear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+.bus-item, .destination-item, .stop-item {
+    background:var(--glass-bg-light);
+    backdrop-filter:var(--glass-blur) saturate(180%);
+    -webkit-backdrop-filter:var(--glass-blur) saturate(180%);
+    border:1px solid var(--glass-border-light);
+    border-radius:var(--radius-md);
+    padding:var(--spacing-md) var(--spacing-lg);
+    margin-bottom:var(--spacing-sm);
+    cursor:pointer;
+    transition:all 0.3s var(--ease-spring);
+    box-shadow:var(--glass-shadow);
+    position:relative; overflow:hidden;
+    opacity:0; transform:translateY(20px) scale(0.97);
+    animation:cardIn 0.5s var(--ease-spring) forwards;
+    display:flex; align-items:center; gap:var(--spacing-md);
+    -webkit-tap-highlight-color:transparent;
 }
-
-@media (prefers-color-scheme: dark) {
-    .bus-item, .favorite-item, .destination-item, .stop-item {
-        background: var(--glass-bg-dark);
-        border-color: rgba(255, 255, 255, 0.15);
-    }
+.bus-item::after, .destination-item::after, .stop-item::after {
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(135deg,rgba(255,255,255,0.08),transparent);
+    opacity:0; transition:opacity 0.2s; pointer-events:none;
 }
-
-.bus-item::before, .destination-item::before, .stop-item::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 50%;
-    background: linear-gradient(to bottom,
-        rgba(255, 255, 255, 0.15) 0%,
-        rgba(255, 255, 255, 0.05) 50%,
-        rgba(255, 255, 255, 0) 100%);
-    pointer-events: none;
-    opacity: 0;
-    transition: var(--transition-standard);
-}
-
-@media (prefers-color-scheme: dark) {
-    .bus-item::before, .destination-item::before, .stop-item::before {
-        background: linear-gradient(to bottom,
-            rgba(255, 255, 255, 0.08) 0%,
-            rgba(255, 255, 255, 0.03) 50%,
-            rgba(255, 255, 255, 0) 100%);
-    }
-}
-
 .bus-item:active, .destination-item:active, .stop-item:active {
-    transform: scale(0.97);
-    box-shadow: var(--glass-shadow-pressed);
+    transform:scale(0.97); box-shadow:var(--glass-shadow-pressed);
 }
-
-.bus-item:active::before, .destination-item:active::before, .stop-item:active::before {
-    opacity: 1;
+.bus-item.pressing, .destination-item.pressing, .stop-item.pressing {
+    transform:scale(0.97); box-shadow:var(--glass-shadow-pressed);
 }
-
-.bus-number {
-    display: block;
-    align-items: center;
-    justify-content: center;
-    min-width: 48px;
-    padding: 0 14px;
-    border-radius: 10px;
-    font-weight: 700;
-    font-size: 18px;
-    margin-bottom: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15),
-                inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    padding: 2px 16px;
-}
-
-@media (prefers-color-scheme: dark) {
-    .bus-number {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+@media (hover:hover) {
+    .bus-item:hover, .destination-item:hover, .stop-item:hover {
+        transform:translateY(-3px) scale(1.01);
+        box-shadow:var(--glass-shadow-hover);
     }
+    .bus-item:hover::after, .destination-item:hover::after, .stop-item:hover::after { opacity:1; }
 }
 
-.bus-name {
-    font-size: 16px;
-    font-weight: 600;
-    vertical-align: middle;
+.bus-badge {
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:5px 14px;
+    border-radius:10px;
+    font-weight:800; font-size:16px;
+    flex-shrink:0;
+    box-shadow:0 4px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.25);
+    min-width:52px; text-align:center;
+    letter-spacing:-0.3px;
 }
+.bus-info { flex:1; min-width:0; }
+.bus-name { font-size:15px; font-weight:600; color:var(--text-secondary); margin-top:2px; }
+.bus-chevron { color:var(--text-tertiary); font-size:14px; flex-shrink:0; }
+
+.stop-item { flex-direction:column; align-items:flex-start; gap:8px; }
+.stop-header { display:flex; align-items:center; gap:10px; width:100%; }
+.stop-dot {
+    width:12px; height:12px; border-radius:50%;
+    background:var(--accent-blue);
+    box-shadow:0 0 0 3px var(--accent-blue-glow);
+    flex-shrink:0;
+}
+.stop-name { font-size:16px; font-weight:700; flex:1; }
+.stop-meta { font-size:13px; color:var(--text-secondary); font-weight:500; }
+.stop-map-preview { /* removed in favour of modal map */ }
+
+.destination-item { padding:var(--spacing-md) var(--spacing-lg); }
+.dest-icon {
+    width:40px; height:40px;
+    background:linear-gradient(135deg, rgba(0,122,255,0.12), rgba(139,92,246,0.1));
+    border-radius:var(--radius-sm);
+    display:flex; align-items:center; justify-content:center;
+    font-size:18px; flex-shrink:0;
+}
+.dest-name { font-size:16px; font-weight:700; }
+.dest-count { font-size:13px; color:var(--text-secondary); font-weight:500; margin-top:2px; }
 
 .favorite-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: linear-gradient(135deg, 
-        rgba(0, 122, 255, 0.1) 0%, 
-        rgba(168, 85, 247, 0.08) 100%);
+    background:linear-gradient(135deg, rgba(0,122,255,0.08), rgba(139,92,246,0.06));
+    backdrop-filter:var(--glass-blur) saturate(180%);
+    -webkit-backdrop-filter:var(--glass-blur) saturate(180%);
+    border:1px solid rgba(0,122,255,0.15);
+    border-radius:var(--radius-md);
+    padding:var(--spacing-md) var(--spacing-lg);
+    margin-bottom:var(--spacing-sm);
+    cursor:pointer;
+    display:flex; justify-content:space-between; align-items:center;
+    gap:var(--spacing-md);
+    transition:all 0.3s var(--ease-spring);
+    box-shadow:var(--glass-shadow);
+    opacity:0; transform:translateY(20px);
+    animation:cardIn 0.5s var(--ease-spring) forwards;
 }
+.favorite-item:active { transform:scale(0.97); }
+@media (hover:hover) { .favorite-item:hover { transform:translateY(-3px); box-shadow:var(--glass-shadow-hover); } }
+.fav-badge {
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:3px 10px; border-radius:8px;
+    font-weight:800; font-size:13px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.15);
+}
+.favorite-info { flex:1; min-width:0; }
+.favorite-route { font-weight:700; font-size:15px; margin-bottom:3px; display:flex; align-items:center; gap:8px; }
+.favorite-details { font-size:13px; color:var(--text-secondary); font-weight:500; }
+.favorite-next {
+    text-align:right; min-width:80px;
+}
+.favorite-next-time {
+    font-size:22px; font-weight:800;
+    color:var(--accent-blue); letter-spacing:-0.5px;
+    line-height:1;
+}
+.favorite-next-label { font-size:11px; color:var(--text-tertiary); font-weight:600; text-transform:uppercase; margin-top:2px; }
 
-@media (prefers-color-scheme: dark) {
-    .favorite-item {
-        background: linear-gradient(135deg, 
-            rgba(10, 132, 255, 0.15) 0%, 
-            rgba(167, 139, 250, 0.12) 100%);
-    }
+.chips-row {
+    display:flex; gap:8px; flex-wrap:wrap;
+    margin-bottom:var(--spacing-md);
 }
-
-.favorite-info {
-    flex: 1;
-    min-width: 0;
+.chip {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:7px 14px;
+    background:var(--glass-bg-light);
+    backdrop-filter:blur(12px);
+    border:1px solid var(--glass-border-light);
+    border-radius:var(--radius-pill);
+    font-size:13px; font-weight:600;
+    color:var(--text-secondary);
+    box-shadow:var(--glass-shadow);
+    cursor:pointer;
+    transition:all 0.2s var(--ease-smooth);
+    -webkit-tap-highlight-color:transparent;
 }
-
-.favorite-route {
-    font-weight: 700;
-    font-size: 16px;
-    margin-bottom: 4px;
+.chip i { font-size:12px; }
+.chip.active {
+    background:var(--accent-blue);
+    border-color:transparent;
+    color:#fff;
+    box-shadow:0 4px 16px var(--accent-blue-glow);
 }
-
-.favorite-details {
-    font-size: 13px;
-    color: var(--text-secondary);
-    font-weight: 500;
-}
-
-.favorite-times {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--accent-blue);
-    min-width: 100px;
-    text-align: right;
-}
+.chip:active { transform:scale(0.95); }
 
 .tabs {
-    display: flex;
-    gap: 8px;
-    background: rgba(0, 0, 0, 0.05);
-    padding: 6px;
-    border-radius: 14px;
-    margin-bottom: var(--spacing-lg);
-    position: relative;
+    display:flex; gap:6px;
+    background:rgba(0,0,0,0.05);
+    padding:5px; border-radius:14px;
+    margin-bottom:var(--spacing-md);
+    position:relative;
 }
-
-@media (prefers-color-scheme: dark) {
-    .tabs {
-        background: rgba(255, 255, 255, 0.1);
-    }
-}
-
+@media (prefers-color-scheme:dark) { .tabs { background:rgba(255,255,255,0.08); } }
 .tab {
-    flex: 1;
-    padding: 12px;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    border-radius: 10px;
-    cursor: pointer;
-    transition: var(--transition-standard);
-    font-weight: 600;
-    font-size: 14px;
-    position: relative;
-    z-index: 1;
-    font-family: 'League Spartan', sans-serif;
+    flex:1; padding:11px 8px;
+    border:none; background:transparent;
+    color:var(--text-secondary);
+    border-radius:10px; cursor:pointer;
+    transition:all 0.25s var(--ease-smooth);
+    font-weight:600; font-size:14px;
+    position:relative; z-index:1;
+    font-family:'League Spartan',sans-serif;
 }
-
-.tab.active {
-    color: var(--text-primary);
-}
-
+.tab.active { color:var(--text-primary); }
 .tab-indicator {
-    position: absolute;
-    top: 6px;
-    left: 6px;
-    height: calc(100% - 12px);
-    background: var(--glass-bg-light);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--glass-border-light);
-    border-radius: 10px;
-    transition: var(--transition-standard);
-    box-shadow: var(--glass-shadow-soft);
+    position:absolute; top:5px; left:5px;
+    height:calc(100% - 10px);
+    background:var(--glass-bg-light);
+    border:1px solid var(--glass-border-light);
+    border-radius:10px;
+    transition:all 0.3s var(--ease-smooth);
+    box-shadow:var(--glass-shadow);
 }
 
-@media (prefers-color-scheme: dark) {
-    .tab-indicator {
-        background: var(--glass-bg-dark);
-        border-color: rgba(255, 255, 255, 0.2);
-    }
+.date-picker {
+    background:var(--glass-bg-light);
+    backdrop-filter:var(--glass-blur) saturate(180%);
+    -webkit-backdrop-filter:var(--glass-blur) saturate(180%);
+    border:1.5px solid transparent;
+    border-radius:var(--radius-sm);
+    padding:13px 16px;
+    color:var(--text-primary);
+    font-family:'League Spartan',sans-serif;
+    font-size:15px; font-weight:600;
+    margin-bottom:var(--spacing-md);
+    cursor:pointer;
+    transition:all 0.25s;
+    box-shadow:var(--glass-shadow);
+    outline:none;
 }
-
-.date-picker, .destination-select {
-    background: var(--glass-bg-light);
-    backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    -webkit-backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    border: 2px solid transparent;
-    border-radius: var(--radius-sm);
-    padding: 14px 16px;
-    color: var(--text-primary);
-    font-family: 'League Spartan', sans-serif;
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: var(--spacing-lg);
-    cursor: pointer;
-    transition: var(--transition-standard);
-    box-shadow: var(--glass-shadow-soft);
+.date-picker:focus {
+    border-color:var(--accent-blue);
+    box-shadow:0 0 0 4px var(--accent-blue-glow);
 }
+@media (prefers-color-scheme:dark) { .date-picker { color-scheme:dark; } }
 
-@media (prefers-color-scheme: dark) {
-    .date-picker, .destination-select {
-        background: var(--glass-bg-dark);
-        border-color: rgba(255, 255, 255, 0.1);
-        color-scheme: dark;
-    }
+.next-departure-banner {
+    background:linear-gradient(135deg, rgba(52,199,89,0.12), rgba(0,122,255,0.1));
+    border:1px solid rgba(52,199,89,0.25);
+    border-radius:var(--radius-md);
+    padding:var(--spacing-md) var(--spacing-lg);
+    margin-bottom:var(--spacing-md);
+    display:flex; align-items:center; gap:var(--spacing-md);
+    animation:bounceIn 0.5s var(--ease-spring);
 }
-
-.date-picker:focus, .destination-select:focus {
-    outline: none;
-    border-color: var(--accent-blue);
-    box-shadow: 0 0 0 4px var(--accent-blue-glow);
-    transform: scale(1.01);
+.next-dep-icon {
+    width:44px; height:44px;
+    background:var(--accent-green);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px; color:#fff;
+    animation:nextBusPulse 2s ease-in-out infinite;
+    flex-shrink:0;
 }
+.next-dep-info { flex:1; }
+.next-dep-label { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--accent-green); }
+.next-dep-time { font-size:28px; font-weight:800; letter-spacing:-1px; line-height:1.1; }
+.next-dep-countdown { font-size:13px; color:var(--text-secondary); font-weight:500; }
 
-.destination-select option {
-    background: white;
-    color: black;
-}
-
-@media (prefers-color-scheme: dark) {
-    .destination-select option {
-        background: #1c1c1e;
-        color: white;
-    }
-}
-
-.schedule-content {
-    display: none;
-}
-
-.schedule-content.active {
-    display: block;
-}
-
-.schedule-group {
-    margin-bottom: var(--spacing-lg);
-}
-
+.schedule-content { display:none; }
+.schedule-content.active { display:block; }
+.schedule-group { margin-bottom:var(--spacing-lg); }
 .schedule-hour {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: var(--spacing-sm);
-    padding-left: 5px;
-    color: var(--accent-blue);
-    letter-spacing: -0.3px;
+    font-size:22px; font-weight:800;
+    margin-bottom:10px; padding-left:4px;
+    color:var(--accent-blue); letter-spacing:-0.5px;
 }
-
-.schedule-times {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
+.schedule-times { display:flex; flex-wrap:wrap; gap:8px; }
 .schedule-time {
-    background: var(--glass-bg-light);
-    backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    -webkit-backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    border: 1px solid var(--glass-border-light);
-    border-radius: 10px;
-    padding: 10px 16px;
-    font-weight: 700;
-    font-size: 15px;
-    transition: var(--transition-smooth);
-    box-shadow: var(--glass-shadow-soft);
-    cursor: pointer;
+    background:var(--glass-bg-light);
+    backdrop-filter:var(--glass-blur) saturate(180%);
+    -webkit-backdrop-filter:var(--glass-blur) saturate(180%);
+    border:1px solid var(--glass-border-light);
+    border-radius:10px;
+    padding:10px 16px;
+    font-weight:700; font-size:15px;
+    transition:all 0.25s var(--ease-spring);
+    box-shadow:var(--glass-shadow);
+    cursor:pointer;
+    position:relative; overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
 }
+.schedule-time.is-next {
+    background:linear-gradient(135deg, rgba(52,199,89,0.2), rgba(0,122,255,0.12));
+    border-color:rgba(52,199,89,0.3);
+    color:var(--accent-green);
+    box-shadow:0 4px 16px rgba(52,199,89,0.2), var(--glass-shadow);
+    animation:nextBusPulse 2s ease-in-out infinite;
+}
+.schedule-time.is-past { opacity:0.35; }
+.schedule-time:active { transform:scale(0.93); box-shadow:var(--glass-shadow-pressed); }
+@media (hover:hover) { .schedule-time:hover { transform:scale(1.06); box-shadow:var(--glass-shadow-hover); } }
 
-@media (prefers-color-scheme: dark) {
-    .schedule-time {
-        background: var(--glass-bg-dark);
-        border-color: rgba(255, 255, 255, 0.15);
-    }
+.map-section {
+    border-radius:var(--radius-lg);
+    overflow:hidden;
+    margin-bottom:var(--spacing-md);
+    box-shadow:var(--glass-shadow-hover);
+    position:relative;
+    animation:mapReveal 0.5s var(--ease-spring);
+    border:1px solid var(--glass-border-light);
+    background:var(--glass-bg-light);
 }
-
-.schedule-time:active {
-    transform: scale(0.94);
-    box-shadow: var(--glass-shadow-pressed);
+.map-header {
+    padding:12px 16px;
+    display:flex; align-items:center; gap:10px;
+    background:var(--glass-bg-light);
+    backdrop-filter:var(--glass-blur) saturate(180%);
+    border-bottom:1px solid var(--glass-border-light);
 }
-
-@keyframes fabPulse {
-    0%, 100% {
-        box-shadow: 0 12px 40px rgba(0, 122, 255, 0.4),
-                    0 4px 12px rgba(0, 0, 0, 0.15),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    }
-    50% {
-        box-shadow: 0 16px 56px rgba(0, 122, 255, 0.5),
-                    0 6px 16px rgba(0, 0, 0, 0.2),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    }
+.map-header-icon {
+    width:32px; height:32px;
+    background:linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:15px;
 }
-
-@keyframes favoritePulse {
-    0%, 100% {
-        box-shadow: 0 12px 40px rgba(255, 59, 48, 0.3),
-                    0 4px 12px rgba(0, 0, 0, 0.15),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    }
-    50% {
-        box-shadow: 0 16px 56px rgba(255, 59, 48, 0.4),
-                    0 6px 16px rgba(0, 0, 0, 0.2),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    }
+.map-header-text { flex:1; }
+.map-header-text strong { font-size:14px; font-weight:700; display:block; }
+.map-header-text span { font-size:12px; color:var(--text-secondary); font-weight:500; }
+.map-toggle-btn {
+    padding:6px 14px;
+    background:var(--accent-blue);
+    color:#fff; border:none; border-radius:var(--radius-pill);
+    font-family:'League Spartan',sans-serif;
+    font-size:13px; font-weight:700;
+    cursor:pointer; transition:all 0.2s;
 }
+.map-toggle-btn:active { transform:scale(0.95); opacity:0.85; }
+#stop-map {
+    height:220px;
+    transition:height 0.4s var(--ease-smooth);
+}
+#stop-map.expanded { height:360px; }
+.map-collapsed { display:none; }
 
 .realtime-item {
-    background: var(--glass-bg-light);
-    backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    -webkit-backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    border: 1px solid var(--glass-border-light);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-md);
-    margin-bottom: var(--spacing-sm);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: var(--transition-smooth);
-    box-shadow: var(--glass-shadow-soft);
-    cursor: pointer;
+    background:var(--glass-bg-light);
+    backdrop-filter:var(--glass-blur) saturate(180%);
+    -webkit-backdrop-filter:var(--glass-blur) saturate(180%);
+    border:1px solid var(--glass-border-light);
+    border-radius:var(--radius-md);
+    padding:var(--spacing-md);
+    margin-bottom:var(--spacing-sm);
+    display:flex; justify-content:space-between; align-items:center;
+    transition:all 0.25s var(--ease-spring);
+    box-shadow:var(--glass-shadow);
+    cursor:pointer;
+    gap:var(--spacing-md);
 }
-
-@media (prefers-color-scheme: dark) {
-    .realtime-item {
-        background: var(--glass-bg-dark);
-        border-color: rgba(255, 255, 255, 0.15);
-    }
+.realtime-item:active { transform:scale(0.97); }
+@media (hover:hover) { .realtime-item:hover { transform:translateY(-3px); box-shadow:var(--glass-shadow-hover); } }
+.realtime-bus-id {
+    font-size:12px; font-weight:700;
+    color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.5px;
+    margin-bottom:2px;
 }
-
-.realtime-item:active {
-    transform: scale(0.97);
-    box-shadow: var(--glass-shadow-pressed);
-}
-
-.realtime-destination {
-    font-weight: 700;
-    font-size: 16px;
-}
-
+.realtime-destination { font-weight:700; font-size:15px; }
 .realtime-time {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--accent-blue);
+    font-size:22px; font-weight:800;
+    color:var(--accent-blue); letter-spacing:-0.5px;
+    text-align:right;
+}
+.realtime-in {
+    font-size:12px; color:var(--accent-green); font-weight:700;
+    text-align:right;
+}
+.rt-live-badge {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:3px 10px;
+    background:rgba(255,59,48,0.1);
+    border:1px solid rgba(255,59,48,0.2);
+    border-radius:var(--radius-pill);
+    font-size:11px; font-weight:700;
+    color:var(--accent-red); text-transform:uppercase; letter-spacing:0.5px;
+    margin-bottom:var(--spacing-sm);
+}
+.rt-live-dot {
+    width:6px; height:6px; border-radius:50%;
+    background:var(--accent-red);
+    animation:pulse 1.2s ease-in-out infinite;
 }
 
 .empty-state {
-    background: var(--glass-bg-light);
-    backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    -webkit-backdrop-filter: var(--glass-blur-mobile) saturate(180%);
-    border: 1px solid var(--glass-border-light);
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-xl) var(--spacing-lg);
-    box-shadow: var(--glass-shadow-soft);
-    text-align: center;
-    animation: fadeInUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    background:var(--glass-bg-light);
+    backdrop-filter:var(--glass-blur) saturate(180%);
+    -webkit-backdrop-filter:var(--glass-blur) saturate(180%);
+    border:1px solid var(--glass-border-light);
+    border-radius:var(--radius-lg);
+    padding:var(--spacing-xl) var(--spacing-lg);
+    box-shadow:var(--glass-shadow);
+    text-align:center;
+    animation:fadeUp 0.5s var(--ease-spring);
 }
-
-@media (prefers-color-scheme: dark) {
-    .empty-state {
-        background: var(--glass-bg-dark);
-        border-color: rgba(255, 255, 255, 0.15);
-    }
-}
-
 .empty-state-icon {
-    width: 80px;
-    height: 80px;
-    margin: 0 auto var(--spacing-md);
-    background: linear-gradient(135deg, 
-        rgba(0, 122, 255, 0.12) 0%, 
-        rgba(168, 85, 247, 0.08) 100%);
-    border-radius: 50%;
+    width:72px; height:72px;
+    margin:0 auto var(--spacing-md);
+    background:linear-gradient(135deg, rgba(0,122,255,0.1), rgba(139,92,246,0.08));
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:32px;
+}
+
+
+#rt-overlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.45); z-index:9998;
+    backdrop-filter:blur(4px);
+}
+#rt-panel {
+    display:none; position:fixed;
+    left:50%; top:60px; transform:translateX(-50%);
+    width:min(720px, calc(100vw - 24px));
+    max-height:calc(100vh - 120px);
+    background:rgba(16,14,48,0.95);
+    border:1px solid rgba(255,255,255,0.18);
+    border-radius:var(--radius-xl);
+    box-shadow:0 16px 48px rgba(0,0,0,0.5);
+    z-index:9999; overflow:hidden;
+    backdrop-filter:blur(24px);
+    color:#fff;
+}
+.rt-panel-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px;
+    border-bottom:1px solid rgba(255,255,255,0.12);
+    gap:12px;
+}
+#rt-panel-title { font-weight:800; font-size:16px; }
+#rt-panel-close {
+    cursor:pointer; border:none;
+    background:rgba(255,255,255,0.12);
+    color:#fff; border:1px solid rgba(255,255,255,0.18);
+    border-radius:var(--radius-md);
+    width:38px; height:38px; font-size:16px;
+    display:flex; align-items:center; justify-content:center;
+}
+#rt-panel-content { padding:14px 18px; overflow:auto; max-height:calc(100vh - 190px); }
+
+.skeleton {
+    background:linear-gradient(90deg, var(--glass-bg-light) 25%, rgba(255,255,255,0.15) 50%, var(--glass-bg-light) 75%);
+    background-size:200% 100%;
+    animation:shimmer 1.5s infinite;
+    border-radius:10px; height:72px;
+    margin-bottom:var(--spacing-sm);
+    border:1px solid var(--glass-border-light);
+}
+
+.toast-container {
+    position:fixed; bottom:24px; left:50%;
+    transform:translateX(-50%);
+    z-index:9999;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    pointer-events:none;
+}
+.toast {
+    background:rgba(28,28,30,0.92);
+    color:#fff;
+    padding:12px 20px;
+    border-radius:var(--radius-pill);
+    font-size:14px; font-weight:600;
+    display:flex; align-items:center; gap:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.3);
+    animation:bounceIn 0.4s var(--ease-spring);
+    white-space:nowrap;
+}
+@media (prefers-color-scheme:dark) {
+    .toast { background:rgba(60,60,66,0.95); }
+}
+
+.leaflet-container {
+    font-family:'League Spartan',sans-serif !important;
+    background:#e8edf5 !important;
+}
+@media (prefers-color-scheme:dark) { .leaflet-container { background:#1a1a2e !important; } }
+.custom-bus-marker {
+    background:var(--accent-blue);
+    width:36px; height:36px;
+    border-radius:50%;
+    border:3px solid #fff;
+    box-shadow:0 4px 16px rgba(0,122,255,0.5);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:16px;
+}
+.leaflet-popup-content-wrapper {
+    border-radius:var(--radius-md) !important;
+    font-family:'League Spartan',sans-serif !important;
+    font-weight:600 !important;
+    padding:4px !important;
+}
+
+.destination-select {
+    width:100%;
+    background:var(--glass-bg-light);
+    backdrop-filter:var(--glass-blur) saturate(180%);
+    -webkit-backdrop-filter:var(--glass-blur) saturate(180%);
+    border:1.5px solid transparent;
+    border-radius:var(--radius-sm);
+    padding:13px 16px;
+    color:var(--text-primary);
+    font-family:'League Spartan',sans-serif;
+    font-size:15px; font-weight:600;
+    margin-bottom:var(--spacing-md);
+    cursor:pointer;
+    transition:all 0.25s;
+    box-shadow:var(--glass-shadow);
+    outline:none;
+}
+.destination-select:focus {
+    border-color:var(--accent-blue);
+    box-shadow:0 0 0 4px var(--accent-blue-glow);
+}
+@media (prefers-color-scheme:dark) { .destination-select { color-scheme:dark; } }
+.destination-select option { background:white; color:black; }
+@media (prefers-color-scheme:dark) { .destination-select option { background:#1c1c1e; color:white; } }
+
+.hidden { display:none !important; }
+
+.schedule-divider {
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 36px;
+    gap: 10px;
+    margin: 12px 0;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--accent-blue);
 }
-
-@media (prefers-color-scheme: dark) {
-    .empty-state-icon {
-        background: linear-gradient(135deg, 
-            rgba(10, 132, 255, 0.18) 0%, 
-            rgba(167, 139, 250, 0.12) 100%);
-    }
+.schedule-divider::before, .schedule-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(0,122,255,0.2);
 }
-
-@media (min-width: 769px) and (max-width: 1024px) {
-    .header {
-        top: var(--spacing-lg);
-        margin: var(--spacing-lg) var(--spacing-lg) 0;
-    }
-}
-
-@media (min-width: 1025px) {
-    .header {
-        top: var(--spacing-xl);
-        margin: var(--spacing-xl) var(--spacing-xl) 0;
-    }
-    
-    .bus-item:hover, .destination-item:hover, .stop-item:hover, .realtime-item:hover {
-        transform: translateY(-4px) scale(1.01);
-        box-shadow: var(--glass-shadow-hover);
-    }
-    
-    .back-btn:hover {
-        transform: scale(1.05);
-        box-shadow: var(--glass-shadow-hover);
-    }
-    
-    .schedule-time:hover {
-        transform: scale(1.05);
-        box-shadow: var(--glass-shadow-hover);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    * {
-        animation-duration: 0.01ms !important;
-        transition-duration: 0.01ms !important;
-    }
-}
-
-.hidden {
-    display: none;
-}
-
 </style>
 </head>
 <body>
-    <div class="header gpu-accelerated">
-        <div class="header-glass">
-            <button class="back-btn" id="back-btn">
-                <i class="fas fa-arrow-left"></i>
-            </button>
-            <button class="favorite-schedule-btn" id="favorite-schedule-btn" aria-label="Ajouter cet horaire aux favoris" title="Ajouter cet horaire aux favoris" style="display:none;">
-                <i class="fas fa-star"></i>
-            </button>
-            <div class="header-icon">
-                <i class="fas fa-bus"></i>
-            </div>
-            <div class="header-text">
-                <h1 id="header-title">My Bus Schedule</h1>
-                <p id="header-subtitle">Sélectionnez une ligne</p>
-            </div>
+
+<div class="header" id="app-header">
+    <div class="header-glass">
+        <button class="btn-circle hidden" id="back-btn" aria-label="Retour" data-i18n-aria="back">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+        <button class="btn-circle hidden" id="favorite-schedule-btn" aria-label="Favoris" data-i18n-aria="favorites">
+            <i class="fas fa-star"></i>
+        </button>
+        <div class="header-icon"><i class="fas fa-bus"></i></div>
+        <div class="header-text">
+            <h1 id="header-title" data-i18n="app_title">My Bus Schedule</h1>
+            <p id="header-subtitle" data-i18n="select_line">Sélectionnez une ligne</p>
         </div>
     </div>
+</div>
 
-    <main class="main-container">
-        <div id="loading" class="loading">
-            <div class="loading-spinner"></div>
-            <div class="state-title">Chargement</div>
-            <div class="state-description">Récupération des données...</div>
+<main class="main-container">
+
+    <div id="loading" class="loading">
+        <div class="loading-spinner"></div>
+        <div class="state-title" data-i18n="loading_title">Chargement</div>
+        <div class="state-description" data-i18n="loading_description">Récupération des données GTFS…</div>
+    </div>
+
+    <div id="lines-view" class="view">
+        <div id="favorites-section" style="display:none;">
+            <div class="section-title"><i class="fas fa-star"></i> <span data-i18n="favorites">Favoris</span></div>
+            <div id="favorites-list"></div>
         </div>
+        <div class="search-bar-container" id="lines-search-wrap">
+            <i class="fas fa-search search-icon"></i>
+            <input type="search" class="search-bar" id="lines-search" data-i18n-placeholder="search_line" placeholder="Rechercher une ligne…" autocomplete="off">
+            <button class="search-clear" id="lines-search-clear" aria-label="Effacer" data-i18n-aria="clear">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="section-title"><i class="fas fa-route"></i> <span data-i18n="all_lines">Toutes les lignes</span></div>
+        <div id="lines-list"></div>
+    </div>
 
-        <div id="lines-view" class="view">
-            <div id="favorites-section" style="display: none;">
-                <div class="section-title"><i class="fas fa-star"></i> Favoris</div>
-                <div id="favorites-list"></div>
+    <div id="destinations-view" class="view">
+        <div id="breadcrumb-dest" class="breadcrumb"></div>
+        <div class="section-title"><i class="fas fa-location-arrow"></i> <span data-i18n="choose_destination">Choisissez une destination</span></div>
+        <div id="destinations-list"></div>
+    </div>
+
+    <div id="stops-view" class="view">
+        <div id="breadcrumb-stops" class="breadcrumb"></div>
+        <select class="destination-select" id="destination-select">
+            <option value="" data-i18n="choose_destination_option">Choisir une destination</option>
+        </select>
+        <div class="search-bar-container">
+            <i class="fas fa-search search-icon"></i>
+            <input type="search" class="search-bar" id="stops-search" data-i18n-placeholder="search_stop" placeholder="Rechercher un arrêt…" autocomplete="off">
+            <button class="search-clear" id="stops-search-clear" aria-label="Effacer" data-i18n-aria="clear"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="section-title"><i class="fas fa-map-marker-alt"></i> <span data-i18n="stops">Arrêts</span></div>
+        <div id="stops-list"></div>
+    </div>
+
+    <div id="schedule-view" class="view">
+        <div id="breadcrumb-schedule" class="breadcrumb"></div>
+
+        <div class="map-section" id="map-section">
+            <div class="map-header">
+                <div class="map-header-text">
+                </div>
+                <button class="map-toggle-btn" id="map-expand-btn" data-i18n="map_expand">Agrandir</button>
             </div>
-            <div id="lines-list"></div>
+            <div id="stop-map"></div>
         </div>
 
-        <div id="destinations-view" class="view">
-            <div class="section-title">Sélectionnez une destination</div>
-            <div id="destinations-list"></div>
+        <div class="tabs">
+            <div class="tab-indicator"></div>
+            <button class="tab active" data-tab="theoretical"><i class="fas fa-clock"></i> <span data-i18n="tab_schedule">Horaires</span></button>
+            <button class="tab" data-tab="realtime"><i class="fas fa-satellite-dish"></i> <span data-i18n="tab_realtime">Temps réel</span></button>
         </div>
 
-        <div id="stops-view" class="view">
-            <select class="destination-select" id="destination-select">
-                <option value="">Choisir une destination</option>
-            </select>
-            <div class="section-title">Arrêts</div>
-            <div id="stops-list"></div>
-        </div>
+        <input type="date" class="date-picker" id="date-picker">
 
-        <div id="schedule-view" class="view">
-            <div class="tabs">
-                <div class="tab-indicator"></div>
-                <button class="tab active" data-tab="theoretical">Horaires théoriques</button>
-                <button class="tab" data-tab="realtime">Temps réel</button>
-            </div>
+        <div id="theoretical-content" class="schedule-content active"></div>
+        <div id="realtime-content" class="schedule-content"></div>
+    </div>
 
-            <input type="date" class="date-picker" id="date-picker">
+</main>
 
-            <div id="theoretical-content" class="schedule-content active"></div>
-            <div id="realtime-content" class="schedule-content"></div>
-        </div>
-    </main>
+<div id="rt-overlay"></div>
+<div id="rt-panel">
+    <div class="rt-panel-header">
+        <div id="rt-panel-title" data-i18n="details">Détails</div>
+        <button id="rt-panel-close"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="rt-panel-content"></div>
+</div>
 
-    <script>
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+
+        const i18n = {
+    translations: {},
+    currentLang: 'fr',
+    supportedLanguages: ['fr', 'it', 'ar', 'en'],
+    defaultLang: 'fr',
+    
+    getBrowserLanguage() {
+        const fullLang = navigator.language || navigator.userLanguage;
+        const primaryLang = fullLang.split('-')[0];
+        
+        if (this.supportedLanguages.includes(primaryLang)) {
+        return primaryLang;
+        }
+        
+        return this.defaultLang;
+    },
+    
+    getLanguageFromUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const lang = urlParams.get('lang');
+        return lang || localStorage.getItem('preferredLanguage') || this.defaultLang;
+    },
+    
+    async loadTranslations() {
+        this.currentLang = this.getLanguageFromUrl();
+        localStorage.setItem('preferredLanguage', this.currentLang);
+        
+        try {
+        const response = await fetch(`../locales/${this.currentLang}.json`);
+        this.translations = await response.json();
+        document.dispatchEvent(new CustomEvent('translationsLoaded'));
+        return this.translations;
+        } catch (error) {
+        console.error("Erreur lors du chargement des traductions:", error);
+        return {};
+        }
+    },
+    
+    t(key, params = {}) {
+        let text = this.translations[key] || key;
+        
+        Object.keys(params).forEach(param => {
+        text = text.replace(`{${param}}`, params[param]);
+        });
+        
+        return text;
+    },
+    
+    applyTranslations() {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (this.translations[key]) el.innerHTML = this.translations[key];
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            const key = el.getAttribute('data-i18n-placeholder');
+            if (this.translations[key]) el.placeholder = this.translations[key];
+        });
+        document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+            const key = el.getAttribute('data-i18n-aria');
+            if (this.translations[key]) el.setAttribute('aria-label', this.translations[key]);
+        });
+    },
+    
+    addLangToUrl() {
+        const browserLang = this.getBrowserLanguage();
+        
+        if (browserLang !== this.defaultLang) {
+        const currentUrl = new URL(window.location.href);
+        if (!currentUrl.searchParams.has('lang')) {
+            currentUrl.searchParams.set('lang', browserLang);
+            window.history.replaceState({}, '', currentUrl.toString());
+        }
+        }
+        
+        return browserLang;
+    },
+    
+    init() {
+        const detectedLang = this.addLangToUrl();
+        const urlLang = new URLSearchParams(window.location.search).get('lang');
+        
+        if (!localStorage.getItem('preferredLanguage')) {
+        localStorage.setItem('preferredLanguage', urlLang || detectedLang);
+        }
+        
+        return this.loadTranslations();
+    }
+    };
+
+    window.t = (key, params) => i18n.t(key, params);
+
+    function waitForTranslations() {
+    return new Promise(resolve => {
+        if (Object.keys(i18n.translations).length > 0) {
+        resolve();
+        } else {
+        document.addEventListener('translationsLoaded', () => resolve(), { once: true });
+        }
+    });
+    }
+
+
 const __ACTIVE_NETWORK = localStorage.getItem('activeNetwork') || 'palmbus';
 const __NETWORK_BASE = `networks/${__ACTIVE_NETWORK}`;
 const GTFS_API_URL = `${__NETWORK_BASE}/proxy-cors/proxy_gtfs.php`;
 const GTFS_RT_URL = `${__NETWORK_BASE}/proxy-cors/proxy_tripupdate.php`;
 const CACHE_TTL = 24 * 60 * 60 * 1000;
-const CACHE_VERSION = '1.1';
+const CACHE_VERSION = '1.2';
 const CACHE_NAMESPACE = `gtfs_${__ACTIVE_NETWORK}`;
 
 const state = {
-    routes: {},
-    stops: {},
-    trips: {},
-    stopTimes: {},
-    calendar: {},
-    calendarDates: {},
+    routes: {}, stops: {}, trips: {}, stopTimes: {},
+    calendar: {}, calendarDates: {},
     viewHistory: [],
-    currentRoute: null,
-    currentStop: null,
-    currentDestination: null,
-    coreLoaded: false,
-    realtimeInterval: null,
-    loadedRoutes: new Set()
+    currentRoute: null, currentStop: null, currentDestination: null,
+    coreLoaded: false, realtimeInterval: null, loadedRoutes: new Set()
 };
-
 const cache = {
-    serviceIds: new Map(),
-    scheduleData: new Map(),
-    destinations: new Map(),
-    stops: new Map()
+    serviceIds: new Map(), scheduleData: new Map(),
+    destinations: new Map(), stops: new Map()
 };
 
-function getFavoriteSchedulesStorageKey() {
-    return `favoriteSchedules_${__ACTIVE_NETWORK}`;
+let leafletMap = null;
+let sheetMap = null;
+let mapMarker = null;
+let mapExpanded = false;
+
+function showToast(msg, icon = '✓', dur = 2500) {
+    const c = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+    c.appendChild(t);
+    setTimeout(() => {
+        t.style.opacity = '0';
+        t.style.transform = 'scale(0.8)';
+        t.style.transition = 'all 0.3s ease';
+        setTimeout(() => t.remove(), 350);
+    }, dur);
 }
 
+function getFavKey() { return `favoriteSchedules_${__ACTIVE_NETWORK}`; }
 function getFavoriteSchedules() {
-    const key = getFavoriteSchedulesStorageKey();
-    const raw = localStorage.getItem(key) || localStorage.getItem('favoriteSchedules');
-    try {
-        return JSON.parse(raw || '[]');
-    } catch (e) {
-        return [];
-    }
+    try { return JSON.parse(localStorage.getItem(getFavKey()) || '[]'); } catch { return []; }
 }
-
-function saveFavoriteSchedules(items) {
-    const key = getFavoriteSchedulesStorageKey();
-    localStorage.setItem(key, JSON.stringify(items));
-}
-
-function getFavoriteScheduleId(routeId, stopId, destinationId) {
-    return `${routeId}::${stopId}::${destinationId}`;
-}
-
-function isCurrentScheduleFavorite() {
+function saveFavoriteSchedules(items) { localStorage.setItem(getFavKey(), JSON.stringify(items)); }
+function getFavId(r, s, d) { return `${r}::${s}::${d}`; }
+function isCurrentFavorite() {
     if (!state.currentRoute || !state.currentStop || !state.currentDestination) return false;
-    return getFavoriteSchedules().some(item =>
-        getFavoriteScheduleId(item.routeId, item.stopId, item.destinationId) ===
-        getFavoriteScheduleId(state.currentRoute, state.currentStop, state.currentDestination)
-    );
+    return getFavoriteSchedules().some(i => getFavId(i.routeId, i.stopId, i.destinationId) === getFavId(state.currentRoute, state.currentStop, state.currentDestination));
 }
-
 function updateFavoriteButtonState() {
     const btn = document.getElementById('favorite-schedule-btn');
     if (!btn) return;
-    
-    // Only show button if we're in the schedule view
-    const scheduleView = document.getElementById('schedule-view');
-    const isInScheduleView = scheduleView && scheduleView.classList.contains('active');
-    
-    const isFavorite = isCurrentScheduleFavorite();
-    btn.style.display = isInScheduleView && state.currentRoute && state.currentStop && state.currentDestination ? 'flex' : 'none';
-    btn.classList.toggle('active', isFavorite);
-    btn.title = isFavorite ? 'Retirer cet horaire des favoris' : 'Ajouter cet horaire aux favoris';
-    
-    // Animation subtile pour indiquer le changement d'état
-    if (btn.style.display !== 'none') {
-        btn.style.animation = 'none';
-        setTimeout(() => {
-            btn.style.animation = isFavorite ? 'favoritePulse 0.6s ease-out' : 'fabPulse 0.6s ease-out';
-        }, 10);
+    const inSchedule = document.getElementById('schedule-view')?.classList.contains('active');
+    const show = inSchedule && state.currentRoute && state.currentStop && state.currentDestination;
+    btn.classList.toggle('hidden', !show);
+    btn.classList.toggle('fav-active', isCurrentFavorite());
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = isCurrentFavorite() ? 'fas fa-star' : 'far fa-star';
+}
+function toggleFavoriteSchedule() {
+    if (!state.currentRoute || !state.currentStop || !state.currentDestination) return;
+    const favs = getFavoriteSchedules();
+    const id = getFavId(state.currentRoute, state.currentStop, state.currentDestination);
+    const idx = favs.findIndex(i => getFavId(i.routeId, i.stopId, i.destinationId) === id);
+    const route = state.routes[state.currentRoute] || {};
+    const stop = state.stops[state.currentStop] || {};
+    const dest = state.stops[state.currentDestination] || {};
+    if (idx !== -1) {
+        favs.splice(idx, 1);
+        showToast('Retiré des favoris', '★');
+    } else {
+        favs.unshift({
+            routeId: state.currentRoute, stopId: state.currentStop,
+            destinationId: state.currentDestination,
+            routeName: route.route_short_name || route.route_long_name || state.currentRoute,
+            routeColor: route.route_color || '007AFF',
+            routeTextColor: route.route_text_color || 'FFFFFF',
+            stopName: stop.stop_name || state.currentStop,
+            destinationName: dest.stop_name || state.currentDestination,
+            updatedAt: Date.now()
+        });
+        showToast('Ajouté aux favoris', '⭐');
     }
+    saveFavoriteSchedules(favs);
+    updateFavoriteButtonState();
+    renderFavoritesList();
+    if (window.parent && window.parent !== window)
+        window.parent.postMessage({ action: 'favoriteChanged', favorites: favs }, '*');
 }
 
-function renderFavoriteSchedulesList() {
+function renderFavoritesList() {
     const section = document.getElementById('favorites-section');
     const list = document.getElementById('favorites-list');
     if (!section || !list) return;
-    const favorites = getFavoriteSchedules();
-    if (favorites.length === 0) {
-        section.style.display = 'none';
-        return;
-    }
+    const favs = getFavoriteSchedules();
+    if (!favs.length) { section.style.display = 'none'; return; }
     section.style.display = 'block';
     list.innerHTML = '';
-    favorites.slice(0, 10).forEach((favorite, index) => {
+    favs.slice(0, 8).forEach((fav, i) => {
         const item = document.createElement('div');
         item.className = 'favorite-item';
-        item.style.animationDelay = `${index * 0.04}s`;
+        item.style.animationDelay = `${i * 0.04}s`;
+        const nextTime = getNextDepartureTime(fav.routeId, fav.stopId, fav.destinationId);
         item.innerHTML = `
-            <div class="favorite-info">
-                <strong>${favorite.routeName || favorite.routeId}</strong>
-                <div class="favorite-details">${favorite.stopName || favorite.stopId} → ${favorite.destinationName || favorite.destinationId}</div>
+            <div class="fav-badge" style="background:#${fav.routeColor||'007AFF'};color:#${fav.routeTextColor||'fff'}">
+                ${fav.routeName}
             </div>
-            <div class="favorite-times">
-                <button class="favorite-action" type="button">Voir</button>
+            <div class="favorite-info">
+                <div class="favorite-route">${fav.stopName}</div>
+                <div class="favorite-details">→ ${fav.destinationName}</div>
+            </div>
+            <div class="favorite-next">
+                ${nextTime ? `
+                    <div class="favorite-next-time">${nextTime.time}</div>
+                    <div class="favorite-next-label">dans ${nextTime.inMin} min</div>
+                ` : `<div style="font-size:13px;color:var(--text-tertiary)">Voir</div>`}
             </div>
         `;
-        item.addEventListener('click', () => showFavoriteSchedule(favorite));
-        const actionBtn = item.querySelector('.favorite-action');
-        if (actionBtn) {
-            actionBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                showFavoriteSchedule(favorite);
-            });
-        }
+        addTouchFeedback(item, () => showFavoriteSchedule(fav));
         list.appendChild(item);
     });
 }
 
-function showFavoriteSchedule(favorite) {
-    if (!favorite || !favorite.routeId || !favorite.stopId || !favorite.destinationId) return;
-    loadTripsAndStopTimesForRoute(favorite.routeId).then(() => {
-        showSchedule(favorite.routeId, favorite.stopId, favorite.destinationId);
-    });
-}
-
-function toggleFavoriteSchedule() {
-    if (!state.currentRoute || !state.currentStop || !state.currentDestination) return;
-    const favorites = getFavoriteSchedules();
-    const id = getFavoriteScheduleId(state.currentRoute, state.currentStop, state.currentDestination);
-    const index = favorites.findIndex(item => getFavoriteScheduleId(item.routeId, item.stopId, item.destinationId) === id);
-    const route = state.routes[state.currentRoute] || {};
-    const stop = state.stops[state.currentStop] || {};
-    const destStop = state.stops[state.currentDestination] || {};
-    if (index !== -1) {
-        favorites.splice(index, 1);
-    } else {
-        favorites.unshift({
-            routeId: state.currentRoute,
-            stopId: state.currentStop,
-            destinationId: state.currentDestination,
-            routeName: route.route_short_name || route.route_long_name || state.currentRoute,
-            stopName: stop.stop_name || state.currentStop,
-            destinationName: destStop.stop_name || state.currentDestination,
-            updatedAt: Date.now()
-        });
-    }
-    saveFavoriteSchedules(favorites);
-    updateFavoriteButtonState();
-    renderFavoriteSchedulesList();
-    
-    // Notify parent iframe about favorite change
-    if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
-            action: 'favoriteChanged',
-            favorites: favorites
-        }, '*');
-    }
-}
-
-const scrollState = {
-    positions: {}
-};
-
-function saveScrollPosition(view) {
-    scrollState.positions[view] = window.scrollY;
-}
-
-function restoreScrollPosition(view) {
-    const position = scrollState.positions[view] || 0;
-    window.scrollTo({ top: position, behavior: 'instant' });
-}
-
-function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function addTouchFeedback(element, callback) {
-    element.style.touchAction = 'manipulation';
-    element.style.userSelect = 'none';
-    element.style.webkitUserSelect = 'none';
-    
-    let touchStarted = false;
-    let touchMoved = false;
-    
-    element.addEventListener('touchstart', function(e) {
-        touchStarted = true;
-        touchMoved = false;
-        this.classList.add('pressing');
-    }, { passive: true });
-    
-    element.addEventListener('touchmove', function(e) {
-        touchMoved = true;
-        this.classList.remove('pressing');
-    }, { passive: true });
-    
-    element.addEventListener('touchend', function(e) {
-        this.classList.remove('pressing');
-        if (touchStarted && !touchMoved && callback) {
-            e.preventDefault();
-            callback(e);
-        }
-        touchStarted = false;
-        touchMoved = false;
-    });
-    
-    element.addEventListener('touchcancel', function() {
-        this.classList.remove('pressing');
-        touchStarted = false;
-        touchMoved = false;
-    }, { passive: true });
-    
-    element.addEventListener('click', function(e) {
-        if (!touchStarted && callback) {
-            this.classList.add('pressing');
-            setTimeout(() => this.classList.remove('pressing'), 200);
-            callback(e);
+function getNextDepartureTime(routeId, stopId, destinationId) {
+    if (!state.trips[routeId] || !state.stopTimes[routeId]) return null;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const { gtfsDate, dayOfWeek } = computeGtfsDateAndDow(todayStr);
+    const activeIds = getActiveServiceIds(dayOfWeek, gtfsDate);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    let best = null;
+    state.trips[routeId].filter(t => activeIds.includes(t.service_id)).forEach(trip => {
+        const ts = state.stopTimes[routeId][trip.trip_id];
+        if (!ts) return;
+        const si = ts.findIndex(s => s.stop_id === stopId);
+        const di = ts.findIndex(s => s.stop_id === destinationId);
+        if (si === -1 || di === -1 || si >= di) return;
+        const at = ts[si].arrival_time;
+        const [h, m] = (at || '').split(':').map(Number);
+        if (isNaN(h)) return;
+        const depMin = h * 60 + m;
+        if (depMin > nowMin && (!best || depMin < best.min)) {
+            const dh = String(h >= 24 ? h - 24 : h).padStart(2, '0');
+            const dm = String(m).padStart(2, '0');
+            best = { min: depMin, time: `${dh}h${dm}`, inMin: depMin - nowMin };
         }
     });
+    return best;
+}
+
+function showFavoriteSchedule(fav) {
+    if (!fav?.routeId) return;
+    loadTripsAndStopTimesForRoute(fav.routeId).then(() => {
+        showSchedule(fav.routeId, fav.stopId, fav.destinationId);
+    });
+}
+
+const scrollPos = {};
+function saveScroll(v) { scrollPos[v] = window.scrollY; }
+function restoreScroll(v) { window.scrollTo({ top: scrollPos[v] || 0, behavior: 'instant' }); }
+function scrollTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+function addTouchFeedback(el, cb) {
+    el.style.touchAction = 'manipulation';
+    el.style.userSelect = 'none';
+    let started = false, moved = false;
+    el.addEventListener('touchstart', () => { started = true; moved = false; el.classList.add('pressing'); }, { passive: true });
+    el.addEventListener('touchmove', () => { moved = true; el.classList.remove('pressing'); }, { passive: true });
+    el.addEventListener('touchend', e => {
+        el.classList.remove('pressing');
+        if (started && !moved && cb) { e.preventDefault(); cb(e); }
+        started = false; moved = false;
+    });
+    el.addEventListener('touchcancel', () => { el.classList.remove('pressing'); started = false; moved = false; }, { passive: true });
+    el.addEventListener('click', e => {
+        if (!started && cb) {
+            el.classList.add('pressing');
+            setTimeout(() => el.classList.remove('pressing'), 180);
+            cb(e);
+        }
+    });
+}
+
+function getCached(key) {
+    try {
+        const item = localStorage.getItem(`${CACHE_NAMESPACE}_${key}`);
+        if (!item) return null;
+        const d = JSON.parse(item);
+        if (d.version !== CACHE_VERSION || Date.now() - d.timestamp > CACHE_TTL) return null;
+        return d.value;
+    } catch { return null; }
+}
+function setCached(key, value) {
+    if (key.startsWith('route_')) return;
+    try {
+        localStorage.setItem(`${CACHE_NAMESPACE}_${key}`, JSON.stringify({ version: CACHE_VERSION, timestamp: Date.now(), value }));
+    } catch (e) {
+        if (e.name === 'QuotaExceededError') {
+            Object.keys(localStorage).filter(k => k.startsWith('gtfs_route_')).forEach(k => localStorage.removeItem(k));
+        }
+    }
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -1194,376 +1224,331 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
     await loadGtfsCore();
     showLines();
-    renderFavoriteSchedulesList();
+    renderFavoritesList();
 
-    const favoriteBtn = document.getElementById('favorite-schedule-btn');
-    if (favoriteBtn) {
-        addTouchFeedback(favoriteBtn, toggleFavoriteSchedule);
-    }
+    addTouchFeedback(document.getElementById('favorite-schedule-btn'), toggleFavoriteSchedule);
+    addTouchFeedback(document.getElementById('back-btn'), goBack);
+
+    document.getElementById('map-expand-btn')?.addEventListener('click', toggleMapExpand);
+    document.getElementById('rt-panel-close').addEventListener('click', closeRtPanel);
+    document.getElementById('rt-overlay').addEventListener('click', closeRtPanel);
+
+    const lSearch = document.getElementById('lines-search');
+    const lClear = document.getElementById('lines-search-clear');
+    lSearch.addEventListener('input', () => { lClear.classList.toggle('visible', lSearch.value.length > 0); filterLines(lSearch.value); });
+    lClear.addEventListener('click', () => { lSearch.value = ''; lClear.classList.remove('visible'); filterLines(''); lSearch.focus(); });
+
+    const sSearch = document.getElementById('stops-search');
+    const sClear = document.getElementById('stops-search-clear');
+    sSearch.addEventListener('input', () => { sClear.classList.toggle('visible', sSearch.value.length > 0); filterStops(sSearch.value); });
+    sClear.addEventListener('click', () => { sSearch.value = ''; sClear.classList.remove('visible'); filterStops(''); sSearch.focus(); });
 
     const params = new URLSearchParams(window.location.search);
-    const routeParam = params.get('route');
-    const stopParam = params.get('stop');
-    const destinationParam = params.get('destination') || params.get('dest');
-    if (routeParam && stopParam && destinationParam) {
-        await loadTripsAndStopTimesForRoute(routeParam);
-        showSchedule(routeParam, stopParam, destinationParam);
+    const rp = params.get('route'), sp = params.get('stop');
+    const dp = params.get('destination') || params.get('dest');
+    if (rp && sp && dp) {
+        await loadTripsAndStopTimesForRoute(rp);
+        showSchedule(rp, sp, dp);
     }
 
     initScrollEffects();
+    window.addEventListener('load', () => {
+        document.body.style.opacity = '0';
+        requestAnimationFrame(() => {
+            document.body.style.transition = 'opacity 0.4s ease';
+            document.body.style.opacity = '1';
+        });
+    });
 }
 
 function initScrollEffects() {
-    const header = document.querySelector('.header');
-    let lastScroll = 0;
+    const header = document.getElementById('app-header');
     let ticking = false;
-    
     window.addEventListener('scroll', () => {
         if (!ticking) {
             requestAnimationFrame(() => {
-                const currentScroll = window.scrollY;
-                
-                if (currentScroll > 50) {
-                    header.classList.add('scrolled');
-                } else {
-                    header.classList.remove('scrolled');
-                }
-                
-                lastScroll = currentScroll;
+                header.classList.toggle('scrolled', window.scrollY > 50);
                 ticking = false;
             });
             ticking = true;
         }
-    });
+    }, { passive: true });
 }
 
 async function loadGtfsCore() {
     try {
-        const cached = getCachedData('gtfs_core');
-        if (cached) {
-            Object.assign(state, cached);
-            state.coreLoaded = true;
-            return;
-        }
+        const cached = getCached('gtfs_core');
+        if (cached) { Object.assign(state, cached); state.coreLoaded = true; return; }
 
-        // CHANGER: Charger TOUT depuis l'action core (pas routes/stops séparément)
-        const coreResponse = await fetch(`${GTFS_API_URL}?action=core`);
-        if (!coreResponse.ok) {
-            throw new Error(`Erreur core: ${coreResponse.status}`);
-        }
-        const coreData = await coreResponse.json();
-        
-        console.log('Core data reçu:', coreData);
-        
-        // Convertir format compact en format complet
+        const r = await fetch(`${GTFS_API_URL}?action=core`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+
         state.routes = {};
-        for (const [id, route] of Object.entries(coreData.routes || {})) {
+        for (const [id, route] of Object.entries(d.routes || {})) {
             if (!route) continue;
-            
-            // Format compact
-            if (route.s !== undefined) {
-                state.routes[id] = {
-                    route_short_name: route.s,
-                    route_long_name: route.l,
-                    route_color: route.c || 'FFFFFF',
-                    route_text_color: route.t || '000000'
-                };
-            }
-            // Format complet
-            else if (route.route_short_name !== undefined) {
-                state.routes[id] = route;
-            }
+            state.routes[id] = route.s !== undefined
+                ? { route_short_name: route.s, route_long_name: route.l, route_color: route.c || 'FFFFFF', route_text_color: route.t || '000000' }
+                : route;
         }
-        
         state.stops = {};
-        for (const [id, stop] of Object.entries(coreData.stops || {})) {
+        for (const [id, stop] of Object.entries(d.stops || {})) {
             if (!stop) continue;
-            
-            // Format compact - AJOUTER LE STOP_ID
-            if (stop.n !== undefined) {
-                state.stops[id] = {
-                    stop_id: id,
-                    stop_name: stop.n,
-                    stop_lat: stop.lat,
-                    stop_lon: stop.lon
-                };
-            }
-            // Format complet
-            else if (stop.stop_name !== undefined) {
-                state.stops[id] = {
-                    stop_id: id,
-                    ...stop
-                };
-            }
+            state.stops[id] = stop.n !== undefined
+                ? { stop_id: id, stop_name: stop.n, stop_lat: stop.lat, stop_lon: stop.lon }
+                : { stop_id: id, ...stop };
         }
-        
-        // AJOUTER: Charger calendar et calendarDates
-        state.calendar = coreData.calendar || {};
-        state.calendarDates = coreData.calendarDates || {};
-        
-        console.log('Routes chargées:', Object.keys(state.routes).length);
-        console.log('Stops chargés:', Object.keys(state.stops).length);
-        console.log('Calendar chargé:', Object.keys(state.calendar).length);
-        console.log('CalendarDates chargé:', Object.keys(state.calendarDates).length);
-        
-        if (Object.keys(state.routes).length === 0) {
-            throw new Error('Aucune route chargée');
-        }
+        state.calendar = d.calendar || {};
+        state.calendarDates = d.calendarDates || {};
 
-        setCachedData('gtfs_core', {
-            routes: state.routes,
-            stops: state.stops,
-            calendar: state.calendar,
-            calendarDates: state.calendarDates
-        });
-
+        if (!Object.keys(state.routes).length) throw new Error('Aucune route chargée');
+        setCached('gtfs_core', { routes: state.routes, stops: state.stops, calendar: state.calendar, calendarDates: state.calendarDates });
         state.coreLoaded = true;
     } catch (error) {
-        console.error('Erreur chargement GTFS:', error);
         document.getElementById('loading').innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">⚠️</div>
                 <div class="state-title">Erreur de chargement</div>
                 <div class="state-description">${error.message}</div>
-            </div>
-        `;
+            </div>`;
     }
 }
 
 async function loadTripsAndStopTimesForRoute(routeId) {
     if (state.loadedRoutes.has(routeId)) return;
-
-    // PAS de cache localStorage pour routes (trop volumineux)
-    // Le cache serveur suffit amplement
-
     try {
-        // Requête serveur pour trips + stop_times filtrés pour cette route
-        const response = await fetch(`${GTFS_API_URL}?action=route&route_id=${encodeURIComponent(routeId)}`);
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Erreur serveur HTTP:', response.status, errorText);
-            throw new Error(`Erreur serveur: ${response.status}`);
-        }
-
-        // Debug: affiche texte brut avant parsing
-        const responseText = await response.text();
-        console.log('Reponse brute serveur (premiers 500 chars):', responseText.substring(0, 500));
-        
-        let data;
-        try {
-            data = JSON.parse(responseText);
-        } catch (parseError) {
-            console.error('Erreur parse JSON:', parseError);
-            console.error('Reponse complete:', responseText);
-            throw new Error('Réponse serveur invalide (pas JSON)');
-        }
-        
-        // Validation réponse
-        if (!data.trips || !data.stopTimes) {
-            console.error('Données manquantes dans réponse:', data);
-            throw new Error('Données invalides reçues du serveur');
-        }
-        
-        console.log(`Route ${routeId} chargée: ${data.trips.length} trips, ${Object.keys(data.stopTimes).length} trip_ids`);
-        
+        const r = await fetch(`${GTFS_API_URL}?action=route&route_id=${encodeURIComponent(routeId)}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const text = await r.text();
+        const data = JSON.parse(text);
+        if (!data.trips || !data.stopTimes) throw new Error('Données invalides');
         state.trips[routeId] = data.trips;
         state.stopTimes[routeId] = data.stopTimes;
         state.loadedRoutes.add(routeId);
-
-        // PAS de cache localStorage - trop gros, serveur gère déjà le cache
-        
-    } catch (error) {
-        console.error('Erreur chargement route:', error);
-        throw error; // Propage erreur pour affichage
+    } catch (e) {
+        console.error(e);
+        throw e;
     }
 }
 
-function getCachedData(key) {
-    try {
-        const item = localStorage.getItem(`${CACHE_NAMESPACE}_${key}`);
-        if (!item) return null;
-        
-        const data = JSON.parse(item);
-        if (data.version !== CACHE_VERSION) return null;
-        if (Date.now() - data.timestamp > CACHE_TTL) return null;
-        
-        return data.value;
-    } catch {
-        return null;
-    }
-}
-
-function setCachedData(key, value) {
-    try {
-        // Ne cache QUE les données core (routes, stops, calendar)
-        // PAS les routes individuelles - trop volumineuses
-        if (key.startsWith('route_')) {
-            return; // Ignore, serveur gère cache
-        }
-        
-        localStorage.setItem(`${CACHE_NAMESPACE}_${key}`, JSON.stringify({
-            version: CACHE_VERSION,
-            timestamp: Date.now(),
-            value
-        }));
-    } catch (error) {
-        // Si quota dépassée, nettoie uniquement vieux caches
-        if (error.name === 'QuotaExceededError') {
-            console.warn('Cache localStorage plein, nettoyage...');
-            Object.keys(localStorage).forEach(k => {
-                if (k.startsWith('gtfs_route_')) {
-                    localStorage.removeItem(k);
-                }
-            });
-        } else {
-            console.warn('Erreur cache localStorage:', error);
-        }
-    }
-}
-
-function hideAllViews() {
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-}
+function hideAllViews() { document.querySelectorAll('.view').forEach(v => v.classList.remove('active')); }
 
 function showLines() {
     hideAllViews();
     document.getElementById('loading').style.display = 'none';
     document.getElementById('lines-view').classList.add('active');
-    document.getElementById('back-btn').style.display = 'none';
+    document.getElementById('back-btn').classList.add('hidden');
     document.getElementById('header-title').textContent = 'My Bus Schedule';
     document.getElementById('header-subtitle').textContent = 'Sélectionnez une ligne';
     state.viewHistory = [];
-
-    if (state.viewHistory.length > 0) {
-        restoreScrollPosition('lines');
-    } else {
-        scrollToTop();
-    }
-
+    scrollTop();
     updateFavoriteButtonState();
-    renderFavoriteSchedulesList();
+    renderFavoritesList();
+    renderLinesList(Object.entries(state.routes));
+}
 
-    const linesList = document.getElementById('lines-list');
-    linesList.innerHTML = '';
-
-    Object.entries(state.routes).forEach(([routeId, route], index) => {
+function renderLinesList(entries) {
+    const list = document.getElementById('lines-list');
+    list.innerHTML = '';
+    entries.forEach(([routeId, route], i) => {
         const item = document.createElement('div');
         item.className = 'bus-item';
-        item.style.animationDelay = `${index * 0.05}s`;
+        item.style.animationDelay = `${i * 0.04}s`;
+        const color = `#${route.route_color || '007AFF'}`;
+        const textColor = `#${route.route_text_color || 'ffffff'}`;
         item.innerHTML = `
-            <span class="bus-number" style="background: #${route.route_color || '007AFF'}; color: #${route.route_text_color || 'ffffff'}">
-                Ligne ${route.route_short_name}
-            </span>
-            <span class="bus-name">${route.route_long_name}</span>
+            <div class="bus-badge" style="background:${color};color:${textColor}">
+                ${route.route_short_name || '?'}
+            </div>
+            <div class="bus-info">
+                <div class="bus-name">${route.route_long_name || ''}</div>
+            </div>
+            <i class="fas fa-chevron-right bus-chevron"></i>
         `;
         addTouchFeedback(item, () => showDestinations(routeId));
-        linesList.appendChild(item);
+        list.appendChild(item);
     });
+    if (!entries.length) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="state-title">Aucun résultat</div><div class="state-description">Essayez un autre terme</div></div>';
+    }
+}
+
+function filterLines(q) {
+    const all = Object.entries(state.routes);
+    if (!q) { renderLinesList(all); return; }
+    const lq = q.toLowerCase();
+    renderLinesList(all.filter(([, r]) =>
+        (r.route_short_name || '').toLowerCase().includes(lq) ||
+        (r.route_long_name || '').toLowerCase().includes(lq)
+    ));
 }
 
 async function showDestinations(routeId) {
     state.currentRoute = routeId;
-    
     hideAllViews();
     document.getElementById('destinations-view').classList.add('active');
-    document.getElementById('back-btn').style.display = 'flex';
-    
+    document.getElementById('back-btn').classList.remove('hidden');
     const route = state.routes[routeId];
-    document.getElementById('header-title').textContent = "Ligne " + route.route_short_name;
+    document.getElementById('header-title').textContent = `Ligne ${route.route_short_name}`;
     document.getElementById('header-subtitle').textContent = route.route_long_name;
-    
     state.viewHistory.push('lines');
-    saveScrollPosition('lines');
-    scrollToTop();
+    saveScroll('lines'); scrollTop();
+    updateFavoriteButtonState();
+
+    buildBreadcrumb('breadcrumb-dest', [
+        { label: 'Lignes', action: showLines },
+        { label: `Ligne ${route.route_short_name}`, current: true }
+    ]);
 
     const list = document.getElementById('destinations-list');
-    list.innerHTML = '<div class="loading"><div class="loading-spinner"></div><div class="state-title">Chargement</div><div class="state-description">Obtention des destinations...</div></div>';
-
+    list.innerHTML = `
+        <div class="skeleton"></div>
+        <div class="skeleton" style="animation-delay:.1s;height:60px"></div>
+        <div class="skeleton" style="animation-delay:.2s;height:60px"></div>
+    `;
     try {
         await loadTripsAndStopTimesForRoute(routeId);
-
-        // AJOUTER CES LOGS
-        console.log('Trips chargés:', state.trips[routeId]);
-        console.log('Stop times chargés:', state.stopTimes[routeId]);
-        console.log('Nombre de trips:', state.trips[routeId]?.length);
-        console.log('Nombre de stop times:', Object.keys(state.stopTimes[routeId] || {}).length);
-
         const destinations = getDestinations(routeId);
-        
-        console.log('Destinations trouvées:', destinations);
-        
-        if (destinations.length === 0) {
-            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="state-title">Aucune destination</div><div class="state-description">Aucune destination trouvée pour cette ligne</div></div>';
+        if (!destinations.length) {
+            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="state-title">Aucune destination</div></div>';
             return;
         }
-        
         list.innerHTML = '';
-
-        destinations.forEach((dest, index) => {
+        destinations.forEach((dest, i) => {
             const item = document.createElement('div');
             item.className = 'destination-item';
-            item.style.animationDelay = `${index * 0.05}s`;
-            item.innerHTML = `<strong>${dest.name}</strong>`;
+            item.style.animationDelay = `${i * 0.05}s`;
+            item.innerHTML = `
+                <div class="dest-icon">🏁</div>
+                <div style="flex:1">
+                    <div class="dest-name">${dest.name}</div>
+                </div>
+                <i class="fas fa-chevron-right bus-chevron"></i>
+            `;
             addTouchFeedback(item, () => showStops(routeId, dest.id));
             list.appendChild(item);
         });
-    } catch (error) {
-        list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="state-title">Erreur</div><div class="state-description">${error.message}</div></div>`;
+    } catch (e) {
+        list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="state-title">Erreur</div><div class="state-description">${e.message}</div></div>`;
     }
 }
+
 
 function showStops(routeId, destinationId = null) {
     hideAllViews();
     document.getElementById('stops-view').classList.add('active');
-    document.getElementById('back-btn').style.display = 'flex';
+    document.getElementById('back-btn').classList.remove('hidden');
     state.viewHistory.push('destinations');
-    saveScrollPosition('destinations');
-    scrollToTop();
+    saveScroll('destinations'); scrollTop();
+    updateFavoriteButtonState();
 
-    const destinations = getDestinations(routeId);
-    const select = document.getElementById('destination-select');
-    select.innerHTML = '<option value="">Choisir une destination</option>';
-    
-    destinations.forEach(dest => {
-        const option = document.createElement('option');
-        option.value = dest.id;
-        option.textContent = dest.name;
-        if (dest.id === destinationId) option.selected = true;
-        select.appendChild(option);
+    const route = state.routes[routeId];
+    document.getElementById('header-title').textContent = `Ligne ${route.route_short_name}`;
+    document.getElementById('header-subtitle').textContent = 'Choisissez un arrêt';
+
+    const destName = destinationId ? (state.stops[destinationId]?.stop_name || '') : '';
+    buildBreadcrumb('breadcrumb-stops', [
+        { label: 'Lignes', action: showLines },
+        { label: `Ligne ${route.route_short_name}`, action: () => showDestinations(routeId) },
+        { label: destName || 'Arrêts', current: true }
+    ]);
+
+    const dests = getDestinations(routeId);
+    const sel = document.getElementById('destination-select');
+    sel.innerHTML = '<option value="">Choisir une destination</option>';
+    dests.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id; opt.textContent = d.name;
+        if (d.id === destinationId) opt.selected = true;
+        sel.appendChild(opt);
     });
+    sel.onchange = () => updateStopsForDestination(routeId, sel.value);
 
-    select.onchange = () => updateStopsForDestination(routeId, select.value);
+    document.getElementById('stops-search').value = '';
+    document.getElementById('stops-search-clear').classList.remove('visible');
 
-    if (destinationId) {
-        updateStopsForDestination(routeId, destinationId);
-    }
+    if (destinationId) updateStopsForDestination(routeId, destinationId);
 }
 
 function updateStopsForDestination(routeId, destinationId) {
     const list = document.getElementById('stops-list');
     list.innerHTML = '';
-
     if (!destinationId) return;
-
     const stops = getStopsForDestination(routeId, destinationId);
-    
-    // AJOUTER CE LOG
-    console.log('Arrêts à afficher:', stops.length);
-    console.log('Premiers arrêts:', stops.slice(0, 3));
-    
-    stops.forEach((stop, index) => {
+    renderStopsList(stops, routeId, destinationId);
+}
+
+function renderStopsList(stops, routeId, destinationId) {
+    const list = document.getElementById('stops-list');
+    list.innerHTML = '';
+    if (!stops.length) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="state-title">Aucun arrêt</div></div>';
+        return;
+    }
+    stops.forEach((stop, i) => {
         const item = document.createElement('div');
         item.className = 'stop-item';
-        item.style.animationDelay = `${index * 0.05}s`;
-        item.innerHTML = `<strong>${stop.stop_name}</strong>`;
-        
-        addTouchFeedback(item, () => {
-            console.log('Clic sur stop:', stop.stop_id, destinationId);
-            showSchedule(routeId, stop.stop_id, destinationId);
-        });
+        item.style.animationDelay = `${i * 0.04}s`;
+        const lat = parseFloat(stop.stop_lat);
+        const lon = parseFloat(stop.stop_lon);
+        const hasCoords = !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0;
+        item.innerHTML = `
+            <div class="stop-header">
+                <div class="stop-dot"></div>
+                <div class="stop-name">${stop.stop_name}</div>
+                <i class="fas fa-chevron-right bus-chevron"></i>
+            </div>
+            ${hasCoords ? `<div class="stop-meta" id="geocode-${stop.stop_id}"><i class="fas fa-location-dot" style="font-size:11px;margin-right:4px"></i><span style="opacity:0.5">…</span></div>` : ''}
+        `;
+        addTouchFeedback(item, () => showSchedule(routeId, stop.stop_id, destinationId));
         list.appendChild(item);
+        if (hasCoords) setTimeout(() => fetchCityName(stop.stop_id, lat, lon), i * 1200);
     });
 }
+
+const geocodeCache = new Map();
+
+async function fetchCityName(stopId, lat, lon) {
+    const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+    const el = document.querySelector(`#geocode-${stopId} span`);
+    if (!el) return;
+
+    if (geocodeCache.has(key)) {
+        el.style.opacity = '1';
+        el.textContent = geocodeCache.get(key);
+        return;
+    }
+
+    try {
+        const r = await fetch(
+            `networks/proxy-geocode.php?lat=${lat}&lon=${lon}`
+        );
+        const d = await r.json();
+        const addr = d.address || {};
+        const city = addr.city || addr.town || addr.village || addr.municipality || '';
+        const district = addr.suburb || addr.neighbourhood || addr.quarter || '';
+        const road = addr.road || '';
+        const label = road
+            ? `${road}${district ? `, ${district}` : ''}${city ? `, ${city}` : ''}`
+            : district ? `${district}, ${city}` : city || '';
+        geocodeCache.set(key, label);
+        el.style.opacity = '1';
+        el.textContent = label || '–';
+    } catch {
+        el.style.opacity = '0.4';
+        el.textContent = 'Localisation inconnue';
+    }
+}
+
+function filterStops(q) {
+    const routeId = state.currentRoute;
+    const destId = document.getElementById('destination-select').value;
+    if (!destId) return;
+    const stops = getStopsForDestination(routeId, destId);
+    const filtered = q ? stops.filter(s => s.stop_name.toLowerCase().includes(q.toLowerCase())) : stops;
+    renderStopsList(filtered, routeId, destId);
+}
+
 
 function showSchedule(routeId, stopId, destinationId) {
     state.currentRoute = routeId;
@@ -1572,55 +1557,102 @@ function showSchedule(routeId, stopId, destinationId) {
 
     hideAllViews();
     document.getElementById('schedule-view').classList.add('active');
-    document.getElementById('back-btn').style.display = 'flex';
+    document.getElementById('back-btn').classList.remove('hidden');
     state.viewHistory.push('stops');
-
-    saveScrollPosition('stops');
-    scrollToTop();
+    saveScroll('stops'); scrollTop();
 
     const route = state.routes[routeId];
     const stop = state.stops[stopId];
-    
-    // AJOUTER UNE VÉRIFICATION
     if (!stop) {
-        console.error('Stop non trouvé:', stopId);
-        console.log('Stops disponibles:', Object.keys(state.stops).slice(0, 10));
         document.getElementById('header-title').textContent = `${route.route_short_name} - Arrêt inconnu`;
         document.getElementById('header-subtitle').textContent = route.route_long_name;
         return;
     }
-    
-    document.getElementById('header-title').textContent = `${route.route_short_name} - ${stop.stop_name}`;
-    document.getElementById('header-subtitle').textContent = route.route_long_name;
+    document.getElementById('header-title').textContent = `${route.route_short_name} — ${stop.stop_name}`;
+    document.getElementById('header-subtitle').textContent = `→ ${state.stops[destinationId]?.stop_name || destinationId}`;
+    updateFavoriteButtonState();
+
+    buildBreadcrumb('breadcrumb-schedule', [
+        { label: 'Lignes', action: showLines },
+        { label: `Ligne ${route.route_short_name}`, action: () => showDestinations(routeId) },
+        { label: stop.stop_name, current: true }
+    ]);
+
+    initStopMap(stop);
 
     setupTabHandlers();
-    
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('date-picker').value = today;
-
-    updateFavoriteButtonState();
-    renderFavoriteSchedulesList();
-    
     updateScheduleByDate(routeId, stopId, destinationId, today);
+}
+
+function initStopMap(stop) {
+    const mapEl = document.getElementById('stop-map');
+    const section = document.getElementById('map-section');
+
+
+    const lat = parseFloat(stop.stop_lat);
+    const lon = parseFloat(stop.stop_lon);
+    const hasCoords = !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0;
+
+    if (!hasCoords) {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = 'block';
+
+    if (leafletMap) { leafletMap.remove(); leafletMap = null; mapMarker = null; }
+
+    setTimeout(() => {
+        leafletMap = L.map('stop-map', { zoomControl: false, attributionControl: false, dragging: false, touchZoom: false, scrollWheelZoom: false })
+            .setView([lat, lon], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafletMap);
+        const pulse = L.divIcon({
+            html: `<div style="position:relative;">
+                <div style="background:var(--accent-blue);width:20px;height:20px;border-radius:50%;border:3px solid white;box-shadow:0 4px 12px rgba(0,122,255,0.5);position:relative;z-index:2;"></div>
+                <div style="position:absolute;top:-8px;left:-8px;width:36px;height:36px;border-radius:50%;background:rgba(0,122,255,0.2);animation:nextBusPulse 2s infinite;"></div>
+            </div>`,
+            className: '', iconSize: [20, 20], iconAnchor: [10, 10]
+        });
+        mapMarker = L.marker([lat, lon], { icon: pulse }).addTo(leafletMap);
+        leafletMap.invalidateSize();
+        mapExpanded = false;
+        document.getElementById('stop-map').classList.remove('expanded');
+        document.getElementById('map-expand-btn').textContent = 'Agrandir';
+    }, 200);
+}
+
+function toggleMapExpand() {
+    const mapEl = document.getElementById('stop-map');
+    mapExpanded = !mapExpanded;
+    mapEl.classList.toggle('expanded', mapExpanded);
+    document.getElementById('map-expand-btn').textContent = mapExpanded ? 'Réduire' : 'Agrandir';
+    if (leafletMap) setTimeout(() => {
+        leafletMap.invalidateSize();
+        if (mapExpanded) {
+            leafletMap.dragging.enable();
+            leafletMap.touchZoom.enable();
+            leafletMap.scrollWheelZoom.enable();
+            L.control.zoom({ position: 'topright' }).addTo(leafletMap);
+        }
+    }, 400);
 }
 
 function setupTabHandlers() {
     const tabs = document.querySelectorAll('.tab');
     const indicator = document.querySelector('.tab-indicator');
     const datePicker = document.getElementById('date-picker');
+    if (!tabs.length) return;
 
-    tabs.forEach((tab, index) => {
-        const handleTabClick = () => {
+    tabs.forEach((tab, idx) => {
+        addTouchFeedback(tab, () => {
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-            
-            const width = tab.offsetWidth;
-            const left = tab.offsetLeft - 6;
-            indicator.style.width = `${width}px`;
-            indicator.style.transform = `translateX(${left}px)`;
-
+            const w = tab.offsetWidth;
+            const l = tab.offsetLeft - 5;
+            indicator.style.width = `${w}px`;
+            indicator.style.transform = `translateX(${l}px)`;
             document.querySelectorAll('.schedule-content').forEach(c => c.classList.remove('active'));
-            
             if (tab.dataset.tab === 'theoretical') {
                 document.getElementById('theoretical-content').classList.add('active');
                 datePicker.style.display = 'block';
@@ -1629,627 +1661,385 @@ function setupTabHandlers() {
                 datePicker.style.display = 'none';
                 loadRealtimeData();
             }
-
-            if ('vibrate' in navigator) {
-                navigator.vibrate(10);
-            }
-        };
-        
-        addTouchFeedback(tab, handleTabClick);
+            if ('vibrate' in navigator) navigator.vibrate(8);
+        });
     });
 
     const activeTab = document.querySelector('.tab.active');
-    indicator.style.width = `${activeTab.offsetWidth}px`;
-    indicator.style.transform = `translateX(0px)`;
+    if (activeTab) {
+        indicator.style.width = `${activeTab.offsetWidth}px`;
+        indicator.style.transform = 'translateX(0px)';
+    }
 
-    datePicker.onchange = (e) => {
-        updateScheduleByDate(state.currentRoute, state.currentStop, state.currentDestination, e.target.value);
-    };
+    datePicker.onchange = e => updateScheduleByDate(state.currentRoute, state.currentStop, state.currentDestination, e.target.value);
 }
 
 function computeGtfsDateAndDow(dateString) {
     const gtfsDate = dateString.replace(/-/g, '');
     const safe = new Date(dateString + 'T12:00:00');
-    const dayOfWeek = safe.getDay();
-    return { gtfsDate, dayOfWeek };
+    return { gtfsDate, dayOfWeek: safe.getDay() };
+}
+
+function getActiveServiceIds(dayOfWeek, gtfsDate) {
+    const key = `${dayOfWeek}_${gtfsDate}`;
+    if (cache.serviceIds.has(key)) return cache.serviceIds.get(key);
+    const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+    const dayName = days[dayOfWeek];
+    let ids = [];
+    const hasCalendar = state.calendar && Object.keys(state.calendar).length > 0;
+    if (hasCalendar) {
+        for (const [id, cal] of Object.entries(state.calendar)) {
+            if (gtfsDate >= cal.start_date && gtfsDate <= cal.end_date && String(cal[dayName]).trim() === '1')
+                ids.push(id);
+        }
+    }
+    const ex = state.calendarDates?.[gtfsDate];
+    if (ex) {
+        (ex.added || []).forEach(id => { if (!ids.includes(id)) ids.push(id); });
+        ids = ids.filter(id => !(ex.removed || []).includes(id));
+    }
+    cache.serviceIds.set(key, ids);
+    return ids;
 }
 
 function updateScheduleByDate(routeId, stopId, destinationId, dateString) {
     const { gtfsDate, dayOfWeek } = computeGtfsDateAndDow(dateString);
-    const activeServiceIds = getActiveServiceIds(dayOfWeek, gtfsDate);
-
-    if (activeServiceIds.length === 0) {
-        const container = document.getElementById('theoretical-content');
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><div class="state-title">Aucun service</div><div class="state-description">Aucun service actif pour cette date</div></div>';
+    const activeIds = getActiveServiceIds(dayOfWeek, gtfsDate);
+    const container = document.getElementById('theoretical-content');
+    if (!activeIds.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><div class="state-title">Aucun service</div><div class="state-description">Aucun service pour cette date</div></div>';
         return;
     }
-
-    const validTrips = state.trips[routeId].filter(trip => 
-        activeServiceIds.includes(trip.service_id)
-    );
-
-    displaySchedule(validTrips, stopId, destinationId, document.getElementById('theoretical-content'));
+    const validTrips = (state.trips[routeId] || []).filter(t => activeIds.includes(t.service_id));
+    displaySchedule(validTrips, stopId, destinationId, container, dateString);
 }
 
-function displaySchedule(validTrips, stopId, destinationId, container) {
+function displaySchedule(validTrips, stopId, destinationId, container, dateString) {
     container.innerHTML = '';
-
     const schedule = [];
-    const stopTimesByRoute = state.stopTimes[state.currentRoute];
+    const stByRoute = state.stopTimes[state.currentRoute];
+    const now = new Date();
+    const isToday = dateString === now.toISOString().split('T')[0];
+    const nowMin = now.getHours() * 60 + now.getMinutes();
 
     validTrips.forEach(trip => {
-        const tripStops = stopTimesByRoute[trip.trip_id];
-        if (!tripStops || tripStops.length === 0) return;
-
-        const stopIndex = tripStops.findIndex(st => st.stop_id === stopId);
-        const destIndex = tripStops.findIndex(st => st.stop_id === destinationId);
-
-        if (stopIndex === -1 || destIndex === -1 || stopIndex >= destIndex) return;
-
-        // MODIFIER CETTE PARTIE - Normaliser le format
-        let arrivalTime = tripStops[stopIndex].arrival_time;
-        
-        // Gérer format "HH:MM:SS" ou "H:MM" du serveur
-        if (arrivalTime.includes(':')) {
-            const parts = arrivalTime.split(':');
-            const hour = parseInt(parts[0]);
-            const minute = parts[1];
-            arrivalTime = `${hour}h${minute}`;
-        }
-        // Sinon supposer format "Hh MM" déjà bon
-        
-        schedule.push(arrivalTime);
+        const ts = stByRoute[trip.trip_id];
+        if (!ts?.length) return;
+        const si = ts.findIndex(s => s.stop_id === stopId);
+        const di = ts.findIndex(s => s.stop_id === destinationId);
+        if (si === -1 || di === -1 || si >= di) return;
+        const at = ts[si].arrival_time;
+        if (!at) return;
+        const parts = at.split(':');
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (isNaN(h) || isNaN(m)) return;
+        schedule.push({ h, m });
     });
 
-    if (schedule.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🚌</div><div class="state-title">Aucun horaire</div><div class="state-description">Aucun horaire disponible pour cette combinaison arrêt/destination</div></div>';
+    if (!schedule.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🚌</div><div class="state-title">Aucun horaire</div><div class="state-description">Aucun horaire pour cette combinaison</div></div>';
         return;
     }
 
-    const timesByHour = {};
-    schedule.forEach(time => {
-        const [hour, minute] = time.split('h');
-        const h = parseInt(hour);
-        const m = minute || '00';
-        
-        // Gérer les heures >= 24 (lendemain)
-        const displayHour = h >= 24 ? h - 24 : h;
-        
-        if (!timesByHour[displayHour]) timesByHour[displayHour] = [];
-        timesByHour[displayHour].push(m);
+    schedule.sort((a, b) => (a.h * 60 + a.m) - (b.h * 60 + b.m));
+
+    let nextIdx = -1;
+    if (isToday) {
+        nextIdx = schedule.findIndex(s => s.h * 60 + s.m > nowMin);
+        if (nextIdx !== -1) {
+            const next = schedule[nextIdx];
+            const inMin = next.h * 60 + next.m - nowMin;
+            const banner = document.createElement('div');
+            banner.className = 'next-departure-banner';
+            const dh = String(next.h >= 24 ? next.h - 24 : next.h).padStart(2, '0');
+            const dm = String(next.m).padStart(2, '0');
+            banner.innerHTML = `
+                <div class="next-dep-icon">🚌</div>
+                <div class="next-dep-info">
+                    <div class="next-dep-label">Prochain départ</div>
+                    <div class="next-dep-time">${dh}h${dm}</div>
+                    <div class="next-dep-countdown">dans ${inMin} minute${inMin > 1 ? 's' : ''}</div>
+                </div>
+            `;
+            container.appendChild(banner);
+        }
+    }
+
+    const byHour = {};
+    schedule.forEach(({ h, m }) => {
+        const dh = h >= 24 ? h - 24 : h;
+        if (!byHour[dh]) byHour[dh] = [];
+        byHour[dh].push({ m, h });
     });
 
-    Object.keys(timesByHour)
-        .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
-        .forEach(hour => {
-            const group = document.createElement('div');
-            group.className = 'schedule-group';
-
-            const hourTitle = document.createElement('div');
-            hourTitle.className = 'schedule-hour';
-            hourTitle.textContent = `${hour}h`;
-            group.appendChild(hourTitle);
-
-            const times = document.createElement('div');
-            times.className = 'schedule-times';
-
-            const uniqueMinutes = [...new Set(timesByHour[hour])]
-                .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-
-            uniqueMinutes.forEach(minute => {
-                const timeEl = document.createElement('div');
-                timeEl.className = 'schedule-time';
-                timeEl.textContent = minute;
-                times.appendChild(timeEl);
-            });
-
-            group.appendChild(times);
-            container.appendChild(group);
-        });
-}
-
-function getActiveServiceIds(dayOfWeek, gtfsDate) {
-    const cacheKey = `${dayOfWeek}_${gtfsDate}`;
-    if (cache.serviceIds.has(cacheKey)) return cache.serviceIds.get(cacheKey);
-
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayName = dayNames[dayOfWeek];
-
-    let serviceIds = [];
-
-    const hasCalendar = state.calendar && Object.keys(state.calendar).length > 0;
-
-    if (hasCalendar) {
-        // Utiliser calendar.txt
-        for (const [serviceId, cal] of Object.entries(state.calendar)) {
-            const inRange = gtfsDate >= cal.start_date && gtfsDate <= cal.end_date;
-            if (!inRange) continue;
-
-            if (String(cal[dayName]).trim() === '1') {
-                serviceIds.push(serviceId);
+    let dividerInserted = false;
+    Object.keys(byHour).sort((a, b) => +a - +b).forEach(hour => {
+        const hasFuture = byHour[hour].some(t => t.h * 60 + t.m >= nowMin);
+        if (isToday && !dividerInserted && hasFuture) {
+            const div = document.createElement('div');
+            div.className = 'schedule-divider';
+            div.textContent = 'À venir';
+            container.appendChild(div);
+            dividerInserted = true;
+        }
+        const group = document.createElement('div');
+        group.className = 'schedule-group';
+        const hourEl = document.createElement('div');
+        hourEl.className = 'schedule-hour';
+        hourEl.textContent = `${hour}h`;
+        group.appendChild(hourEl);
+        const timesEl = document.createElement('div');
+        timesEl.className = 'schedule-times';
+        const unique = [...new Map(byHour[hour].map(t => [t.m, t])).values()]
+            .sort((a, b) => a.m - b.m);
+        unique.forEach(({ m, h }) => {
+            const el = document.createElement('div');
+            el.className = 'schedule-time';
+            const minStr = String(m).padStart(2, '0');
+            el.textContent = minStr;
+            const depMin = h * 60 + m;
+            if (isToday) {
+                if (depMin < nowMin) el.classList.add('is-past');
+                else if (depMin === schedule[nextIdx]?.h * 60 + schedule[nextIdx]?.m) el.classList.add('is-next');
             }
-        }
-    } else {
-        // FALLBACK: calendar vide, on retourne un tableau vide
-        // Les exceptions calendarDates ajouteront les services
-        serviceIds = [];
-    }
-
-    // Appliquer les exceptions calendar_dates
-    const ex = state.calendarDates?.[gtfsDate];
-    if (ex) {
-        for (const id of ex.added || []) {
-            if (!serviceIds.includes(id)) serviceIds.push(id);
-        }
-        for (const id of ex.removed || []) {
-            serviceIds = serviceIds.filter(sid => sid !== id);
-        }
-    }
-
-    cache.serviceIds.set(cacheKey, serviceIds);
-    return serviceIds;
+            timesEl.appendChild(el);
+        });
+        group.appendChild(timesEl);
+        container.appendChild(group);
+    });
 }
 
 function getDestinations(routeId) {
-    if (cache.destinations.has(routeId)) {
-        return cache.destinations.get(routeId);
-    }
-
+    if (cache.destinations.has(routeId)) return cache.destinations.get(routeId);
     const trips = state.trips[routeId];
-    const stopTimesByRoute = state.stopTimes[routeId];
-    
-    if (!trips || !stopTimesByRoute) {
-        console.error('Trips ou stopTimes manquants');
-        return [];
-    }
-    
-    const destinations = new Map();
-
-    trips.forEach((trip, idx) => {
-        const tripStops = stopTimesByRoute[trip.trip_id];
-        
-        if (!tripStops || tripStops.length === 0) {
-            return;
-        }
-        
-        const lastStop = tripStops[tripStops.length - 1];
-        const stopId = lastStop.stop_id;
-        
-        // LOG DÉTAILLÉ pour les 10 premiers trips
-        if (idx < 10) {
-            console.log(`Trip ${idx}: stop_id="${stopId}", existe dans state.stops:`, !!state.stops[stopId]);
-            if (!state.stops[stopId]) {
-                console.log('Stop ID manquant:', stopId);
-                console.log('Stops disponibles similaires:', 
-                    Object.keys(state.stops).filter(k => k.includes('BASTI') || k.includes('BLANCH')).slice(0, 5)
-                );
-            }
-        }
-        
-        const stop = state.stops[stopId];
-        
-        if (!stop) {
-            return;
-        }
-        
-        if (!destinations.has(stopId)) {
-            destinations.set(stopId, { 
-                id: stopId, 
-                name: stop.stop_name 
-            });
-        }
+    const st = state.stopTimes[routeId];
+    if (!trips || !st) return [];
+    const dest = new Map();
+    trips.forEach(trip => {
+        const ts = st[trip.trip_id];
+        if (!ts?.length) return;
+        const lastStop = ts[ts.length - 1];
+        const stop = state.stops[lastStop.stop_id];
+        if (stop && !dest.has(lastStop.stop_id))
+            dest.set(lastStop.stop_id, { id: lastStop.stop_id, name: stop.stop_name });
     });
-
-    const result = Array.from(destinations.values());
+    const result = Array.from(dest.values());
     cache.destinations.set(routeId, result);
     return result;
 }
 
 function getStopsForDestination(routeId, destinationId) {
-    const cacheKey = `${routeId}_${destinationId}`;
-    if (cache.stops.has(cacheKey)) {
-        return cache.stops.get(cacheKey);
-    }
-
+    const key = `${routeId}_${destinationId}`;
+    if (cache.stops.has(key)) return cache.stops.get(key);
     const trips = state.trips[routeId];
-    const stopTimesByRoute = state.stopTimes[routeId];
-    
+    const st = state.stopTimes[routeId];
     const stopsMap = new Map();
-    const stopOrderMap = new Map(); // Pour garder l'ordre moyen
-
+    const orderMap = new Map();
     trips.forEach(trip => {
-        const tripStops = stopTimesByRoute[trip.trip_id];
-        
-        if (!tripStops) return;
-
-        const destIndex = tripStops.findIndex(st => st.stop_id === destinationId);
-        
-        if (destIndex === -1 || destIndex === 0) return; // Pas de destination ou destination au début
-        
-        // Prendre tous les arrêts AVANT la destination
-        tripStops.slice(0, destIndex).forEach((st, idx) => {
-            const stop = state.stops[st.stop_id];
+        const ts = st[trip.trip_id];
+        if (!ts) return;
+        const di = ts.findIndex(s => s.stop_id === destinationId);
+        if (di <= 0) return;
+        ts.slice(0, di).forEach((s, idx) => {
+            const stop = state.stops[s.stop_id];
             if (stop && !stopsMap.has(stop.stop_id)) {
                 stopsMap.set(stop.stop_id, stop);
-                stopOrderMap.set(stop.stop_id, idx); // Position dans le trajet
+                orderMap.set(stop.stop_id, idx);
             }
         });
     });
-
-    // Trier les arrêts par leur position moyenne dans les trajets
-    const result = Array.from(stopsMap.values()).sort((a, b) => {
-        const orderA = stopOrderMap.get(a.stop_id) || 0;
-        const orderB = stopOrderMap.get(b.stop_id) || 0;
-        return orderA - orderB;
-    });
-    
-    cache.stops.set(cacheKey, result);
+    const result = Array.from(stopsMap.values()).sort((a, b) => (orderMap.get(a.stop_id) || 0) - (orderMap.get(b.stop_id) || 0));
+    cache.stops.set(key, result);
     return result;
 }
 
 async function loadRealtimeData() {
     const container = document.getElementById('realtime-content');
-    container.innerHTML = '<div class="loading">Chargement des données temps réel...</div>';
-
+    container.innerHTML = `
+        <div class="rt-live-badge"><div class="rt-live-dot"></div> En direct</div>
+        <div class="loading"><div class="loading-spinner"></div><div class="state-description">Chargement…</div></div>
+    `;
     try {
-        const response = await fetch(GTFS_RT_URL);
-        const buffer = await response.arrayBuffer();
-        
+        const r = await fetch(GTFS_RT_URL);
+        const buffer = await r.arrayBuffer();
         const root = await protobuf.load('src/gtfs-realtime.proto');
         const FeedMessage = root.lookupType('transit_realtime.FeedMessage');
-        const message = FeedMessage.decode(new Uint8Array(buffer));
-
-        const arrivals = processRealtimeDataForStop(message, state.currentRoute, state.currentStop);
+        const msg = FeedMessage.decode(new Uint8Array(buffer));
+        const arrivals = processRealtimeDataForStop(msg, state.currentRoute, state.currentStop);
+        container.innerHTML = '<div class="rt-live-badge"><div class="rt-live-dot"></div> En direct</div>';
         displayRealtimeArrivals(arrivals, container);
-    } catch (error) {
-        console.error('Erreur temps réel:', error);
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div>Données temps réel non disponibles</div></div>';
-    }
-}
-
-function pad2(n) { return String(n).padStart(2, '0'); }
-
-function parseTimeHHhMM(timeStr) {
-    const [h, m] = timeStr.split('h').map(x => parseInt(x, 10));
-    return { h: isNaN(h) ? 0 : h, m: isNaN(m) ? 0 : m };
-}
-
-function buildDateFromPicker(timeHHhMM, dateString) {
-    const { h, m } = parseTimeHHhMM(timeHHhMM);
-    const d = new Date(dateString + 'T12:00:00');
-    d.setHours(h, m, 0, 0);
-    return d;
-}
-
-function getTheoreticalTimeForTripStop(routeId, tripId, stopId, dateString) {
-    const stopTimesByRoute = state.stopTimes[routeId];
-    const tripStops = stopTimesByRoute?.[tripId];
-    if (!tripStops) return null;
-
-    const st = tripStops.find(x => x.stop_id === stopId);
-    if (!st?.arrival_time) return null;
-
-    return buildDateFromPicker(st.arrival_time, dateString);
-}
-
-function minutesDiff(a, b) {
-    return Math.round((a.getTime() - b.getTime()) / 60000);
-}
-
-function matchesCurrentRouteRt(tripDescriptor, routeId) {
-    const rtRouteId = tripDescriptor?.routeId || tripDescriptor?.route_id;
-    if (rtRouteId) return String(rtRouteId) === String(routeId);
-
-    const rtTripId = tripDescriptor?.tripId || tripDescriptor?.trip_id;
-    if (!rtTripId) return false;
-
-    const routeTrips = state.trips?.[routeId] || [];
-    return routeTrips.some(t => String(t.trip_id) === String(rtTripId));
-}
-
-function ensureRtUi() {
-    let overlay = document.getElementById('overlay');
-    if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'overlay';
-        overlay.style.cssText = `
-            display:none; position:fixed; inset:0; background:rgba(0,0,0,.45);
-            z-index:9998;
-        `;
-        document.body.appendChild(overlay);
-    }
-
-    let panel = document.getElementById('rt-panel');
-    if (!panel) {
-        panel = document.createElement('div');
-        panel.id = 'rt-panel';
-        panel.style.cssText = `
-            display:none; position:fixed; left:50%; top:60px; transform:translateX(-50%);
-            width:min(720px, calc(100vw - 24px)); max-height:calc(100vh - 120px);
-            background:rgba(20, 18, 60, .92); border:1px solid rgba(255,255,255,.18);
-            border-radius:18px; box-shadow:0 12px 40px rgba(0,0,0,.45);
-            z-index:9999; overflow:hidden; backdrop-filter: blur(18px);
-            color:#fff;
-        `;
-        panel.innerHTML = `
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px;
-                border-bottom:1px solid rgba(255,255,255,.12); gap:12px;">
-                <div style="font-weight:800" id="rt-panel-title">Détails</div>
-                <button id="rt-panel-close" style="cursor:pointer; border:none; background:rgba(255,255,255,.12);
-                color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:12px; width:40px; height:40px; font-size:18px;">✕</button>
-            </div>
-            <div id="rt-panel-content" style="padding:14px 16px; overflow:auto; max-height:calc(100vh - 190px);"></div>
-        `;
-        document.body.appendChild(panel);
-    }
-
-    const close = () => closeRtPanel();
-    overlay.onclick = close;
-    const closeBtn = document.getElementById('rt-panel-close');
-    if (closeBtn) closeBtn.onclick = close;
-}
-
-function openRtPanel(title, html) {
-    ensureRtUi();
-    const overlay = document.getElementById('overlay');
-    const panel = document.getElementById('rt-panel');
-    const titleEl = document.getElementById('rt-panel-title');
-    const contentEl = document.getElementById('rt-panel-content');
-
-    if (titleEl) titleEl.textContent = title || 'Détails';
-    if (contentEl) contentEl.innerHTML = html || '';
-
-    overlay.style.display = 'block';
-    panel.style.display = 'block';
-}
-
-function closeRtPanel() {
-    const overlay = document.getElementById('overlay');
-    const panel = document.getElementById('rt-panel');
-    if (overlay) overlay.style.display = 'none';
-    if (panel) panel.style.display = 'none';
-}
-
-function getMinutesFromHHhMM(timeStr) {
-    const [h, m] = (timeStr || '').split('h').map(x => parseInt(x, 10));
-    return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
-}
-
-function sendVehicleToParent(vehicleId, tripId) {
-    const message = {
-        type: 'vehicleSelected',
-        vehicleId: vehicleId || null,
-        tripId: tripId || null,
-        stopId: state.currentStop || null,
-        routeId: state.currentRoute || null,
-        timestamp: new Date().getTime()
-    };
-
-    if (window.parent && window.parent !== window) {
-        window.parent.postMessage(message, '*');
-    } else if (window.opener) {
-        window.opener.postMessage(message, '*');
-    } else {
-        console.warn('Aucun parent/opener pour recevoir le message:', message);
-    }
-}
-
-function showStopsTimelineForTrip(routeId, tripId, vehicleId) {
-    ensureRtUi();
-
-    const route = state.routes?.[routeId];
-    const routeLabel = route?.route_short_name ? `${route.route_short_name}` : 'Ligne';
-    const routeColor = route?.route_color ? `#${route.route_color}` : '#8b5cf6';
-
-    const tripStops = state.stopTimes?.[routeId]?.[tripId];
-    if (!tripStops || tripStops.length === 0) {
-        openRtPanel(
-            `Bus ${vehicleId || '—'} • ${routeLabel}`,
-            `<div style="opacity:.8">Aucun détail d'arrêts pour ce trajet.</div>`
-        );
-        return;
-    }
-
-    const now = new Date();
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-
-    let nextIndex = 0;
-    for (let i = 0; i < tripStops.length; i++) {
-        const tMin = getMinutesFromHHhMM(tripStops[i].arrival_time);
-        if (tMin >= nowMin) { nextIndex = i; break; }
-        nextIndex = i;
-    }
-
-    const rows = tripStops.map((st, idx) => {
-        const stopName = state.stops?.[st.stop_id]?.stop_name || st.stop_id;
-        const time = st.arrival_time || '--h--';
-
-        const isNext = idx === nextIndex;
-        const isPast = idx < nextIndex;
-
-        return `
-            <div style="
-                display:flex; justify-content:space-between; gap:12px; padding:10px 10px;
-                border-bottom:1px solid rgba(255,255,255,.08);
-                background:${isNext ? 'rgba(255,255,255,.10)' : 'transparent'};
-                opacity:${isPast ? '.55' : '1'};
-            ">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="
-                        width:10px; height:10px; border-radius:999px;
-                        background:${isNext ? routeColor : 'rgba(255,255,255,.35)'};
-                        box-shadow:${isNext ? '0 0 0 3px rgba(139,92,246,.25)' : 'none'};
-                    "></div>
-                    <div>${stopName}</div>
-                </div>
-                <div style="font-weight:800;">${time}</div>
-            </div>
-        `;
-    }).join('');
-
-    const html = `
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
-            <div style="width:10px; height:10px; border-radius:999px; background:${routeColor}; box-shadow:0 0 0 3px rgba(139,92,246,.25)"></div>
-            <div style="font-weight:800;">${routeLabel}</div>
-            <div style="opacity:.85;">• Trajet ${tripId}</div>
-            ${vehicleId ? `<div style="margin-left:auto; font-weight:800;">Bus ${vehicleId}</div>` : ''}
-        </div>
-
-        <div style="border:1px solid rgba(255,255,255,.12); border-radius:14px; overflow:hidden;">
-            ${rows}
-        </div>
-
-        <div style="display:flex; gap:10px; margin-top:12px; justify-content:flex-end;">
-            <button id="rt-show-map-btn" style="
-                cursor:pointer; border:none; color:#fff;
-                background:linear-gradient(135deg, rgba(139,92,246,.9), rgba(59,130,246,.9));
-                padding:10px 14px; border-radius:12px; font-weight:800;
-                box-shadow:0 8px 24px rgba(0,0,0,.25);
-            ">
-                Afficher dans la carte
-            </button>
-        </div>
-    `;
-
-    openRtPanel(`Détails • ${routeLabel}`, html);
-
-    const btn = document.getElementById('rt-show-map-btn');
-    if (btn) {
-        btn.onclick = () => {
-            sendVehicleToParent(vehicleId, tripId);
-            closeRtPanel();
-        };
+    } catch {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="state-title">Non disponible</div><div class="state-description">Données temps réel indisponibles</div></div>';
     }
 }
 
 function processRealtimeDataForStop(message, routeId, stopId) {
     const arrivals = [];
     const now = Date.now() / 1000;
-
     message.entity.forEach(entity => {
         if (!entity.tripUpdate) return;
-
-        const tu = entity.tripUpdate;
-        const td = tu.trip;
-
+        const tu = entity.tripUpdate, td = tu.trip;
         const tripId = td.tripId || td.trip_id;
         if (!tripId) return;
-
         const rtRouteId = td.routeId || td.route_id;
         if (rtRouteId && String(rtRouteId) !== String(routeId)) return;
-
         if (!rtRouteId) {
-            const routeTrips = state.trips?.[routeId] || [];
-            const ok = routeTrips.some(t => String(t.trip_id) === String(tripId));
+            const ok = (state.trips?.[routeId] || []).some(t => String(t.trip_id) === String(tripId));
             if (!ok) return;
         }
-
-        const vehicleId =
-            entity.vehicle?.id || entity.vehicle?.label || tu.vehicle?.id || tu.vehicle?.label ||
-            entity.vehicle?.vehicle?.id || entity.vehicle?.vehicle?.label;
-
-        tu.stopTimeUpdate?.forEach(update => {
-            if (update.stopId !== stopId) return;
-
-            const arrivalTime = update.arrival?.time || update.departure?.time;
-            if (!arrivalTime || arrivalTime <= now) return;
-
-            arrivals.push({
-                time: arrivalTime,
-                tripId: tripId,
-                vehicleId: vehicleId,
-                headsign: td.tripHeadsign || td.trip_headsign || 'Destination'
-            });
+        const vehicleId = entity.vehicle?.id || entity.vehicle?.label || tu.vehicle?.id || tu.vehicle?.label;
+        tu.stopTimeUpdate?.forEach(u => {
+            if (u.stopId !== stopId) return;
+            const t = u.arrival?.time || u.departure?.time;
+            if (!t || t <= now) return;
+            arrivals.push({ time: t, tripId, vehicleId, headsign: td.tripHeadsign || 'Destination' });
         });
     });
-
     return arrivals.sort((a, b) => a.time - b.time).slice(0, 8);
 }
 
 function displayRealtimeArrivals(arrivals, container) {
-    container.innerHTML = '';
-
-    if (!arrivals || arrivals.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🚌</div><div>Aucune arrivée prévue</div></div>';
+    if (!arrivals?.length) {
+        container.innerHTML += '<div class="empty-state"><div class="empty-state-icon">🚌</div><div class="state-title">Aucune arrivée</div></div>';
         return;
     }
-
+    const now = Date.now() / 1000;
     arrivals.forEach(arr => {
-        const date = new Date(arr.time * 1000);
-        const hh = pad2(date.getHours());
-        const mm = pad2(date.getMinutes());
-
+        const d = new Date(arr.time * 1000);
+        const inSec = Math.max(0, arr.time - now);
+        const inMin = Math.round(inSec / 60);
         const item = document.createElement('div');
         item.className = 'realtime-item';
-        item.style.cursor = 'pointer';
-
-        const busLabel = arr.vehicleId ? `Bus ${arr.vehicleId}` : '';
-
+        const isImminent = inMin <= 2;
         item.innerHTML = `
-            <div>
-                <div class="realtime-destination" style="display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;">
-                    ${busLabel ? `<span>${busLabel}</span>` : ''}
+            <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
+                <div style="
+                    width:48px;height:48px;border-radius:14px;flex-shrink:0;
+                    background:${isImminent ? 'rgba(52,199,89,0.15)' : 'rgba(0,122,255,0.1)'};
+                    border:1.5px solid ${isImminent ? 'rgba(52,199,89,0.3)' : 'rgba(0,122,255,0.15)'};
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:22px;">🚌</div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:800;font-size:16px;margin-bottom:2px;">${arr.headsign || 'En route'}</div>
+                    ${arr.vehicleId ? `<div style="font-size:12px;color:var(--text-tertiary);font-weight:600;">Bus n°${arr.vehicleId}</div>` : ''}
                 </div>
-                ${arr.delayText ? `<div style="font-size:13px; margin-top:4px; opacity:.9;">${arr.delayText}</div>` : ''}
             </div>
-            <div class="realtime-time">${hh}h${mm}</div>
+            <div style="text-align:right;flex-shrink:0;">
+                <div style="font-size:26px;font-weight:800;letter-spacing:-1px;color:${isImminent ? 'var(--accent-green)' : 'var(--accent-blue)'};">
+                    ${String(d.getHours()).padStart(2,'0')}h${String(d.getMinutes()).padStart(2,'0')}
+                </div>
+                <div style="
+                    display:inline-flex;align-items:center;gap:4px;
+                    padding:3px 10px;border-radius:99px;margin-top:4px;
+                    background:${isImminent ? 'rgba(52,199,89,0.15)' : 'rgba(0,0,0,0.05)'};
+                    font-size:12px;font-weight:800;
+                    color:${isImminent ? 'var(--accent-green)' : 'var(--text-secondary)'};">
+                    ${isImminent ? '🟢' : '🕐'} ${inMin <= 1 ? 'Imminent' : `${inMin} min`}
+                </div>
+            </div>
         `;
-
-        item.addEventListener('click', () => {
-            showStopsTimelineForTrip(state.currentRoute, arr.tripId, arr.vehicleId);
-        });
-
+        item.addEventListener('click', () => showStopsTimelineForTrip(state.currentRoute, arr.tripId, arr.vehicleId));
         container.appendChild(item);
     });
 }
 
-function goBack() {
-    const previous = state.viewHistory.pop();
-    
-    if (!previous) {
-        showLines();
+function openRtPanel(title, html) {
+    document.getElementById('rt-panel-title').textContent = title || 'Détails';
+    document.getElementById('rt-panel-content').innerHTML = html || '';
+    document.getElementById('rt-overlay').style.display = 'block';
+    document.getElementById('rt-panel').style.display = 'block';
+}
+function closeRtPanel() {
+    document.getElementById('rt-overlay').style.display = 'none';
+    document.getElementById('rt-panel').style.display = 'none';
+}
+function showStopsTimelineForTrip(routeId, tripId, vehicleId) {
+    const route = state.routes?.[routeId];
+    const routeLabel = route?.route_short_name ? `Ligne ${route.route_short_name}` : 'Ligne';
+    const routeColor = route?.route_color ? `#${route.route_color}` : '#007AFF';
+    const tripStops = state.stopTimes?.[routeId]?.[tripId];
+    if (!tripStops?.length) {
+        openRtPanel(`${routeLabel}`, '<div style="opacity:.8;padding:8px">Aucun détail disponible.</div>');
         return;
     }
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    let nextIdx = 0;
+    for (let i = 0; i < tripStops.length; i++) {
+        const [h, m] = (tripStops[i].arrival_time || '0:0').split(':').map(Number);
+        if (h * 60 + m >= nowMin) { nextIdx = i; break; }
+        nextIdx = i;
+    }
+    const rows = tripStops.map((st, idx) => {
+        const stopName = state.stops?.[st.stop_id]?.stop_name || st.stop_id;
+        const time = st.arrival_time || '--:--';
+        const isNext = idx === nextIdx, isPast = idx < nextIdx;
+        return `<div style="display:flex;justify-content:space-between;gap:12px;padding:10px;
+            border-bottom:1px solid rgba(255,255,255,.07);
+            background:${isNext ? 'rgba(255,255,255,.1)' : 'transparent'};
+            opacity:${isPast ? '.45' : '1'};">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:8px;height:8px;border-radius:50%;background:${isNext ? routeColor : 'rgba(255,255,255,.3)'};flex-shrink:0;"></div>
+                ${stopName}
+            </div>
+            <div style="font-weight:800;flex-shrink:0">${time}</div>
+        </div>`;
+    }).join('');
+    openRtPanel(`${routeLabel}${vehicleId ? ` — Bus ${vehicleId}` : ''}`,
+        `<div style="border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden;">${rows}</div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+            <button onclick="sendVehicleToParent('${vehicleId}','${tripId}');closeRtPanel();"
+                style="background:linear-gradient(135deg,rgba(139,92,246,.9),rgba(59,130,246,.9));color:#fff;border:none;padding:10px 16px;border-radius:12px;font-weight:800;font-family:'League Spartan',sans-serif;cursor:pointer;font-size:14px;">
+                Afficher sur la carte
+            </button>
+        </div>`
+    );
+}
+function sendVehicleToParent(vehicleId, tripId) {
+    const msg = { type: 'vehicleSelected', vehicleId, tripId, stopId: state.currentStop, routeId: state.currentRoute, timestamp: Date.now() };
+    if (window.parent && window.parent !== window) window.parent.postMessage(msg, '*');
+}
 
-    switch (previous) {
-        case 'lines':
-            showLines();
-            restoreScrollPosition('lines');
-            break;
-        case 'destinations':
-            showDestinations(state.currentRoute);
-            restoreScrollPosition('destinations');
-            break;
-        case 'stops':
-            showStops(state.currentRoute, state.currentDestination);
-            restoreScrollPosition('stops');
-            break;
+function buildBreadcrumb(containerId, items) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = '';
+    items.forEach((item, i) => {
+        if (i > 0) {
+            const sep = document.createElement('span');
+            sep.className = 'breadcrumb-sep';
+            sep.innerHTML = '<i class="fas fa-chevron-right"></i>';
+            el.appendChild(sep);
+        }
+        const btn = document.createElement('button');
+        btn.className = `breadcrumb-item${item.current ? ' current' : ''}`;
+        btn.textContent = item.label;
+        if (!item.current && item.action) btn.addEventListener('click', item.action);
+        el.appendChild(btn);
+    });
+}
+
+function goBack() {
+    const prev = state.viewHistory.pop();
+    if (!prev) { showLines(); return; }
+    switch (prev) {
+        case 'lines': showLines(); restoreScroll('lines'); break;
+        case 'destinations': showDestinations(state.currentRoute); restoreScroll('destinations'); break;
+        case 'stops': showStops(state.currentRoute, state.currentDestination); restoreScroll('stops'); break;
     }
 }
 
-const backBtn = document.getElementById('back-btn');
-addTouchFeedback(backBtn, goBack);
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        if (document.getElementById('stop-sheet').classList.contains('open')) { closeSheet(); return; }
+        if (document.getElementById('rt-panel').style.display === 'block') { closeRtPanel(); return; }
+        if (state.viewHistory.length > 0) goBack();
+    }
+});
 
 window.addEventListener('beforeunload', () => {
-    if (state.realtimeInterval) {
-        clearInterval(state.realtimeInterval);
-    }
+    if (state.realtimeInterval) clearInterval(state.realtimeInterval);
 });
-
-// Smooth page load
-window.addEventListener('load', () => {
-    document.body.style.opacity = '0';
-    requestAnimationFrame(() => {
-        document.body.style.transition = 'opacity 0.4s ease';
-        document.body.style.opacity = '1';
-    });
-});
-
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && state.viewHistory.length > 0) {
-        goBack();
-    }
-});    </script>
+</script>
 </body>
 </html>
