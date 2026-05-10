@@ -2,20 +2,30 @@
 header('Access-Control-Allow-Origin: *');
 header('Content-Type: application/json');
 
-$lat = floatval($_GET['lat'] ?? 0);
-$lon = floatval($_GET['lon'] ?? 0);
+$lat = round(floatval($_GET['lat'] ?? 0), 3); 
+$lon = round(floatval($_GET['lon'] ?? 0), 3);
 if (!$lat || !$lon) { echo '{"error":"no coords"}'; exit; }
 
-$url = "https://nominatim.openstreetmap.org/reverse?lat={$lat}&lon={$lon}&format=json&zoom=14&accept-language=fr";
+$cacheFile = sys_get_temp_dir() . '/geocode_' . md5("{$lat},{$lon}") . '.json';
+
+if (file_exists($cacheFile)) {
+    echo file_get_contents($cacheFile);
+    exit;
+}
+
+sleep(1);
+
+$url = "https://nominatim.openstreetmap.org/reverse?lat={$lat}&lon={$lon}&format=json&zoom=16&accept-language=fr";
 $ctx = stream_context_create(['http' => [
-    'header' => "User-Agent: MyBusSchedule/1.0\r\n",
+    'header' => "User-Agent: MyBusSchedule/1.0 bechirabidi@mybusfinder.fr\r\n",
     'timeout' => 10
 ]]);
 $result = @file_get_contents($url, false, $ctx);
 
 if ($result === false) {
-    $err = error_get_last();
-    echo json_encode(['error' => $err['message'] ?? 'fetch failed']);
-} else {
-    echo $result;
+    echo '{"error":"fetch failed"}';
+    exit;
 }
+
+file_put_contents($cacheFile, $result);
+echo $result;
