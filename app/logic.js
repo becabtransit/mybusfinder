@@ -12322,7 +12322,6 @@ window.softSwitchNetwork = softSwitchNetwork;
 
 const GpsGuide = (() => {
 
-    // ── État ──────────────────────────────────────────────────
     let _userLatLng   = null;
     let _destLatLng   = null;
     let _destName     = '';
@@ -12337,13 +12336,13 @@ const GpsGuide = (() => {
     let _searchTimer  = null;
 
     const WALK_SPEED_KMH    = 4.8;
-    const BUS_SPEED_KMH     = 20;   // conservateur (arrêts, trafic)
-    const TRANSFER_PENALTY  = 5;    // minutes par correspondance
-    const WALK_RADII        = [0.4, 0.8, 1.5]; // essayés en cascade si aucun arrêt
-    const MAX_WALK_ALIGHT   = 1.5;  // km
-    const MAX_TRANSFERS     = 2;
+    const BUS_SPEED_KMH     = 30;
+    const TRANSFER_PENALTY  = 20;    // minutes par correspondance
+    const WALK_RADII        = [0.4, 0.8, 1.5, 2.0, 2.5, 3.0, 4.0]; // essayés en cascade si aucun arrêt
+    const MAX_WALK_ALIGHT   = 2.2;  // km
+    const MAX_TRANSFERS     = 10;
     const GRAPH_TTL_MS      = 90_000; // 1m30 avant de reconstruire le graphe
-    const MAX_WAIT_MIN      = 60;   // ignorer un bus qui met plus d'1h à passer
+    const MAX_WAIT_MIN      = 120; 
 
     function _dist(a, b) {
         const R = 6371,
