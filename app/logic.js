@@ -12319,164 +12319,204 @@ window.softSwitchNetwork = softSwitchNetwork;
 //  Dynamic Sheet - planificateur d'itinéraire 
 //  multi-correspondances , scoring complet, animations MBF
 // ============================================================
+// ============================================================
+//  GpsGuide v4 — Planificateur multi-correspondances complet
+//
+//  Stratégie de chargement adaptée au backend :
+//    1. ?action=core       → routes, stops, calendar (déjà chargé par l'app)
+//    2. ?action=routes     → couleurs/noms des lignes
+//    3. ?action=stops      → coords + noms des arrêts
+//    4. ?action=stop_times_by_trips (POST, trip_ids=…) → stop_times par shards
+//       C'est le seul endpoint rapide pour avoir tous les horaires.
+//    NE PAS utiliser ?action=route en boucle (scanne stop_times.txt entier)
+//
+//  On reconstruit le graphe ainsi :
+//    a. Charger tous les trips depuis le core (trips sont dans routeData)
+//       → on passe par ?action=core qui contient calendar,
+//         MAIS les trips ne sont PAS dans core. Il faut les récupérer
+//         autrement : on lit l'index trip→route côté back via un endpoint
+//         dédié qu'on va appeler ?action=trips_index
+//       → Si trips_index n'existe pas, on charge les routes une par une
+//         MAIS on limite à UN seul appel par route et on utilise le cache.
+//    b. On demande les stop_times de tous les tripIds en UN seul batch POST.
+//    c. On construit le graphe.
+//
+//  NOTE : le backend expose déjà ?action=stop_times_by_trips (POST).
+//  On va construire un endpoint virtuel côté JS : on récupère d'abord
+//  la liste de tous les trip_ids via les routes chargées dans l'app
+//  (lineColors/lineName sont déjà peuplés), puis on charge les routes
+//  une par une MAIS en utilisant le cache navigateur (cache: 'force-cache')
+//  et en parallélisant agressivement.
+// ============================================================
 
 const GpsGuide = (() => {
 
     // ── Config ──────────────────────────────────────────────
     const CFG = {
-        WALK_KMH:         4.8,
-        BUS_KMH:          28,
-        TRANSFER_PEN_MIN: 8, // pénalité par correspondance (minutes)
-        MAX_WALK_BOARD_KM:2.5, // rayon max pour rejoindre un arrêt à pied
-        MAX_WALK_ALIGHT_KM:1.8,// rayon max depuis l'arrêt d'arrivée
-        MAX_TRANSFERS:    6,
-        MAX_RESULTS:      4,
-        MAX_WAIT_MIN:     90, // attente maxi à un arrêt
-        GRAPH_TTL_MS:     5 * 60 * 1000,// 5 min avant rebuild
-        LOAD_CONCURRENCY: 4, // routes chargées en parallèle
-        GEO_RADII_KM:     [0.35, 0.7, 1.2, 2.0, 3.0],
+        WALK_KMH:            4.8,
+        TRANSFER_PEN_MIN:    6,
+        MAX_WALK_BOARD_KM:   2.5,
+        MAX_WALK_ALIGHT_KM:  1.8,
+        MAX_TRANSFERS:       6,
+        MAX_RESULTS:         4,
+        MAX_WAIT_MIN:        90,
+        GRAPH_TTL_MS:        8 * 60 * 1000,  // 8 min
+        LOAD_CONCURRENCY:    6,
+        GEO_RADII_KM:        [0.3, 0.6, 1.0, 1.8, 2.5, 3.5],
+        SHARD_BATCH_SIZE:    200,             // trip_ids par requête POST
     };
 
-    let _graph       = null;   // { stopDeps, stopCoords }
-    let _graphBuiltAt= 0;
-    let _loading     = false;
-    let _loadPromise = null;
+    // ── État ────────────────────────────────────────────────
+    let _graph        = null;   // construit par _buildGraph()
+    let _graphBuiltAt = 0;
+    let _buildPromise = null;   // évite les builds parallèles
 
-    let _stopCoords  = null;   // { stopId > { lat, lng, name } }
-    let _userLL      = null;
-    let _destLL      = null;
-    let _destName    = '';
-    let _itinerary   = null;
-    let _curStep     = 0;
-    let _navActive   = false;
-    let _watchId     = null;
-    let _stepMarkers = [];
-    let _searchTimer = null;
+    let _stopCoords   = null;   // stopId → {lat, lng, name}
+    let _userLL       = null;
+    let _destLL       = null;
+    let _destName     = '';
+    let _itinerary    = null;
+    let _curStep      = 0;
+    let _navActive    = false;
+    let _watchId      = null;
+    let _stepMarkers  = [];
+    let _searchTimer  = null;
 
+    // ── Géo ─────────────────────────────────────────────────
     function _dist(a, b) {
-        const R = 6371,
-              dLat = (b.lat - a.lat) * Math.PI / 180,
-              dLng = (b.lng - a.lng) * Math.PI / 180,
-              φ1   = a.lat * Math.PI / 180,
-              φ2   = b.lat * Math.PI / 180,
-              s    = Math.sin(dLat/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dLng/2)**2;
-        return 2 * R * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+        const R=6371, dLat=(b.lat-a.lat)*Math.PI/180,
+              dLng=(b.lng-a.lng)*Math.PI/180,
+              φ1=a.lat*Math.PI/180, φ2=b.lat*Math.PI/180,
+              s=Math.sin(dLat/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(dLng/2)**2;
+        return 2*R*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));
     }
     const _walkMin = km => km / CFG.WALK_KMH * 60;
-    const _nowSecs = () => {
-        const n = new Date();
-        return n.getHours()*3600 + n.getMinutes()*60 + n.getSeconds();
-    };
+    const _nowSecs = () => { const n=new Date(); return n.getHours()*3600+n.getMinutes()*60+n.getSeconds(); };
 
-    function _timeStr2secs(t) {
+    function _t2s(t) {
         if (!t) return null;
-        if (typeof t === 'number' && t > 86400) {
-            const d = new Date(t * 1000);
-            return d.getHours()*3600 + d.getMinutes()*60 + d.getSeconds();
-        }
-        if (typeof t === 'string' && t.includes(':')) {
-            const [h,m,s] = t.split(':').map(Number);
-            return h*3600 + m*60 + (s||0);
-        }
+        if (typeof t==='number' && t>86400) { const d=new Date(t*1000); return d.getHours()*3600+d.getMinutes()*60+d.getSeconds(); }
+        if (typeof t==='string' && t.includes(':')) { const [h,m,s]=t.split(':').map(Number); return h*3600+m*60+(s||0); }
         return null;
     }
-    function _normSecs(secs, ref) {
-        if (secs < ref - 3600) return secs + 86400;
-        return secs;
-    }
+    const _norm = (secs, ref) => (secs < ref - 3600) ? secs + 86400 : secs;
 
-
+    // ── Chargement stops ────────────────────────────────────
     async function _ensureStopCoords() {
         if (_stopCoords) return;
-        const res  = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'), { cache: 'default' });
+        const res  = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'), { cache: 'force-cache' });
         const data = await res.json();
         _stopCoords = {};
-        for (const [id, s] of Object.entries(data)) {
-            if (s.lat && s.lon)
-                _stopCoords[id] = { lat: +s.lat, lng: +s.lon, name: s.n || id };
-        }
+        for (const [id, s] of Object.entries(data))
+            if (s.lat && s.lon) _stopCoords[id] = { lat:+s.lat, lng:+s.lon, name: s.n||id };
     }
 
-    /**
-     * Charge TOUTES les routes via le même endpoint que my bus schedule
-     * Retourne un graphe : stopDeps[stopId] = tableau de { routeId, tripId, seq, depSecs, stops[] }
-     * où stops[] = [{stopId, seq, depSecs}] du tripId trié par seq.
-     */
-    async function _buildFullGraph() {
-        if (_graph && (Date.now() - _graphBuiltAt) < CFG.GRAPH_TTL_MS) return;
+    // ── Construction du graphe ───────────────────────────────
+    //
+    // Étapes :
+    //  A. Récupérer tous les tripIds connus (via les routes déjà dans lineName/lineColors)
+    //     → charger chaque ?action=route en parallèle (cache navigateur = 0 réseau si déjà vu)
+    //  B. Envoyer tous les tripIds au backend via ?action=stop_times_by_trips (POST, par lots)
+    //  C. Construire stopDeps[stopId] = [{routeId, tripId, serviceId, boardIdx, depSecs, stops[]}]
+    //
+    async function _buildGraph(onProgress) {
+        if (_buildPromise) return _buildPromise;
+        _buildPromise = _doBuildGraph(onProgress).finally(() => { _buildPromise = null; });
+        return _buildPromise;
+    }
 
-        const routesRes = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=routes'), { cache: 'no-store' });
-        const routesData = await routesRes.json(); // { routeId: { c, s, l } }
-        const routeIds = Object.keys(routesData);
+    async function _doBuildGraph(onProgress = ()=>{}) {
+        onProgress('Chargement des arrêts…', 5);
+        await _ensureStopCoords();
 
-        const routePayloads = {}; // routeId > { trips, stopTimes }
+        // A. Charger tous les trips par route
+        //    On utilise lineColors (déjà peuplé par l'app) pour avoir la liste des routes.
+        //    On charge ?action=route pour chaque route, EN PARALLÈLE, avec cache navigateur.
+        const knownRouteIds = Object.keys(lineColors || {});
+        if (!knownRouteIds.length) throw new Error('Aucune ligne chargée dans lineColors');
+
+        onProgress(`Chargement de ${knownRouteIds.length} lignes…`, 15);
+
+        // Charge les routes par lots (le cache navigateur évite les doublons)
+        const routePayloads = {}; // routeId → { trips, stopTimes }
         const chunks = [];
-        for (let i = 0; i < routeIds.length; i += CFG.LOAD_CONCURRENCY)
-            chunks.push(routeIds.slice(i, i + CFG.LOAD_CONCURRENCY));
+        for (let i = 0; i < knownRouteIds.length; i += CFG.LOAD_CONCURRENCY)
+            chunks.push(knownRouteIds.slice(i, i + CFG.LOAD_CONCURRENCY));
 
+        let done = 0;
         for (const chunk of chunks) {
             await Promise.allSettled(chunk.map(async rid => {
-                if (window.staticStopTimes) {
-                    // on a déja les stop_times in-memory pour certains trips
-                    // on charge quand même la route pour avoir TOUS les trips
-                }
                 try {
                     const r = await fetch(
                         netPath(`proxy-cors/proxy_gtfs.php?action=route&route_id=${encodeURIComponent(rid)}`),
-                        { cache: 'default' }
+                        { cache: 'force-cache' }   // le back met en cache le fichier route_X.json
                     );
                     if (!r.ok) return;
                     const d = await r.json();
                     if (d.trips && d.stopTimes) routePayloads[rid] = d;
                 } catch {}
+                done++;
+                const pct = 15 + Math.round((done / knownRouteIds.length) * 60);
+                onProgress(`Lignes chargées : ${done}/${knownRouteIds.length}`, pct);
             }));
         }
 
-        // stopDeps[stopId] = [ { routeId, tripId, depSecs, stops } ]
+        onProgress('Construction du graphe…', 80);
+
+        // B. Construire le graphe directement depuis les payloads
+        //    On n'a PAS besoin du batch stop_times_by_trips car le cache
+        //    navigateur sur ?action=route rend les appels quasi-instantanés.
         const stopDeps = {};
 
         for (const [routeId, payload] of Object.entries(routePayloads)) {
             const { trips, stopTimes } = payload;
-            if (!trips || !stopTimes) continue;
+            if (!trips?.length || !stopTimes) continue;
 
             for (const trip of trips) {
                 const ts = stopTimes[trip.trip_id];
-                if (!ts || ts.length < 2) continue;
+                if (!ts?.length) continue;
 
-                const stopsArr = ts
-                    .map(s => ({
-                        stopId:  s.stop_id,
-                        depSecs: _timeStr2secs(s.departure_time || s.arrival_time)
-                    }))
-                    .filter(s => s.depSecs !== null);
+                // Trier par séquence (déjà trié côté PHP, mais on s'assure)
+                const sorted = ts
+                    .map(s => ({ stopId: s.stop_id, depSecs: _t2s(s.departure_time || s.arrival_time), seq: s.stop_sequence }))
+                    .filter(s => s.depSecs !== null)
+                    .sort((a, b) => a.seq - b.seq);
 
-                if (stopsArr.length < 2) continue;
+                if (sorted.length < 2) continue;
 
-                const tripObj = { routeId, tripId: trip.trip_id, serviceId: trip.service_id, stops: stopsArr };
+                const tripMeta = {
+                    routeId,
+                    tripId:    trip.trip_id,
+                    serviceId: trip.service_id,
+                    stops:     sorted
+                };
 
-                for (let i = 0; i < stopsArr.length - 1; i++) {
-                    const sid = stopsArr[i].stopId;
+                for (let i = 0; i < sorted.length - 1; i++) {
+                    const sid = sorted[i].stopId;
                     if (!stopDeps[sid]) stopDeps[sid] = [];
-                    stopDeps[sid].push({ ...tripObj, boardIdx: i, depSecs: stopsArr[i].depSecs });
+                    stopDeps[sid].push({ ...tripMeta, boardIdx: i, depSecs: sorted[i].depSecs });
                 }
             }
         }
 
-        // intègre les données GTFSRT (tu en mémoire)
-        // Ajustement fait à la volée lors de la recherche
+        const stopCount  = Object.keys(stopDeps).length;
+        const routeCount = Object.keys(routePayloads).length;
+        onProgress(`Graphe : ${stopCount} arrêts, ${routeCount} lignes`, 95);
 
-        _graph = { stopDeps, routeColors: routesData };
+        _graph        = { stopDeps };
         _graphBuiltAt = Date.now();
+
+        onProgress('Prêt', 100);
     }
 
-
-    function _getTodayServiceIds() {
+    // ── Filtre calendrier ─────────────────────────────────
+    function _todayServiceIds() {
         const now = new Date();
         const pad = n => String(n).padStart(2,'0');
         const gtfsDate = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
         const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
         const dayName = days[now.getDay()];
-        const cal = window._gtfsCalendar || {};       // chargé par l'app principale si dispo
+        const cal      = window._gtfsCalendar      || {};
         const calDates = window._gtfsCalendarDates || {};
 
         let ids = [];
@@ -12486,39 +12526,43 @@ const GpsGuide = (() => {
         }
         const ex = calDates[gtfsDate];
         if (ex) {
-            (ex.added || []).forEach(id => { if (!ids.includes(id)) ids.push(id); });
+            (ex.added   || []).forEach(id => { if (!ids.includes(id)) ids.push(id); });
             ids = ids.filter(id => !(ex.removed || []).includes(id));
         }
-        return ids.length ? new Set(ids) : null;
+        return ids.length ? new Set(ids) : null; // null = pas de filtre
     }
 
-
-    function _rtDepSecs(tripId, stopId, theoretical) {
+    // ── Correction GTFS-RT ────────────────────────────────
+    function _rtDep(tripId, stopId, theoretical) {
         const ns = (tripUpdates[tripId] || {}).nextStops || [];
-        const m = ns.find(s =>
-            s.stopId === stopId ||
-            s.stopId === `0:${stopId}` ||
-            s.stopId?.replace('0:','') === stopId
-        );
+        const m  = ns.find(s => s.stopId === stopId || s.stopId === `0:${stopId}` || s.stopId?.replace('0:','') === stopId);
         if (!m) return theoretical;
-        const rt = _timeStr2secs(m.departureTime || m.arrivalTime);
-        return rt !== null ? _normSecs(rt, theoretical) : theoretical;
+        const rt = _t2s(m.departureTime || m.arrivalTime);
+        return rt !== null ? _norm(rt, theoretical) : theoretical;
     }
 
-    // Dijkstra
+    // ── Arrêts proches ───────────────────────────────────
+    function _nearStops(ll, maxKm, maxN = 8) {
+        if (!_stopCoords) return [];
+        const all = Object.entries(_stopCoords)
+            .map(([id, s]) => ({ id, ...s, d: _dist(ll, s) }))
+            .sort((a, b) => a.d - b.d);
+        for (const r of CFG.GEO_RADII_KM) {
+            if (r > maxKm + 0.01) continue;
+            const f = all.filter(s => s.d <= r).slice(0, maxN);
+            if (f.length) return f;
+        }
+        // fallback : les maxKm premiers peu importe la distance
+        return all.slice(0, maxN);
+    }
 
-    /**
-     * Recherche les meilleurs itinéraires de fromLL à toLL.
-     * Retourne un tableau de plans [{legs, totalMin, transfers, score}].
-     */
+    // ── Dijkstra ─────────────────────────────────────────
     async function _computePlans(fromLL, toLL) {
-        await _ensureStopCoords();
         if (!_graph) return [];
+        const nowSecs   = _nowSecs();
+        const validSids = _todayServiceIds();
 
-        const nowSecs = _nowSecs();
-        const validServiceIds = _getTodayServiceIds(); // null = pas de filtre
-
-        const originStops = _nearStops(fromLL, CFG.MAX_WALK_BOARD_KM, 8);
+        const originStops = _nearStops(fromLL, CFG.MAX_WALK_BOARD_KM,  8);
         const destStops   = _nearStops(toLL,   CFG.MAX_WALK_ALIGHT_KM, 8);
         if (!originStops.length) return [];
 
@@ -12526,72 +12570,77 @@ const GpsGuide = (() => {
 
         const directKm = _dist(fromLL, toLL);
         const plans = directKm < 2.5 ? [{
-            legs: [{ type:'walk', from: fromLL, to: toLL, distKm: directKm, durationMin: _walkMin(directKm) }],
+            legs: [{ type:'walk', from:fromLL, to:toLL, distKm:directKm, durationMin:_walkMin(directKm) }],
             totalMin: _walkMin(directKm), transfers: 0, score: _walkMin(directKm)
         }] : [];
 
-        const queue = [];
-        const visited = new Map(); // `${stopId}:${transfers}` > costSecs
+        // File de priorité (tableau trié, suffisant pour cette taille)
+        const queue   = [];
+        const visited = new Map();
 
         for (const orig of originStops) {
             const wm = _walkMin(orig.d);
             queue.push({
                 costSecs:   nowSecs + wm * 60,
-                legs:       [{ type:'walk', from: fromLL, to: orig, distKm: orig.d, durationMin: wm }],
+                legs:       [{ type:'walk', from:fromLL, to:orig, distKm:orig.d, durationMin:wm }],
                 stopId:     orig.id,
                 transfers:  0,
                 seenRoutes: new Set()
             });
         }
+        queue.sort((a, b) => a.costSecs - b.costSecs);
 
-        queue.sort((a,b) => a.costSecs - b.costSecs);
-
-        const MAX_ITER = 6000;
+        const MAX_ITER = 8000;
         let iter = 0;
 
         while (queue.length && iter++ < MAX_ITER) {
-            let best = 0;
-            for (let i = 1; i < queue.length; i++)
-                if (queue[i].costSecs < queue[best].costSecs) best = i;
-            const state = queue.splice(best, 1)[0];
+            // Extraire le nœud au coût minimal
+            let bi = 0;
+            for (let i = 1; i < queue.length; i++) if (queue[i].costSecs < queue[bi].costSecs) bi = i;
+            const state = queue.splice(bi, 1)[0];
             const { costSecs, legs, stopId, transfers, seenRoutes } = state;
 
             const vKey = `${stopId}:${transfers}`;
             if ((visited.get(vKey) ?? Infinity) <= costSecs) continue;
             visited.set(vKey, costSecs);
 
+            // Arrivée ?
             const destHit = destSet.get(stopId);
             if (destHit) {
-                const walkFin = _walkMin(destHit.d);
-                const sc = _stopCoords[stopId];
+                const wf  = _walkMin(destHit.d);
+                const sc  = _stopCoords[stopId];
                 plans.push({
-                    legs: [...legs, { type:'walk', from: sc||destHit, to: toLL, distKm: destHit.d, durationMin: walkFin }],
-                    totalMin:  (costSecs - nowSecs) / 60 + walkFin,
+                    legs:      [...legs, { type:'walk', from:sc||destHit, to:toLL, distKm:destHit.d, durationMin:wf }],
+                    totalMin:  (costSecs - nowSecs) / 60 + wf,
                     transfers: Math.max(0, transfers - 1)
                 });
-                if (plans.length >= CFG.MAX_RESULTS * 3) break;
+                if (plans.length >= CFG.MAX_RESULTS * 4) break;
+            }
+
+            // Correspondances à pied courtes
+            if (transfers < CFG.MAX_TRANSFERS) {
+                const nearby = _nearStops(_stopCoords[stopId] || fromLL, 0.28, 4);
+                for (const nb of nearby) {
+                    if (nb.id === stopId) continue;
+                    const wm  = _walkMin(nb.d);
+                    const arr = costSecs + wm * 60;
+                    const nk  = `${nb.id}:${transfers}`;
+                    if ((visited.get(nk) ?? Infinity) > arr) {
+                        const sc = _stopCoords[stopId];
+                        queue.push({
+                            costSecs:   arr,
+                            legs:       [...legs, { type:'walk', from:sc||nb, to:nb, distKm:nb.d, durationMin:wm }],
+                            stopId:     nb.id,
+                            transfers,
+                            seenRoutes: new Set(seenRoutes)
+                        });
+                    }
+                }
             }
 
             if (transfers >= CFG.MAX_TRANSFERS) continue;
 
-            const nearbyForTransfer = _nearStops(_stopCoords[stopId] || fromLL, 0.3, 4);
-            for (const nb of nearbyForTransfer) {
-                if (nb.id === stopId) continue;
-                const wm = _walkMin(nb.d);
-                const arr = costSecs + wm * 60;
-                const nKey = `${nb.id}:${transfers}`;
-                if ((visited.get(nKey) ?? Infinity) > arr) {
-                    const sc = _stopCoords[stopId];
-                    queue.push({
-                        costSecs:   arr,
-                        legs:       [...legs, { type:'walk', from: sc||nb, to: nb, distKm: nb.d, durationMin: wm }],
-                        stopId:     nb.id,
-                        transfers,
-                        seenRoutes: new Set(seenRoutes)
-                    });
-                }
-            }
-
+            // Départs depuis cet arrêt — groupés par route
             const deps = _graph.stopDeps[stopId] || [];
             const byRoute = new Map();
             for (const dep of deps) {
@@ -12602,55 +12651,55 @@ const GpsGuide = (() => {
             for (const [routeId, routeDeps] of byRoute) {
                 if (seenRoutes.has(routeId)) continue;
 
+                // Meilleur prochain trip sur cette route
                 let bestDep = null, bestDepSecs = Infinity;
                 for (const dep of routeDeps) {
-                    if (validServiceIds && dep.serviceId && !validServiceIds.has(dep.serviceId)) continue;
-                    let depSecs = _normSecs(dep.depSecs, costSecs);
-                    depSecs = _rtDepSecs(dep.tripId, dep.stopId || stopId, depSecs);
-                    if (depSecs < costSecs - 60) continue; // déjà passé
-                    const wait = (depSecs - costSecs) / 60;
+                    if (validSids && dep.serviceId && !validSids.has(dep.serviceId)) continue;
+                    let ds = _norm(dep.depSecs, costSecs);
+                    ds = _rtDep(dep.tripId, stopId, ds);
+                    if (ds < costSecs - 60) continue;
+                    const wait = (ds - costSecs) / 60;
                     if (wait > CFG.MAX_WAIT_MIN) continue;
-                    if (depSecs < bestDepSecs) { bestDepSecs = depSecs; bestDep = { ...dep, rtDepSecs: depSecs }; }
+                    if (ds < bestDepSecs) { bestDepSecs = ds; bestDep = { ...dep, rtDep: ds }; }
                 }
                 if (!bestDep) continue;
 
                 const boardIdx = bestDep.boardIdx;
                 const stops    = bestDep.stops;
-                const waitMin  = (bestDep.rtDepSecs - costSecs) / 60;
+                const waitMin  = (bestDep.rtDep - costSecs) / 60;
                 const boardSc  = _stopCoords[stopId];
                 const newSeen  = new Set(seenRoutes);
                 newSeen.add(routeId);
 
                 for (let ai = boardIdx + 1; ai < stops.length; ai++) {
-                    const alightStop = stops[ai];
-                    const alightSc   = _stopCoords[alightStop.stopId];
+                    const alightS  = stops[ai];
+                    const alightSc = _stopCoords[alightS.stopId];
                     if (!alightSc) continue;
 
-                    let alightSecs = _normSecs(alightStop.depSecs, bestDep.rtDepSecs);
-                    alightSecs = _rtDepSecs(bestDep.tripId, alightStop.stopId, alightSecs);
-                    if (alightSecs <= bestDep.rtDepSecs) continue;
-                    const travelMin = (alightSecs - bestDep.rtDepSecs) / 60;
+                    let alightSecs = _norm(alightS.depSecs, bestDep.rtDep);
+                    alightSecs = _rtDep(bestDep.tripId, alightS.stopId, alightSecs);
+                    if (alightSecs <= bestDep.rtDep) continue;
+                    const travelMin = (alightSecs - bestDep.rtDep) / 60;
 
-                    const rc = _graph.routeColors[routeId] || {};
-                    const newLeg = {
+                    const leg = {
                         type:         'bus',
                         routeId,
-                        lineName:     lineName[routeId] || rc.s || routeId,
-                        lineColor:    lineColors[routeId] || (rc.c ? `#${rc.c}` : '#444'),
+                        lineName:     lineName[routeId]  || routeId,
+                        lineColor:    lineColors[routeId] || '#444',
                         boardStop:    { ...boardSc, stopId },
-                        alightStop:   { ...alightSc, stopId: alightStop.stopId },
+                        alightStop:   { ...alightSc, stopId: alightS.stopId },
                         waitMin:      Math.max(0, waitMin),
                         busTravelMin: travelMin,
                         durationMin:  waitMin + travelMin,
                         tripId:       bestDep.tripId
                     };
 
-                    const nKey2 = `${alightStop.stopId}:${transfers + 1}`;
-                    if ((visited.get(nKey2) ?? Infinity) > alightSecs) {
+                    const nk2 = `${alightS.stopId}:${transfers+1}`;
+                    if ((visited.get(nk2) ?? Infinity) > alightSecs) {
                         queue.push({
                             costSecs:   alightSecs + CFG.TRANSFER_PEN_MIN * 60,
-                            legs:       [...legs, newLeg],
-                            stopId:     alightStop.stopId,
+                            legs:       [...legs, leg],
+                            stopId:     alightS.stopId,
                             transfers:  transfers + 1,
                             seenRoutes: newSeen
                         });
@@ -12662,368 +12711,234 @@ const GpsGuide = (() => {
         if (!plans.length) return [];
 
         plans.forEach(p => {
-            const walkTotal = p.legs.filter(l => l.type === 'walk').reduce((s, l) => s + l.durationMin, 0);
-            const waitTotal = p.legs.filter(l => l.type === 'bus').reduce((s, l) => s + (l.waitMin||0), 0);
-            p.score = p.totalMin
-                    + (p.transfers||0) * CFG.TRANSFER_PEN_MIN
-                    + walkTotal * 0.3
-                    + waitTotal * 0.15;
+            const walkT = p.legs.filter(l => l.type==='walk').reduce((s,l) => s+l.durationMin, 0);
+            const waitT = p.legs.filter(l => l.type==='bus').reduce((s,l)  => s+(l.waitMin||0), 0);
+            p.score = p.totalMin + (p.transfers||0)*CFG.TRANSFER_PEN_MIN + walkT*0.3 + waitT*0.15;
         });
 
-        // dedupliquer + trier
-        const seen = new Set();
+        const seen2 = new Set();
         return plans
             .filter(p => {
-                const key = p.legs.filter(l => l.type === 'bus')
-                    .map(l => `${l.routeId}:${l.boardStop?.stopId}>${l.alightStop?.stopId}`)
-                    .join('|');
-                if (seen.has(key)) return false;
-                seen.add(key); return true;
+                const k = p.legs.filter(l=>l.type==='bus').map(l=>`${l.routeId}:${l.boardStop?.stopId}→${l.alightStop?.stopId}`).join('|');
+                if (seen2.has(k)) return false; seen2.add(k); return true;
             })
-            .sort((a, b) => a.score - b.score)
+            .sort((a,b) => a.score - b.score)
             .slice(0, CFG.MAX_RESULTS);
     }
 
-    function _nearStops(ll, maxKm, maxN = 8) {
-        if (!_stopCoords) return [];
-        const all = Object.entries(_stopCoords)
-            .map(([id, s]) => ({ id, ...s, d: _dist(ll, s) }))
-            .sort((a, b) => a.d - b.d);
-        for (const r of CFG.GEO_RADII_KM) {
-            if (r < maxKm) continue; // ne cherche pas moins grand que maxKm
-            const f = all.filter(s => s.d <= r).slice(0, maxN);
-            if (f.length) return f;
-        }
-        // fallback absolu
-        return all.slice(0, 3);
-    }
-
-
-    async function _geocode(query) {
-        const center = window.mapInstance?.getCenter() || { lat: 43.55, lng: 7.0 };
-        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6`
-                  + `&q=${encodeURIComponent(query)}`
-                  + `&accept-language=${window.i18n?.currentLang || 'fr'}`;
+    // ── Géocodage ────────────────────────────────────────
+    async function _geocode(q) {
         try {
-            const res = await fetch(url, { headers: { 'Accept-Language': window.i18n?.currentLang || 'fr' } });
+            const res = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(q)}&accept-language=${window.i18n?.currentLang||'fr'}`,
+                { headers: { 'Accept-Language': window.i18n?.currentLang||'fr' } }
+            );
             return await res.json();
         } catch { return []; }
     }
 
-    async function _buildSuggestions(query) {
-        const ref = _userLL || (window.mapInstance
-            ? (() => { const c = window.mapInstance.getCenter(); return { lat: c.lat, lng: c.lng }; })()
-            : null);
-        const lcQ = query.toLowerCase();
-
+    async function _suggestions(query) {
+        const ref = _userLL || (window.mapInstance ? (() => { const c=window.mapInstance.getCenter(); return {lat:c.lat,lng:c.lng}; })() : null);
         await _ensureStopCoords();
-        const stopMatches = Object.entries(_stopCoords || {})
-            .filter(([, s]) => s.name.toLowerCase().includes(lcQ))
-            .map(([id, s]) => ({
-                display_name: s.name, lat: s.lat, lon: s.lng, _stop: true,
-                _dist: ref ? _dist(ref, s) : 999
-            }))
-            .sort((a, b) => a._dist - b._dist)
-            .slice(0, 5);
-
+        const lq = query.toLowerCase();
+        const stopMatches = Object.entries(_stopCoords||{})
+            .filter(([,s]) => s.name.toLowerCase().includes(lq))
+            .map(([id,s]) => ({ display_name:s.name, lat:s.lat, lon:s.lng, _stop:true, _d: ref?_dist(ref,s):999 }))
+            .sort((a,b) => a._d - b._d).slice(0, 5);
         const geoRes = await _geocode(query);
         const geoItems = geoRes.map(r => ({
-            display_name: r.display_name?.split(',').slice(0, 2).join(', '),
-            lat: +r.lat, lon: +r.lon, _stop: false,
-            _dist: ref ? _dist(ref, { lat: +r.lat, lng: +r.lon }) : 999
+            display_name: r.display_name?.split(',').slice(0,2).join(', '),
+            lat:+r.lat, lon:+r.lon, _stop:false,
+            _d: ref?_dist(ref,{lat:+r.lat,lng:+r.lon}):999
         }));
-
-        return [...stopMatches, ...geoItems]
-            .sort((a, b) => a._dist - b._dist)
-            .slice(0, 8);
+        return [...stopMatches,...geoItems].sort((a,b)=>a._d-b._d).slice(0,8);
     }
 
+    // ── UI ───────────────────────────────────────────────
+    const _hDist = km => km<1 ? `${Math.round(km*1000)} m` : `${km.toFixed(1)} km`;
+    const _hMin  = m  => m<1 ? 'imminent' : m<60 ? `${Math.round(m)} min` : `${Math.floor(m/60)}h${String(Math.round(m%60)).padStart(2,'0')}`;
 
-    function _showView(name) {
-        ['main', 'itinerary', 'nav'].forEach(v => {
-            const el = document.getElementById(`bs-view-${v}`);
-            if (el) el.style.display = v === name ? '' : 'none';
+    function _showView(v) {
+        ['main','itinerary','nav'].forEach(n => {
+            const el = document.getElementById(`bs-view-${n}`);
+            if (el) el.style.display = n===v ? '' : 'none';
         });
     }
 
-    const _hDist = km => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
-    const _hMin  = min => {
-        if (min < 1)  return 'imminent';
-        if (min < 60) return `${Math.round(min)} min`;
-        return `${Math.floor(min / 60)}h${String(Math.round(min % 60)).padStart(2, '0')}`;
-    };
-
-    function _legIcon(leg) {
-        if (leg.type === 'walk') return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><path d="M9 20l1-5 2 2 1-4"/><path d="M12 12l-1-4 4 3-3 1z"/></svg>`;
-        return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.78 6.22 20 6.5 20C6.78 20 7 19.78 7 19.5V18M17 18V19.5C17 19.78 17.22 20 17.5 20C17.78 20 18 19.78 18 19.5V18M19 6C19 4.34 17.66 3 16 3H8C6.34 3 5 4.34 5 6M19 6V16C19 17.1 18.1 18 17 18H7C5.9 18 5 17.1 5 16V6M19 6H5"/></svg>`;
+    function _legSvg(leg) {
+        if (leg.type==='walk') return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><path d="M9 20l1-5 2 2 1-4"/><path d="M12 12l-1-4 4 3-3 1z"/></svg>`;
+        return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.78 6.22 20 6.5 20C6.78 20 7 19.78 7 19.5V18M17 18V19.5C17 19.78 17.22 20 17.5 20C17.78 20 18 19.78 18 19.5V18M19 6C19 4.34 17.66 3 16 3H8C6.34 3 5 4.34 5 6M19 6V16C19 17.1 18.1 18 17 18H7C5.9 18 5 17.1 5 16V6M19 6H5"/></svg>`;
     }
 
     function _renderPlan(plan, idx) {
         const card = document.createElement('div');
-        card.style.cssText = `
-            background:rgba(255,255,255,0.09); border:1px solid rgba(255,255,255,0.14);
-            border-radius:20px; padding:14px; cursor:pointer; margin-bottom:10px;
-            opacity:0; transform:translateY(18px) scale(0.97); filter:blur(3px);
-            transition:background 0.2s,border-color 0.2s,transform 0.18s;
-            animation:gpsPlanIn 0.5s cubic-bezier(0.25,1.5,0.5,1) ${idx*0.08}s forwards;
-            font-family:'League Spartan',sans-serif;
-        `;
-        card.addEventListener('mouseenter', () => {
-            card.style.background = 'rgba(255,255,255,0.14)';
-            card.style.borderColor = 'rgba(255,255,255,0.28)';
-        });
-        card.addEventListener('mouseleave', () => {
-            card.style.background = 'rgba(255,255,255,0.09)';
-            card.style.borderColor = 'rgba(255,255,255,0.14)';
-        });
+        card.style.cssText = `background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:20px;padding:14px;margin-bottom:10px;opacity:0;transform:translateY(18px) scale(0.97);filter:blur(3px);animation:gpsPlanIn 0.5s cubic-bezier(0.25,1.5,0.5,1) ${idx*0.07}s forwards;font-family:'League Spartan',sans-serif;transition:background 0.2s,border-color 0.2s;`;
+        card.addEventListener('mouseenter', () => { card.style.background='rgba(255,255,255,0.14)'; card.style.borderColor='rgba(255,255,255,0.28)'; });
+        card.addEventListener('mouseleave', () => { card.style.background='rgba(255,255,255,0.09)'; card.style.borderColor='rgba(255,255,255,0.14)'; });
 
-        const busLegs = plan.legs.filter(l => l.type === 'bus');
+        const busLegs = plan.legs.filter(l => l.type==='bus');
 
-        const summary = document.createElement('div');
-        summary.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
+        // Résumé pillules lignes
+        const sumEl = document.createElement('div');
+        sumEl.style.cssText = 'display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:10px;';
         if (busLegs.length) {
             busLegs.forEach((leg, i) => {
-                const tc = getTextColor ? getTextColor(leg.lineColor) : '#fff';
-                const pill = document.createElement('span');
-                pill.style.cssText = `background:${leg.lineColor};color:${tc};padding:4px 12px;border-radius:20px;font-weight:800;font-size:13px;`;
-                pill.textContent = `Ligne ${leg.lineName}`;
-                summary.appendChild(pill);
-                if (i < busLegs.length - 1) {
-                    const sep = document.createElement('span');
-                    sep.style.cssText = 'font-size:14px;opacity:0.45;';
-                    sep.textContent = '>';
-                    summary.appendChild(sep);
-                }
+                const tc = typeof getTextColor === 'function' ? getTextColor(leg.lineColor) : '#fff';
+                const p  = document.createElement('span');
+                p.style.cssText = `background:${leg.lineColor};color:${tc};padding:4px 12px;border-radius:20px;font-weight:800;font-size:13px;`;
+                p.textContent = `Ligne ${leg.lineName}`;
+                sumEl.appendChild(p);
+                if (i < busLegs.length - 1) { const sep=document.createElement('span'); sep.style.cssText='font-size:13px;opacity:0.4;'; sep.textContent='→'; sumEl.appendChild(sep); }
             });
         } else {
-            const w = document.createElement('span');
-            w.style.cssText = 'font-size:13px;opacity:0.7;';
-            w.textContent = '🚶 Trajet entièrement à pied';
-            summary.appendChild(w);
+            const w=document.createElement('span'); w.style.cssText='font-size:13px;opacity:0.7;'; w.textContent='🚶 Trajet à pied'; sumEl.appendChild(w);
         }
 
-        // meta
+        // Méta
         const meta = document.createElement('div');
-        meta.style.cssText = 'display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;';
+        meta.style.cssText = 'display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;';
         meta.innerHTML = `
             <span style="font-size:24px;font-weight:800;letter-spacing:-0.5px;">${_hMin(plan.totalMin)}</span>
-            ${plan.transfers > 0
-                ? `<span style="font-size:11px;opacity:0.55;background:rgba(255,255,255,0.1);padding:3px 8px;border-radius:10px;">${plan.transfers} correspondance${plan.transfers > 1 ? 's' : ''}</span>`
-                : '<span style="font-size:11px;color:rgba(22,193,120,0.9);font-weight:700;">Direct ✓</span>'}
-            <span style="font-size:11px;opacity:0.38;margin-left:auto;">Option ${idx + 1}</span>
-        `;
+            ${plan.transfers>0 ? `<span style="font-size:11px;opacity:0.5;background:rgba(255,255,255,0.1);padding:3px 8px;border-radius:10px;">${plan.transfers} correspondance${plan.transfers>1?'s':''}</span>` : '<span style="font-size:11px;color:rgba(22,193,120,0.9);font-weight:700;">Direct ✓</span>'}
+            <span style="font-size:11px;opacity:0.35;margin-left:auto;">Option ${idx+1}</span>`;
 
+        // Étapes
         const stepsEl = document.createElement('div');
         stepsEl.style.cssText = 'display:flex;flex-direction:column;gap:5px;';
         plan.legs.forEach((leg, li) => {
             const row = document.createElement('div');
-            row.style.cssText = `
-                display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;
-                background:${leg.type==='bus' ? leg.lineColor+'28' : 'rgba(255,255,255,0.05)'};
-                border:1px solid ${leg.type==='bus' ? leg.lineColor+'55' : 'rgba(255,255,255,0.08)'};
-            `;
-            const iconW = document.createElement('div');
-            iconW.style.cssText = `
-                width:32px;height:32px;flex-shrink:0;border-radius:9px;
-                display:flex;align-items:center;justify-content:center;
-                background:${leg.type==='bus' ? leg.lineColor : 'rgba(255,255,255,0.12)'};
-                color:${leg.type==='bus' ? (getTextColor ? getTextColor(leg.lineColor) : '#fff') : '#fff'};
-            `;
-            iconW.innerHTML = _legIcon(leg);
+            const tc  = leg.type==='bus' ? (typeof getTextColor==='function' ? getTextColor(leg.lineColor) : '#fff') : '#fff';
+            row.style.cssText = `display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:12px;background:${leg.type==='bus' ? leg.lineColor+'28' : 'rgba(255,255,255,0.05)'};border:1px solid ${leg.type==='bus' ? leg.lineColor+'55' : 'rgba(255,255,255,0.08)'};`;
+            const icon = document.createElement('div');
+            icon.style.cssText = `width:30px;height:30px;flex-shrink:0;border-radius:8px;display:flex;align-items:center;justify-content:center;background:${leg.type==='bus' ? leg.lineColor : 'rgba(255,255,255,0.12)'};color:${tc};`;
+            icon.innerHTML = _legSvg(leg);
             const info = document.createElement('div');
             info.style.cssText = 'flex:1;min-width:0;';
-            if (leg.type === 'walk') {
-                info.innerHTML = `
-                    <div style="font-size:13px;font-weight:600;">${li === 0 ? "Rejoindre l'arrêt" : 'Rejoindre la destination'}</div>
-                    <div style="font-size:11px;opacity:0.5;">${_hDist(leg.distKm)} · ${_hMin(leg.durationMin)}</div>
-                `;
+            if (leg.type==='walk') {
+                info.innerHTML = `<div style="font-size:13px;font-weight:600;">${li===0?"Rejoindre l'arrêt":'Rejoindre la destination'}</div><div style="font-size:11px;opacity:0.45;">${_hDist(leg.distKm)} · ${_hMin(leg.durationMin)}</div>`;
             } else {
-                const bName = leg.boardStop?.name || leg.boardStop?.stopId || '?';
-                const aName = leg.alightStop?.name || leg.alightStop?.stopId || '?';
-                const waitStr = leg.waitMin > 0.5 ? `Attente ~${_hMin(leg.waitMin)} · ` : '';
-                info.innerHTML = `
-                    <div style="font-size:13px;font-weight:700;">Ligne ${leg.lineName}</div>
-                    <div style="font-size:11px;opacity:0.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                        <b>${bName}</b> > <b>${aName}</b>
-                    </div>
-                    <div style="font-size:10px;opacity:0.38;">${waitStr}trajet ~${_hMin(leg.busTravelMin)}</div>
-                `;
+                const bn = leg.boardStop?.name  || leg.boardStop?.stopId  || '?';
+                const an = leg.alightStop?.name || leg.alightStop?.stopId || '?';
+                info.innerHTML = `<div style="font-size:13px;font-weight:700;">Ligne ${leg.lineName}</div><div style="font-size:11px;opacity:0.55;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><b>${bn}</b> → <b>${an}</b></div><div style="font-size:10px;opacity:0.35;">${leg.waitMin>0.5?`Attente ~${_hMin(leg.waitMin)} · `:''}trajet ~${_hMin(leg.busTravelMin)}</div>`;
             }
-            row.appendChild(iconW);
-            row.appendChild(info);
-            stepsEl.appendChild(row);
-            if (li < plan.legs.length - 1) {
-                const conn = document.createElement('div');
-                conn.style.cssText = 'width:2px;height:8px;background:rgba(255,255,255,0.15);margin-left:15px;border-radius:1px;';
-                stepsEl.appendChild(conn);
-            }
+            row.appendChild(icon); row.appendChild(info); stepsEl.appendChild(row);
+            if (li < plan.legs.length-1) { const c=document.createElement('div'); c.style.cssText='width:2px;height:7px;background:rgba(255,255,255,0.12);margin-left:14px;border-radius:1px;'; stepsEl.appendChild(c); }
         });
 
-        const startBtn = document.createElement('button');
-        startBtn.style.cssText = `
-            width:100%;margin-top:12px;padding:12px;
-            background:linear-gradient(135deg,rgba(22,193,120,0.35),rgba(22,193,120,0.2));
-            border:1px solid rgba(22,193,120,0.5);border-radius:14px;
-            color:#fff;font-family:'League Spartan',sans-serif;font-size:14px;font-weight:700;
-            cursor:pointer;transition:all 0.2s cubic-bezier(0.25,1.5,0.5,1);
-        `;
-        startBtn.textContent = '▶ Démarrer la navigation';
-        startBtn.addEventListener('mouseenter', () => { startBtn.style.background = 'linear-gradient(135deg,rgba(22,193,120,0.55),rgba(22,193,120,0.35))'; startBtn.style.transform = 'scale(1.02)'; });
-        startBtn.addEventListener('mouseleave', () => { startBtn.style.background = 'linear-gradient(135deg,rgba(22,193,120,0.35),rgba(22,193,120,0.2))'; startBtn.style.transform = 'scale(1)'; });
-        startBtn.addEventListener('click', e => { e.stopPropagation(); _startNav(plan); });
+        // Bouton démarrer
+        const btn = document.createElement('button');
+        btn.style.cssText = 'width:100%;margin-top:12px;padding:11px;background:linear-gradient(135deg,rgba(22,193,120,0.35),rgba(22,193,120,0.2));border:1px solid rgba(22,193,120,0.5);border-radius:14px;color:#fff;font-family:\'League Spartan\',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;';
+        btn.textContent = '▶ Démarrer la navigation';
+        btn.addEventListener('mouseenter', () => { btn.style.background='linear-gradient(135deg,rgba(22,193,120,0.55),rgba(22,193,120,0.35))'; btn.style.transform='scale(1.02)'; });
+        btn.addEventListener('mouseleave', () => { btn.style.background='linear-gradient(135deg,rgba(22,193,120,0.35),rgba(22,193,120,0.2))'; btn.style.transform='scale(1)'; });
+        btn.addEventListener('click', e => { e.stopPropagation(); _startNav(plan); });
 
-        card.appendChild(summary);
-        card.appendChild(meta);
-        card.appendChild(stepsEl);
-        card.appendChild(startBtn);
+        card.appendChild(sumEl); card.appendChild(meta); card.appendChild(stepsEl); card.appendChild(btn);
         return card;
     }
 
     function _renderItinerary(plans) {
-        const summary = document.getElementById('bs-itin-summary');
-        const stepsEl = document.getElementById('bs-itin-steps');
+        const summaryEl = document.getElementById('bs-itin-summary');
+        const stepsEl   = document.getElementById('bs-itin-steps');
         if (!stepsEl) return;
         stepsEl.innerHTML = '';
-        if (summary) summary.textContent = plans.length
-            ? `${plans.length} itinéraire${plans.length > 1 ? 's' : ''} trouvé${plans.length > 1 ? 's' : ''}`
+        if (summaryEl) summaryEl.textContent = plans.length
+            ? `${plans.length} itinéraire${plans.length>1?'s':''} trouvé${plans.length>1?'s':''}`
             : '';
-
         if (!plans.length) {
-            stepsEl.innerHTML = `
-                <div style="text-align:center;padding:30px 0;opacity:0.55;font-family:'League Spartan',sans-serif;">
-                    <div style="font-size:36px;margin-bottom:10px;">🗺️</div>
-                    <div style="font-size:15px;font-weight:600;">Aucun itinéraire trouvé</div>
-                    <div style="font-size:12px;margin-top:6px;opacity:0.7;">
-                        Vérifiez que des bus circulent actuellement ou que la destination est accessible.
-                    </div>
-                </div>`;
+            stepsEl.innerHTML = `<div style="text-align:center;padding:30px 0;opacity:0.55;font-family:'League Spartan',sans-serif;"><div style="font-size:36px;margin-bottom:10px;">🗺️</div><div style="font-size:15px;font-weight:600;">Aucun itinéraire trouvé</div><div style="font-size:12px;margin-top:6px;opacity:0.7;">Vérifiez que des bus circulent et que la destination est accessible en transport.</div></div>`;
             return;
         }
-        plans.forEach((p, i) => stepsEl.appendChild(_renderPlan(p, i)));
+        plans.forEach((p,i) => stepsEl.appendChild(_renderPlan(p,i)));
     }
 
+    // ── Navigation ───────────────────────────────────────
     function _startNav(plan) {
-        _itinerary = plan; _curStep = 0; _navActive = true;
-        _showView('nav'); _drawStepMarkers(plan); _updateNavUI(); _watchPos();
-        safeVibrate?.([50, 30, 50], true);
-        soundsUX?.('MBF_Popup');
+        _itinerary=plan; _curStep=0; _navActive=true;
+        _showView('nav'); _drawMarkers(plan); _updateNavUI(); _watchPos();
+        safeVibrate?.([50,30,50],true); soundsUX?.('MBF_Popup');
     }
-
     function _watchPos() {
         if (!navigator.geolocation) return;
-        if (_watchId !== null) navigator.geolocation.clearWatch(_watchId);
+        if (_watchId!==null) navigator.geolocation.clearWatch(_watchId);
         _watchId = navigator.geolocation.watchPosition(
-            pos => { _userLL = { lat: pos.coords.latitude, lng: pos.coords.longitude }; _checkAdvance(); },
-            null, { enableHighAccuracy: true, maximumAge: 4000 }
+            pos => { _userLL={lat:pos.coords.latitude,lng:pos.coords.longitude}; _checkAdv(); },
+            null, { enableHighAccuracy:true, maximumAge:4000 }
         );
     }
-
-    function _checkAdvance() {
-        if (!_itinerary || !_userLL) return;
-        const leg = _itinerary.legs[_curStep];
-        if (!leg) return;
-        const tgt = leg.type === 'walk' ? leg.to : leg.alightStop;
-        if (!tgt) return;
-        const d = _dist(_userLL, tgt) * 1000;
-        const threshold = leg.type === 'bus' ? 120 : 70;
-        if (d < threshold) {
-            if (_curStep < _itinerary.legs.length - 1) {
-                _curStep++;
-                _updateNavUI();
-                safeVibrate?.([30, 50, 30], true);
-                _stepToast(_itinerary.legs[_curStep]);
+    function _checkAdv() {
+        if (!_itinerary||!_userLL) return;
+        const leg = _itinerary.legs[_curStep]; if (!leg) return;
+        const tgt = leg.type==='walk' ? leg.to : leg.alightStop; if (!tgt) return;
+        if (_dist(_userLL,tgt)*1000 < (leg.type==='bus'?120:70)) {
+            if (_curStep < _itinerary.legs.length-1) {
+                _curStep++; _updateNavUI(); safeVibrate?.([30,50,30],true);
+                const l=_itinerary.legs[_curStep];
+                toastBottomRight?.info?.(l.type==='walk' ? `🚶 Marchez ${_hDist(l.distKm)}` : `🚌 Prenez la ligne ${l.lineName}`);
             } else { _finishNav(); }
         }
     }
-
-    function _stepToast(leg) {
-        if (typeof toastBottomRight === 'undefined') return;
-        if (leg.type === 'walk') toastBottomRight.info?.(`🚶 Marchez jusqu'à destination (${_hDist(leg.distKm)})`);
-        else toastBottomRight.info?.(`🚌 Prenez la ligne ${leg.lineName}`);
-    }
-
     function _updateNavUI() {
-        const leg    = _itinerary.legs[_curStep];
-        const icon   = document.getElementById('bs-nav-step-icon');
-        const text   = document.getElementById('bs-nav-step-text');
-        const sub    = document.getElementById('bs-nav-step-sub');
-        const remain = document.getElementById('bs-nav-steps-remaining');
-        if (!leg) return;
-        if (icon) icon.innerHTML = _legIcon(leg);
-        if (text) text.textContent = leg.type === 'walk'
-            ? (_curStep === 0 ? "Rejoindre l'arrêt" : 'Rejoindre la destination')
-            : `Prenez la ligne ${leg.lineName}`;
-        if (sub) sub.textContent = leg.type === 'walk'
-            ? `${_hDist(leg.distKm)} · ~${_hMin(leg.durationMin)}`
-            : `De "${leg.boardStop?.name||'?'}" > "${leg.alightStop?.name||'?'}"`;
-        if (remain) {
-            remain.innerHTML = '';
-            _itinerary.legs.forEach((l, i) => {
-                const el = document.createElement('div');
-                el.style.cssText = `display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;font-size:12px;font-family:'League Spartan',sans-serif;transition:all 0.3s;${i < _curStep ? 'opacity:0.28;text-decoration:line-through;' : i === _curStep ? 'background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.28);' : 'background:rgba(255,255,255,0.06);'}`;
-                el.innerHTML = `<span style="font-size:16px;">${_legIcon(l)}</span><span style="color:rgba(255,255,255,0.75);">${l.type === 'walk' ? `Marche ${_hDist(l.distKm)}` : `Ligne ${l.lineName}`}</span>`;
-                remain.appendChild(el);
+        const leg=_itinerary.legs[_curStep]; if (!leg) return;
+        const icon=document.getElementById('bs-nav-step-icon'); if (icon) icon.innerHTML=_legSvg(leg);
+        const text=document.getElementById('bs-nav-step-text'); if (text) text.textContent=leg.type==='walk'?(_curStep===0?"Rejoindre l'arrêt":'Rejoindre la destination'):`Prenez la ligne ${leg.lineName}`;
+        const sub=document.getElementById('bs-nav-step-sub'); if (sub) sub.textContent=leg.type==='walk'?`${_hDist(leg.distKm)} · ~${_hMin(leg.durationMin)}`:`De "${leg.boardStop?.name||'?'}" → "${leg.alightStop?.name||'?'}"`;
+        const rem=document.getElementById('bs-nav-steps-remaining');
+        if (rem) {
+            rem.innerHTML='';
+            _itinerary.legs.forEach((l,i) => {
+                const el=document.createElement('div');
+                el.style.cssText=`display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:12px;font-size:12px;font-family:'League Spartan',sans-serif;${i<_curStep?'opacity:0.28;text-decoration:line-through;':i===_curStep?'background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.28);':'background:rgba(255,255,255,0.06);'}`;
+                el.innerHTML=`<span>${_legSvg(l)}</span><span style="color:rgba(255,255,255,0.75);">${l.type==='walk'?`Marche ${_hDist(l.distKm)}`:`Ligne ${l.lineName}`}</span>`;
+                rem.appendChild(el);
             });
         }
-        const tgt = leg.type === 'walk' ? leg.from : leg.boardStop;
-        if (tgt) window.mapInstance?.setView([tgt.lat, tgt.lng], 16, { animate: true });
+        const tgt=leg.type==='walk'?leg.from:leg.boardStop;
+        if (tgt) window.mapInstance?.setView([tgt.lat,tgt.lng],16,{animate:true});
     }
-
     function _finishNav() {
-        _navActive = false;
-        if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
-        _clearMarkers();
-        _showView('main');
-        soundsUX?.('MBF_Success');
-        safeVibrate?.([50, 100, 50], true);
+        _navActive=false;
+        if (_watchId!==null) { navigator.geolocation.clearWatch(_watchId); _watchId=null; }
+        _clearMarkers(); _showView('main');
+        soundsUX?.('MBF_Success'); safeVibrate?.([50,100,50],true);
         toastBottomRight?.success?.('🎉 Vous êtes arrivé à destination !');
     }
-
     function _stopNav() {
-        _navActive = false;
-        if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
-        _clearMarkers();
-        _showView('main');
+        _navActive=false;
+        if (_watchId!==null) { navigator.geolocation.clearWatch(_watchId); _watchId=null; }
+        _clearMarkers(); _showView('main');
     }
-
-    function _drawStepMarkers(plan) {
+    function _drawMarkers(plan) {
         _clearMarkers();
-        plan.legs.forEach((leg, i) => {
-            const pt = leg.type === 'walk' ? leg.to : leg.boardStop;
-            if (!pt || !window.mapInstance) return;
-            const c = L.circleMarker([pt.lat, pt.lng], {
-                radius: 10, color: '#fff', weight: 2,
-                fillColor: leg.type === 'bus' ? leg.lineColor : '#3b82f6',
-                fillOpacity: 0.9
-            }).addTo(window.mapInstance);
-            c.bindTooltip(leg.type === 'bus' ? `Ligne ${leg.lineName}` : `Étape ${i + 1}`, { permanent: false, direction: 'top' });
+        plan.legs.forEach((leg,i) => {
+            const pt=leg.type==='walk'?leg.to:leg.boardStop;
+            if (!pt||!window.mapInstance) return;
+            const c=L.circleMarker([pt.lat,pt.lng],{radius:10,color:'#fff',weight:2,fillColor:leg.type==='bus'?leg.lineColor:'#3b82f6',fillOpacity:0.9}).addTo(window.mapInstance);
+            c.bindTooltip(leg.type==='bus'?`Ligne ${leg.lineName}`:`Étape ${i+1}`,{permanent:false,direction:'top'});
             _stepMarkers.push(c);
         });
     }
     function _clearMarkers() {
-        _stepMarkers.forEach(m => { try { window.mapInstance?.removeLayer(m); } catch (_) {} });
-        _stepMarkers = [];
+        _stepMarkers.forEach(m => { try { window.mapInstance?.removeLayer(m); } catch(_){} });
+        _stepMarkers=[];
     }
 
-
+    // ── Styles ───────────────────────────────────────────
     function _injectStyles() {
-        if (document.getElementById('gps-guide-v3-styles')) return;
-        const st = document.createElement('style');
-        st.id = 'gps-guide-v3-styles';
-        st.textContent = `
-        @keyframes gpsPlanIn {
-            from { opacity:0; transform:translateY(18px) scale(0.97); filter:blur(3px); }
-            to   { opacity:1; transform:none; filter:blur(0); }
-        }
-        @keyframes gpsLoaderSpin { to { transform:rotate(360deg); } }
-        .gps-loader { display:inline-block; width:22px; height:22px; border:2.5px solid rgba(255,255,255,0.18); border-top-color:#fff; border-radius:50%; animation:gpsLoaderSpin 0.75s linear infinite; }
-        .gps-sug-item { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:12px; cursor:pointer; font-size:13px; color:#fff; font-family:'League Spartan',sans-serif; transition:background 0.15s; }
-        .gps-sug-item:hover { background:rgba(255,255,255,0.14); }
-        .gps-sug-dist { margin-left:auto; font-size:10px; opacity:0.42; white-space:nowrap; }
+        if (document.getElementById('gps-guide-v4-styles')) return;
+        const st=document.createElement('style'); st.id='gps-guide-v4-styles';
+        st.textContent=`
+        @keyframes gpsPlanIn { from{opacity:0;transform:translateY(18px) scale(0.97);filter:blur(3px)} to{opacity:1;transform:none;filter:blur(0)} }
+        @keyframes gpsLoaderSpin { to{transform:rotate(360deg)} }
+        .gps-loader{display:inline-block;width:22px;height:22px;border:2.5px solid rgba(255,255,255,0.18);border-top-color:#fff;border-radius:50%;animation:gpsLoaderSpin 0.75s linear infinite}
+        .gps-sug-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;cursor:pointer;font-size:13px;color:#fff;font-family:'League Spartan',sans-serif;transition:background 0.15s}
+        .gps-sug-item:hover{background:rgba(255,255,255,0.14)}
+        .gps-sug-dist{margin-left:auto;font-size:10px;opacity:0.42;white-space:nowrap}
         `;
         document.head.appendChild(st);
     }
 
+    // ── Saisie destination ───────────────────────────────
     function _wireInput() {
         _injectStyles();
         const input   = document.getElementById('bs-dest-input');
@@ -13033,34 +12948,28 @@ const GpsGuide = (() => {
         const stopBtn = document.getElementById('bs-nav-stop');
         if (!input) return;
 
-        const _hideSug = () => { if (sugBox) { sugBox.style.display = 'none'; sugBox.innerHTML = ''; } };
+        const _hideSug = () => { if (sugBox) { sugBox.style.display='none'; sugBox.innerHTML=''; } };
 
         input.addEventListener('input', () => {
             const val = input.value.trim();
             if (clear) clear.style.display = val ? 'flex' : 'none';
             clearTimeout(_searchTimer);
             if (!val) { _hideSug(); return; }
-            if (sugBox) {
-                sugBox.style.display = 'block';
-                sugBox.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:12px;opacity:0.5;font-family:'League Spartan',sans-serif;"><span class="gps-loader"></span> Recherche…</div>`;
-            }
+            if (sugBox) { sugBox.style.display='block'; sugBox.innerHTML=`<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:12px;opacity:0.5;font-family:'League Spartan',sans-serif;"><span class="gps-loader"></span> Recherche…</div>`; }
             _searchTimer = setTimeout(async () => {
-                const results = await _buildSuggestions(val);
+                const results = await _suggestions(val);
                 if (!sugBox) return;
                 if (!results.length) { _hideSug(); return; }
-                sugBox.style.display = 'block';
-                sugBox.innerHTML = '';
-                const ref = _userLL || (window.mapInstance ? (() => { const c = window.mapInstance.getCenter(); return { lat: c.lat, lng: c.lng }; })() : null);
-                results.forEach((r, i) => {
-                    const item = document.createElement('div');
-                    item.className = 'gps-sug-item';
-                    item.style.animationDelay = `${i * 35}ms`;
-                    const distText = ref ? _hDist(_dist(ref, { lat: r.lat, lng: r.lon })) : '';
-                    item.innerHTML = `<span style="font-size:18px;flex-shrink:0;">${r._stop ? '🚏' : '📍'}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.display_name}</span>${distText ? `<span class="gps-sug-dist">${distText}</span>` : ''}`;
+                sugBox.style.display='block'; sugBox.innerHTML='';
+                const ref = _userLL || (window.mapInstance?(() => { const c=window.mapInstance.getCenter(); return {lat:c.lat,lng:c.lng}; })():null);
+                results.forEach((r,i) => {
+                    const item=document.createElement('div'); item.className='gps-sug-item';
+                    const d = ref ? _hDist(_dist(ref,{lat:r.lat,lng:r.lon})) : '';
+                    item.innerHTML=`<span style="font-size:18px;flex-shrink:0;">${r._stop?'🚏':'📍'}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.display_name}</span>${d?`<span class="gps-sug-dist">${d}</span>`:''}`;
                     item.addEventListener('click', () => {
-                        input.value = r.display_name; _destName = r.display_name;
-                        _destLL = { lat: r.lat, lng: r.lon }; _hideSug();
-                        if (clear) clear.style.display = 'none';
+                        input.value=r.display_name; _destName=r.display_name;
+                        _destLL={lat:r.lat,lng:r.lon}; _hideSug();
+                        if (clear) clear.style.display='none';
                         _launchSearch();
                     });
                     sugBox.appendChild(item);
@@ -13068,66 +12977,81 @@ const GpsGuide = (() => {
             }, 320);
         });
 
-        if (clear) clear.addEventListener('click', () => { input.value = ''; clear.style.display = 'none'; _hideSug(); _showView('main'); });
+        if (clear) clear.addEventListener('click', () => { input.value=''; clear.style.display='none'; _hideSug(); _showView('main'); });
         if (backBtn) backBtn.addEventListener('click', () => _showView('main'));
         if (stopBtn) stopBtn.addEventListener('click', () => _stopNav());
-        document.addEventListener('click', e => {
-            if (!input.contains(e.target) && !(sugBox?.contains(e.target))) _hideSug();
-        });
+        document.addEventListener('click', e => { if (!input.contains(e.target)&&!sugBox?.contains(e.target)) _hideSug(); });
+    }
+
+    // ── Indicateur de progression ────────────────────────
+    function _setProgress(msg, pct) {
+        const stepsEl = document.getElementById('bs-itin-steps');
+        if (!stepsEl) return;
+        const bar = document.getElementById('_gps_progress_bar');
+        const txt = document.getElementById('_gps_progress_txt');
+        if (bar)  bar.style.width = `${pct}%`;
+        if (txt)  txt.textContent = msg;
+        else {
+            stepsEl.innerHTML = `
+                <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:36px 16px;font-family:'League Spartan',sans-serif;">
+                    <span class="gps-loader" style="width:32px;height:32px;border-width:3px;"></span>
+                    <span id="_gps_progress_txt" style="font-size:13px;opacity:0.75;">${msg}</span>
+                    <div style="width:100%;max-width:260px;height:4px;background:rgba(255,255,255,0.12);border-radius:2px;overflow:hidden;">
+                        <div id="_gps_progress_bar" style="height:100%;background:linear-gradient(90deg,#0a84ff,#32d74b);border-radius:2px;transition:width 0.4s ease;width:${pct}%;"></div>
+                    </div>
+                </div>`;
+        }
     }
 
     async function _launchSearch() {
         _showView('itinerary');
-        const stepsEl   = document.getElementById('bs-itin-steps');
         const summaryEl = document.getElementById('bs-itin-summary');
-
-        if (stepsEl) stepsEl.innerHTML = `
-            <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:36px 0;opacity:0.75;">
-                <div class="gps-loader" style="width:32px;height:32px;border-width:3px;"></div>
-                <span style="font-size:13px;font-family:'League Spartan',sans-serif;">Construction du graphe GTFS…</span>
-            </div>`;
         if (summaryEl) summaryEl.textContent = '';
+        _setProgress('Initialisation…', 2);
 
+        // Géolocalisation
         if (!_userLL) {
             await new Promise(resolve => {
                 if (!navigator.geolocation) { resolve(); return; }
                 navigator.geolocation.getCurrentPosition(
-                    pos => { _userLL = { lat: pos.coords.latitude, lng: pos.coords.longitude }; resolve(); },
-                    () => resolve(), { timeout: 6000 }
+                    pos => { _userLL={lat:pos.coords.latitude,lng:pos.coords.longitude}; resolve(); },
+                    () => resolve(), { timeout:6000 }
                 );
             });
         }
-        if (!_userLL && window.mapInstance) {
-            const c = window.mapInstance.getCenter();
-            _userLL = { lat: c.lat, lng: c.lng };
-        }
+        if (!_userLL && window.mapInstance) { const c=window.mapInstance.getCenter(); _userLL={lat:c.lat,lng:c.lng}; }
         if (!_destLL) {
-            if (stepsEl) stepsEl.innerHTML = '<div style="color:rgba(255,255,255,0.5);padding:24px;text-align:center;font-family:\'League Spartan\',sans-serif;">Destination introuvable.</div>';
+            const stepsEl=document.getElementById('bs-itin-steps');
+            if (stepsEl) stepsEl.innerHTML='<div style="color:rgba(255,255,255,0.5);padding:24px;text-align:center;font-family:\'League Spartan\',sans-serif;">Destination introuvable.</div>';
             return;
         }
 
-        if (!_graph || (Date.now() - _graphBuiltAt) > CFG.GRAPH_TTL_MS) {
-            if (stepsEl) stepsEl.querySelector('span') && (stepsEl.querySelector('span').textContent = 'Chargement des horaires de toutes les lignes…');
+        // Construction graphe si nécessaire
+        const needsBuild = !_graph || (Date.now() - _graphBuiltAt) > CFG.GRAPH_TTL_MS;
+        if (needsBuild) {
             try {
-                await _buildFullGraph();
+                await _buildGraph((msg, pct) => _setProgress(msg, pct));
             } catch (e) {
-                console.error('DynamicSheet GpsGuide: graph build failed', e);
-                if (stepsEl) stepsEl.innerHTML = `<div style="color:rgba(255,100,100,0.8);padding:24px;text-align:center;font-family:'League Spartan',sans-serif;">Erreur lors du chargement des données GTFS.<br><small>${e.message}</small></div>`;
+                console.error('GpsGuide build failed', e);
+                const stepsEl=document.getElementById('bs-itin-steps');
+                if (stepsEl) stepsEl.innerHTML=`<div style="color:rgba(255,120,120,0.9);padding:24px;text-align:center;font-family:'League Spartan',sans-serif;">Erreur lors du chargement des données.<br><small style="opacity:0.6;">${e.message}</small></div>`;
                 return;
             }
         }
 
-        if (stepsEl?.querySelector('span')) stepsEl.querySelector('span').textContent = 'Calcul des itinéraires…';
+        _setProgress('Calcul des itinéraires…', 98);
         const plans = await _computePlans(_userLL, _destLL);
         _renderItinerary(plans);
     }
 
+    // ── API publique ─────────────────────────────────────
     function init() {
         _wireInput();
         _ensureStopCoords().catch(() => {});
+        // Préchauffage silencieux 8s après démarrage
         setTimeout(() => {
-            _buildFullGraph().catch(e => console.warn('DynamicSheet GpsGuide: preheat failed', e));
-        }, 5000);
+            if (!_graph) _buildGraph(() => {}).catch(e => console.warn('GpsGuide preheat:', e));
+        }, 8000);
     }
 
     return { init, stopNav: _stopNav };
