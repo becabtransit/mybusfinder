@@ -11670,79 +11670,55 @@ const BottomSheet = (() => {
     }
 
     function init() {
-        sheetEl      = document.getElementById('bottom-sheet');
-        contentEl    = document.getElementById('bs-content');
+        sheetEl     = document.getElementById('bottom-sheet');
+        contentEl   = document.getElementById('bs-content');
         handleZoneEl = document.getElementById('bs-handle-zone');
-        menubtmEl    = document.getElementById('menubtm');
+        menubtmEl   = document.getElementById('menubtm');
 
         if (!sheetEl || !handleZoneEl) return;
 
         _measure();
-        window.addEventListener('resize', _measure);
+        window.addEventListener('resize', () => _measure());
 
+        let downX = 0, downY = 0;
         handleZoneEl.addEventListener('pointerdown', (e) => {
-            if (e.target.closest('button')) return;
-            isDragging   = true;
-            dragStartY   = e.clientY;
-            lastY        = e.clientY;
-            dragStartTime = lastTime = performance.now();
-            velocity     = 0;
-            sheetEl.classList.add('bs-dragging');
-            try { handleZoneEl.setPointerCapture(e.pointerId); } catch (_) {}
+            if (e.target.closest('button')) return; 
+            downX = e.clientX; downY = e.clientY;
+            _onPointerDown(e);
         });
-
-        handleZoneEl.addEventListener('pointermove', (e) => {
+        handleZoneEl.addEventListener('pointermove', _onPointerMove);
+        const upHandler = (e) => {
             if (!isDragging) return;
-            e.preventDefault?.();
-
-            const now  = performance.now();
-            const dy   = e.clientY - lastY;
-            const dt   = Math.max(1, now - lastTime);
-            velocity   = dy / dt;
-            lastY      = e.clientY;
-            lastTime   = now;
-
-            const totalDelta = e.clientY - dragStartY;
-
-            if (isExpanded) {
-                const clampedDelta = totalDelta < 0
-                    ? totalDelta / 6          /* soft resistance upward  */
-                    : totalDelta;             /* free downward drag      */
-                sheetEl.style.transform = `translate(-50%, ${clampedDelta}px)`;
-            } else {
-                const clampedDelta = totalDelta > 0
-                    ? totalDelta / 6          /* soft resistance downward */
-                    : totalDelta;             /* free upward drag         */
-                sheetEl.style.transform = `translate(-50%, ${clampedDelta}px)`;
+            const dx = Math.abs(e.clientX - downX);
+            const dy = Math.abs(e.clientY - downY);
+            if (dx < 5 && dy < 5) {
+                // Treat as a tap on the handle
+                isDragging = false;
+                sheetEl.classList.remove('bs-dragging');
+                sheetEl.style.transform = '';
+                toggle();
+                return;
             }
-        });
-
-        const _onUp = (e) => {
-            if (!isDragging) return;
-            isDragging = false;
-            sheetEl.classList.remove('bs-dragging');
-            try { handleZoneEl.releasePointerCapture?.(e.pointerId); } catch (_) {}
-
-            sheetEl.style.transform = '';
-
-            const totalDelta = e.clientY - dragStartY;
-            const fastSwipe  = Math.abs(velocity) > 0.4;
-
-            if (isExpanded) {
-                (totalDelta > 80 || (fastSwipe && velocity > 0)) ? collapse() : expand();
-            } else {
-                (totalDelta < -60 || (fastSwipe && velocity < 0)) ? expand() : collapse();
-            }
+            _onPointerUp(e);
         };
+        handleZoneEl.addEventListener('pointerup', upHandler);
+        handleZoneEl.addEventListener('pointercancel', upHandler);
 
-        handleZoneEl.addEventListener('pointerup',     _onUp);
-        handleZoneEl.addEventListener('pointercancel', _onUp);
-
-        let tapDownY = 0;
-        handleZoneEl.addEventListener('pointerdown', (e) => { tapDownY = e.clientY; });
-        handleZoneEl.addEventListener('pointerup', (e) => {
-            if (Math.abs(e.clientY - tapDownY) < 8) toggle();
+        let rowStartY = 0, rowStartT = 0, rowTracking = false;
+        menubtmEl?.addEventListener('pointerdown', (e) => {
+            if (isExpanded) return;
+            rowTracking = true;
+            rowStartY = e.clientY;
+            rowStartT = performance.now();
         });
+        menubtmEl?.addEventListener('pointerup', (e) => {
+            if (!rowTracking) return;
+            rowTracking = false;
+            const dy = rowStartY - e.clientY; // positive = upward
+            const dt = performance.now() - rowStartT;
+            if (dy > 50 && dt < 350) expand();
+        });
+        menubtmEl?.addEventListener('pointercancel', () => { rowTracking = false; });
     }
 
     return {
@@ -12072,113 +12048,82 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor) {
     const now = Date.now() / 1000;
     container.innerHTML = '';
 
+    const rssIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:2px;opacity:0.85;">
+        <path d="M4 4a16 16 0 0 1 16 16"></path>
+        <path d="M4 11a9 9 0 0 1 9 9"></path>
+        <circle cx="5" cy="19" r="1"></circle>
+    </svg>`;
+
     arrivals.slice(0, 3).forEach(arrival => {
-        const diffMin  = Math.round((arrival.time - now) / 60);
-        const isNow    = diffMin <= 0;
-        const label    = isNow ? t("imminent") : `${diffMin} ${t("min")}`;
+        const diffMin = Math.round((arrival.time - now) / 60);
+        const isNow   = diffMin <= 0;
+        const label   = isNow ? t("imminent") : `${diffMin} ${t("min")}`;
+        const isRealtime = !!arrival.isRealtime;
 
         const pill = document.createElement('span');
         pill.className = 'bs-fav-time-pill';
-        pill.style.cssText = isNow
-            ? `background:${lineColor};color:${textColor};font-weight:700;
-               display:inline-flex;align-items:center;gap:3px;cursor:pointer;`
-            : `display:inline-flex;align-items:center;gap:3px;cursor:pointer;`;
 
-        const rssHtml = `<svg xmlns="http://www.w3.org/2000/svg"
-            width="8" height="8" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round"
-            style="flex-shrink:0;opacity:0.8;">
-            <path d="M4 4a16 16 0 0 1 16 16"/>
-            <path d="M4 11a9 9 0 0 1 9 9"/>
-            <circle cx="5" cy="19" r="1"/>
-        </svg>`;
+        if (isNow) {
+            pill.style.cssText = `background:${lineColor};color:${textColor};font-weight:700;display:inline-flex;align-items:center;gap:2px;`;
+        } else {
+            pill.style.cssText = `display:inline-flex;align-items:center;gap:2px;`;
+        }
 
         const labelNum = arrival.vehicleLabel
-            ? String(arrival.vehicleLabel)
-                .replace('TCAR:Vehicle::', '').replace(':LOC', '')
-                .replace('RLA', '').replace('SUM', '').replace('TCA', '')
-                .padStart(3, '0')
+            ? String(arrival.vehicleLabel).padStart(3, '0').replace(/[A-Z]+:/, '').replace('TCAR:Vehicle::', '').replace(':LOC', '')
             : null;
 
         const timeText = labelNum ? `${label} · ${labelNum}` : label;
-        pill.innerHTML  = rssHtml + timeText;
 
-        if (arrival.vehicleId) {
-            pill.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const marker = markerPool && markerPool.active
-                    ? markerPool.active.get(arrival.vehicleId) : null;
-                if (!marker) return;
-                safeVibrate?.([30, 40, 30], true);
-                soundsUX('MBF_Menu_VehicleSelect');
-                BottomSheet.collapse();
-                map.setView(marker.getLatLng(), 16);
-                setTimeout(() => marker.openPopup(), 350);
-            });
-        }
-
+        pill.innerHTML = (isRealtime ? rssIcon : '') + timeText;
         container.appendChild(pill);
     });
 }
 
 function openFavoriteSchedule(favorite) {
-    if (!favorite || !favorite.routeId || !favorite.stopId) return;
-    const route       = encodeURIComponent(favorite.routeId);
-    const stop        = encodeURIComponent(favorite.stopId);
-    const destination = encodeURIComponent(favorite.destinationId || '');
-    showUpdatePopup(
-        `schedule.html?route=${route}&stop=${stop}&destination=${destination}`
-    );
+    if (!favorite || !favorite.routeId || !favorite.stopId || !favorite.destinationId) return;
+    const route = encodeURIComponent(favorite.routeId);
+    const stop = encodeURIComponent(favorite.stopId);
+    const destination = encodeURIComponent(favorite.destinationId);
+    showUpdatePopup(`schedule.html?route=${route}&stop=${stop}&destination=${destination}`);
 }
 
 async function fetchRealtimeDataForFavorite(favorite) {
-    const routeId       = String(favorite.routeId       || '');
-    const stopId        = String(favorite.stopId        || '');
-    const destinationId = String(favorite.destinationId || '');
-    const now           = Date.now() / 1000;
-    const results       = [];
-
-    const norm = (s) => String(s || '').replace(/^0:/, '').trim();
-    const normTarget = norm(stopId);
+    const routeId = favorite.routeId || '';
+    const stopId  = favorite.stopId  || '';
+    const now     = Date.now() / 1000;
+    const results = [];
 
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
 
-        const marker = [...(markerPool?.active?.values?.() || [])]
+        const stopMatch = nextStops.find(s =>
+            s.stopId === stopId ||
+            s.stopId === `0:${stopId}` ||
+            s.stopId.replace('0:', '') === stopId.replace('0:', '')
+        );
+
+        if (!stopMatch) return;
+
+        // Vérifie que ce trip correspond bien à la route voulue
+        const markerForTrip = [...markerPool.active.values()]
             .find(m => m.vehicleData?.trip?.tripId === tripId);
 
-        if (!marker) return;
-        if (routeId && marker.line !== routeId) return;
-
-        if (destinationId) {
-            const dest = String(
-                marker.vehicleData?.trip?.tripHeadsign
-                || marker.destination
-                || ''
-            );
-            const lastStopName = stopNameMap[norm(tripData.lastStopId || '')] || '';
-            const match =
-                dest.toLowerCase().includes(destinationId.toLowerCase()) ||
-                destinationId.toLowerCase().includes(dest.toLowerCase()) ||
-                norm(destinationId) === norm(tripData.lastStopId || '') ||
-                lastStopName.toLowerCase().includes(destinationId.toLowerCase());
-            if (!match) return;
-        }
-
-        const stopMatch = nextStops.find(s => norm(s.stopId) === normTarget);
-        if (!stopMatch) return;
+        if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
 
         const stopTime = stopMatch.departureTime || stopMatch.arrivalTime;
         if (!stopTime) return;
+        if (stopMatch.arrivalTime && !stopMatch.departureTime) return;
 
         let arrivalSecs;
         if (typeof stopTime === 'string' && stopTime.includes(':')) {
-            const [h, m, s = 0] = stopTime.split(':').map(Number);
-            const d = new Date();
+            const parts = stopTime.split(':').map(Number);
+            const d     = new Date();
             arrivalSecs = new Date(
-                d.getFullYear(), d.getMonth(), d.getDate(), h, m, s
+                d.getFullYear(), d.getMonth(), d.getDate(),
+                parts[0], parts[1], parts[2] || 0
             ).getTime() / 1000;
+            //passage minuit
             if (arrivalSecs < now - 3600) arrivalSecs += 86400;
         } else if (typeof stopTime === 'number' && stopTime > 86400) {
             arrivalSecs = stopTime;
@@ -12186,15 +12131,14 @@ async function fetchRealtimeDataForFavorite(favorite) {
             return;
         }
 
-        if (arrivalSecs < now - 60) return;
+        if (arrivalSecs < now - 60) return; // déjà passé
 
-        results.push({
-            time:        arrivalSecs,
+        results.push({ 
+            time: arrivalSecs, 
             tripId,
-            vehicleId:   marker.id, 
-            vehicleLabel: marker.vehicleData?.vehicle?.label
-                        || marker.vehicleData?.vehicle?.id
-                        || null
+            vehicleLabel: markerForTrip?.vehicleData?.vehicle?.label 
+                    || markerForTrip?.vehicleData?.vehicle?.id 
+                    || null
         });
     });
 
