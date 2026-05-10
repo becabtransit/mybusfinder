@@ -12315,382 +12315,485 @@ softSwitchNetwork = async function (newId) {
 window.softSwitchNetwork = softSwitchNetwork;
 
 
-// DYNAMIC SHEET FIND MODE - guidage étape par étape
-const BsFindMode = {
-  _selectedLine: null,
-  _selectedStop: null,
-  _liveInterval: null,
+const GpsGuide = (() => {
 
-  open() {
-    document.getElementById('bs-find-mode').style.display = 'block';
-    this.back(0);
-    BottomSheet.expand();
-  },
+  let _userLatLng   = null; // { lat, lng }
+  let _destLatLng   = null; // { lat, lng }
+  let _destName     = '';
+  let _itinerary    = null; // computed plan
+  let _currentStep  = 0;
+  let _navActive    = false;
+  let _watchId      = null;
+  let _stepMarkers  = []; // leaflet
 
-  back(toStep) {
-    [1,2,3].forEach(s => {
-      document.getElementById(`bs-find-step${s}`).style.display = s === toStep + 1 ? 'block' : 'none';
-    });
-    if (this._liveInterval && toStep < 2) {
-      clearInterval(this._liveInterval);
-      this._liveInterval = null;
+  // Built lazily from the GTFS stops response already
+  // stored in stopNameMap/stopIds. refetch coords
+  // from the proxy so can do proximity math.
+  let _stopCoords = null; 
+
+  async function _ensureStopCoords() {
+    if (_stopCoords) return _stopCoords;
+    try {
+      const res = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'), {
+        cache: 'default'
+      });
+      const data = await res.json();
+      _stopCoords = {};
+      Object.entries(data).forEach(([id, s]) => {
+        if (s.lat && s.lon) {
+          _stopCoords[id] = { lat: parseFloat(s.lat), lng: parseFloat(s.lon), name: s.n || id };
+        }
+      });
+    } catch (e) {
+      console.warn('GpsGuide: cannot load stop coords', e);
+      _stopCoords = {};
     }
-    if (toStep === 0) this._renderLines();
-    BsBreadcrumb.update();
-  },
+    return _stopCoords;
+  }
 
-  _renderLines() {
-    const container = document.getElementById('bs-find-lines-list');
-    container.innerHTML = '';
-    const sorted = Object.keys(lineColors).sort((a,b) => {
-      const na = parseInt(lineName[a]||a), nb = parseInt(lineName[b]||b);
-      return isNaN(na)||isNaN(nb) ? (lineName[a]||a).localeCompare(lineName[b]||b) : na - nb;
-    });
-    sorted.forEach(routeId => {
-      const color = lineColors[routeId] || '#444';
-      const name  = lineName[routeId]  || routeId;
-      const textC = getTextColor(color);
-      const btn = document.createElement('button');
-      btn.className = 'bs-find-line-btn ripple-container';
-      btn.style.background = color;
-      btn.innerHTML = `
-        <span style="background:rgba(0,0,0,0.2);padding:3px 10px;border-radius:8px;font-size:13px;">${name}</span>
-        <span style="font-size:13px;font-weight:400;opacity:0.85;color:${textC};">Ligne ${name}</span>
-        <span style="margin-left:auto;opacity:0.6;font-size:18px;color:${textC};">›</span>
-      `;
-      btn.style.color = textC;
-      btn.onclick = () => { this._selectedLine = routeId; this._showStops(routeId); };
-      container.appendChild(btn);
-    });
-  },
+  function _dist(a, b) {
+    const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180,
+          dLng = (b.lng - a.lng) * Math.PI / 180,
+          sinLat = Math.sin(dLat / 2), sinLng = Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(
+      Math.sqrt(sinLat * sinLat + Math.cos(a.lat * Math.PI / 180) *
+                Math.cos(b.lat * Math.PI / 180) * sinLng * sinLng),
+      Math.sqrt(1 - sinLat * sinLat - Math.cos(a.lat * Math.PI / 180) *
+                Math.cos(b.lat * Math.PI / 180) * sinLng * sinLng)
+    );
+    return R * c;
+  }
 
-  _showStops(routeId) {
-    document.getElementById('bs-find-step1').style.display = 'none';
-    document.getElementById('bs-find-step2').style.display = 'block';
-    document.getElementById('bs-find-step3').style.display = 'none';
-    const name = lineName[routeId] || routeId;
-    document.getElementById('bs-find-step2-title').textContent = `Arrêts · Ligne ${name}`;
-    const container = document.getElementById('bs-find-stops-list');
-    container.innerHTML = '';
+  function _nearestStops(latlng, n = 8) {
+    if (!_stopCoords) return [];
+    return Object.entries(_stopCoords)
+      .map(([id, s]) => ({ id, ...s, d: _dist(latlng, s) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, n);
+  }
 
-    const stops = new Set();
-    markerPool.active.forEach(marker => {
-      if (marker.line !== routeId) return;
-      const tripId = marker.vehicleData?.trip?.tripId;
-      const nexts  = tripUpdates[tripId]?.nextStops || [];
-      nexts.forEach(s => stops.add(s.stopId));
-    });
+  async function _computeItinerary(fromLatLng, toLatLng) {
+    await _ensureStopCoords();
 
-    if (stops.size === 0) {
-      container.innerHTML = '<div style="color:rgba(255,255,255,0.5);font-size:13px;padding:8px;">Aucun arrêt disponible actuellement.</div>';
-      return;
-    }
+    const originStops = _nearestStops(fromLatLng, 10);
+    const destStops   = _nearestStops(toLatLng,   10);
 
-    [...stops].slice(0, 30).forEach(stopId => {
-      const stopName = stopNameMap[stopId] || stopId;
-      const btn = document.createElement('button');
-      btn.className = 'bs-find-stop-btn ripple-container';
-      btn.innerHTML = `<span>${stopName}</span><span style="opacity:0.45;font-size:18px;">›</span>`;
-      btn.onclick = () => { this._selectedStop = stopId; this._showLive(routeId, stopId); };
-      container.appendChild(btn);
-    });
+    if (!originStops.length || !destStops.length) return null;
 
-    BsBreadcrumb.update();
-  },
+    const destStopIds = new Set(destStops.map(s => s.id));
+    const candidates  = [];
 
-  _showLive(routeId, stopId) {
-    document.getElementById('bs-find-step2').style.display = 'none';
-    document.getElementById('bs-find-step3').style.display = 'block';
-    const stopName = stopNameMap[stopId] || stopId;
-    document.getElementById('bs-find-step3-title').textContent = `🛑 ${stopName}`;
-    this._renderLive(routeId, stopId);
-    this._liveInterval = setInterval(() => this._renderLive(routeId, stopId), 5000);
-    BsBreadcrumb.update();
-  },
+    markerPool.active.forEach((marker) => {
+      const tripId   = marker.vehicleData?.trip?.tripId;
+      if (!tripId) return;
+      const tripData = tripUpdates[tripId];
+      if (!tripData?.nextStops?.length) return;
 
-  _renderLive(routeId, stopId) {
-    const container = document.getElementById('bs-find-live');
-    container.innerHTML = '';
-    const now = Date.now() / 1000;
-    const results = [];
+      const upcoming  = tripData.nextStops;
+      const upcomingIds = upcoming.map(s => s.stopId.replace('0:', ''));
 
-    markerPool.active.forEach(marker => {
-      if (marker.line !== routeId) return;
-      const tripId = marker.vehicleData?.trip?.tripId;
-      const nexts  = tripUpdates[tripId]?.nextStops || [];
-      const match  = nexts.find(s => s.stopId === stopId || s.stopId === `0:${stopId}`);
-      if (!match) return;
-      const t = match.departureTime || match.arrivalTime;
-      if (!t) return;
-      let secs;
-      if (typeof t === 'string' && t.includes(':')) {
-        const p = t.split(':').map(Number);
-        const d = new Date();
-        secs = new Date(d.getFullYear(),d.getMonth(),d.getDate(),p[0],p[1],p[2]||0).getTime()/1000;
-        if (secs < now - 3600) secs += 86400;
-      } else { secs = Number(t); }
-      if (secs < now - 60) return;
-      results.push({ marker, secs });
+      let boardIdx = -1, boardStop = null, minBoardDist = Infinity;
+      originStops.forEach(os => {
+        const idx = upcomingIds.indexOf(os.id);
+        if (idx !== -1 && os.d < minBoardDist) {
+          minBoardDist = os.d;
+          boardIdx  = idx;
+          boardStop = os;
+        }
+      });
+      if (boardIdx === -1) return;
+
+      let alightIdx = -1, alightStop = null, minAlightDist = Infinity;
+      destStops.forEach(ds => {
+        const idx = upcomingIds.indexOf(ds.id);
+        if (idx > boardIdx && ds.d < minAlightDist) {
+          minAlightDist = ds.d;
+          alightIdx  = idx;
+          alightStop = ds;
+        }
+      });
+      if (alightIdx === -1) return;
+
+      const stopsRidden = alightIdx - boardIdx;
+      const score = minBoardDist + minAlightDist + stopsRidden * 0.05;
+
+      candidates.push({
+        marker, tripId,
+        line:      marker.line,
+        lineName:  lineName[marker.line] || marker.line,
+        lineColor: lineColors[marker.line] || '#444',
+        board:     { ...boardStop, idx: boardIdx },
+        alight:    { ...alightStop, idx: alightIdx },
+        upcoming,
+        stopsRidden,
+        walkToBoard:   minBoardDist,
+        walkFromAlight: minAlightDist,
+        score
+      });
     });
 
-    results.sort((a,b) => a.secs - b.secs);
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => a.score - b.score);
 
-    if (results.length === 0) {
-      container.innerHTML = '<div style="color:rgba(255,255,255,0.45);font-size:13px;padding:8px;">Aucun bus en approche.</div>';
-      return;
-    }
+    const best = candidates[0];
+    const textColor = getTextColor(best.lineColor);
 
-    const color = lineColors[routeId] || '#444';
-    const textC = getTextColor(color);
+    const steps = [
+      {
+        type:    'walk',
+        icon:    '🚶',
+        title:   `Marchez vers l'arrêt`,
+        sub:     `${best.board.name} · ${(best.walkToBoard * 1000).toFixed(0)} m`,
+        latlng:  best.board
+      },
+      {
+        type:      'bus',
+        icon:      '🚌',
+        title:     `Prenez la ligne ${best.lineName}`,
+        sub:       `Montez à "${best.board.name}", descendez à "${best.alight.name}" (${best.stopsRidden} arrêt${best.stopsRidden > 1 ? 's' : ''})`,
+        latlng:    best.board,
+        alightLng: best.alight,
+        lineColor: best.lineColor,
+        textColor,
+        lineName:  best.lineName,
+        marker:    best.marker
+      },
+      {
+        type:  'walk',
+        icon:  '🏁',
+        title: `Marchez vers votre destination`,
+        sub:   `${_destName} · ${(best.walkFromAlight * 1000).toFixed(0)} m`,
+        latlng: toLatLng
+      }
+    ];
 
-    results.slice(0, 5).forEach(({marker, secs}) => {
-      const diff = Math.max(0, Math.round((secs - now) / 60));
-      const label = marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || '?';
-      const card = document.createElement('div');
-      card.className = 'bs-find-live-card ripple-container';
-      card.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="background:${color};color:${textC};padding:3px 10px;border-radius:8px;font-weight:700;font-size:13px;">${lineName[routeId]||routeId}</span>
-          <div>
-            <div style="font-size:14px;font-weight:600;">➜ ${marker.destination||'?'}</div>
-            <div style="font-size:11px;opacity:0.6;">Bus ${String(label).padStart(3,'0')}</div>
-          </div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:20px;font-weight:700;color:${diff<=1?'#22c55e':diff<=5?'#f97316':'#fff'};">${diff<=0?'Imm.':diff+'min'}</div>
-          <div style="font-size:10px;opacity:0.5;">temps réel</div>
-        </div>
-      `;
-      card.onclick = () => {
-        map.setView(marker.getLatLng(), 16);
-        marker.openPopup();
-        BottomSheet.collapse();
+    const directDist = _dist(fromLatLng, toLatLng);
+    if (directDist < 0.6) {
+      return {
+        direct: true,
+        steps: [{
+          type:  'walk',
+          icon:  '🚶',
+          title: `Marchez vers votre destination`,
+          sub:   `${(directDist * 1000).toFixed(0)} m · environ ${Math.ceil(directDist / 0.08)} min`,
+          latlng: toLatLng
+        }],
+        summary: `Trajet à pied : ${(directDist * 1000).toFixed(0)} m`
       };
+    }
 
-      card.addEventListener('contextmenu', e => {
-        e.preventDefault();
-        BsTransfer.pin(marker, routeId, secs);
+    const totalTime = Math.ceil(best.walkToBoard / 0.08) + best.stopsRidden * 2 + Math.ceil(best.walkFromAlight / 0.08);
+
+    return {
+      direct: false,
+      best,
+      steps,
+      summary: `Ligne ${best.lineName} · ~${totalTime} min · ${best.stopsRidden} arrêt${best.stopsRidden > 1 ? 's' : ''}`
+    };
+  }
+
+  async function _geocode(query) {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(query)}`;
+    try {
+      const res = await fetch(url, { headers: { 'Accept-Language': window.i18n?.currentLang || 'fr' } });
+      return await res.json();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function _renderItinerary(plan) {
+    const summary = document.getElementById('bs-itin-summary');
+    const steps   = document.getElementById('bs-itin-steps');
+    if (!summary || !steps) return;
+
+    summary.textContent = plan.summary;
+    steps.innerHTML     = '';
+
+    plan.steps.forEach((step, idx) => {
+      const card = document.createElement('div');
+      card.className = 'bs-itin-step ripple-container';
+      if (idx === 0) card.classList.add('active-step');
+
+      const iconBg = step.lineColor
+        ? `background:${step.lineColor};`
+        : 'background:rgba(255,255,255,0.12);';
+
+      let badgeHtml = '';
+      if (step.type === 'bus') {
+        const tc = step.textColor || '#fff';
+        badgeHtml = `<span class="bs-itin-line-badge"
+                           style="background:${step.lineColor};color:${tc};">
+                       ${step.lineName}
+                     </span><br>`;
+      }
+
+      card.innerHTML = `
+        <div class="bs-itin-step-icon" style="${iconBg}">${step.icon}</div>
+        <div class="bs-itin-step-body">
+          ${badgeHtml}
+          <div class="bs-itin-step-title">${step.title}</div>
+          <div class="bs-itin-step-sub">${step.sub}</div>
+        </div>`;
+
+      card.addEventListener('click', () => {
+        if (step.latlng) {
+          map.setView([step.latlng.lat, step.latlng.lng], 16, { animate: true });
+          safeVibrate?.([30], true);
+        }
+        if (step.marker) step.marker.openPopup();
       });
 
-      container.appendChild(card);
+      steps.appendChild(card);
     });
-  },
 
-  close() {
-    document.getElementById('bs-find-mode').style.display = 'none';
-    if (this._liveInterval) { clearInterval(this._liveInterval); this._liveInterval = null; }
-    BsBreadcrumb.update();
+    const startBtn = document.createElement('button');
+    startBtn.style.cssText = `
+      width:100%; margin-top:14px; padding:14px;
+      background:rgba(22,193,120,0.3); border:1px solid rgba(22,193,120,0.5);
+      border-radius:16px; color:#fff;
+      font-family:'League Spartan',sans-serif; font-size:15px;
+      font-weight:700; cursor:pointer;
+    `;
+    startBtn.textContent = '▶ Démarrer la navigation';
+    startBtn.addEventListener('click', () => _startNav(plan));
+    steps.appendChild(startBtn);
   }
-};
 
-// DYNAMIC SHEET BREADCRUMB - fil d'Ariane contextuel
-const BsBreadcrumb = {
-  update() {
-    const el = document.getElementById('bs-breadcrumb');
-    if (!el) return;
-    const parts = ['My Bus Finder'];
-
-    if (BsFindMode._selectedLine) {
-      parts.push(`Ligne ${lineName[BsFindMode._selectedLine] || BsFindMode._selectedLine}`);
-    }
-    if (BsFindMode._selectedStop) {
-      parts.push(stopNameMap[BsFindMode._selectedStop] || BsFindMode._selectedStop);
-    }
-
-    const openMarker = [...markerPool.active.values()].find(m => m.isPopupOpen());
-    if (openMarker) {
-      const label = openMarker.vehicleData?.vehicle?.label || openMarker.vehicleData?.vehicle?.id;
-      parts.push(`Bus ${String(label||'?').padStart(3,'0')}`);
-    }
-
-    if (selectedLine && !BsFindMode._selectedLine) {
-      parts.push(`Ligne ${lineName[selectedLine] || selectedLine} (filtrée)`);
-    }
-
-    if (parts.length <= 1) { el.style.display = 'none'; return; }
-
-    el.style.display = 'flex';
-    el.innerHTML = parts.map((p,i) =>
-      i < parts.length - 1
-        ? `<span style="cursor:pointer;opacity:0.55;">${p}</span><span style="opacity:0.35;">›</span>`
-        : `<span style="font-weight:600;opacity:0.9;">${p}</span>`
-    ).join('');
-  }
-};
-
-// DYNAMIC SHEET TRANSFER - minuteur de correspondance
-const BsTransfer = {
-  _pins: [],
-  _interval: null,
-
-  pin(marker, routeId, arrivalSecs) {
-    if (this._pins.length >= 2) {
-      toastBottomRight?.info?.('Max 2 bus épinglés. Effacez d\'abord la correspondance.');
-      return;
-    }
-    const label = marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || '?';
-    this._pins.push({ marker, routeId, arrivalSecs, label });
+  function _startNav(plan) {
+    _itinerary   = plan;
+    _currentStep = 0;
+    _navActive   = true;
+    _showView('nav');
+    _drawStepMarkers(plan);
+    _updateNavUI();
+    _watchPosition();
+    safeVibrate?.([50, 30, 50], true);
     soundsUX?.('MBF_Popup');
-    safeVibrate?.([30, 20, 30], true);
-    toastBottomRight?.info?.(`Bus ${String(label).padStart(3,'0')} épinglé ! (appui long sur un 2ème bus pour la correspondance)`);
-    this._render();
-    document.getElementById('bs-transfer-section').style.display = 'block';
-    if (!this._interval) this._interval = setInterval(() => this._render(), 5000);
-  },
+  }
 
-  clear() {
-    this._pins = [];
-    if (this._interval) { clearInterval(this._interval); this._interval = null; }
-    document.getElementById('bs-transfer-section').style.display = 'none';
-    document.getElementById('bs-transfer-cards').innerHTML = '';
-  },
+  function _watchPosition() {
+    if (!navigator.geolocation) return;
+    if (_watchId !== null) navigator.geolocation.clearWatch(_watchId);
+    _watchId = navigator.geolocation.watchPosition(pos => {
+      _userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      _checkStepAdvance();
+    }, null, { enableHighAccuracy: true, maximumAge: 4000 });
+  }
 
-  _render() {
-    const container = document.getElementById('bs-transfer-cards');
-    container.innerHTML = '';
-    const now = Date.now() / 1000;
-
-    this._pins.forEach((pin, i) => {
-      const diff = Math.max(0, Math.round((pin.arrivalSecs - now) / 60));
-      const color = lineColors[pin.routeId] || '#444';
-      const textC = getTextColor(color);
-      const card = document.createElement('div');
-      card.style.cssText = `background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;`;
-      card.innerHTML = `
-        <span style="background:${color};color:${textC};padding:3px 10px;border-radius:8px;font-weight:700;font-size:14px;">${lineName[pin.routeId]||pin.routeId}</span>
-        <div style="flex:1;">
-          <div style="font-size:14px;font-weight:600;">Bus ${String(pin.label).padStart(3,'0')}</div>
-          <div style="font-size:11px;opacity:0.55;">➜ ${pin.marker.destination||'?'}</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:22px;font-weight:700;color:${diff<=2?'#22c55e':diff<=6?'#f97316':'#ef4444'};">${diff<=0?'🚌 Maintenant':diff+'min'}</div>
-        </div>
-      `;
-      container.appendChild(card);
-    });
-
-    if (this._pins.length === 2) {
-      const [a, b] = this._pins;
-      const gap = Math.round((b.arrivalSecs - a.arrivalSecs) / 60);
-      const ok  = gap >= 0 && gap <= 15;
-      const banner = document.createElement('div');
-      banner.style.cssText = `background:${ok?'rgba(34,197,94,0.18)':'rgba(239,68,68,0.18)'};border:1px solid ${ok?'rgba(34,197,94,0.4)':'rgba(239,68,68,0.4)'};border-radius:12px;padding:10px 14px;text-align:center;font-size:13px;font-family:'League Spartan',sans-serif;color:#fff;`;
-      banner.innerHTML = ok
-        ? `✅ Correspondance faisable - ${gap} min de marge`
-        : (gap < 0 ? `❌ Correspondance manquée - trop tard` : `⚠️ Correspondance serrée - ${gap} min`);
-      container.appendChild(banner);
+  function _checkStepAdvance() {
+    if (!_itinerary || !_userLatLng) return;
+    const step = _itinerary.steps[_currentStep];
+    if (!step?.latlng) return;
+    const d = _dist(_userLatLng, step.latlng) * 1000; // metres
+    const threshold = step.type === 'bus' ? 80 : 60;
+    if (d < threshold) {
+      if (_currentStep < _itinerary.steps.length - 1) {
+        _currentStep++;
+        _updateNavUI();
+        safeVibrate?.([30, 50, 30], true);
+        soundsUX?.('MBF_NotificationInfo');
+      } else {
+        _finishNav();
+      }
     }
   }
-};
 
-// DYNAMIC SHEET NEARBY - "autour de moi" dynamique
-const BsNearby = {
-  _interval: null,
-  _userPos: null,
+  function _updateNavUI() {
+    const step    = _itinerary.steps[_currentStep];
+    const icon    = document.getElementById('bs-nav-step-icon');
+    const text    = document.getElementById('bs-nav-step-text');
+    const sub     = document.getElementById('bs-nav-step-sub');
+    const remain  = document.getElementById('bs-nav-steps-remaining');
+    if (!step) return;
+    if (icon) icon.textContent = step.icon;
+    if (text) text.textContent = step.title;
+    if (sub)  sub.textContent  = step.sub;
 
-  start() {
-    const section = document.getElementById('bs-nearby-section');
-    if (!navigator.geolocation) return;
-    section.style.display = 'block';
-    navigator.geolocation.getCurrentPosition(pos => {
-      this._userPos = L.latLng(pos.coords.latitude, pos.coords.longitude);
-      this._render();
-      if (!this._interval) this._interval = setInterval(() => this._render(), 6000);
-    }, () => { section.style.display = 'none'; });
-  },
+    if (remain) {
+      remain.innerHTML = '';
+      _itinerary.steps.forEach((s, i) => {
+        const el = document.createElement('div');
+        el.className = 'bs-nav-remaining-step' + (i < _currentStep ? ' done' : '');
+        el.innerHTML = `<span style="font-size:16px;">${s.icon}</span><span>${s.title}</span>`;
+        remain.appendChild(el);
+      });
+    }
 
-  stop() {
-    if (this._interval) { clearInterval(this._interval); this._interval = null; }
-    document.getElementById('bs-nearby-section').style.display = 'none';
-  },
+    if (step.latlng) map.setView([step.latlng.lat, step.latlng.lng], 16, { animate: true });
+  }
 
-  _render() {
-    if (!this._userPos) return;
-    const list = document.getElementById('bs-nearby-list');
-    list.innerHTML = '';
-    const results = [];
+  function _finishNav() {
+    _navActive = false;
+    if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
+    _clearStepMarkers();
+    _showView('main');
+    soundsUX?.('MBF_Success');
+    safeVibrate?.([50, 100, 50], true);
+    if (typeof toastBottomRight !== 'undefined') {
+      toastBottomRight.success?.('Vous êtes arrivé à destination ! 🎉');
+    }
+  }
 
-    markerPool.active.forEach(marker => {
-      const dist = this._userPos.distanceTo(marker.getLatLng());
-      results.push({ marker, dist });
+  function _stopNav() {
+    _navActive = false;
+    if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
+    _clearStepMarkers();
+    _showView('main');
+  }
+
+  function _drawStepMarkers(plan) {
+    _clearStepMarkers();
+    plan.steps.forEach(step => {
+      if (!step.latlng) return;
+      const c = L.circleMarker([step.latlng.lat, step.latlng.lng], {
+        radius: 10, color: '#fff', weight: 2,
+        fillColor: step.lineColor || '#3b82f6', fillOpacity: 0.9
+      }).addTo(map);
+      c.bindTooltip(step.title, { permanent: false, direction: 'top' });
+      _stepMarkers.push(c);
+    });
+  }
+
+  function _clearStepMarkers() {
+    _stepMarkers.forEach(m => { try { map.removeLayer(m); } catch(_) {} });
+    _stepMarkers = [];
+  }
+
+  function _showView(name) {
+    ['main', 'itinerary', 'nav'].forEach(v => {
+      const el = document.getElementById(`bs-view-${v}`);
+      if (el) el.style.display = v === name ? '' : 'none';
+    });
+  }
+
+  function _wireInput() {
+    const input    = document.getElementById('bs-dest-input');
+    const clear    = document.getElementById('bs-dest-clear');
+    const sugBox   = document.getElementById('bs-dest-suggestions');
+    const backBtn  = document.getElementById('bs-itin-back');
+    const stopBtn  = document.getElementById('bs-nav-stop');
+
+    if (!input) return;
+
+    let _debounceTimer = null;
+
+    input.addEventListener('input', () => {
+      const val = input.value.trim();
+      if (clear) clear.style.display = val ? 'flex' : 'none';
+      clearTimeout(_debounceTimer);
+      if (!val) { if (sugBox) sugBox.style.display = 'none'; return; }
+
+      _debounceTimer = setTimeout(async () => {
+        const results = await _geocode(val);
+
+        const lcVal = val.toLowerCase();
+        const stopMatches = Object.entries(stopNameMap)
+          .filter(([, n]) => n.toLowerCase().includes(lcVal))
+          .slice(0, 4)
+          .map(([id, name]) => {
+            const sc = _stopCoords?.[id];
+            return sc ? { display_name: name, lat: sc.lat, lon: sc.lng, _stop: true } : null;
+          })
+          .filter(Boolean);
+
+        const all = [...stopMatches, ...results].slice(0, 7);
+
+        if (!sugBox) return;
+        if (!all.length) { sugBox.style.display = 'none'; return; }
+        sugBox.style.display = 'block';
+        sugBox.innerHTML = '';
+
+        all.forEach(r => {
+          const item = document.createElement('div');
+          item.className = 'bs-dest-sug-item';
+          item.innerHTML = `
+            <span style="font-size:18px;">${r._stop ? '🚏' : '📍'}</span>
+            <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+              ${r.display_name}
+            </span>`;
+          item.addEventListener('click', () => {
+            input.value     = r.display_name;
+            _destName       = r.display_name;
+            _destLatLng     = { lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
+            sugBox.style.display = 'none';
+            if (clear) clear.style.display = 'none';
+            _launchSearch();
+          });
+          sugBox.appendChild(item);
+        });
+      }, 400);
     });
 
-    results.sort((a,b) => a.dist - b.dist);
+    if (clear) {
+      clear.addEventListener('click', () => {
+        input.value = '';
+        clear.style.display = 'none';
+        if (sugBox) sugBox.style.display = 'none';
+        _showView('main');
+      });
+    }
 
-    if (results.length === 0) {
-      list.innerHTML = '<div style="color:rgba(255,255,255,0.4);font-size:13px;padding:8px;">Aucun bus détecté à proximité.</div>';
+    if (backBtn) {
+      backBtn.addEventListener('click', () => _showView('main'));
+    }
+
+    if (stopBtn) {
+      stopBtn.addEventListener('click', () => _stopNav());
+    }
+  }
+
+  async function _launchSearch() {
+    _showView('itinerary');
+    const stepsEl   = document.getElementById('bs-itin-steps');
+    const summaryEl = document.getElementById('bs-itin-summary');
+    if (stepsEl)   stepsEl.innerHTML = '<div class="bs-itin-loading"><div class="bs-spinner"></div><span>Calcul de l\'itinéraire…</span></div>';
+    if (summaryEl) summaryEl.textContent = '';
+
+    if (!_userLatLng) {
+      await new Promise(resolve => {
+        if (!navigator.geolocation) { resolve(); return; }
+        navigator.geolocation.getCurrentPosition(pos => {
+          _userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          resolve();
+        }, resolve, { timeout: 6000 });
+      });
+    }
+
+    if (!_userLatLng) {
+      const c = map.getCenter();
+      _userLatLng = { lat: c.lat, lng: c.lng };
+    }
+
+    if (!_destLatLng) {
+      if (stepsEl) stepsEl.innerHTML = '<div style="color:rgba(255,255,255,0.5);padding:20px;text-align:center;">Destination introuvable.</div>';
       return;
     }
 
-    results.slice(0, 6).forEach(({ marker, dist }) => {
-      const color = lineColors[marker.line] || '#444';
-      const textC = getTextColor(color);
-      const label = marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || '?';
-      const distTxt = dist < 1000 ? `${Math.round(dist)} m` : `${(dist/1000).toFixed(1)} km`;
-      const card = document.createElement('div');
-      card.className = 'bs-find-live-card ripple-container';
-      card.style.cursor = 'pointer';
-      card.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="background:${color};color:${textC};padding:3px 10px;border-radius:8px;font-weight:700;font-size:13px;flex-shrink:0;">${lineName[marker.line]||marker.line}</span>
-          <div>
-            <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;">➜ ${marker.destination||'?'}</div>
-            <div style="font-size:11px;opacity:0.55;">Bus ${String(label).padStart(3,'0')}</div>
-          </div>
-        </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:15px;font-weight:700;">${distTxt}</div>
-          <div style="font-size:10px;opacity:0.45;">distance</div>
-        </div>
-      `;
-      card.onclick = () => {
-        map.setView(marker.getLatLng(), 16);
-        marker.openPopup();
-        BottomSheet.collapse();
-      };
-      list.appendChild(card);
-    });
+    const plan = await _computeItinerary(_userLatLng, _destLatLng);
+
+    if (!plan) {
+      if (stepsEl) stepsEl.innerHTML = `
+        <div style="color:rgba(255,255,255,0.5);padding:20px;text-align:center;">
+          Aucun itinéraire trouvé.<br>
+          <small>Vérifiez que des bus circulent actuellement.</small>
+        </div>`;
+      if (summaryEl) summaryEl.textContent = '';
+      return;
+    }
+
+    _renderItinerary(plan);
   }
-};
 
-// BRANCHEMENTS - hooks sur les événements existants
+  function init() {
+    _wireInput();
+    _ensureStopCoords().catch(() => {});
+  }
 
-const _origFetchVehiclePositions = fetchVehiclePositions;
+  return { init, stopNav: _stopNav };
 
-(function _hookBreadcrumb() {
-  const _origFilterByLine = filterByLine;
-  window.filterByLine = function(lineId) {
-    _origFilterByLine(lineId);
-    BsBreadcrumb.update();
-  };
-  const _origResetMapView = resetMapView;
-  window.resetMapView = function() {
-    _origResetMapView();
-    BsBreadcrumb.update();
-  };
 })();
 
-const _origExpand = BottomSheet.expand.bind(BottomSheet);
-BottomSheet.expand = function() {
-  _origExpand();
-  BsNearby.start();
-  BsBreadcrumb.update();
-};
-
-const _origCollapse = BottomSheet.collapse.bind(BottomSheet);
-BottomSheet.collapse = function() {
-  _origCollapse();
-  BsNearby.stop();
-};
-
-
 document.addEventListener('DOMContentLoaded', () => {
-  const busTile = document.getElementById('bus');
-  if (busTile) {
-    busTile.addEventListener('click', () => {
-      BsFindMode.open();
-    });
-  }
+  setTimeout(() => GpsGuide.init(), 200);
 });
-
-setInterval(() => { if (BottomSheet.expanded) BsBreadcrumb.update(); }, 3000);
