@@ -8642,8 +8642,6 @@ async function fetchVehiclePositions() {
                                     ? `width:11px;height:11px;border-radius:50%;background:transparent;border:2px solid rgba(255,255,255,0.35);margin-top:5px;flex-shrink:0;`
                                     : `width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,${index < 2 ? 0.9 : 0.3});border:1.5px solid rgba(255,255,255,${index < 2 ? 0.5 : 0.2});margin-top:6px;flex-shrink:0;`;
 
-                            const lineSegment = isLast ? '' : `<div style="width:1.5px;flex:1;background:rgba(255,255,255,${index < 2 ? 0.18 : 0.1});margin:2px 0;min-height:6px;"></div>`;
-
                             const nameStyle = isFirst
                                 ? `font-size:14px;font-weight:700;line-height:1.2;`
                                 : index < 2
@@ -8673,7 +8671,7 @@ async function fetchVehiclePositions() {
 
                             const timeEl = (isLast && filteredStops.length > 1)
                                 ? absTimeEl
-                                : `<div class="time-display" data-time-left="${timeLeftText}" data-departure-time="${absoluteTime || stopTime || ''}" style="${timeMainStyle}">${timeLeftText}</div>${absTimeEl}`;
+                                : `<div style="${timeMainStyle}">${timeLeftText}</div>`;
 
                             return `
                             <div style="display:flex;align-items:stretch;gap:0;">
@@ -8704,8 +8702,6 @@ async function fetchVehiclePositions() {
                         </div>
                     </div>
                 `;
-
-                initTimeToggle();
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
 
