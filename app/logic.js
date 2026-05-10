@@ -8675,12 +8675,12 @@ async function fetchVehiclePositions() {
 
                             return `
                             <div style="display:flex;align-items:stretch;gap:0;">
-                                <div style="flex:1;display:flex;justify-content:space-between;align-items:flex-start;padding:2px 0 ${isLast ? 2 : 10}px 8px;">
+                                <div style="flex:1;display:flex;justify-content:space-between;align-items:flex-start;padding:2px 0 0 2px;">
                                     <div style="min-width:0;">
                                         <div class="stop-name-container" style="overflow:hidden;max-width:100%;">
                                             <div style="${nameStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${stopName}</div>
                                         </div>
-                                        ${firstBadge}${terminusBadge}
+                                        ${terminusBadge}
                                     </div>
                                     <div style="text-align:right;flex-shrink:0;margin-left:8px;">
                                         ${timeEl}
