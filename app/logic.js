@@ -12315,485 +12315,846 @@ softSwitchNetwork = async function (newId) {
 window.softSwitchNetwork = softSwitchNetwork;
 
 
+// ============================================================
+//  Dynamic Sheet - planificateur d'itinéraire 
+//  multi-correspondances , scoring complet, animations MBF
+// ============================================================
+
 const GpsGuide = (() => {
 
-  let _userLatLng   = null; // { lat, lng }
-  let _destLatLng   = null; // { lat, lng }
-  let _destName     = '';
-  let _itinerary    = null; // computed plan
-  let _currentStep  = 0;
-  let _navActive    = false;
-  let _watchId      = null;
-  let _stepMarkers  = []; // leaflet
+    let _userLatLng   = null;
+    let _destLatLng   = null;
+    let _destName     = '';
+    let _itinerary    = null;
+    let _currentStep  = 0;
+    let _navActive    = false;
+    let _watchId      = null;
+    let _stepMarkers  = [];
+    let _stopCoords   = null;
+    let _stopLines    = null; // stopId > Set<routeId>
+    let _lineStops    = null; //routeId > [stopId ordered]
+    let _searchTimer  = null;
 
-  // Built lazily from the GTFS stops response already
-  // stored in stopNameMap/stopIds. refetch coords
-  // from the proxy so can do proximity math.
-  let _stopCoords = null; 
+    const WALK_SPEED_KMH   = 4.8;
+    const BUS_SPEED_KMH    = 22;
+    const TRANSFER_PENALTY = 4; // minutes par correspondance
+    const MAX_WALK_BOARD   = 0.7; //km
+    const MAX_WALK_ALIGHT  = 0.8;
+    const MAX_TRANSFERS    = 2;
 
-  async function _ensureStopCoords() {
-    if (_stopCoords) return _stopCoords;
-    try {
-      const res = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'), {
-        cache: 'default'
-      });
-      const data = await res.json();
-      _stopCoords = {};
-      Object.entries(data).forEach(([id, s]) => {
-        if (s.lat && s.lon) {
-          _stopCoords[id] = { lat: parseFloat(s.lat), lng: parseFloat(s.lon), name: s.n || id };
-        }
-      });
-    } catch (e) {
-      console.warn('GpsGuide: cannot load stop coords', e);
-      _stopCoords = {};
+    function _dist(a, b) {
+        const R = 6371,
+              dLat = (b.lat - a.lat) * Math.PI / 180,
+              dLng = (b.lng - a.lng) * Math.PI / 180;
+        const x = Math.sin(dLat/2)**2 +
+                  Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;
+        return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
     }
-    return _stopCoords;
-  }
+    function _walkMin(km) { return km / WALK_SPEED_KMH * 60; }
 
-  function _dist(a, b) {
-    const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180,
-          dLng = (b.lng - a.lng) * Math.PI / 180,
-          sinLat = Math.sin(dLat / 2), sinLng = Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(
-      Math.sqrt(sinLat * sinLat + Math.cos(a.lat * Math.PI / 180) *
-                Math.cos(b.lat * Math.PI / 180) * sinLng * sinLng),
-      Math.sqrt(1 - sinLat * sinLat - Math.cos(a.lat * Math.PI / 180) *
-                Math.cos(b.lat * Math.PI / 180) * sinLng * sinLng)
-    );
-    return R * c;
-  }
-
-  function _nearestStops(latlng, n = 8) {
-    if (!_stopCoords) return [];
-    return Object.entries(_stopCoords)
-      .map(([id, s]) => ({ id, ...s, d: _dist(latlng, s) }))
-      .sort((a, b) => a.d - b.d)
-      .slice(0, n);
-  }
-
-  async function _computeItinerary(fromLatLng, toLatLng) {
-    await _ensureStopCoords();
-
-    const originStops = _nearestStops(fromLatLng, 10);
-    const destStops   = _nearestStops(toLatLng,   10);
-
-    if (!originStops.length || !destStops.length) return null;
-
-    const destStopIds = new Set(destStops.map(s => s.id));
-    const candidates  = [];
-
-    markerPool.active.forEach((marker) => {
-      const tripId   = marker.vehicleData?.trip?.tripId;
-      if (!tripId) return;
-      const tripData = tripUpdates[tripId];
-      if (!tripData?.nextStops?.length) return;
-
-      const upcoming  = tripData.nextStops;
-      const upcomingIds = upcoming.map(s => s.stopId.replace('0:', ''));
-
-      let boardIdx = -1, boardStop = null, minBoardDist = Infinity;
-      originStops.forEach(os => {
-        const idx = upcomingIds.indexOf(os.id);
-        if (idx !== -1 && os.d < minBoardDist) {
-          minBoardDist = os.d;
-          boardIdx  = idx;
-          boardStop = os;
-        }
-      });
-      if (boardIdx === -1) return;
-
-      let alightIdx = -1, alightStop = null, minAlightDist = Infinity;
-      destStops.forEach(ds => {
-        const idx = upcomingIds.indexOf(ds.id);
-        if (idx > boardIdx && ds.d < minAlightDist) {
-          minAlightDist = ds.d;
-          alightIdx  = idx;
-          alightStop = ds;
-        }
-      });
-      if (alightIdx === -1) return;
-
-      const stopsRidden = alightIdx - boardIdx;
-      const score = minBoardDist + minAlightDist + stopsRidden * 0.05;
-
-      candidates.push({
-        marker, tripId,
-        line:      marker.line,
-        lineName:  lineName[marker.line] || marker.line,
-        lineColor: lineColors[marker.line] || '#444',
-        board:     { ...boardStop, idx: boardIdx },
-        alight:    { ...alightStop, idx: alightIdx },
-        upcoming,
-        stopsRidden,
-        walkToBoard:   minBoardDist,
-        walkFromAlight: minAlightDist,
-        score
-      });
-    });
-
-    if (!candidates.length) return null;
-    candidates.sort((a, b) => a.score - b.score);
-
-    const best = candidates[0];
-    const textColor = getTextColor(best.lineColor);
-
-    const steps = [
-      {
-        type:    'walk',
-        icon:    '🚶',
-        title:   `Marchez vers l'arrêt`,
-        sub:     `${best.board.name} · ${(best.walkToBoard * 1000).toFixed(0)} m`,
-        latlng:  best.board
-      },
-      {
-        type:      'bus',
-        icon:      '🚌',
-        title:     `Prenez la ligne ${best.lineName}`,
-        sub:       `Montez à "${best.board.name}", descendez à "${best.alight.name}" (${best.stopsRidden} arrêt${best.stopsRidden > 1 ? 's' : ''})`,
-        latlng:    best.board,
-        alightLng: best.alight,
-        lineColor: best.lineColor,
-        textColor,
-        lineName:  best.lineName,
-        marker:    best.marker
-      },
-      {
-        type:  'walk',
-        icon:  '🏁',
-        title: `Marchez vers votre destination`,
-        sub:   `${_destName} · ${(best.walkFromAlight * 1000).toFixed(0)} m`,
-        latlng: toLatLng
-      }
-    ];
-
-    const directDist = _dist(fromLatLng, toLatLng);
-    if (directDist < 0.6) {
-      return {
-        direct: true,
-        steps: [{
-          type:  'walk',
-          icon:  '🚶',
-          title: `Marchez vers votre destination`,
-          sub:   `${(directDist * 1000).toFixed(0)} m · environ ${Math.ceil(directDist / 0.08)} min`,
-          latlng: toLatLng
-        }],
-        summary: `Trajet à pied : ${(directDist * 1000).toFixed(0)} m`
-      };
+    // chargement données GTFS
+    async function _ensureStopCoords() {
+        if (_stopCoords) return _stopCoords;
+        try {
+            const res  = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'), { cache: 'default' });
+            const data = await res.json();
+            _stopCoords = {};
+            Object.entries(data).forEach(([id, s]) => {
+                if (s.lat && s.lon) _stopCoords[id] = { lat: +s.lat, lng: +s.lon, name: s.n || id };
+            });
+        } catch(e) { _stopCoords = {}; }
+        return _stopCoords;
     }
 
-    const totalTime = Math.ceil(best.walkToBoard / 0.08) + best.stopsRidden * 2 + Math.ceil(best.walkFromAlight / 0.08);
+    // construit l'index stopId > lignes ET routeId > ordre des arrêts depuis
+    // les tripUpdates en mémoire + stopNameMap (pas de fetch supplémentaire)
+    function _buildGraphFromLiveData() {
+        if (_stopLines && _lineStops) return;
+        _stopLines = {};
+        _lineStops = {};
 
-    return {
-      direct: false,
-      best,
-      steps,
-      summary: `Ligne ${best.lineName} · ~${totalTime} min · ${best.stopsRidden} arrêt${best.stopsRidden > 1 ? 's' : ''}`
-    };
-  }
+        //depuis les markers actifs (trips en cours)
+        markerPool.active.forEach(marker => {
+            const routeId = marker.line;
+            if (!routeId) return;
+            const tripId  = marker.vehicleData?.trip?.tripId;
+            if (!tripId) return;
+            const nextStops = tripUpdates[tripId]?.nextStops || [];
+            if (!nextStops.length) return;
 
-  async function _geocode(query) {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(query)}`;
-    try {
-      const res = await fetch(url, { headers: { 'Accept-Language': window.i18n?.currentLang || 'fr' } });
-      return await res.json();
-    } catch (e) {
-      return [];
-    }
-  }
+            if (!_lineStops[routeId]) _lineStops[routeId] = [];
 
-  function _renderItinerary(plan) {
-    const summary = document.getElementById('bs-itin-summary');
-    const steps   = document.getElementById('bs-itin-steps');
-    if (!summary || !steps) return;
-
-    summary.textContent = plan.summary;
-    steps.innerHTML     = '';
-
-    plan.steps.forEach((step, idx) => {
-      const card = document.createElement('div');
-      card.className = 'bs-itin-step ripple-container';
-      if (idx === 0) card.classList.add('active-step');
-
-      const iconBg = step.lineColor
-        ? `background:${step.lineColor};`
-        : 'background:rgba(255,255,255,0.12);';
-
-      let badgeHtml = '';
-      if (step.type === 'bus') {
-        const tc = step.textColor || '#fff';
-        badgeHtml = `<span class="bs-itin-line-badge"
-                           style="background:${step.lineColor};color:${tc};">
-                       ${step.lineName}
-                     </span><br>`;
-      }
-
-      card.innerHTML = `
-        <div class="bs-itin-step-icon" style="${iconBg}">${step.icon}</div>
-        <div class="bs-itin-step-body">
-          ${badgeHtml}
-          <div class="bs-itin-step-title">${step.title}</div>
-          <div class="bs-itin-step-sub">${step.sub}</div>
-        </div>`;
-
-      card.addEventListener('click', () => {
-        if (step.latlng) {
-          map.setView([step.latlng.lat, step.latlng.lng], 16, { animate: true });
-          safeVibrate?.([30], true);
-        }
-        if (step.marker) step.marker.openPopup();
-      });
-
-      steps.appendChild(card);
-    });
-
-    const startBtn = document.createElement('button');
-    startBtn.style.cssText = `
-      width:100%; margin-top:14px; padding:14px;
-      background:rgba(22,193,120,0.3); border:1px solid rgba(22,193,120,0.5);
-      border-radius:16px; color:#fff;
-      font-family:'League Spartan',sans-serif; font-size:15px;
-      font-weight:700; cursor:pointer;
-    `;
-    startBtn.textContent = '▶ Démarrer la navigation';
-    startBtn.addEventListener('click', () => _startNav(plan));
-    steps.appendChild(startBtn);
-  }
-
-  function _startNav(plan) {
-    _itinerary   = plan;
-    _currentStep = 0;
-    _navActive   = true;
-    _showView('nav');
-    _drawStepMarkers(plan);
-    _updateNavUI();
-    _watchPosition();
-    safeVibrate?.([50, 30, 50], true);
-    soundsUX?.('MBF_Popup');
-  }
-
-  function _watchPosition() {
-    if (!navigator.geolocation) return;
-    if (_watchId !== null) navigator.geolocation.clearWatch(_watchId);
-    _watchId = navigator.geolocation.watchPosition(pos => {
-      _userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      _checkStepAdvance();
-    }, null, { enableHighAccuracy: true, maximumAge: 4000 });
-  }
-
-  function _checkStepAdvance() {
-    if (!_itinerary || !_userLatLng) return;
-    const step = _itinerary.steps[_currentStep];
-    if (!step?.latlng) return;
-    const d = _dist(_userLatLng, step.latlng) * 1000; // metres
-    const threshold = step.type === 'bus' ? 80 : 60;
-    if (d < threshold) {
-      if (_currentStep < _itinerary.steps.length - 1) {
-        _currentStep++;
-        _updateNavUI();
-        safeVibrate?.([30, 50, 30], true);
-        soundsUX?.('MBF_NotificationInfo');
-      } else {
-        _finishNav();
-      }
-    }
-  }
-
-  function _updateNavUI() {
-    const step    = _itinerary.steps[_currentStep];
-    const icon    = document.getElementById('bs-nav-step-icon');
-    const text    = document.getElementById('bs-nav-step-text');
-    const sub     = document.getElementById('bs-nav-step-sub');
-    const remain  = document.getElementById('bs-nav-steps-remaining');
-    if (!step) return;
-    if (icon) icon.textContent = step.icon;
-    if (text) text.textContent = step.title;
-    if (sub)  sub.textContent  = step.sub;
-
-    if (remain) {
-      remain.innerHTML = '';
-      _itinerary.steps.forEach((s, i) => {
-        const el = document.createElement('div');
-        el.className = 'bs-nav-remaining-step' + (i < _currentStep ? ' done' : '');
-        el.innerHTML = `<span style="font-size:16px;">${s.icon}</span><span>${s.title}</span>`;
-        remain.appendChild(el);
-      });
-    }
-
-    if (step.latlng) map.setView([step.latlng.lat, step.latlng.lng], 16, { animate: true });
-  }
-
-  function _finishNav() {
-    _navActive = false;
-    if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
-    _clearStepMarkers();
-    _showView('main');
-    soundsUX?.('MBF_Success');
-    safeVibrate?.([50, 100, 50], true);
-    if (typeof toastBottomRight !== 'undefined') {
-      toastBottomRight.success?.('Vous êtes arrivé à destination ! 🎉');
-    }
-  }
-
-  function _stopNav() {
-    _navActive = false;
-    if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
-    _clearStepMarkers();
-    _showView('main');
-  }
-
-  function _drawStepMarkers(plan) {
-    _clearStepMarkers();
-    plan.steps.forEach(step => {
-      if (!step.latlng) return;
-      const c = L.circleMarker([step.latlng.lat, step.latlng.lng], {
-        radius: 10, color: '#fff', weight: 2,
-        fillColor: step.lineColor || '#3b82f6', fillOpacity: 0.9
-      }).addTo(map);
-      c.bindTooltip(step.title, { permanent: false, direction: 'top' });
-      _stepMarkers.push(c);
-    });
-  }
-
-  function _clearStepMarkers() {
-    _stepMarkers.forEach(m => { try { map.removeLayer(m); } catch(_) {} });
-    _stepMarkers = [];
-  }
-
-  function _showView(name) {
-    ['main', 'itinerary', 'nav'].forEach(v => {
-      const el = document.getElementById(`bs-view-${v}`);
-      if (el) el.style.display = v === name ? '' : 'none';
-    });
-  }
-
-  function _wireInput() {
-    const input    = document.getElementById('bs-dest-input');
-    const clear    = document.getElementById('bs-dest-clear');
-    const sugBox   = document.getElementById('bs-dest-suggestions');
-    const backBtn  = document.getElementById('bs-itin-back');
-    const stopBtn  = document.getElementById('bs-nav-stop');
-
-    if (!input) return;
-
-    let _debounceTimer = null;
-
-    input.addEventListener('input', () => {
-      const val = input.value.trim();
-      if (clear) clear.style.display = val ? 'flex' : 'none';
-      clearTimeout(_debounceTimer);
-      if (!val) { if (sugBox) sugBox.style.display = 'none'; return; }
-
-      _debounceTimer = setTimeout(async () => {
-        const results = await _geocode(val);
-
-        const lcVal = val.toLowerCase();
-        const stopMatches = Object.entries(stopNameMap)
-          .filter(([, n]) => n.toLowerCase().includes(lcVal))
-          .slice(0, 4)
-          .map(([id, name]) => {
-            const sc = _stopCoords?.[id];
-            return sc ? { display_name: name, lat: sc.lat, lon: sc.lng, _stop: true } : null;
-          })
-          .filter(Boolean);
-
-        const all = [...stopMatches, ...results].slice(0, 7);
-
-        if (!sugBox) return;
-        if (!all.length) { sugBox.style.display = 'none'; return; }
-        sugBox.style.display = 'block';
-        sugBox.innerHTML = '';
-
-        all.forEach(r => {
-          const item = document.createElement('div');
-          item.className = 'bs-dest-sug-item';
-          item.innerHTML = `
-            <span style="font-size:18px;">${r._stop ? '🚏' : '📍'}</span>
-            <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-              ${r.display_name}
-            </span>`;
-          item.addEventListener('click', () => {
-            input.value     = r.display_name;
-            _destName       = r.display_name;
-            _destLatLng     = { lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
-            sugBox.style.display = 'none';
-            if (clear) clear.style.display = 'none';
-            _launchSearch();
-          });
-          sugBox.appendChild(item);
+            nextStops.forEach(s => {
+                const sid = s.stopId.replace('0:', '').trim();
+                if (!_stopLines[sid]) _stopLines[sid] = new Set();
+                _stopLines[sid].add(routeId);
+                if (!_lineStops[routeId].includes(sid)) _lineStops[routeId].push(sid);
+            });
         });
-      }, 400);
-    });
+    }
 
-    if (clear) {
-      clear.addEventListener('click', () => {
-        input.value = '';
-        clear.style.display = 'none';
-        if (sugBox) sugBox.style.display = 'none';
+    //trouver arrêts proches
+    function _nearestStops(latlng, maxKm = MAX_WALK_BOARD, maxN = 8) {
+        if (!_stopCoords) return [];
+        return Object.entries(_stopCoords)
+            .map(([id, s]) => ({ id, ...s, d: _dist(latlng, s) }))
+            .filter(s => s.d <= maxKm)
+            .sort((a, b) => a.d - b.d)
+            .slice(0, maxN);
+    }
+
+    function _timeStr2secs(t) {
+        if (!t || !t.includes(':')) return null;
+        const p = t.split(':').map(Number);
+        return p[0]*3600 + p[1]*60 + (p[2]||0);
+    }
+    function _nowSecs() {
+        const n = new Date();
+        return n.getHours()*3600 + n.getMinutes()*60 + n.getSeconds();
+    }
+
+    //prochain passage dune ligne à un arret (depuis tripupdates)
+    function _nextBusAt(routeId, stopId) {
+        const now = _nowSecs();
+        let best = null;
+        markerPool.active.forEach(marker => {
+            if (marker.line !== routeId) return;
+            const tripId = marker.vehicleData?.trip?.tripId;
+            const ns     = tripUpdates[tripId]?.nextStops || [];
+            const match  = ns.find(s => s.stopId.replace('0:','') === stopId ||
+                                        s.stopId === stopId);
+            if (!match) return;
+            const t = match.departureTime || match.arrivalTime;
+            let secs = _timeStr2secs(t);
+            if (secs === null) {
+                if (typeof t === 'number' && t > 86400) {
+                    const d = new Date(t*1000);
+                    secs = d.getHours()*3600 + d.getMinutes()*60 + d.getSeconds();
+                } else return;
+            }
+            if (secs < now - 120) secs += 86400;
+            if (best === null || secs < best) best = secs;
+        });
+        return best; // null si aucun
+    }
+
+    // recherche en largeur (BFS) sur le graphe lignes/arrets
+    // avec au maximum MAX_TRANSFERS changements.
+    // Retourne un tableau de plans triés par score (temps total estimé).
+    async function _computePlans(fromLL, toLL) {
+        await _ensureStopCoords();
+        _buildGraphFromLiveData();
+
+        const now   = _nowSecs();
+        const origins = _nearestStops(fromLL, MAX_WALK_BOARD, 6);
+        const dests   = _nearestStops(toLL,   MAX_WALK_ALIGHT, 6);
+
+        if (!origins.length || !dests.length) return [];
+
+        const destSet = new Map(dests.map(d => [d.id, d]));
+        const plans   = [];
+
+        // BFS state: { legs, currentStopId, currentTime, transfers }
+        // leg = { type, routeId, boardStop, alightStop, boardTime, alightTime }
+        const queue = [];
+
+        origins.forEach(orig => {
+            const walkMin = _walkMin(orig.d);
+            queue.push({
+                legs: [{
+                    type:      'walk',
+                    from:      fromLL,
+                    to:        orig,
+                    distKm:    orig.d,
+                    durationMin: walkMin
+                }],
+                currentStopId: orig.id,
+                currentTimeSecs: now + walkMin * 60,
+                transfers: 0
+            });
+        });
+
+        const visited = new Map(); 
+
+        while (queue.length > 0) {
+            const state = queue.shift();
+            const { currentStopId, currentTimeSecs, transfers, legs } = state;
+
+            const vKey = `${currentStopId}|${transfers}`;
+            if ((visited.get(vKey) || Infinity) <= currentTimeSecs) continue;
+            visited.set(vKey, currentTimeSecs);
+
+            const destStop = destSet.get(currentStopId);
+            if (destStop) {
+                const finalWalk = _walkMin(destStop.d);
+                plans.push({
+                    legs: [...legs, {
+                        type:        'walk',
+                        from:        _stopCoords[currentStopId],
+                        to:          toLL,
+                        distKm:      destStop.d,
+                        durationMin: finalWalk
+                    }],
+                    totalMin:  (currentTimeSecs - now)/60 + finalWalk,
+                    transfers: Math.max(0, transfers - 1)
+                });
+            }
+
+            if (transfers >= MAX_TRANSFERS) continue;
+
+            const lines = _stopLines[currentStopId] || new Set();
+            lines.forEach(routeId => {
+                const lineStopArr = _lineStops[routeId] || [];
+                const boardIdx    = lineStopArr.indexOf(currentStopId);
+                if (boardIdx === -1) return;
+
+                const boardTime   = _nextBusAt(routeId, currentStopId);
+                if (boardTime === null) return;
+                const waitMin     = Math.max(0, (boardTime - currentTimeSecs) / 60);
+
+                for (let ai = boardIdx + 1; ai < lineStopArr.length; ai++) {
+                    const alightId = lineStopArr[ai];
+                    const alightS  = _stopCoords[alightId];
+                    if (!alightS) continue;
+
+                    const distBus      = _dist(
+                        _stopCoords[currentStopId] || fromLL, alightS
+                    );
+                    const busTravelMin = distBus / BUS_SPEED_KMH * 60;
+                    const alightTime   = boardTime + busTravelMin * 60;
+                    const legDuration  = waitMin + busTravelMin;
+
+                    const newLeg = {
+                        type:          'bus',
+                        routeId,
+                        lineName:      lineName[routeId] || routeId,
+                        lineColor:     lineColors[routeId] || '#444',
+                        boardStop:     _stopCoords[currentStopId],
+                        alightStop:    alightS,
+                        boardStopId:   currentStopId,
+                        alightStopId:  alightId,
+                        waitMin,
+                        busTravelMin,
+                        durationMin:   legDuration
+                    };
+
+                    queue.push({
+                        legs: [...legs, newLeg],
+                        currentStopId:   alightId,
+                        currentTimeSecs: alightTime,
+                        transfers:       transfers + 1
+                    });
+                }
+            });
+        }
+
+        if (!plans.length) return [];
+
+        plans.forEach(p => {
+            const walkTotal = p.legs
+                .filter(l => l.type === 'walk')
+                .reduce((s, l) => s + l.durationMin, 0);
+            p.score = p.totalMin + p.transfers * TRANSFER_PENALTY + walkTotal * 0.3;
+        });
+
+        plans.sort((a, b) => a.score - b.score);
+
+        const seen = new Set();
+        return plans.filter(p => {
+            const key = p.legs.filter(l=>l.type==='bus').map(l=>l.routeId).join('>');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        }).slice(0, 3);
+    }
+
+    async function _geocode(query) {
+        const center = window.mapInstance?.getCenter() || { lat: 43.55, lng: 7.0 };
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5`
+                  + `&q=${encodeURIComponent(query)}`
+                  + `&viewbox=${center.lng-0.15},${center.lat+0.1},${center.lng+0.15},${center.lat-0.1}`
+                  + `&bounded=0`
+                  + `&accept-language=${window.i18n?.currentLang || 'fr'}`;
+        try {
+            const res = await fetch(url, { headers: { 'Accept-Language': window.i18n?.currentLang || 'fr' } });
+            return await res.json();
+        } catch { return []; }
+    }
+
+    async function _buildSuggestions(query) {
+        const ref = _userLatLng || (window.mapInstance
+            ? (() => { const c = window.mapInstance.getCenter(); return { lat: c.lat, lng: c.lng }; })()
+            : null);
+
+        const lcQ = query.toLowerCase();
+
+        await _ensureStopCoords();
+        const stopMatches = Object.entries(_stopCoords || {})
+            .filter(([, s]) => s.name.toLowerCase().includes(lcQ))
+            .map(([id, s]) => ({
+                display_name: s.name,
+                lat: s.lat, lon: s.lng,
+                _stop: true,
+                _dist: ref ? _dist(ref, s) : 999
+            }))
+            .sort((a, b) => a._dist - b._dist)
+            .slice(0, 5);
+
+        const geoRes = await _geocode(query);
+        const geoItems = geoRes.map(r => ({
+            display_name: r.display_name?.split(',').slice(0,2).join(', '),
+            lat: +r.lat, lon: +r.lon,
+            _stop: false,
+            _dist: ref ? _dist(ref, { lat: +r.lat, lng: +r.lon }) : 999
+        }));
+
+        return [...stopMatches, ...geoItems]
+            .sort((a, b) => a._dist - b._dist)
+            .slice(0, 8);
+    }
+
+    function _showView(name) {
+        ['main','itinerary','nav'].forEach(v => {
+            const el = document.getElementById(`bs-view-${v}`);
+            if (el) el.style.display = (v === name) ? '' : 'none';
+        });
+    }
+
+    function _humanDist(km) {
+        return km < 1 ? `${Math.round(km*1000)} m` : `${km.toFixed(1)} km`;
+    }
+
+    function _humanMin(min) {
+        if (min < 1) return 'imminent';
+        if (min < 60) return `${Math.round(min)} min`;
+        return `${Math.floor(min/60)}h${String(Math.round(min%60)).padStart(2,'0')}`;
+    }
+
+    function _renderLegIcon(leg) {
+        if (leg.type === 'walk') {
+            return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="5" r="1"/><path d="M9 20l1-5 2 2 1-4"/>
+                <path d="M12 12l-1-4 4 3-3 1z"/>
+            </svg>`;
+        }
+        return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22 20 6.5 20
+                     C6.78 20 7 19.78 7 19.5V18M17 18V19.5C17 19.78 17.22 20 17.5 20
+                     C17.78 20 18 19.78 18 19.5V18M19 6C19 4.34 17.66 3 16 3H8
+                     C6.34 3 5 4.34 5 6M19 6V16C19 17.1 18.1 18 17 18H7
+                     C5.9 18 5 17.1 5 16V6M19 6H5"/>
+        </svg>`;
+    }
+
+    function _renderPlan(plan, idx) {
+        const card = document.createElement('div');
+        card.className = 'gps-plan-card ripple-container';
+        card.style.cssText = `
+            background: rgba(255,255,255,0.09);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 20px;
+            padding: 14px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            opacity: 0;
+            transform: translateY(18px) scale(0.97);
+            filter: blur(4px);
+            transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+            animation: gpsPlanIn 0.55s cubic-bezier(0.25, 1.5, 0.5, 1) ${idx * 0.09}s forwards;
+        `;
+
+        const busLegs = plan.legs.filter(l => l.type === 'bus');
+        const summary = document.createElement('div');
+        summary.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;';
+
+        busLegs.forEach(leg => {
+            const tc = getTextColor(leg.lineColor);
+            const pill = document.createElement('span');
+            pill.style.cssText = `background:${leg.lineColor};color:${tc};padding:3px 10px;
+                border-radius:20px;font-size:13px;font-weight:700;font-family:'League Spartan',sans-serif;`;
+            pill.textContent = `Ligne ${leg.lineName}`;
+            summary.appendChild(pill);
+            if (busLegs.indexOf(leg) < busLegs.length - 1) {
+                const arr = document.createElement('span');
+                arr.style.cssText = 'font-size:14px;opacity:0.5;';
+                arr.textContent = '>';
+                summary.appendChild(arr);
+            }
+        });
+        if (!busLegs.length) {
+            const w = document.createElement('span');
+            w.style.cssText = 'font-size:13px;opacity:0.7;';
+            w.textContent = '🚶 Trajet à pied';
+            summary.appendChild(w);
+        }
+
+        const meta = document.createElement('div');
+        meta.style.cssText = 'display:flex;gap:12px;align-items:center;margin-bottom:12px;';
+        meta.innerHTML = `
+            <span style="font-size:22px;font-weight:700;font-family:'League Spartan',sans-serif;">
+                ${_humanMin(plan.totalMin)}
+            </span>
+            ${plan.transfers > 0 ? `<span style="font-size:11px;opacity:0.55;background:rgba(255,255,255,0.1);
+                padding:3px 8px;border-radius:10px;">${plan.transfers} correspondance${plan.transfers>1?'s':''}</span>` : ''}
+            <span style="font-size:11px;opacity:0.45;margin-left:auto;">Option ${idx+1}</span>
+        `;
+
+        const stepsEl = document.createElement('div');
+        stepsEl.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+
+        plan.legs.forEach((leg, li) => {
+            const row = document.createElement('div');
+            row.style.cssText = `
+                display:flex;align-items:center;gap:10px;
+                padding:8px 10px;border-radius:12px;
+                background:${leg.type==='bus' ? leg.lineColor+'28' : 'rgba(255,255,255,0.05)'};
+                border:1px solid ${leg.type==='bus' ? leg.lineColor+'55' : 'rgba(255,255,255,0.08)'};
+                font-family:'League Spartan',sans-serif;
+                transition: transform 0.15s cubic-bezier(0.25, 1.5, 0.5, 1);
+            `;
+
+            const iconWrap = document.createElement('div');
+            iconWrap.style.cssText = `
+                width:34px;height:34px;flex-shrink:0;border-radius:10px;
+                display:flex;align-items:center;justify-content:center;
+                background:${leg.type==='bus' ? leg.lineColor : 'rgba(255,255,255,0.12)'};
+                color:${leg.type==='bus' ? getTextColor(leg.lineColor) : '#fff'};
+            `;
+            iconWrap.innerHTML = _renderLegIcon(leg);
+
+            const info = document.createElement('div');
+            info.style.cssText = 'flex:1;min-width:0;';
+            if (leg.type === 'walk') {
+                info.innerHTML = `
+                    <div style="font-size:13px;font-weight:600;">${li===0?'Marchez jusqu\'à l\'arrêt':'Marchez jusqu\'à destination'}</div>
+                    <div style="font-size:11px;opacity:0.55;">${_humanDist(leg.distKm)} · ${_humanMin(leg.durationMin)}</div>
+                `;
+            } else {
+                info.innerHTML = `
+                    <div style="font-size:13px;font-weight:600;">Ligne ${leg.lineName}</div>
+                    <div style="font-size:11px;opacity:0.55;">
+                        De <b style="opacity:0.85">${leg.boardStop?.name||'?'}</b>
+                        > <b style="opacity:0.85">${leg.alightStop?.name||'?'}</b>
+                    </div>
+                    <div style="font-size:10.5px;opacity:0.45;">
+                        Attente ~${_humanMin(leg.waitMin)} · trajet ~${_humanMin(leg.busTravelMin)}
+                    </div>
+                `;
+            }
+
+            row.appendChild(iconWrap);
+            row.appendChild(info);
+            stepsEl.appendChild(row);
+
+            if (li < plan.legs.length - 1) {
+                const connector = document.createElement('div');
+                connector.style.cssText = `
+                    width:2px;height:10px;background:rgba(255,255,255,0.18);
+                    margin-left:16px;border-radius:1px;
+                `;
+                stepsEl.appendChild(connector);
+            }
+        });
+
+        const startBtn = document.createElement('button');
+        startBtn.className = 'ripple-container';
+        startBtn.style.cssText = `
+            width:100%;margin-top:12px;padding:12px;
+            background:linear-gradient(135deg,rgba(22,193,120,0.35),rgba(22,193,120,0.2));
+            border:1px solid rgba(22,193,120,0.5);border-radius:14px;
+            color:#fff;font-family:'League Spartan',sans-serif;
+            font-size:14px;font-weight:700;cursor:pointer;
+            transition:all 0.25s cubic-bezier(0.25,1.5,0.5,1);
+        `;
+        startBtn.innerHTML = `▶ Démarrer`;
+        startBtn.addEventListener('mouseenter', () => {
+            startBtn.style.background = 'linear-gradient(135deg,rgba(22,193,120,0.55),rgba(22,193,120,0.35))';
+            startBtn.style.transform  = 'scale(1.02)';
+        });
+        startBtn.addEventListener('mouseleave', () => {
+            startBtn.style.background = 'linear-gradient(135deg,rgba(22,193,120,0.35),rgba(22,193,120,0.2))';
+            startBtn.style.transform  = 'scale(1)';
+        });
+        startBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            _startNav(plan);
+        });
+
+        card.appendChild(summary);
+        card.appendChild(meta);
+        card.appendChild(stepsEl);
+        card.appendChild(startBtn);
+
+        card.addEventListener('mouseenter', () => {
+            card.style.background     = 'rgba(255,255,255,0.14)';
+            card.style.borderColor    = 'rgba(255,255,255,0.28)';
+        });
+        card.addEventListener('mouseleave', () => {
+            card.style.background  = 'rgba(255,255,255,0.09)';
+            card.style.borderColor = 'rgba(255,255,255,0.14)';
+        });
+        card.addEventListener('click', () => {
+            const firstBus = plan.legs.find(l => l.type === 'bus');
+            if (firstBus?.boardStop) {
+                window.mapInstance?.setView([firstBus.boardStop.lat, firstBus.boardStop.lng], 15, { animate: true });
+            }
+            safeVibrate?.([30], true);
+        });
+
+        return card;
+    }
+
+    function _renderItinerary(plans) {
+        const summary = document.getElementById('bs-itin-summary');
+        const stepsEl = document.getElementById('bs-itin-steps');
+        if (!stepsEl) return;
+
+        stepsEl.innerHTML = '';
+        if (summary) {
+            summary.textContent = plans.length
+                ? `${plans.length} itinéraire${plans.length>1?'s':''} trouvé${plans.length>1?'s':''}`
+                : '';
+        }
+
+        if (!plans.length) {
+            stepsEl.innerHTML = `
+                <div style="text-align:center;padding:30px 0;opacity:0.55;font-family:'League Spartan',sans-serif;">
+                    <div style="font-size:36px;margin-bottom:10px;">🗺️</div>
+                    <div style="font-size:15px;font-weight:600;">Aucun itinéraire trouvé</div>
+                    <div style="font-size:12px;margin-top:6px;opacity:0.7;">
+                        Vérifiez que des bus circulent actuellement sur ce trajet.
+                    </div>
+                </div>`;
+            return;
+        }
+
+        plans.forEach((plan, idx) => stepsEl.appendChild(_renderPlan(plan, idx)));
+    }
+
+    function _startNav(plan) {
+        _itinerary   = plan;
+        _currentStep = 0;
+        _navActive   = true;
+        _showView('nav');
+        _drawStepMarkers(plan);
+        _updateNavUI();
+        _watchPosition();
+        safeVibrate?.([50, 30, 50], true);
+        soundsUX?.('MBF_Popup');
+    }
+
+    function _watchPosition() {
+        if (!navigator.geolocation) return;
+        if (_watchId !== null) navigator.geolocation.clearWatch(_watchId);
+        _watchId = navigator.geolocation.watchPosition(pos => {
+            _userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            _checkStepAdvance();
+        }, null, { enableHighAccuracy: true, maximumAge: 4000 });
+    }
+
+    function _checkStepAdvance() {
+        if (!_itinerary || !_userLatLng) return;
+        const step = _itinerary.legs[_currentStep];
+        if (!step) return;
+        const target = step.type === 'walk' ? step.to :
+                       step.type === 'bus'  ? step.alightStop : null;
+        if (!target) return;
+        const d = _dist(_userLatLng, target) * 1000;
+        const threshold = step.type === 'bus' ? 100 : 60;
+        if (d < threshold) {
+            if (_currentStep < _itinerary.legs.length - 1) {
+                _currentStep++;
+                _updateNavUI();
+                safeVibrate?.([30, 50, 30], true);
+                soundsUX?.('MBF_NotificationInfo');
+                _showStepNotif(_itinerary.legs[_currentStep]);
+            } else {
+                _finishNav();
+            }
+        }
+    }
+
+    function _showStepNotif(leg) {
+        if (typeof toastBottomRight === 'undefined') return;
+        if (leg.type === 'walk') {
+            toastBottomRight.info?.(`🚶 Marchez ${_humanDist(leg.distKm)} vers la destination`);
+        } else {
+            toastBottomRight.info?.(`🚌 Prenez la ligne ${leg.lineName}`);
+        }
+    }
+
+    function _updateNavUI() {
+        const leg      = _itinerary.legs[_currentStep];
+        const icon     = document.getElementById('bs-nav-step-icon');
+        const text     = document.getElementById('bs-nav-step-text');
+        const sub      = document.getElementById('bs-nav-step-sub');
+        const remain   = document.getElementById('bs-nav-steps-remaining');
+        if (!leg) return;
+
+        if (icon) icon.innerHTML = _renderLegIcon(leg);
+        if (text) {
+            text.textContent = leg.type === 'walk'
+                ? (_currentStep === 0 ? 'Marchez jusqu\'à l\'arrêt' : 'Marchez jusqu\'à destination')
+                : `Prenez la ligne ${leg.lineName}`;
+        }
+        if (sub) {
+            sub.textContent = leg.type === 'walk'
+                ? `${_humanDist(leg.distKm)} · ~${_humanMin(leg.durationMin)}`
+                : `De "${leg.boardStop?.name||'?'}" > "${leg.alightStop?.name||'?'}"`;
+        }
+
+        if (remain) {
+            remain.innerHTML = '';
+            _itinerary.legs.forEach((l, i) => {
+                const el = document.createElement('div');
+                el.style.cssText = `
+                    display:flex;align-items:center;gap:10px;padding:8px 12px;
+                    border-radius:12px;font-family:'League Spartan',sans-serif;
+                    font-size:12px;transition:all 0.4s cubic-bezier(0.25,1.5,0.5,1);
+                    ${i < _currentStep
+                        ? 'opacity:0.28;text-decoration:line-through;background:rgba(255,255,255,0.03);'
+                        : i === _currentStep
+                            ? 'background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);'
+                            : 'background:rgba(255,255,255,0.06);'}
+                `;
+                const stepIcon = document.createElement('span');
+                stepIcon.style.fontSize = '16px';
+                stepIcon.innerHTML = _renderLegIcon(l);
+
+                const stepText = document.createElement('span');
+                stepText.style.color = 'rgba(255,255,255,0.75)';
+                stepText.textContent = l.type === 'walk'
+                    ? `Marche ${_humanDist(l.distKm)}`
+                    : `Ligne ${l.lineName}`;
+
+                el.appendChild(stepIcon);
+                el.appendChild(stepText);
+                remain.appendChild(el);
+            });
+        }
+
+        const target = leg.type === 'walk' ? leg.from :
+                       leg.type === 'bus'  ? leg.boardStop : null;
+        if (target) window.mapInstance?.setView([target.lat, target.lng], 16, { animate: true });
+    }
+
+    function _finishNav() {
+        _navActive = false;
+        if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
+        _clearStepMarkers();
         _showView('main');
-      });
+        soundsUX?.('MBF_Success');
+        safeVibrate?.([50, 100, 50], true);
+        toastBottomRight?.success?.('🎉 Vous êtes arrivé à destination !');
     }
 
-    if (backBtn) {
-      backBtn.addEventListener('click', () => _showView('main'));
+    function _stopNav() {
+        _navActive = false;
+        if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
+        _clearStepMarkers();
+        _showView('main');
     }
 
-    if (stopBtn) {
-      stopBtn.addEventListener('click', () => _stopNav());
-    }
-  }
-
-  async function _launchSearch() {
-    _showView('itinerary');
-    const stepsEl   = document.getElementById('bs-itin-steps');
-    const summaryEl = document.getElementById('bs-itin-summary');
-    if (stepsEl)   stepsEl.innerHTML = '<div class="bs-itin-loading"><div class="bs-spinner"></div><span>Calcul de l\'itinéraire…</span></div>';
-    if (summaryEl) summaryEl.textContent = '';
-
-    if (!_userLatLng) {
-      await new Promise(resolve => {
-        if (!navigator.geolocation) { resolve(); return; }
-        navigator.geolocation.getCurrentPosition(pos => {
-          _userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          resolve();
-        }, resolve, { timeout: 6000 });
-      });
+    function _drawStepMarkers(plan) {
+        _clearStepMarkers();
+        plan.legs.forEach((leg, i) => {
+            const pt = leg.type === 'walk' ? leg.to :
+                       leg.type === 'bus'  ? leg.boardStop : null;
+            if (!pt || !window.mapInstance) return;
+            const c = L.circleMarker([pt.lat, pt.lng], {
+                radius: 10, color: '#fff', weight: 2,
+                fillColor: leg.type === 'bus' ? leg.lineColor : '#3b82f6',
+                fillOpacity: 0.9
+            }).addTo(window.mapInstance);
+            const label = leg.type === 'bus' ? `Ligne ${leg.lineName}` : `Étape ${i+1}`;
+            c.bindTooltip(label, { permanent: false, direction: 'top' });
+            _stepMarkers.push(c);
+        });
     }
 
-    if (!_userLatLng) {
-      const c = map.getCenter();
-      _userLatLng = { lat: c.lat, lng: c.lng };
+    function _clearStepMarkers() {
+        _stepMarkers.forEach(m => { try { window.mapInstance?.removeLayer(m); } catch(_) {} });
+        _stepMarkers = [];
     }
 
-    if (!_destLatLng) {
-      if (stepsEl) stepsEl.innerHTML = '<div style="color:rgba(255,255,255,0.5);padding:20px;text-align:center;">Destination introuvable.</div>';
-      return;
+    function _injectStyles() {
+        if (document.getElementById('gps-guide-v2-styles')) return;
+        const st = document.createElement('style');
+        st.id = 'gps-guide-v2-styles';
+        st.textContent = `
+        @keyframes gpsPlanIn {
+            from { opacity:0; transform:translateY(18px) scale(0.97); filter:blur(4px); }
+            to   { opacity:1; transform:translateY(0) scale(1); filter:blur(0); }
+        }
+        @keyframes gpsLoaderSpin {
+            to { transform: rotate(360deg); }
+        }
+        .gps-loader {
+            display:inline-block;
+            width:22px;height:22px;
+            border:2.5px solid rgba(255,255,255,0.18);
+            border-top-color:#fff;
+            border-radius:50%;
+            animation: gpsLoaderSpin 0.75s linear infinite;
+        }
+        .gps-plan-card:active { transform: scale(0.97) !important; }
+
+        .gps-sug-item {
+            display:flex;align-items:center;gap:10px;
+            padding:9px 12px;border-radius:12px;cursor:pointer;
+            font-size:13px;color:#fff;
+            font-family:'League Spartan',sans-serif;
+            transition:background 0.15s;
+            animation: gpsPlanIn 0.35s cubic-bezier(0.25,1.5,0.5,1) both;
+        }
+        .gps-sug-item:hover { background:rgba(255,255,255,0.14); }
+        .gps-sug-item:active { background:rgba(255,255,255,0.22); transform:scale(0.98); }
+        .gps-sug-dist {
+            margin-left:auto;font-size:10px;opacity:0.42;white-space:nowrap;
+        }
+
+        #bs-nav-step-icon svg { width:28px;height:28px; }
+        `;
+        document.head.appendChild(st);
     }
 
-    const plan = await _computeItinerary(_userLatLng, _destLatLng);
+    function _wireInput() {
+        _injectStyles();
+        const input   = document.getElementById('bs-dest-input');
+        const clear   = document.getElementById('bs-dest-clear');
+        const sugBox  = document.getElementById('bs-dest-suggestions');
+        const backBtn = document.getElementById('bs-itin-back');
+        const stopBtn = document.getElementById('bs-nav-stop');
 
-    if (!plan) {
-      if (stepsEl) stepsEl.innerHTML = `
-        <div style="color:rgba(255,255,255,0.5);padding:20px;text-align:center;">
-          Aucun itinéraire trouvé.<br>
-          <small>Vérifiez que des bus circulent actuellement.</small>
-        </div>`;
-      if (summaryEl) summaryEl.textContent = '';
-      return;
+        if (!input) return;
+
+        function _hideSug() {
+            if (sugBox) { sugBox.style.display = 'none'; sugBox.innerHTML = ''; }
+        }
+
+        input.addEventListener('input', () => {
+            const val = input.value.trim();
+            if (clear) clear.style.display = val ? 'flex' : 'none';
+            clearTimeout(_searchTimer);
+            if (!val) { _hideSug(); return; }
+
+            if (sugBox) {
+                sugBox.style.display = 'block';
+                sugBox.innerHTML = `<div style="display:flex;align-items:center;gap:8px;
+                    padding:10px 12px;font-size:12px;opacity:0.5;font-family:'League Spartan',sans-serif;">
+                    <span class="gps-loader"></span> Recherche…
+                </div>`;
+            }
+
+            _searchTimer = setTimeout(async () => {
+                const results = await _buildSuggestions(val);
+                if (!sugBox) return;
+                if (!results.length) { _hideSug(); return; }
+
+                sugBox.style.display = 'block';
+                sugBox.innerHTML = '';
+
+                const ref = _userLatLng || (window.mapInstance
+                    ? (() => { const c = window.mapInstance.getCenter(); return { lat: c.lat, lng: c.lng }; })()
+                    : null);
+
+                results.forEach((r, i) => {
+                    const item = document.createElement('div');
+                    item.className = 'gps-sug-item ripple-container';
+                    item.style.animationDelay = `${i * 35}ms`;
+
+                    const distText = ref
+                        ? _humanDist(_dist(ref, { lat: r.lat, lng: r.lon }))
+                        : '';
+
+                    item.innerHTML = `
+                        <span style="font-size:18px;flex-shrink:0;">${r._stop ? '🚏' : '📍'}</span>
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            ${r.display_name}
+                        </span>
+                        ${distText ? `<span class="gps-sug-dist">${distText}</span>` : ''}
+                    `;
+                    item.addEventListener('click', () => {
+                        input.value  = r.display_name;
+                        _destName    = r.display_name;
+                        _destLatLng  = { lat: r.lat, lng: r.lon };
+                        _hideSug();
+                        if (clear) clear.style.display = 'none';
+                        _launchSearch();
+                    });
+                    sugBox.appendChild(item);
+                });
+            }, 320);
+        });
+
+        if (clear) {
+            clear.addEventListener('click', () => {
+                input.value = ''; clear.style.display = 'none'; _hideSug(); _showView('main');
+            });
+        }
+        if (backBtn) backBtn.addEventListener('click', () => _showView('main'));
+        if (stopBtn) stopBtn.addEventListener('click', () => _stopNav());
+
+        document.addEventListener('click', e => {
+            if (!input.contains(e.target) && !(sugBox && sugBox.contains(e.target))) _hideSug();
+        });
     }
 
-    _renderItinerary(plan);
-  }
+    async function _launchSearch() {
+        _showView('itinerary');
 
-  function init() {
-    _wireInput();
-    _ensureStopCoords().catch(() => {});
-  }
+        const stepsEl   = document.getElementById('bs-itin-steps');
+        const summaryEl = document.getElementById('bs-itin-summary');
+        if (stepsEl) stepsEl.innerHTML = `
+            <div class="bs-itin-loading" style="display:flex;flex-direction:column;
+                align-items:center;gap:14px;padding:36px 0;opacity:0.75;">
+                <div class="gps-loader" style="width:32px;height:32px;border-width:3px;"></div>
+                <span style="font-size:13px;font-family:'League Spartan',sans-serif;">
+                    Calcul des itinéraires…
+                </span>
+            </div>`;
+        if (summaryEl) summaryEl.textContent = '';
 
-  return { init, stopNav: _stopNav };
+        // geolocalisation
+        if (!_userLatLng) {
+            await new Promise(resolve => {
+                if (!navigator.geolocation) { resolve(); return; }
+                navigator.geolocation.getCurrentPosition(
+                    pos => { _userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude }; resolve(); },
+                    () => resolve(),
+                    { timeout: 6000 }
+                );
+            });
+        }
+        if (!_userLatLng && window.mapInstance) {
+            const c = window.mapInstance.getCenter();
+            _userLatLng = { lat: c.lat, lng: c.lng };
+        }
+
+        if (!_destLatLng) {
+            if (stepsEl) stepsEl.innerHTML = `<div style="color:rgba(255,255,255,0.5);
+                padding:24px;text-align:center;font-family:'League Spartan',sans-serif;">
+                Destination introuvable.</div>`;
+            return;
+        }
+
+        _stopLines = null; _lineStops = null;
+
+        const plans = await _computePlans(_userLatLng, _destLatLng);
+        _renderItinerary(plans);
+    }
+
+    function init() {
+        _wireInput();
+        _ensureStopCoords().catch(() => {});
+    }
+
+    return { init, stopNav: _stopNav };
 
 })();
 
 document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => GpsGuide.init(), 200);
+    setTimeout(() => GpsGuide.init(), 250);
 });
