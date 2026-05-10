@@ -13,21 +13,15 @@
                 const requested = params.get('network');
                 if (requested && /^[a-z0-9-]+$/i.test(requested)) {
                     localStorage.setItem('activeNetwork', requested);
-                    // Strip the query param so reloads stay on the saved network
                     const cleanUrl = window.location.pathname + window.location.hash;
                     window.history.replaceState({}, '', cleanUrl);
                 }
-            } catch (_) { /* ignore */ }
+            } catch (_) { /* ignorer */ }
         })();
 
         window.ACTIVE_NETWORK = localStorage.getItem('activeNetwork') || 'palmbus';
         window.NETWORK_BASE  = `networks/${window.ACTIVE_NETWORK}`;
 
-        // Helper: resolve a network-relative asset path. Accepts paths like
-        //   "setvar/settings/networkname.txt"   "networks/{id}/setvar/..."
-        //   "proxy-cors/proxy_gtfs.php"         "networks/{id}/proxy-cors/..."
-        //   "src/thumbnail/gx127.png"           "networks/{id}/src/thumbnail/..."
-        // Absolute URLs and already-prefixed paths pass through.
         window.netPath = function netPath(rel) {
             if (!rel) return rel;
             if (/^(https?:)?\/\//i.test(rel)) return rel;
@@ -53,10 +47,7 @@
             };
         }
 
-        // Initial sheet state is now driven by the dedicated DOMContentLoaded
-        // listener installed alongside `BottomSheet.init()` further below.
-        // We only need to update the legacy `isMenuShowed` flag here so the
-        // rest of the app keeps the same boot-time semantics.
+
         document.addEventListener('DOMContentLoaded', () => {
             window.isMenuShowed = localStorage.getItem('nepasafficheraccueil') !== 'true';
         });
@@ -2583,7 +2574,6 @@ const ProgressOverlay = {
     this.updatePercent('');
   },
 
-  // Appelé à chaque updateLoadingProgress() — accumule et garde la dernière valeur
   setProgress(percent, label) {
     if (!this.overlay) this.create(label);
     if (label) this.setLabel(label);
@@ -4208,7 +4198,6 @@ async function loadVehicleModelFileOptimized(fileName) {
         
         const modelKey = fileName.slice(0, -4); // Plus rapide que replace
         
-        // Stockage optimisé — la vignette est résolue côté réseau
         vehicleModels[modelKey] = {
             name: modelName,
             thumbnail: netPath(thumbnailPath),
@@ -6924,7 +6913,7 @@ const MenuManager = {
             : s.avgDelayMinutes > 5 ? '#c07c7c'
             : s.avgDelayMinutes > 1 ? '#d7ab8b' : '#829cc7';
 
-        const delayLabel = s.delayCount === 0 ? '—'
+        const delayLabel = s.delayCount === 0 ? '-'
             : Math.abs(s.avgDelayMinutes) <= 1 ? t('on_time')
             : s.avgDelayMinutes > 0 ? `+${Math.round(s.avgDelayMinutes)} min`
             : `${Math.round(s.avgDelayMinutes)} min`;
@@ -7025,11 +7014,11 @@ const MenuManager = {
         const x2 = cx + r * Math.cos(toRad(arcAngle));
         const y2 = cy + r * Math.sin(toRad(arcAngle));
 
-        const busiestLineName = s.busiestLine ? (lineName[s.busiestLine] || s.busiestLine) : '—';
+        const busiestLineName = s.busiestLine ? (lineName[s.busiestLine] || s.busiestLine) : '-';
         const busiestLineColor = s.busiestLine ? (lineColors[s.busiestLine] || '#555') : '#555';
-        const quietestLineName = s.quietestLine ? (lineName[s.quietestLine] || s.quietestLine) : '—';
+        const quietestLineName = s.quietestLine ? (lineName[s.quietestLine] || s.quietestLine) : '-';
         const quietestLineColor = s.quietestLine ? (lineColors[s.quietestLine] || '#555') : '#555';
-        const maxDelayLineName = s.maxDelayLine ? (lineName[s.maxDelayLine] || s.maxDelayLine) : '—';
+        const maxDelayLineName = s.maxDelayLine ? (lineName[s.maxDelayLine] || s.maxDelayLine) : '-';
         const maxDelayLineColor = s.maxDelayLine ? (lineColors[s.maxDelayLine] || '#555') : '#555';
 
         const daysSinceFirstLabel = s.daysSinceFirst === 0 ? t('today')
@@ -7295,7 +7284,7 @@ const MenuManager = {
             <div class="stats-card-title">${t('occupancy')}</div>
             <div class="stats-inline-row">
                 <span class="stats-inline-label">${t('avgoccupancy')}</span>
-                <span class="stats-inline-value">${s.avgOccupancyLabel || '—'}</span>
+                <span class="stats-inline-value">${s.avgOccupancyLabel || '-'}</span>
             </div>
             <div class="stats-inline-row">
                 <span class="stats-inline-label">${t('fullvehicles')}</span>
