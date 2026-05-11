@@ -12135,14 +12135,14 @@ async function fetchRealtimeDataForFavorite(favorite) {
     const destId   = favorite.destinationId || '';
     const now      = Date.now() / 1000;
     const results  = [];
+    const seenKeys = new Set(); // ← clé de déduplication
 
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
+        const cleanStop = stopId.replace('0:', '');
 
         const stopMatch = nextStops.find(s =>
-            s.stopId === stopId ||
-            s.stopId === `0:${stopId}` ||
-            s.stopId.replace('0:', '') === stopId.replace('0:', '')
+            s.stopId.replace('0:', '') === cleanStop
         );
         if (!stopMatch) return;
 
@@ -12151,12 +12151,10 @@ async function fetchRealtimeDataForFavorite(favorite) {
 
         if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
 
-        if (destId && markerForTrip && markerForTrip.destination) {
-            const dest = markerForTrip.destination.toLowerCase();
-            if (!dest.includes(destId.toLowerCase()) && destId.toLowerCase() !== dest) {
-                const favDest = (favorite.destinationName || destId).toLowerCase();
-                if (!dest.includes(favDest) && !favDest.includes(dest)) return;
-            }
+        if (destId && markerForTrip?.destination) {
+            const dest    = markerForTrip.destination.toLowerCase();
+            const favDest = (favorite.destinationName || destId).toLowerCase();
+            if (!dest.includes(favDest) && !favDest.includes(dest)) return;
         }
 
         const stopTime = stopMatch.departureTime || stopMatch.arrivalTime;
@@ -12177,6 +12175,10 @@ async function fetchRealtimeDataForFavorite(favorite) {
 
         if (arrivalSecs < now - 60) return;
 
+        const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+        if (seenKeys.has(dedupKey)) return;
+        seenKeys.add(dedupKey);
+
         results.push({
             time:         arrivalSecs,
             tripId,
@@ -12192,11 +12194,15 @@ async function fetchRealtimeDataForFavorite(favorite) {
         const rtTripIds = new Set(results.map(r => r.tripId));
 
         Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
-            if (rtTripIds.has(tripId)) return; // déjà dans le temps réel
+            if (rtTripIds.has(tripId)) return;
 
             const markerForTrip = [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
-            if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
+
+            if (routeId) {
+                if (markerForTrip && markerForTrip.line !== routeId) return;
+                if (!markerForTrip) return;
+            }
 
             const cleanStop = stopId.replace('0:', '');
             const stopData  = tripStops[cleanStop]
@@ -12214,14 +12220,20 @@ async function fetchRealtimeDataForFavorite(favorite) {
                 parts[0], parts[1], parts[2] || 0
             ).getTime() / 1000;
             if (arrivalSecs < now - 3600) arrivalSecs += 86400;
-            if (arrivalSecs < now - 60)  return;
+            if (arrivalSecs < now - 60)   return;
+
+            const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+            if (seenKeys.has(dedupKey)) return;
+            seenKeys.add(dedupKey);
 
             results.push({
                 time:         arrivalSecs,
                 tripId,
-                vehicleLabel: null,
+                vehicleLabel: markerForTrip?.vehicleData?.vehicle?.label
+                           || markerForTrip?.vehicleData?.vehicle?.id
+                           || null,
                 marker:       markerForTrip || null,
-                realtime:     false 
+                realtime:     false
             });
         });
     }
