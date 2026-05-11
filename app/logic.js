@@ -12048,8 +12048,8 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
     </svg>`;
 
     arrivals.slice(0, 4).forEach(arrival => {
-        const diffMin = Math.round((arrival.time - now) / 60);
-        const label   = diffMin <= 0 ? t("imminent") : `${diffMin} ${t("min")}`;
+        const diffMin = Math.round((arrival.time - Date.now() / 1000) / 60);
+        const label = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
         const isNow   = diffMin <= 0;
         const isRT    = arrival.realtime === true;
 
@@ -12246,7 +12246,7 @@ async function fetchRealtimeDataForFavorite(favorite) {
             arrivalSecs = stopTime;
         } else return;
 
-        if (arrivalSecs < now - 60) return;
+        if (arrivalSecs < now - 30) return;
 
         const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
         if (seenKeys.has(dedupKey)) return;
