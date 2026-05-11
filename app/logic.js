@@ -12051,7 +12051,7 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
         const diffMin = Math.round((arrival.time - now) / 60);
         const label   = diffMin <= 0 ? t("imminent") : `${diffMin} ${t("min")}`;
         const isNow   = diffMin <= 0;
-        const isRT    = arrival.vehicleLabel && arrival.realtime === true;
+        const isRT    = arrival.realtime === true;
 
         const pill = document.createElement('span');
         pill.style.cssText = `
@@ -12129,20 +12129,93 @@ function openFavoriteSchedule(favorite) {
     showUpdatePopup(url);
 }
 
+async function _getActiveServiceIdsToday() {
+    try {
+        const today = new Date();
+        const gtfsDate = today.toISOString().split('T')[0].replace(/-/g, '');
+        const dayOfWeek = today.getDay();
+        const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+        const dayName = days[dayOfWeek];
+
+        if (!window._gtfsCalendarCache) {
+            const r = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=core'));
+            if (!r.ok) return { activeIds: [], tripServiceMap: {} };
+            const d = await r.json();
+            
+            const tripServiceMap = {};
+            if (d.trips) {
+                Object.entries(d.trips).forEach(([routeId, trips]) => {
+                    (trips || []).forEach(trip => {
+                        if (trip.trip_id && trip.service_id) {
+                            tripServiceMap[trip.trip_id] = trip.service_id;
+                        }
+                    });
+                });
+            }
+
+            window._gtfsCalendarCache = {
+                calendar: d.calendar || {},
+                calendarDates: d.calendarDates || {},
+                tripServiceMap
+            };
+        }
+
+        const { calendar, calendarDates, tripServiceMap } = window._gtfsCalendarCache;
+        let ids = [];
+
+        for (const [id, cal] of Object.entries(calendar)) {
+            if (
+                gtfsDate >= cal.start_date &&
+                gtfsDate <= cal.end_date &&
+                String(cal[dayName]).trim() === '1'
+            ) {
+                ids.push(id);
+            }
+        }
+
+        const ex = calendarDates?.[gtfsDate];
+        if (ex) {
+            (ex.added || []).forEach(id => { if (!ids.includes(id)) ids.push(id); });
+            ids = ids.filter(id => !(ex.removed || []).includes(id));
+        }
+
+        return { activeIds: ids, tripServiceMap };
+    } catch (e) {
+        console.warn('_getActiveServiceIdsToday error:', e);
+        return { activeIds: [], tripServiceMap: {} };
+    }
+}
+
+function _getTripServiceId(tripId, routeId) {
+    for (const marker of markerPool.active.values()) {
+        if (marker.vehicleData?.trip?.tripId === tripId) {
+            return marker.vehicleData?.trip?.scheduleRelationship !== undefined
+                ? null 
+                : null;
+        }
+    }
+
+    if (tripUpdates[tripId]?.serviceId) {
+        return tripUpdates[tripId].serviceId;
+    }
+
+    return null; 
+}
+
 async function fetchRealtimeDataForFavorite(favorite) {
     const routeId  = favorite.routeId  || '';
     const stopId   = favorite.stopId   || '';
     const destId   = favorite.destinationId || '';
     const now      = Date.now() / 1000;
     const results  = [];
+    const seenKeys = new Set();
 
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
+        const cleanStop = stopId.replace('0:', '');
 
         const stopMatch = nextStops.find(s =>
-            s.stopId === stopId ||
-            s.stopId === `0:${stopId}` ||
-            s.stopId.replace('0:', '') === stopId.replace('0:', '')
+            s.stopId.replace('0:', '') === cleanStop
         );
         if (!stopMatch) return;
 
@@ -12151,12 +12224,10 @@ async function fetchRealtimeDataForFavorite(favorite) {
 
         if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
 
-        if (destId && markerForTrip && markerForTrip.destination) {
-            const dest = markerForTrip.destination.toLowerCase();
-            if (!dest.includes(destId.toLowerCase()) && destId.toLowerCase() !== dest) {
-                const favDest = (favorite.destinationName || destId).toLowerCase();
-                if (!dest.includes(favDest) && !favDest.includes(dest)) return;
-            }
+        if (destId && markerForTrip?.destination) {
+            const dest    = markerForTrip.destination.toLowerCase();
+            const favDest = (favorite.destinationName || destId).toLowerCase();
+            if (!dest.includes(favDest) && !favDest.includes(dest)) return;
         }
 
         const stopTime = stopMatch.departureTime || stopMatch.arrivalTime;
@@ -12177,6 +12248,10 @@ async function fetchRealtimeDataForFavorite(favorite) {
 
         if (arrivalSecs < now - 60) return;
 
+        const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+        if (seenKeys.has(dedupKey)) return;
+        seenKeys.add(dedupKey);
+
         results.push({
             time:         arrivalSecs,
             tripId,
@@ -12191,12 +12266,21 @@ async function fetchRealtimeDataForFavorite(favorite) {
     if (window.stopTimesReady && window.staticStopTimes) {
         const rtTripIds = new Set(results.map(r => r.tripId));
 
+        const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
+
         Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
-            if (rtTripIds.has(tripId)) return; // déjà dans le temps réel
+            if (rtTripIds.has(tripId)) return;
+
+            if (activeIds.length > 0 && tripServiceMap[tripId]) {
+                if (!activeIds.includes(tripServiceMap[tripId])) return;
+            }
 
             const markerForTrip = [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
+
             if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
+
+            if (!markerForTrip && activeIds.length === 0) return;
 
             const cleanStop = stopId.replace('0:', '');
             const stopData  = tripStops[cleanStop]
@@ -12214,14 +12298,20 @@ async function fetchRealtimeDataForFavorite(favorite) {
                 parts[0], parts[1], parts[2] || 0
             ).getTime() / 1000;
             if (arrivalSecs < now - 3600) arrivalSecs += 86400;
-            if (arrivalSecs < now - 60)  return;
+            if (arrivalSecs < now - 60)   return;
+
+            const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+            if (seenKeys.has(dedupKey)) return;
+            seenKeys.add(dedupKey);
 
             results.push({
                 time:         arrivalSecs,
                 tripId,
-                vehicleLabel: null,
+                vehicleLabel: markerForTrip?.vehicleData?.vehicle?.label
+                           || markerForTrip?.vehicleData?.vehicle?.id
+                           || null,
                 marker:       markerForTrip || null,
-                realtime:     false 
+                realtime:     false
             });
         });
     }
