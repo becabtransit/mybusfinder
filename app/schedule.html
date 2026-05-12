@@ -12,6 +12,9 @@
     <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/protobufjs/6.11.2/protobuf.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.css" />
 
 <style>
 :root {
@@ -1606,7 +1609,40 @@ function initStopMap(stop) {
     setTimeout(() => {
         leafletMap = L.map('stop-map', { zoomControl: false, attributionControl: false, dragging: false, touchZoom: false, scrollWheelZoom: false })
             .setView([lat, lon], 16);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafletMap);
+        fetch('https://tiles.openfreemap.org/styles/liberty')
+            .then(response => response.json())
+            .then(style => {
+                // Ajouter les bâtiments 3D avec extrusion
+                style.layers.push({
+                    "id": "3d-buildings",
+                    "source": "openmaptiles",
+                    "source-layer": "building",
+                    "type": "fill-extrusion",
+                    "minzoom": 15,
+                    "paint": {
+                        "fill-extrusion-color": "#cccccc",
+                        "fill-extrusion-height": ["get", "height"],
+                        "fill-extrusion-base": ["get", "min_height"],
+                        "fill-extrusion-opacity": 0.7
+                    }
+                });
+                L.maplibreGL({
+                    style: style,
+                    attribution: '© OpenFreeMap contributors',
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(leafletMap);
+            })
+            .catch(error => {
+                console.error('Erreur chargement style OpenFreeMap:', error);
+                // Fallback vers le style simple
+                L.maplibreGL({
+                    style: 'https://tiles.openfreemap.org/styles/liberty',
+                    attribution: '© OpenFreeMap contributors',
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(leafletMap);
+            });
         const pulse = L.divIcon({
             html: `<div style="position:relative;">
                 <div style="background:var(--accent-blue);width:20px;height:20px;border-radius:50%;border:3px solid white;box-shadow:0 4px 12px rgba(0,122,255,0.5);position:relative;z-index:2;"></div>

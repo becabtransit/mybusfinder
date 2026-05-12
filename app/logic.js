@@ -264,7 +264,7 @@
         }, 1000);
     });
 
-    VERSION_NAME = '3.6.0.1';
+    VERSION_NAME = '3.6.0.2';
 
     document.addEventListener('gesturestart', function (e) {
     e.preventDefault();
@@ -939,7 +939,7 @@
 
             FluentSettingsMenu.addSubmenu("submenu-aboutsub", "osm", {
                 icon: "📦",
-                label: "OpenStreetMap Contributors",
+                label: "OpenStreetMap Contributors, OpenFreeMap contributors",
                 description: "© OpenStreetMap contributors (data: ODbL, map: CC-BY-SA 2.0)",
                 onclick: function () {
                     window.open('https://www.openstreetmap.org/copyright', '_blank');
@@ -1253,12 +1253,36 @@ async function initMap() {
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
     
     if (!isStandardView) {
-    const tileLayerUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    
-    const tileLayer = L.tileLayer(tileLayerUrl, {
-        minZoom: 6,
-        maxZoom: 19,
-    }).addTo(mapInstance);
+        fetch('https://tiles.openfreemap.org/styles/liberty')
+            .then(response => response.json())
+            .then(style => {
+                style.layers.push({
+                    "id": "3d-buildings",
+                    "source": "openmaptiles",
+                    "source-layer": "building",
+                    "type": "fill-extrusion",
+                    "minzoom": 15,
+                    "paint": {
+                        "fill-extrusion-color": "#cccccc",
+                        "fill-extrusion-height": ["get", "height"],
+                        "fill-extrusion-base": ["get", "min_height"],
+                        "fill-extrusion-opacity": 0.7
+                    }
+                });
+                L.maplibreGL({
+                    style: style,
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(mapInstance);
+            })
+            .catch(error => {
+                console.error('Erreur chargement style OpenFreeMap:', error);
+                L.maplibreGL({
+                    style: 'https://tiles.openfreemap.org/styles/liberty',
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(mapInstance);
+            });
 
 
 } else {
@@ -4888,17 +4912,43 @@ function applyMapView() {
 
 
     map.eachLayer(function(layer) {
-        if (layer instanceof L.TileLayer) {
+        if (layer instanceof L.TileLayer || (window.L && L.VectorGrid && layer instanceof L.VectorGrid) || (window.L && L.maplibreGL && layer instanceof L.maplibreGL)) {
             map.removeLayer(layer);
         }
     });
 
     if (!isStandardView) {
-    const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        minZoom: 6,
-        maxZoom: 19,
-    }).addTo(map);
-    
+        fetch('https://tiles.openfreemap.org/styles/liberty')
+            .then(response => response.json())
+            .then(style => {
+                style.layers.push({
+                    "id": "3d-buildings",
+                    "source": "openmaptiles",
+                    "source-layer": "building",
+                    "type": "fill-extrusion",
+                    "minzoom": 15,
+                    "paint": {
+                        "fill-extrusion-color": "#cccccc",
+                        "fill-extrusion-height": ["get", "height"],
+                        "fill-extrusion-base": ["get", "min_height"],
+                        "fill-extrusion-opacity": 0.7
+                    }
+                });
+                L.maplibreGL({
+                    style: style,
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(map);
+            })
+            .catch(error => {
+                console.error('Erreur chargement style OpenFreeMap:', error);
+                L.maplibreGL({
+                    style: 'https://tiles.openfreemap.org/styles/liberty',
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(map);
+            });
+
 
 } else {
     const mapPane = map.getPanes().tilePane;
@@ -12403,3 +12453,182 @@ softSwitchNetwork = async function (newId) {
     _refreshBottomSheetGreeting();
 };
 window.softSwitchNetwork = softSwitchNetwork;
+
+
+(function initSnapEdgeZoom() {
+    const MIN_ZOOM  = 6;
+    const MAX_ZOOM  = 19;
+    const SENS      = 0.032;
+    const SMOOTH_MS = 180;
+
+    const EMOJIS_BY_ZOOM = [
+        { min: 17, e: '🔍' },
+        { min: 14, e: '🏙️' },
+        { min: 11, e: '🌆' },
+        { min:  8, e: '🌍' },
+        { min:  0, e: '🛸' },
+    ];
+
+    let zone, emojiEl;
+    let active    = false;
+    let startY    = 0;
+    let startZoom = 12;
+    let lastClientY = 0;
+    let targetZoom  = 12;
+    let currentZoom = 12;
+    let rafId = null;
+    let lastEmojiStr = '';
+    let centerLat = null, centerLng = null;
+
+    function getMap() { return window.mapInstance || window.map; }
+
+    function getEmoji(z) {
+        for (const row of EMOJIS_BY_ZOOM) if (z >= row.min) return row.e;
+        return '🛸';
+    }
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function smoothLoop() {
+        const m = getMap();
+        if (!m || !active) { rafId = null; return; }
+
+        const diff = targetZoom - currentZoom;
+        if (Math.abs(diff) > 0.004) {
+            currentZoom = lerp(currentZoom, targetZoom, 0.13);
+            const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom));
+
+            if (centerLat !== null) {
+                m.setView([centerLat, centerLng], clamped, { animate: false });
+            } else {
+                m.setZoom(clamped, { animate: false });
+            }
+
+            const emoji = getEmoji(clamped);
+            if (emoji !== lastEmojiStr) {
+                lastEmojiStr = emoji;
+                emojiEl.classList.remove('pop');
+                void emojiEl.offsetWidth;
+                emojiEl.textContent = emoji;
+                emojiEl.classList.add('pop');
+                if (typeof safeVibrate === 'function') safeVibrate([10]);
+            }
+        }
+
+        emojiEl.style.top = lastClientY + 'px';
+        rafId = requestAnimationFrame(smoothLoop);
+    }
+
+    function findNearestMarkerCenter(clientX, clientY) {
+        const m = getMap();
+        if (!m || typeof markerPool === 'undefined') return null;
+        const clickLatLng = m.containerPointToLatLng([clientX, clientY]);
+        let best = null, bestDist = Infinity;
+
+        markerPool.active.forEach((marker) => {
+            if (!marker || !marker.getLatLng) return;
+            const d = clickLatLng.distanceTo(marker.getLatLng());
+            if (d < bestDist) { bestDist = d; best = marker.getLatLng(); }
+        });
+
+        return best && bestDist < 8000 ? best : null;
+    }
+
+    function onDown(e) {
+        const m = getMap();
+        if (!m) return;
+
+        const pt = e.touches ? e.touches[0] : e;
+        startY      = pt.clientY;
+        lastClientY = pt.clientY;
+        startZoom   = m.getZoom();
+        targetZoom  = startZoom;
+        currentZoom = startZoom;
+        active      = true;
+        lastEmojiStr = '';
+
+        const nearest = findNearestMarkerCenter(
+            window.innerWidth - 14,
+            pt.clientY
+        );
+        if (nearest) {
+            centerLat = nearest.lat;
+            centerLng = nearest.lng;
+        } else {
+            const c = m.getCenter();
+            centerLat = c.lat;
+            centerLng = c.lng;
+        }
+
+        emojiEl.style.top = pt.clientY + 'px';
+        emojiEl.textContent = getEmoji(startZoom);
+        lastEmojiStr = emojiEl.textContent;
+        emojiEl.classList.remove('pop');
+        void emojiEl.offsetWidth;
+        emojiEl.classList.add('visible');
+
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(smoothLoop);
+
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function onMove(e) {
+        if (!active) return;
+        const pt = e.touches ? e.touches[0] : e;
+        lastClientY = pt.clientY;
+
+        const dy = startY - pt.clientY;
+        targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, startZoom + dy * SENS));
+
+        emojiEl.style.top = pt.clientY + 'px';
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function onUp(e) {
+        if (!active) return;
+        active = false;
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
+        const m = getMap();
+        if (m) {
+            const rounded = Math.round(targetZoom);
+            if (centerLat !== null) {
+                m.setView([centerLat, centerLng], rounded, {
+                    animate: true,
+                    duration: 0.4
+                });
+            } else {
+                m.setZoom(rounded, { animate: true, duration: 0.4 });
+            }
+        }
+
+        centerLat = null;
+        centerLng = null;
+
+        emojiEl.classList.remove('visible');
+        e.stopPropagation();
+    }
+
+    function waitReady() {
+        zone    = document.getElementById('snap-edge-zone');
+        emojiEl = document.getElementById('snap-edge-emoji');
+        if (!zone || !emojiEl || !getMap()) {
+            setTimeout(waitReady, 400);
+            return;
+        }
+
+        zone.addEventListener('pointerdown',  onDown, { passive: false });
+        zone.addEventListener('touchstart',   onDown, { passive: false });
+        window.addEventListener('pointermove', onMove, { passive: false });
+        window.addEventListener('touchmove',   onMove, { passive: false });
+        window.addEventListener('pointerup',   onUp);
+        window.addEventListener('pointercancel', onUp);
+        window.addEventListener('touchend',    onUp);
+        window.addEventListener('touchcancel', onUp);
+    }
+
+    waitReady();
+})();
