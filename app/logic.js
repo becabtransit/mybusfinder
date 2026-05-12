@@ -12047,11 +12047,7 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
         <circle cx="5" cy="19" r="1"/>
     </svg>`;
 
-<<<<<<< HEAD
     arrivals.slice(0, 6).forEach(arrival => {
-=======
-    arrivals.slice(0, 5).forEach(arrival => {
->>>>>>> 1a5b54cb74178ad60f5a4362c691fd0f4f3f93f7
         const diffMin = Math.round((arrival.time - Date.now() / 1000) / 60);
         const label = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
         const isNow   = diffMin <= 0;
