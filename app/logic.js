@@ -732,21 +732,6 @@
                 }
             });
 
-            FluentSettingsMenu.addToggle("submenu-customization", "3dview", {
-                icon: "🏗️",
-                label: "Vue 3D",
-                description: "Activer l'affichage 3D des bâtiments",
-                value: localStorage.getItem('is3DView') === 'true',
-                onChange: function (value) {
-                toggle3DView(value);
-                if (value) {
-                    soundsUX('MBF_SettingOn');
-                } else {
-                    soundsUX('MBF_SettingOff');
-                }
-                }
-            });
-
             FluentSettingsMenu.addSelect("submenu-customization", "themeselect", {
                 icon: "🖌️",
                 label: theme,
@@ -1266,18 +1251,38 @@ async function initMap() {
 
 
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
-    const is3DView = localStorage.getItem('is3DView') === 'true';
     
     if (!isStandardView) {
-        const maplibreLayer = L.maplibreGL({
-            style: 'https://tiles.openfreemap.org/styles/liberty',
-            minZoom: 6,
-            maxZoom: 19,
-            pitch: is3DView ? 45 : 0,
-            bearing: 0
-        }).addTo(mapInstance);
-
-        window.currentMaplibreLayer = maplibreLayer;
+        fetch('https://tiles.openfreemap.org/styles/liberty')
+            .then(response => response.json())
+            .then(style => {
+                style.layers.push({
+                    "id": "3d-buildings",
+                    "source": "openmaptiles",
+                    "source-layer": "building",
+                    "type": "fill-extrusion",
+                    "minzoom": 15,
+                    "paint": {
+                        "fill-extrusion-color": "#cccccc",
+                        "fill-extrusion-height": ["get", "height"],
+                        "fill-extrusion-base": ["get", "min_height"],
+                        "fill-extrusion-opacity": 0.7
+                    }
+                });
+                L.maplibreGL({
+                    style: style,
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(mapInstance);
+            })
+            .catch(error => {
+                console.error('Erreur chargement style OpenFreeMap:', error);
+                L.maplibreGL({
+                    style: 'https://tiles.openfreemap.org/styles/liberty',
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(mapInstance);
+            });
 
 
 } else {
@@ -4888,7 +4893,6 @@ function startWindowsSpinnerAnimation(elementId, interval = 30) {
 }
 
 let isStandardView = localStorage.getItem('isStandardView') === 'true';
-let is3DView = localStorage.getItem('is3DView') === 'true';
 
 function toggleMapView(forceState) {
     if (forceState !== undefined) {
@@ -4898,17 +4902,6 @@ function toggleMapView(forceState) {
     }
     
     localStorage.setItem('isStandardView', isStandardView);
-    applyMapView();
-}
-
-function toggle3DView(forceState) {
-    if (forceState !== undefined) {
-        is3DView = forceState;
-    } else {
-        is3DView = !is3DView;
-    }
-    
-    localStorage.setItem('is3DView', is3DView);
     applyMapView();
 }
 
@@ -4925,14 +4918,36 @@ function applyMapView() {
     });
 
     if (!isStandardView) {
-        L.maplibreGL({
-            style: 'https://tiles.openfreemap.org/styles/liberty',
-            attribution: '© OpenFreeMap contributors',
-            minZoom: 6,
-            maxZoom: 19,
-            pitch: is3DView ? 45 : 0,
-            bearing: 0
-        }).addTo(map);
+        fetch('https://tiles.openfreemap.org/styles/liberty')
+            .then(response => response.json())
+            .then(style => {
+                style.layers.push({
+                    "id": "3d-buildings",
+                    "source": "openmaptiles",
+                    "source-layer": "building",
+                    "type": "fill-extrusion",
+                    "minzoom": 15,
+                    "paint": {
+                        "fill-extrusion-color": "#cccccc",
+                        "fill-extrusion-height": ["get", "height"],
+                        "fill-extrusion-base": ["get", "min_height"],
+                        "fill-extrusion-opacity": 0.7
+                    }
+                });
+                L.maplibreGL({
+                    style: style,
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(map);
+            })
+            .catch(error => {
+                console.error('Erreur chargement style OpenFreeMap:', error);
+                L.maplibreGL({
+                    style: 'https://tiles.openfreemap.org/styles/liberty',
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(map);
+            });
 
 
 } else {

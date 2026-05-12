@@ -1609,12 +1609,40 @@ function initStopMap(stop) {
     setTimeout(() => {
         leafletMap = L.map('stop-map', { zoomControl: false, attributionControl: false, dragging: false, touchZoom: false, scrollWheelZoom: false })
             .setView([lat, lon], 16);
-        L.maplibreGL({
-            style: 'https://tiles.openfreemap.org/styles/liberty',
-            attribution: '© OpenFreeMap contributors',
-            minZoom: 6,
-            maxZoom: 19
-        }).addTo(leafletMap);
+        fetch('https://tiles.openfreemap.org/styles/liberty')
+            .then(response => response.json())
+            .then(style => {
+                // Ajouter les bâtiments 3D avec extrusion
+                style.layers.push({
+                    "id": "3d-buildings",
+                    "source": "openmaptiles",
+                    "source-layer": "building",
+                    "type": "fill-extrusion",
+                    "minzoom": 15,
+                    "paint": {
+                        "fill-extrusion-color": "#cccccc",
+                        "fill-extrusion-height": ["get", "height"],
+                        "fill-extrusion-base": ["get", "min_height"],
+                        "fill-extrusion-opacity": 0.7
+                    }
+                });
+                L.maplibreGL({
+                    style: style,
+                    attribution: '© OpenFreeMap contributors',
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(leafletMap);
+            })
+            .catch(error => {
+                console.error('Erreur chargement style OpenFreeMap:', error);
+                // Fallback vers le style simple
+                L.maplibreGL({
+                    style: 'https://tiles.openfreemap.org/styles/liberty',
+                    attribution: '© OpenFreeMap contributors',
+                    minZoom: 6,
+                    maxZoom: 19
+                }).addTo(leafletMap);
+            });
         const pulse = L.divIcon({
             html: `<div style="position:relative;">
                 <div style="background:var(--accent-blue);width:20px;height:20px;border-radius:50%;border:3px solid white;box-shadow:0 4px 12px rgba(0,122,255,0.5);position:relative;z-index:2;"></div>
