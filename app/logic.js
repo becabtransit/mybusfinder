@@ -1274,7 +1274,85 @@ async function initMap() {
 
 }
 
+function initZoomSlider() {
+    const MIN_ZOOM = 6;
+    const MAX_ZOOM = 19;
 
+    const container = document.getElementById('zoom-slider-container');
+    const track     = document.getElementById('zoom-track');
+    const thumb     = document.getElementById('zoom-thumb');
+
+    if (!container || !track || !thumb || !map) return;
+
+    let isDraggingSlider = false;
+    let sliderStartY = 0;
+    let sliderStartZoom = map.getZoom();
+
+    function zoomToThumbPos(zoom) {
+        const t = (zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM);
+        const trackH = track.getBoundingClientRect().height;
+        const pct = 1 - t;
+        thumb.style.top = `${pct * (trackH - 28)}px`;
+    }
+
+    function thumbPosToZoom(clientY) {
+        const rect = track.getBoundingClientRect();
+        const relY = Math.max(0, Math.min(clientY - rect.top, rect.height - 28));
+        const pct  = relY / (rect.height - 28);
+        return MAX_ZOOM - pct * (MAX_ZOOM - MIN_ZOOM);
+    }
+
+    zoomToThumbPos(map.getZoom());
+    map.on('zoom', () => zoomToThumbPos(map.getZoom()));
+
+    function onDown(e) {
+        isDraggingSlider = true;
+        sliderStartY     = e.clientY || e.touches?.[0]?.clientY;
+        sliderStartZoom  = map.getZoom();
+        thumb.style.transition = 'none';
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function onMove(e) {
+        if (!isDraggingSlider) return;
+        const clientY = e.clientY || e.touches?.[0]?.clientY;
+        if (clientY === undefined) return;
+        const newZoom = thumbPosToZoom(clientY);
+        map.setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom)), { animate: false });
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function onUp(e) {
+        if (!isDraggingSlider) return;
+        isDraggingSlider = false;
+        thumb.style.transition = '';
+        e.stopPropagation();
+    }
+
+    thumb.addEventListener('mousedown',  onDown,  { passive: false });
+    thumb.addEventListener('touchstart', onDown,  { passive: false });
+    window.addEventListener('mousemove', onMove,  { passive: false });
+    window.addEventListener('touchmove', onMove,  { passive: false });
+    window.addEventListener('mouseup',   onUp);
+    window.addEventListener('touchend',  onUp);
+
+    track.addEventListener('click', (e) => {
+        if (isDraggingSlider) return;
+        const newZoom = thumbPosToZoom(e.clientY);
+        map.setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom)), { animate: true });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const waitForMap = setInterval(() => {
+        if (window.mapInstance) {
+            clearInterval(waitForMap);
+            initZoomSlider();
+        }
+    }, 300);
+});
 
 
 mapInstance.attributionControl.setPrefix('');
