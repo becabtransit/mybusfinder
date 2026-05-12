@@ -12405,151 +12405,178 @@ softSwitchNetwork = async function (newId) {
 window.softSwitchNetwork = softSwitchNetwork;
 
 
-(function initSnapZoomBar() {
-    const EMOJIS = ['🗺️','🏙️','🌍','🚌','📍','🔭','⭐','🌟','✨','🎯','🏖️','🌴','🎪','🚀','💫','🎉','🌊','🏔️','🌆','🎠'];
-    const MIN_ZOOM = 6;
-    const MAX_ZOOM = 19;
-    const ZOOM_SENSITIVITY = 0.035;
+(function initSnapEdgeZoom() {
+    const MIN_ZOOM  = 6;
+    const MAX_ZOOM  = 19;
+    const SENS      = 0.032;
+    const SMOOTH_MS = 180;
 
-    let bar, fill, thumb, label, burst;
-    let isDragging = false;
-    let startY = 0;
+    const EMOJIS_BY_ZOOM = [
+        { min: 17, e: '🔍' },
+        { min: 14, e: '🏙️' },
+        { min: 11, e: '🌆' },
+        { min:  8, e: '🌍' },
+        { min:  0, e: '🛸' },
+    ];
+
+    let zone, emojiEl;
+    let active    = false;
+    let startY    = 0;
     let startZoom = 12;
+    let lastClientY = 0;
+    let targetZoom  = 12;
     let currentZoom = 12;
-    let emojiTimeout = null;
-    let tapStartY = 0;
-    let tapStartTime = 0;
-
-    function waitReady() {
-        if (!document.getElementById('snap-zoom-bar') || !window.mapInstance) {
-            setTimeout(waitReady, 400);
-            return;
-        }
-        bar   = document.getElementById('snap-zoom-bar');
-        fill  = document.getElementById('snap-zoom-fill');
-        thumb = document.getElementById('snap-zoom-thumb');
-        label = document.getElementById('snap-zoom-label');
-        burst = document.getElementById('snap-emoji-burst');
-        setup();
-    }
+    let rafId = null;
+    let lastEmojiStr = '';
+    let centerLat = null, centerLng = null;
 
     function getMap() { return window.mapInstance || window.map; }
 
-    function zoomPct(z) {
-        return (z - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM);
+    function getEmoji(z) {
+        for (const row of EMOJIS_BY_ZOOM) if (z >= row.min) return row.e;
+        return '🛸';
     }
 
-    function updateVisuals(z) {
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function smoothLoop() {
         const m = getMap();
-        if (!m) return;
-        const pct = zoomPct(z);
-        const barH = bar.getBoundingClientRect().height;
-        const thumbH = 36;
-        const usable = barH - thumbH - 8;
+        if (!m || !active) { rafId = null; return; }
 
-        const topPx = (1 - pct) * usable + 4;
-        thumb.style.top = topPx + 'px';
-        fill.style.height = (pct * barH) + 'px';
+        const diff = targetZoom - currentZoom;
+        if (Math.abs(diff) > 0.004) {
+            currentZoom = lerp(currentZoom, targetZoom, 0.13);
+            const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom));
 
-        const emoji = z >= 17 ? '🔍' : z >= 14 ? '🏙️' : z >= 11 ? '🌆' : z >= 8 ? '🌍' : '🛸';
-        label.textContent = emoji;
-    }
+            if (centerLat !== null) {
+                m.setView([centerLat, centerLng], clamped, { animate: false });
+            } else {
+                m.setZoom(clamped, { animate: false });
+            }
 
-    function applyZoom(z) {
-        const m = getMap();
-        if (!m) return;
-        const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
-        currentZoom = clamped;
-        m.setZoom(clamped, { animate: false });
-        updateVisuals(clamped);
-    }
-
-    function spawnEmojis() {
-        burst.innerHTML = '';
-        const count = 5 + Math.floor(Math.random() * 4);
-        for (let i = 0; i < count; i++) {
-            setTimeout(() => {
-                const sp = document.createElement('span');
-                sp.textContent = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-                const tx  = (Math.random() - 0.5) * 90;
-                const ty  = -(30 + Math.random() * 80);
-                const tx2 = tx + (Math.random() - 0.5) * 40;
-                const ty2 = ty - (20 + Math.random() * 40);
-                sp.style.setProperty('--tx', tx + 'px');
-                sp.style.setProperty('--ty', ty + 'px');
-                sp.style.setProperty('--tx2', tx2 + 'px');
-                sp.style.setProperty('--ty2', ty2 + 'px');
-                sp.style.top = thumb.style.top || '50%';
-                burst.appendChild(sp);
-                setTimeout(() => sp.remove(), 950);
-            }, i * 60);
+            const emoji = getEmoji(clamped);
+            if (emoji !== lastEmojiStr) {
+                lastEmojiStr = emoji;
+                emojiEl.classList.remove('pop');
+                void emojiEl.offsetWidth;
+                emojiEl.textContent = emoji;
+                emojiEl.classList.add('pop');
+                if (typeof safeVibrate === 'function') safeVibrate([10]);
+            }
         }
-        if (typeof safeVibrate === 'function') safeVibrate([20, 30, 20]);
-        if (typeof soundsUX === 'function') soundsUX('MBF_Popup');
+
+        emojiEl.style.top = lastClientY + 'px';
+        rafId = requestAnimationFrame(smoothLoop);
+    }
+
+    function findNearestMarkerCenter(clientX, clientY) {
+        const m = getMap();
+        if (!m || typeof markerPool === 'undefined') return null;
+        const clickLatLng = m.containerPointToLatLng([clientX, clientY]);
+        let best = null, bestDist = Infinity;
+
+        markerPool.active.forEach((marker) => {
+            if (!marker || !marker.getLatLng) return;
+            const d = clickLatLng.distanceTo(marker.getLatLng());
+            if (d < bestDist) { bestDist = d; best = marker.getLatLng(); }
+        });
+
+        return best && bestDist < 8000 ? best : null;
     }
 
     function onDown(e) {
         const m = getMap();
         if (!m) return;
-        isDragging = true;
+
         const pt = e.touches ? e.touches[0] : e;
-        startY = pt.clientY;
-        tapStartY = pt.clientY;
-        tapStartTime = Date.now();
-        startZoom = m.getZoom();
-        bar.classList.add('snap-active');
+        startY      = pt.clientY;
+        lastClientY = pt.clientY;
+        startZoom   = m.getZoom();
+        targetZoom  = startZoom;
+        currentZoom = startZoom;
+        active      = true;
+        lastEmojiStr = '';
+
+        const nearest = findNearestMarkerCenter(
+            window.innerWidth - 14,
+            pt.clientY
+        );
+        if (nearest) {
+            centerLat = nearest.lat;
+            centerLng = nearest.lng;
+        } else {
+            const c = m.getCenter();
+            centerLat = c.lat;
+            centerLng = c.lng;
+        }
+
+        emojiEl.style.top = pt.clientY + 'px';
+        emojiEl.textContent = getEmoji(startZoom);
+        lastEmojiStr = emojiEl.textContent;
+        emojiEl.classList.remove('pop');
+        void emojiEl.offsetWidth;
+        emojiEl.classList.add('visible');
+
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(smoothLoop);
+
         e.preventDefault();
         e.stopPropagation();
     }
 
     function onMove(e) {
-        if (!isDragging) return;
+        if (!active) return;
         const pt = e.touches ? e.touches[0] : e;
+        lastClientY = pt.clientY;
+
         const dy = startY - pt.clientY;
-        const newZoom = startZoom + dy * ZOOM_SENSITIVITY;
-        applyZoom(newZoom);
+        targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, startZoom + dy * SENS));
+
+        emojiEl.style.top = pt.clientY + 'px';
         e.preventDefault();
         e.stopPropagation();
     }
 
     function onUp(e) {
-        if (!isDragging) return;
-        isDragging = false;
-        bar.classList.remove('snap-active');
-
-        const pt = e.changedTouches ? e.changedTouches[0] : e;
-        const dy = Math.abs(pt.clientY - tapStartY);
-        const dt = Date.now() - tapStartTime;
-
-        if (dy < 8 && dt < 300) {
-            spawnEmojis();
-        }
+        if (!active) return;
+        active = false;
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
 
         const m = getMap();
-        if (m) m.setZoom(Math.round(m.getZoom()), { animate: true });
+        if (m) {
+            const rounded = Math.round(targetZoom);
+            if (centerLat !== null) {
+                m.setView([centerLat, centerLng], rounded, {
+                    animate: true,
+                    duration: 0.4
+                });
+            } else {
+                m.setZoom(rounded, { animate: true, duration: 0.4 });
+            }
+        }
+
+        centerLat = null;
+        centerLng = null;
+
+        emojiEl.classList.remove('visible');
         e.stopPropagation();
     }
 
-    function setup() {
-        const m = getMap();
-        if (!m) return;
+    function waitReady() {
+        zone    = document.getElementById('snap-edge-zone');
+        emojiEl = document.getElementById('snap-edge-emoji');
+        if (!zone || !emojiEl || !getMap()) {
+            setTimeout(waitReady, 400);
+            return;
+        }
 
-        currentZoom = m.getZoom();
-        updateVisuals(currentZoom);
-
-        m.on('zoom', () => {
-            if (!isDragging) updateVisuals(m.getZoom());
-        });
-        m.on('zoomend', () => updateVisuals(m.getZoom()));
-
-        bar.addEventListener('pointerdown', onDown, { passive: false });
+        zone.addEventListener('pointerdown',  onDown, { passive: false });
+        zone.addEventListener('touchstart',   onDown, { passive: false });
         window.addEventListener('pointermove', onMove, { passive: false });
-        window.addEventListener('pointerup', onUp);
+        window.addEventListener('touchmove',   onMove, { passive: false });
+        window.addEventListener('pointerup',   onUp);
         window.addEventListener('pointercancel', onUp);
-
-        bar.addEventListener('touchstart', onDown, { passive: false });
-        window.addEventListener('touchmove', onMove, { passive: false });
-        window.addEventListener('touchend', onUp);
+        window.addEventListener('touchend',    onUp);
         window.addEventListener('touchcancel', onUp);
     }
 
