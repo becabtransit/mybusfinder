@@ -12051,7 +12051,7 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
         const diffMin = Math.round((arrival.time - Date.now() / 1000) / 60);
         const label = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
         const isNow   = diffMin <= 0;
-        const isRT    = arrival.realtime || arrival.label === true;
+        const isRT    = arrival.realtime === true || arrival.label;
 
         const pill = document.createElement('span');
         pill.style.cssText = `
