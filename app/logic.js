@@ -939,7 +939,7 @@
 
             FluentSettingsMenu.addSubmenu("submenu-aboutsub", "osm", {
                 icon: "📦",
-                label: "OpenStreetMap Contributors",
+                label: "OpenStreetMap Contributors, OpenFreeMap contributors",
                 description: "© OpenStreetMap contributors (data: ODbL, map: CC-BY-SA 2.0)",
                 onclick: function () {
                     window.open('https://www.openstreetmap.org/copyright', '_blank');
@@ -1253,31 +1253,10 @@ async function initMap() {
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
     
     if (!isStandardView) {
-        const vectorTileUrl = 'https://demotiles.maplibre.org/tiles/v3/{z}/{x}/{y}.pbf';
-        const vectorTileStyles = {
-            water: { fill: true, fillColor: '#A4D4FF', fillOpacity: 1, stroke: false },
-            waterway: { color: '#5AA9FF', weight: 1.2 },
-            landuse: { fill: true, fillColor: '#E9F1E7', fillOpacity: 1, stroke: false },
-            landcover: { fill: true, fillColor: '#E9F1E7', fillOpacity: 1, stroke: false },
-            park: { fill: true, fillColor: '#D7EED8', fillOpacity: 1, stroke: false },
-            building: { fill: true, fillColor: '#D0D3D8', fillOpacity: 1, stroke: false },
-            road: { color: '#FFFFFF', weight: 1.2 },
-            motorway: { color: '#F4B470', weight: 2.2 },
-            trunk: { color: '#E9AA5C', weight: 1.8 },
-            primary: { color: '#F7D083', weight: 1.6 },
-            secondary: { color: '#EDE1C3', weight: 1.4 },
-            street: { color: '#FFFFFF', weight: 1.1 },
-            boundary: { color: '#999999', weight: 1, fill: false },
-            place: { radius: 2, color: '#FF6B6B', fill: true, fillOpacity: 1 },
-            _default: { color: '#999999', weight: 0.8, fill: false }
-        };
-
-        L.vectorGrid.protobuf(vectorTileUrl, {
-            rendererFactory: L.canvas.tile,
-            vectorTileLayerStyles: vectorTileStyles,
+        L.maplibreGL({
+            style: 'https://tiles.openfreemap.org/styles/liberty',
             minZoom: 6,
-            maxZoom: 19,
-            attribution: 'Map data © OpenStreetMap contributors'
+            maxZoom: 19
         }).addTo(mapInstance);
 
 
@@ -4908,37 +4887,17 @@ function applyMapView() {
 
 
     map.eachLayer(function(layer) {
-        if (layer instanceof L.TileLayer || (window.L && L.VectorGrid && layer instanceof L.VectorGrid)) {
+        if (layer instanceof L.TileLayer || (window.L && L.VectorGrid && layer instanceof L.VectorGrid) || (window.L && L.maplibreGL && layer instanceof L.maplibreGL)) {
             map.removeLayer(layer);
         }
     });
 
     if (!isStandardView) {
-        const vectorTileUrl = 'https://demotiles.maplibre.org/tiles/v3/{z}/{x}/{y}.pbf';
-        const vectorTileStyles = {
-            water: { fill: true, fillColor: '#A4D4FF', fillOpacity: 1, stroke: false },
-            waterway: { color: '#5AA9FF', weight: 1.2 },
-            landuse: { fill: true, fillColor: '#E9F1E7', fillOpacity: 1, stroke: false },
-            landcover: { fill: true, fillColor: '#E9F1E7', fillOpacity: 1, stroke: false },
-            park: { fill: true, fillColor: '#D7EED8', fillOpacity: 1, stroke: false },
-            building: { fill: true, fillColor: '#D0D3D8', fillOpacity: 1, stroke: false },
-            road: { color: '#FFFFFF', weight: 1.2 },
-            motorway: { color: '#F4B470', weight: 2.2 },
-            trunk: { color: '#E9AA5C', weight: 1.8 },
-            primary: { color: '#F7D083', weight: 1.6 },
-            secondary: { color: '#EDE1C3', weight: 1.4 },
-            street: { color: '#FFFFFF', weight: 1.1 },
-            boundary: { color: '#999999', weight: 1, fill: false },
-            place: { radius: 2, color: '#FF6B6B', fill: true, fillOpacity: 1 },
-            _default: { color: '#999999', weight: 0.8, fill: false }
-        };
-
-        L.vectorGrid.protobuf(vectorTileUrl, {
-            rendererFactory: L.canvas.tile,
-            vectorTileLayerStyles: vectorTileStyles,
+        L.maplibreGL({
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            attribution: '© OpenFreeMap contributors',
             minZoom: 6,
-            maxZoom: 19,
-            attribution: 'Map data © OpenStreetMap contributors'
+            maxZoom: 19
         }).addTo(map);
 
 

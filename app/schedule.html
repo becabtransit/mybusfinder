@@ -12,7 +12,9 @@
     <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/protobufjs/6.11.2/protobuf.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.css" />
 
 <style>
 :root {
@@ -1607,29 +1609,11 @@ function initStopMap(stop) {
     setTimeout(() => {
         leafletMap = L.map('stop-map', { zoomControl: false, attributionControl: false, dragging: false, touchZoom: false, scrollWheelZoom: false })
             .setView([lat, lon], 16);
-        const vectorTileStyles = {
-            water: { fill: true, fillColor: '#A4D4FF', fillOpacity: 1, stroke: false },
-            waterway: { color: '#5AA9FF', weight: 1.2 },
-            landuse: { fill: true, fillColor: '#E9F1E7', fillOpacity: 1, stroke: false },
-            landcover: { fill: true, fillColor: '#E9F1E7', fillOpacity: 1, stroke: false },
-            park: { fill: true, fillColor: '#D7EED8', fillOpacity: 1, stroke: false },
-            building: { fill: true, fillColor: '#D0D3D8', fillOpacity: 1, stroke: false },
-            road: { color: '#FFFFFF', weight: 1.2 },
-            motorway: { color: '#F4B470', weight: 2.2 },
-            trunk: { color: '#E9AA5C', weight: 1.8 },
-            primary: { color: '#F7D083', weight: 1.6 },
-            secondary: { color: '#EDE1C3', weight: 1.4 },
-            street: { color: '#FFFFFF', weight: 1.1 },
-            boundary: { color: '#999999', weight: 1, fill: false },
-            place: { radius: 2, color: '#FF6B6B', fill: true, fillOpacity: 1 },
-            _default: { color: '#999999', weight: 0.8, fill: false }
-        };
-        L.vectorGrid.protobuf('https://demotiles.maplibre.org/tiles/v3/{z}/{x}/{y}.pbf', {
-            rendererFactory: L.canvas.tile,
-            vectorTileLayerStyles: vectorTileStyles,
+        L.maplibreGL({
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            attribution: '© OpenFreeMap contributors',
             minZoom: 6,
-            maxZoom: 19,
-            attribution: 'Map data © OpenStreetMap contributors'
+            maxZoom: 19
         }).addTo(leafletMap);
         const pulse = L.divIcon({
             html: `<div style="position:relative;">
