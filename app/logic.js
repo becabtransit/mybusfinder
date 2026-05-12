@@ -1253,12 +1253,32 @@ async function initMap() {
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
     
     if (!isStandardView) {
-    const tileLayerUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    
-    const tileLayer = L.tileLayer(tileLayerUrl, {
-        minZoom: 6,
-        maxZoom: 19,
-    }).addTo(mapInstance);
+        const vectorTileUrl = 'https://demotiles.maplibre.org/tiles/v3/{z}/{x}/{y}.pbf';
+        const vectorTileStyles = {
+            water: { fill: true, fillColor: '#A4D4FF', fillOpacity: 1, stroke: false },
+            waterway: { color: '#5AA9FF', weight: 1.2 },
+            landuse: { fill: true, fillColor: '#E9F1E7', fillOpacity: 1, stroke: false },
+            landcover: { fill: true, fillColor: '#E9F1E7', fillOpacity: 1, stroke: false },
+            park: { fill: true, fillColor: '#D7EED8', fillOpacity: 1, stroke: false },
+            building: { fill: true, fillColor: '#D0D3D8', fillOpacity: 1, stroke: false },
+            road: { color: '#FFFFFF', weight: 1.2 },
+            motorway: { color: '#F4B470', weight: 2.2 },
+            trunk: { color: '#E9AA5C', weight: 1.8 },
+            primary: { color: '#F7D083', weight: 1.6 },
+            secondary: { color: '#EDE1C3', weight: 1.4 },
+            street: { color: '#FFFFFF', weight: 1.1 },
+            boundary: { color: '#999999', weight: 1, fill: false },
+            place: { radius: 2, color: '#FF6B6B', fill: true, fillOpacity: 1 },
+            _default: { color: '#999999', weight: 0.8, fill: false }
+        };
+
+        L.vectorGrid.protobuf(vectorTileUrl, {
+            rendererFactory: L.canvas.tile,
+            vectorTileLayerStyles: vectorTileStyles,
+            minZoom: 6,
+            maxZoom: 19,
+            attribution: 'Map data © OpenStreetMap contributors'
+        }).addTo(mapInstance);
 
 
 } else {
@@ -4888,17 +4908,39 @@ function applyMapView() {
 
 
     map.eachLayer(function(layer) {
-        if (layer instanceof L.TileLayer) {
+        if (layer instanceof L.TileLayer || (window.L && L.VectorGrid && layer instanceof L.VectorGrid)) {
             map.removeLayer(layer);
         }
     });
 
     if (!isStandardView) {
-    const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        minZoom: 6,
-        maxZoom: 19,
-    }).addTo(map);
-    
+        const vectorTileUrl = 'https://demotiles.maplibre.org/tiles/v3/{z}/{x}/{y}.pbf';
+        const vectorTileStyles = {
+            water: { fill: true, fillColor: '#A4D4FF', fillOpacity: 1, stroke: false },
+            waterway: { color: '#5AA9FF', weight: 1.2 },
+            landuse: { fill: true, fillColor: '#E9F1E7', fillOpacity: 1, stroke: false },
+            landcover: { fill: true, fillColor: '#E9F1E7', fillOpacity: 1, stroke: false },
+            park: { fill: true, fillColor: '#D7EED8', fillOpacity: 1, stroke: false },
+            building: { fill: true, fillColor: '#D0D3D8', fillOpacity: 1, stroke: false },
+            road: { color: '#FFFFFF', weight: 1.2 },
+            motorway: { color: '#F4B470', weight: 2.2 },
+            trunk: { color: '#E9AA5C', weight: 1.8 },
+            primary: { color: '#F7D083', weight: 1.6 },
+            secondary: { color: '#EDE1C3', weight: 1.4 },
+            street: { color: '#FFFFFF', weight: 1.1 },
+            boundary: { color: '#999999', weight: 1, fill: false },
+            place: { radius: 2, color: '#FF6B6B', fill: true, fillOpacity: 1 },
+            _default: { color: '#999999', weight: 0.8, fill: false }
+        };
+
+        L.vectorGrid.protobuf(vectorTileUrl, {
+            rendererFactory: L.canvas.tile,
+            vectorTileLayerStyles: vectorTileStyles,
+            minZoom: 6,
+            maxZoom: 19,
+            attribution: 'Map data © OpenStreetMap contributors'
+        }).addTo(map);
+
 
 } else {
     const mapPane = map.getPanes().tilePane;
