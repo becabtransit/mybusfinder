@@ -2044,9 +2044,6 @@ function hideLoadingScreen() {
                     ]
                 });
             }
-            setTimeout(() => {
-                MyBusFinderPopup.show();
-            }, 1000);
         }, 3000);
 
 
