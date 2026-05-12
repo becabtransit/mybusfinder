@@ -1274,85 +1274,7 @@ async function initMap() {
 
 }
 
-function initZoomSlider() {
-    const MIN_ZOOM = 6;
-    const MAX_ZOOM = 19;
 
-    const container = document.getElementById('zoom-slider-container');
-    const track     = document.getElementById('zoom-track');
-    const thumb     = document.getElementById('zoom-thumb');
-
-    if (!container || !track || !thumb || !map) return;
-
-    let isDraggingSlider = false;
-    let sliderStartY = 0;
-    let sliderStartZoom = map.getZoom();
-
-    function zoomToThumbPos(zoom) {
-        const t = (zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM);
-        const trackH = track.getBoundingClientRect().height;
-        const pct = 1 - t;
-        thumb.style.top = `${pct * (trackH - 28)}px`;
-    }
-
-    function thumbPosToZoom(clientY) {
-        const rect = track.getBoundingClientRect();
-        const relY = Math.max(0, Math.min(clientY - rect.top, rect.height - 28));
-        const pct  = relY / (rect.height - 28);
-        return MAX_ZOOM - pct * (MAX_ZOOM - MIN_ZOOM);
-    }
-
-    zoomToThumbPos(map.getZoom());
-    map.on('zoom', () => zoomToThumbPos(map.getZoom()));
-
-    function onDown(e) {
-        isDraggingSlider = true;
-        sliderStartY     = e.clientY || e.touches?.[0]?.clientY;
-        sliderStartZoom  = map.getZoom();
-        thumb.style.transition = 'none';
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    function onMove(e) {
-        if (!isDraggingSlider) return;
-        const clientY = e.clientY || e.touches?.[0]?.clientY;
-        if (clientY === undefined) return;
-        const newZoom = thumbPosToZoom(clientY);
-        map.setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom)), { animate: false });
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    function onUp(e) {
-        if (!isDraggingSlider) return;
-        isDraggingSlider = false;
-        thumb.style.transition = '';
-        e.stopPropagation();
-    }
-
-    thumb.addEventListener('mousedown',  onDown,  { passive: false });
-    thumb.addEventListener('touchstart', onDown,  { passive: false });
-    window.addEventListener('mousemove', onMove,  { passive: false });
-    window.addEventListener('touchmove', onMove,  { passive: false });
-    window.addEventListener('mouseup',   onUp);
-    window.addEventListener('touchend',  onUp);
-
-    track.addEventListener('click', (e) => {
-        if (isDraggingSlider) return;
-        const newZoom = thumbPosToZoom(e.clientY);
-        map.setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom)), { animate: true });
-    });
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    const waitForMap = setInterval(() => {
-        if (window.mapInstance) {
-            clearInterval(waitForMap);
-            initZoomSlider();
-        }
-    }, 300);
-});
 
 
 mapInstance.attributionControl.setPrefix('');
@@ -12481,3 +12403,155 @@ softSwitchNetwork = async function (newId) {
     _refreshBottomSheetGreeting();
 };
 window.softSwitchNetwork = softSwitchNetwork;
+
+
+(function initSnapZoomBar() {
+    const EMOJIS = ['🗺️','🏙️','🌍','🚌','📍','🔭','⭐','🌟','✨','🎯','🏖️','🌴','🎪','🚀','💫','🎉','🌊','🏔️','🌆','🎠'];
+    const MIN_ZOOM = 6;
+    const MAX_ZOOM = 19;
+    const ZOOM_SENSITIVITY = 0.035;
+
+    let bar, fill, thumb, label, burst;
+    let isDragging = false;
+    let startY = 0;
+    let startZoom = 12;
+    let currentZoom = 12;
+    let emojiTimeout = null;
+    let tapStartY = 0;
+    let tapStartTime = 0;
+
+    function waitReady() {
+        if (!document.getElementById('snap-zoom-bar') || !window.mapInstance) {
+            setTimeout(waitReady, 400);
+            return;
+        }
+        bar   = document.getElementById('snap-zoom-bar');
+        fill  = document.getElementById('snap-zoom-fill');
+        thumb = document.getElementById('snap-zoom-thumb');
+        label = document.getElementById('snap-zoom-label');
+        burst = document.getElementById('snap-emoji-burst');
+        setup();
+    }
+
+    function getMap() { return window.mapInstance || window.map; }
+
+    function zoomPct(z) {
+        return (z - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM);
+    }
+
+    function updateVisuals(z) {
+        const m = getMap();
+        if (!m) return;
+        const pct = zoomPct(z);
+        const barH = bar.getBoundingClientRect().height;
+        const thumbH = 36;
+        const usable = barH - thumbH - 8;
+
+        const topPx = (1 - pct) * usable + 4;
+        thumb.style.top = topPx + 'px';
+        fill.style.height = (pct * barH) + 'px';
+
+        const emoji = z >= 17 ? '🔍' : z >= 14 ? '🏙️' : z >= 11 ? '🌆' : z >= 8 ? '🌍' : '🛸';
+        label.textContent = emoji;
+    }
+
+    function applyZoom(z) {
+        const m = getMap();
+        if (!m) return;
+        const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
+        currentZoom = clamped;
+        m.setZoom(clamped, { animate: false });
+        updateVisuals(clamped);
+    }
+
+    function spawnEmojis() {
+        burst.innerHTML = '';
+        const count = 5 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < count; i++) {
+            setTimeout(() => {
+                const sp = document.createElement('span');
+                sp.textContent = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+                const tx  = (Math.random() - 0.5) * 90;
+                const ty  = -(30 + Math.random() * 80);
+                const tx2 = tx + (Math.random() - 0.5) * 40;
+                const ty2 = ty - (20 + Math.random() * 40);
+                sp.style.setProperty('--tx', tx + 'px');
+                sp.style.setProperty('--ty', ty + 'px');
+                sp.style.setProperty('--tx2', tx2 + 'px');
+                sp.style.setProperty('--ty2', ty2 + 'px');
+                sp.style.top = thumb.style.top || '50%';
+                burst.appendChild(sp);
+                setTimeout(() => sp.remove(), 950);
+            }, i * 60);
+        }
+        if (typeof safeVibrate === 'function') safeVibrate([20, 30, 20]);
+        if (typeof soundsUX === 'function') soundsUX('MBF_Popup');
+    }
+
+    function onDown(e) {
+        const m = getMap();
+        if (!m) return;
+        isDragging = true;
+        const pt = e.touches ? e.touches[0] : e;
+        startY = pt.clientY;
+        tapStartY = pt.clientY;
+        tapStartTime = Date.now();
+        startZoom = m.getZoom();
+        bar.classList.add('snap-active');
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function onMove(e) {
+        if (!isDragging) return;
+        const pt = e.touches ? e.touches[0] : e;
+        const dy = startY - pt.clientY;
+        const newZoom = startZoom + dy * ZOOM_SENSITIVITY;
+        applyZoom(newZoom);
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function onUp(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        bar.classList.remove('snap-active');
+
+        const pt = e.changedTouches ? e.changedTouches[0] : e;
+        const dy = Math.abs(pt.clientY - tapStartY);
+        const dt = Date.now() - tapStartTime;
+
+        if (dy < 8 && dt < 300) {
+            spawnEmojis();
+        }
+
+        const m = getMap();
+        if (m) m.setZoom(Math.round(m.getZoom()), { animate: true });
+        e.stopPropagation();
+    }
+
+    function setup() {
+        const m = getMap();
+        if (!m) return;
+
+        currentZoom = m.getZoom();
+        updateVisuals(currentZoom);
+
+        m.on('zoom', () => {
+            if (!isDragging) updateVisuals(m.getZoom());
+        });
+        m.on('zoomend', () => updateVisuals(m.getZoom()));
+
+        bar.addEventListener('pointerdown', onDown, { passive: false });
+        window.addEventListener('pointermove', onMove, { passive: false });
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onUp);
+
+        bar.addEventListener('touchstart', onDown, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onUp);
+        window.addEventListener('touchcancel', onUp);
+    }
+
+    waitReady();
+})();
