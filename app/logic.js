@@ -732,6 +732,21 @@
                 }
             });
 
+            FluentSettingsMenu.addToggle("submenu-customization", "3dview", {
+                icon: "🏗️",
+                label: "Vue 3D",
+                description: "Activer l'affichage 3D des bâtiments",
+                value: localStorage.getItem('is3DView') === 'true',
+                onChange: function (value) {
+                toggle3DView(value);
+                if (value) {
+                    soundsUX('MBF_SettingOn');
+                } else {
+                    soundsUX('MBF_SettingOff');
+                }
+                }
+            });
+
             FluentSettingsMenu.addSelect("submenu-customization", "themeselect", {
                 icon: "🖌️",
                 label: theme,
@@ -1251,13 +1266,18 @@ async function initMap() {
 
 
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
+    const is3DView = localStorage.getItem('is3DView') === 'true';
     
     if (!isStandardView) {
-        L.maplibreGL({
+        const maplibreLayer = L.maplibreGL({
             style: 'https://tiles.openfreemap.org/styles/liberty',
             minZoom: 6,
-            maxZoom: 19
+            maxZoom: 19,
+            pitch: is3DView ? 45 : 0,
+            bearing: 0
         }).addTo(mapInstance);
+
+        window.currentMaplibreLayer = maplibreLayer;
 
 
 } else {
@@ -4868,6 +4888,7 @@ function startWindowsSpinnerAnimation(elementId, interval = 30) {
 }
 
 let isStandardView = localStorage.getItem('isStandardView') === 'true';
+let is3DView = localStorage.getItem('is3DView') === 'true';
 
 function toggleMapView(forceState) {
     if (forceState !== undefined) {
@@ -4877,6 +4898,17 @@ function toggleMapView(forceState) {
     }
     
     localStorage.setItem('isStandardView', isStandardView);
+    applyMapView();
+}
+
+function toggle3DView(forceState) {
+    if (forceState !== undefined) {
+        is3DView = forceState;
+    } else {
+        is3DView = !is3DView;
+    }
+    
+    localStorage.setItem('is3DView', is3DView);
     applyMapView();
 }
 
@@ -4897,7 +4929,9 @@ function applyMapView() {
             style: 'https://tiles.openfreemap.org/styles/liberty',
             attribution: '© OpenFreeMap contributors',
             minZoom: 6,
-            maxZoom: 19
+            maxZoom: 19,
+            pitch: is3DView ? 45 : 0,
+            bearing: 0
         }).addTo(map);
 
 
