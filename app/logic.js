@@ -3797,6 +3797,60 @@ async function loadGeoJsonLines() {
     }
 }
 
+async function loadBusStopMarkers() {
+    if (!stopIds.length || !Object.keys(stopNameMap).length) return;
+
+    const stopMarkerStyle = document.createElement('style');
+    stopMarkerStyle.textContent = `
+        .bs-stop-dot {
+            width: 10px; height: 10px;
+            background: #fff;
+            border: 2.5px solid rgba(0,0,0,0.55);
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.22);
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.25,1.5,0.5,1);
+        }
+        .bs-stop-dot:hover { transform: scale(1.5); }
+    `;
+    document.head.appendChild(stopMarkerStyle);
+
+    const response = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'));
+    const stopsData = await response.json();
+
+    window._stopMarkers = [];
+
+    Object.entries(stopsData).forEach(([stopId, data]) => {
+        if (!data.lat || !data.lon) return;
+
+        const icon = L.divIcon({
+            className: '',
+            html: `<div class="bs-stop-dot"></div>`,
+            iconSize: [10, 10],
+            iconAnchor: [5, 5]
+        });
+
+        const marker = L.marker([data.lat, data.lon], { icon, pane: 'shadowPane' });
+
+        marker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            openStopInBottomSheet(stopId, data.n || stopId);
+        });
+
+        map.on('zoomend', () => {
+            const z = map.getZoom();
+            if (z >= 15) {
+                if (!map.hasLayer(marker)) marker.addTo(map);
+            } else {
+                if (map.hasLayer(marker)) map.removeLayer(marker);
+            }
+        });
+
+        if (map.getZoom() >= 15) marker.addTo(map);
+        window._stopMarkers.push(marker);
+    });
+}
+
 function filterByLine(lineId) {
     const lineIndex = selectedLines.indexOf(lineId);
 
@@ -11043,11 +11097,13 @@ async function main() {
         await Promise.all([
             fetchVehiclePositions(),
             loadGeoJsonLines(),
+            loadBusStopMarkers(),
             modeSombre(),
             hideLoadingScreen()
         ]);
             
         loadGeoJsonLines();
+        loadBusStopMarkers();
         startFetchUpdates();
         
     } catch (error) {
@@ -11248,6 +11304,16 @@ function _resetNetworkScopedState() {
         try { navigator.geolocation.clearWatch(watchId); } catch (_) {}
     }
     watchId = null;
+
+    if (window._stopMarkers) {
+        window._stopMarkers.forEach(m => {
+            try { map.removeLayer(m); } catch (_) {}
+        });
+        window._stopMarkers = [];
+    }
+    const stopView = document.getElementById('bs-stop-view');
+    if (stopView) stopView.remove();
+    _restoreBottomSheetTitle();
 }
 
 function _stopAllTimers() {
@@ -12070,6 +12136,351 @@ function _refreshBottomSheetFavorites() {
             .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor, favorite))
             .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
     });
+}
+
+async function openStopInBottomSheet(stopId, stopName) {
+    safeVibrate?.([30], true);
+    soundsUX('MBF_Popup');
+
+    const titleEl = document.querySelector('#bottom-sheet .bs-handle-zone div div:first-child');
+    if (titleEl) {
+        titleEl._originalHTML = titleEl.innerHTML;
+        titleEl.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;">
+                <button id="bs-stop-back" style="background:rgba(255,255,255,0.15);border:none;
+                    border-radius:8px;width:28px;height:28px;display:flex;align-items:center;
+                    justify-content:center;cursor:pointer;color:white;font-size:14px;flex-shrink:0;">
+                    <
+                </button>
+                <div>
+                    <div style="font-size:20px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px;">
+                        ${stopName}
+                    </div>
+                    <div style="font-size:11px;opacity:0.6;text-transform:uppercase;letter-spacing:0.06em;">
+                        Prochains passages
+                    </div>
+                </div>
+            </div>`;
+
+        document.getElementById('bs-stop-back')?.addEventListener('click', () => {
+            _restoreBottomSheetTitle();
+            _refreshBottomSheetFavorites();
+            document.getElementById('bs-search-wrapper').style.display = '';
+            document.getElementById('bs-favorites-section').style.display = '';
+            const grid = document.querySelector('.bs-grid');
+            if (grid) grid.style.display = '';
+        });
+    }
+
+    document.getElementById('bs-search-wrapper').style.display = 'none';
+    document.getElementById('bs-favorites-section').style.display = 'none';
+    const grid = document.querySelector('.bs-grid');
+    if (grid) grid.style.display = 'none';
+
+    const content = document.getElementById('bs-content');
+    let stopView = document.getElementById('bs-stop-view');
+    if (!stopView) {
+        stopView = document.createElement('div');
+        stopView.id = 'bs-stop-view';
+        stopView.style.cssText = 'padding: 4px 37px 20px;';
+        content.appendChild(stopView);
+    }
+    stopView.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 0;opacity:0.7;">
+            <div class="bs-spinner"></div>
+            <div style="font-size:13px;">Chargement des passages…</div>
+        </div>`;
+    stopView.style.display = 'block';
+
+    BottomSheet.expand();
+
+    const passages = await _computeStopPassages(stopId);
+    _renderStopPassages(stopView, stopId, stopName, passages);
+}
+
+async function _computeStopPassages(stopId) {
+    const cleanStop = stopId.replace('0:', '').trim();
+    const now = Date.now() / 1000;
+    const byLine = {};
+
+    Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+        const nextStops = tripData.nextStops || [];
+        const match = nextStops.find(s =>
+            s.stopId.replace('0:', '') === cleanStop
+        );
+        if (!match) return;
+
+        const marker = [...markerPool.active.values()]
+            .find(m => m.vehicleData?.trip?.tripId === tripId);
+
+        const routeId = marker?.line || 'Inconnu';
+        const dest = marker?.destination || 'Destination inconnue';
+        const vehicleLabel = marker?.vehicleData?.vehicle?.label
+            || marker?.vehicleData?.vehicle?.id || null;
+
+        const stopTime = match.departureTime || match.arrivalTime;
+        if (!stopTime) return;
+
+        let arrivalSecs = _parseStopTime(stopTime);
+        if (arrivalSecs === null || arrivalSecs < now - 30) return;
+
+        const key = `${routeId}|||${dest}`;
+        if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
+        byLine[key].times.push({
+            time: arrivalSecs,
+            realtime: true,
+            vehicleLabel,
+            marker: marker || null
+        });
+    });
+
+    if (window.stopTimesReady && window.staticStopTimes) {
+        const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
+        const rtTripIds = new Set(
+            Object.entries(tripUpdates).flatMap(([tid]) => [tid])
+        );
+
+        Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
+            if (rtTripIds.has(tripId)) return;
+            if (activeIds.length && tripServiceMap[tripId] &&
+                !activeIds.includes(tripServiceMap[tripId])) return;
+
+            const stopData = tripStops[cleanStop]
+                || tripStops[`0:${cleanStop}`]
+                || tripStops[stopId];
+            if (!stopData) return;
+
+            const timeStr = stopData.d || stopData.a;
+            if (!timeStr) return;
+
+            const arrivalSecs = _parseStopTime(timeStr);
+            if (arrivalSecs === null || arrivalSecs < now - 60) return;
+
+            const marker = [...markerPool.active.values()]
+                .find(m => m.vehicleData?.trip?.tripId === tripId);
+            const routeId = marker?.line || _guessRouteFromTrip(tripId);
+            const dest = marker?.destination || 'Destination inconnue';
+
+            const key = `${routeId}|||${dest}`;
+            if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
+
+            const dedupMin = Math.round(arrivalSecs / 60);
+            const alreadyExists = byLine[key].times.some(t =>
+                Math.round(t.time / 60) === dedupMin
+            );
+            if (!alreadyExists) {
+                byLine[key].times.push({
+                    time: arrivalSecs,
+                    realtime: false,
+                    vehicleLabel: null,
+                    marker: null
+                });
+            }
+        });
+    }
+
+    Object.values(byLine).forEach(group => {
+        group.times.sort((a, b) => a.time - b.time);
+        group.times = group.times.slice(0, 6);
+    });
+
+    return byLine;
+}
+
+function _parseStopTime(stopTime) {
+    const now = Date.now() / 1000;
+    if (typeof stopTime === 'string' && stopTime.includes(':')) {
+        const parts = stopTime.split(':').map(Number);
+        const d = new Date();
+        let secs = new Date(
+            d.getFullYear(), d.getMonth(), d.getDate(),
+            parts[0], parts[1], parts[2] || 0
+        ).getTime() / 1000;
+        if (secs < now - 3600) secs += 86400;
+        return secs;
+    }
+    if (typeof stopTime === 'number' && stopTime > 86400) return stopTime;
+    return null;
+}
+
+function _guessRouteFromTrip(tripId) {
+    const parts = tripId.split(/[_\-:]/);
+    return parts[0] || 'Inconnu';
+}
+
+function _renderStopPassages(container, stopId, stopName, byLine) {
+    const now = Date.now() / 1000;
+    const entries = Object.values(byLine);
+
+    if (!entries.length) {
+        container.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;
+                        gap:10px;padding:30px 0;text-align:center;">
+                <div style="font-size:36px;opacity:0.5;">🚌</div>
+                <div style="font-size:14px;opacity:0.6;">${t('nodepartures')}</div>
+            </div>`;
+        return;
+    }
+
+    entries.sort((a, b) => {
+        const aRT = a.times.some(t => t.realtime);
+        const bRT = b.times.some(t => t.realtime);
+        if (aRT && !bRT) return -1;
+        if (!aRT && bRT) return 1;
+        const aNext = a.times[0]?.time || Infinity;
+        const bNext = b.times[0]?.time || Infinity;
+        return aNext - bNext;
+    });
+
+    const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 4a16 16 0 0 1 16 16"/>
+        <path d="M4 11a9 9 0 0 1 9 9"/>
+        <circle cx="5" cy="19" r="1"/>
+    </svg>`;
+
+    container.innerHTML = '';
+
+    entries.forEach(({ routeId, dest, times }, idx) => {
+        const color = lineColors[routeId] || '#444';
+        const textColor = getTextColor(color);
+        const lineLbl = lineName[routeId] || routeId;
+
+        const card = document.createElement('div');
+        card.style.cssText = `
+            border-radius: 18px;
+            overflow: hidden;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12);
+            margin-bottom: 10px;
+            animation: bsFadeUp 0.45s cubic-bezier(0.25,1.5,0.5,1) ${idx * 55}ms both;
+        `;
+
+        const header = document.createElement('div');
+        header.style.cssText = `
+            position: relative;
+            padding: 11px 14px 10px;
+            overflow: hidden;
+            background: ${color};
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        `;
+        header.innerHTML = `
+            <div class="bs-fav-beam bs-fav-beam1"></div>
+            <div class="bs-fav-beam bs-fav-beam2"></div>
+            <div class="bs-fav-line-badge" style="color:${textColor};">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
+                             V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
+                             20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
+                             17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
+                             18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                </svg>
+                <span style="font-size:14px;font-weight:700;">Ligne ${lineLbl}</span>
+            </div>
+            <p class="bs-fav-dest" style="color:${textColor};margin:0;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+                ${dest}
+            </p>`;
+
+        const body = document.createElement('div');
+        body.style.cssText = 'padding: 9px 14px 11px; display:flex; flex-direction:column; gap:7px;';
+
+        const timesRow = document.createElement('div');
+        timesRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-height:24px;';
+
+        times.forEach(entry => {
+            const diffMin = Math.round((entry.time - now) / 60);
+            const label = diffMin <= 1
+                ? t('imminent')
+                : `${diffMin} ${t('min')}`;
+            const isNow = diffMin <= 0;
+            const numLabel = entry.vehicleLabel
+                ? String(entry.vehicleLabel).replace(/[A-Z]+:/g, '').padStart(3, '0')
+                : null;
+
+            const pill = document.createElement('span');
+            pill.style.cssText = `
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font-size: 12px;
+                font-weight: ${entry.realtime ? '600' : '400'};
+                padding: 3px 9px;
+                border-radius: 20px;
+                white-space: nowrap;
+                border: 1px solid rgba(255,255,255,0.18);
+                font-style: ${entry.realtime ? 'normal' : 'italic'};
+                transition: background 0.15s ease, transform 0.15s ease;
+                cursor: ${entry.marker ? 'pointer' : 'default'};
+            `;
+
+            if (isNow && entry.realtime) {
+                pill.style.background = color;
+                pill.style.color = textColor;
+                pill.style.fontWeight = '700';
+            } else if (entry.realtime) {
+                pill.style.background = 'rgba(255,255,255,0.14)';
+                pill.style.color = 'rgba(255,255,255,0.9)';
+            } else {
+                pill.style.background = 'rgba(255,255,255,0.05)';
+                pill.style.color = 'rgba(255,255,255,0.38)';
+                pill.style.borderColor = 'rgba(255,255,255,0.07)';
+            }
+
+            if (entry.realtime) pill.innerHTML = rssIcon;
+            const labelEl = document.createElement('span');
+            labelEl.textContent = numLabel ? `${label} · ${numLabel}` : label;
+            pill.appendChild(labelEl);
+
+            if (entry.marker) {
+                pill.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    safeVibrate?.([30, 20, 30], true);
+                    soundsUX('MBF_Menu_VehicleSelect');
+                    map.setView(entry.marker.getLatLng(), 15);
+                    entry.marker.openPopup();
+                    BottomSheet.collapse();
+                    _restoreBottomSheetTitle();
+                });
+                pill.addEventListener('pointerenter', () => {
+                    pill.style.transform = 'scale(1.05)';
+                });
+                pill.addEventListener('pointerleave', () => {
+                    pill.style.transform = 'scale(1)';
+                });
+            }
+
+            timesRow.appendChild(pill);
+        });
+
+        body.appendChild(timesRow);
+        card.appendChild(header);
+        card.appendChild(body);
+        container.appendChild(card);
+    });
+}
+
+function _restoreBottomSheetTitle() {
+    const titleEl = document.querySelector('#bottom-sheet .bs-handle-zone div div:first-child');
+    if (titleEl && titleEl._originalHTML) {
+        titleEl.innerHTML = titleEl._originalHTML;
+        titleEl._originalHTML = null;
+    }
+    const stopView = document.getElementById('bs-stop-view');
+    if (stopView) stopView.style.display = 'none';
+    document.getElementById('bs-search-wrapper').style.display = '';
+    document.getElementById('bs-favorites-section').style.display = '';
+    const grid = document.querySelector('.bs-grid');
+    if (grid) grid.style.display = '';
+    _refreshBottomSheetGreeting();
 }
 
 function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
