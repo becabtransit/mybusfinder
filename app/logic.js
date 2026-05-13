@@ -3819,11 +3819,16 @@ async function loadBusStopMarkers() {
             if (!data.lat || !data.lon) return;
             const key = (data.n || stopId).trim().toLowerCase();
             if (!byName[key]) byName[key] = [];
-            byName[key].push({
-                stopId,
-                lat: parseFloat(data.lat),
-                lon: parseFloat(data.lon),
-                name: data.n || stopId
+            Object.entries(stopsData).forEach(([stopId, data]) => {
+                const lat = parseFloat(data.lat ?? data.stop_lat ?? data.stop_lat);
+                const lon = parseFloat(data.lon ?? data.stop_lon ?? data.lng);
+                const name = data.n ?? data.stop_name ?? stopId;
+
+                if (!lat || !lon || isNaN(lat) || isNaN(lon)) return;
+
+                const key = name.trim().toLowerCase();
+                if (!byName[key]) byName[key] = [];
+                byName[key].push({ stopId, lat, lon, name });
             });
         });
 
@@ -3850,25 +3855,34 @@ async function loadBusStopMarkers() {
             });
         });
 
+        const renderer = L.canvas({ padding: 0.5 });
         window._stopLayerGroup = L.layerGroup();
 
         clusters.forEach(cluster => {
-            const icon = L.divIcon({
-                className: '',
-                html: '<div class="bs-stop-dot"></div>',
-                iconSize: [8, 8],
-                iconAnchor: [4, 4]
-            });
-            const m = L.marker([cluster.lat, cluster.lon], {
-                icon,
+            const circle = L.circleMarker([cluster.lat, cluster.lon], {
+                renderer,
+                radius: 4,
+                fillColor: '#ffffff',
+                fillOpacity: 1,
+                color: 'rgba(0,0,0,0.55)',
+                weight: 1.5,
                 interactive: true,
                 bubblingMouseEvents: false
             });
-            m.on('click', e => {
+
+            circle.on('click', e => {
                 L.DomEvent.stopPropagation(e);
                 openStopInBottomSheet(cluster.stopIds, cluster.name);
             });
-            window._stopLayerGroup.addLayer(m);
+
+            circle.on('mouseover', function() {
+                this.setStyle({ radius: 7, weight: 2 });
+            });
+            circle.on('mouseout', function() {
+                this.setStyle({ radius: 4, weight: 1.5 });
+            });
+
+            window._stopLayerGroup.addLayer(circle);
         });
 
         let _zoomRaf = false;
@@ -12076,6 +12090,7 @@ function getFavoriteSchedules() {
 }
 
 function _refreshBottomSheetFavorites() {
+    if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') return;
     const section = document.getElementById('bs-favorites-section');
     const list    = document.getElementById('bs-favorites-list');
     if (!section || !list) return;
@@ -12186,14 +12201,20 @@ async function openStopInBottomSheet(stopIds, stopName) {
     safeVibrate?.([30], true);
     soundsUX('MBF_Popup');
 
+    //marquer qu'on est en mode "vue arret"
+    document.getElementById('bottom-sheet').dataset.stopView = 'true';
+
     BottomSheet.expand();
 
-    ['bs-search-wrapper', 'bs-favorites-section', 'bs-handle-buttons'].forEach(id => {
+    const toHide = ['bs-search-wrapper', 'bs-favorites-section'];
+    toHide.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
+        if (el) { el.style.display = 'none'; el.dataset.hiddenByStop = 'true'; }
     });
     const grid = document.querySelector('.bs-grid');
-    if (grid) grid.style.display = 'none';
+    if (grid) { grid.style.display = 'none'; grid.dataset.hiddenByStop = 'true'; }
+    const btns = document.getElementById('bs-handle-buttons');
+    if (btns) btns.style.display = 'none';
 
     const titleEl = document.getElementById('bs-handle-title');
     if (titleEl && !titleEl.dataset.saved) {
@@ -12206,7 +12227,7 @@ async function openStopInBottomSheet(stopIds, stopName) {
                     style="background:rgba(255,255,255,0.15); border:none; border-radius:10px;
                            width:32px; height:32px; display:flex; align-items:center;
                            justify-content:center; cursor:pointer; color:white;
-                           font-size:18px; flex-shrink:0;">‹</button>
+                           font-size:20px; flex-shrink:0; line-height:1;">‹</button>
                 <div style="overflow:hidden;">
                     <div style="font-size:20px; font-weight:600;
                                 overflow:hidden; text-overflow:ellipsis;
@@ -12219,7 +12240,6 @@ async function openStopInBottomSheet(stopIds, stopName) {
                     </div>
                 </div>
             </div>`;
-
         document.getElementById('bs-stop-back')?.addEventListener('click', _restoreBottomSheetTitle);
     }
 
@@ -12239,11 +12259,22 @@ async function openStopInBottomSheet(stopIds, stopName) {
             <div style="font-size:13px;">Chargement des passages…</div>
         </div>`;
 
-    const bsContent = document.getElementById('bs-content');
-    if (bsContent) bsContent.scrollTop = 0;
+    if (content) content.scrollTop = 0;
 
     const ids = Array.isArray(stopIds) ? stopIds : [stopIds];
     const passages = await _computeStopPassages(ids);
+
+    const withPassages = Object.values(passages).filter(g => g.times.length > 0);
+    if (withPassages.length === 0) {
+        stopView.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center;
+                        gap:10px; padding:30px 0; text-align:center; opacity:0.6;">
+                <div style="font-size:36px;">🚌</div>
+                <div style="font-size:14px;">${t('nodepartures')}</div>
+            </div>`;
+        return;
+    }
+
     _renderStopPassages(stopView, ids, stopName, passages);
 }
 
@@ -12510,6 +12541,8 @@ function _renderStopPassages(container, stopId, stopName, byLine) {
 }
 
 function _restoreBottomSheetTitle() {
+    document.getElementById('bottom-sheet').dataset.stopView = 'false';
+
     const titleEl = document.getElementById('bs-handle-title');
     if (titleEl && titleEl.dataset.saved) {
         titleEl.innerHTML = titleEl.dataset.saved;
@@ -12524,10 +12557,10 @@ function _restoreBottomSheetTitle() {
 
     ['bs-search-wrapper', 'bs-favorites-section'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.style.display = '';
+        if (el) { el.style.display = ''; delete el.dataset.hiddenByStop; }
     });
     const grid = document.querySelector('.bs-grid');
-    if (grid) grid.style.display = '';
+    if (grid) { grid.style.display = ''; delete grid.dataset.hiddenByStop; }
 
     _refreshBottomSheetGreeting();
     _refreshBottomSheetFavorites();
