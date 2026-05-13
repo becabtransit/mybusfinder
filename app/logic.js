@@ -3819,16 +3819,11 @@ async function loadBusStopMarkers() {
             if (!data.lat || !data.lon) return;
             const key = (data.n || stopId).trim().toLowerCase();
             if (!byName[key]) byName[key] = [];
-            Object.entries(stopsData).forEach(([stopId, data]) => {
-                const lat = parseFloat(data.lat ?? data.stop_lat ?? data.stop_lat);
-                const lon = parseFloat(data.lon ?? data.stop_lon ?? data.lng);
-                const name = data.n ?? data.stop_name ?? stopId;
-
-                if (!lat || !lon || isNaN(lat) || isNaN(lon)) return;
-
-                const key = name.trim().toLowerCase();
-                if (!byName[key]) byName[key] = [];
-                byName[key].push({ stopId, lat, lon, name });
+            byName[key].push({
+                stopId,
+                lat: parseFloat(data.lat),
+                lon: parseFloat(data.lon),
+                name: data.n || stopId
             });
         });
 
