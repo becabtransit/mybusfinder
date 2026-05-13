@@ -3801,101 +3801,97 @@ async function loadBusStopMarkers() {
     if (window._stopMarkersLoaded) return;
     window._stopMarkersLoaded = true;
 
-    const response = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'));
-    if (!response.ok) return;
-    const stopsData = await response.json();
+    try {
+        const response = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'));
+        if (!response.ok) return;
+        const stopsData = await response.json();
 
-    const merged = {}; 
+        function distM(lat1, lon1, lat2, lon2) {
+            const R = 6371000, toR = d => d * Math.PI / 180;
+            const dLat = toR(lat2 - lat1), dLon = toR(lon2 - lon1);
+            const a = Math.sin(dLat/2)**2
+                    + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLon/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
 
-    const toRad = d => d * Math.PI / 180;
-    function distM(lat1, lon1, lat2, lon2) {
-        const R = 6371000;
-        const dLat = toRad(lat2 - lat1);
-        const dLon = toRad(lon2 - lon1);
-        const a = Math.sin(dLat/2)**2 +
-                  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
+        const byName = {};
+        Object.entries(stopsData).forEach(([stopId, data]) => {
+            if (!data.lat || !data.lon) return;
+            const key = (data.n || stopId).trim().toLowerCase();
+            if (!byName[key]) byName[key] = [];
+            byName[key].push({
+                stopId,
+                lat: parseFloat(data.lat),
+                lon: parseFloat(data.lon),
+                name: data.n || stopId
+            });
+        });
 
-    const byName = {};
-    Object.entries(stopsData).forEach(([stopId, data]) => {
-        if (!data.lat || !data.lon) return;
-        const key = (data.n || stopId).trim().toLowerCase();
-        if (!byName[key]) byName[key] = [];
-        byName[key].push({ stopId, lat: parseFloat(data.lat), lon: parseFloat(data.lon), name: data.n || stopId });
-    });
-
-    Object.values(byName).forEach(group => {
         const clusters = [];
-        group.forEach(stop => {
-            let added = false;
-            for (const cluster of clusters) {
-                if (distM(cluster.lat, cluster.lon, stop.lat, stop.lon) < 10) {
-                    const n = cluster.stopIds.length;
-                    cluster.lat = (cluster.lat * n + stop.lat) / (n + 1);
-                    cluster.lon = (cluster.lon * n + stop.lon) / (n + 1);
-                    cluster.stopIds.push(stop.stopId);
-                    added = true;
-                    break;
+        Object.values(byName).forEach(group => {
+            group.forEach(stop => {
+                let merged = false;
+                for (const c of clusters) {
+                    if (distM(c.lat, c.lon, stop.lat, stop.lon) < 10) {
+                        const n = c.stopIds.length;
+                        c.lat = (c.lat * n + stop.lat) / (n + 1);
+                        c.lon = (c.lon * n + stop.lon) / (n + 1);
+                        c.stopIds.push(stop.stopId);
+                        merged = true;
+                        break;
+                    }
                 }
-            }
-            if (!added) clusters.push({ name: stop.name, lat: stop.lat, lon: stop.lon, stopIds: [stop.stopId] });
-        });
-        clusters.forEach(c => {
-            const key = `${c.lat.toFixed(6)},${c.lon.toFixed(6)}`;
-            merged[key] = c;
-        });
-    });
-
-    window._stopLayerGroup = L.layerGroup();
-    window._stopMarkers = [];
-
-    Object.values(merged).forEach(cluster => {
-        const icon = L.divIcon({
-            className: '',
-            html: '<div class="bs-stop-dot"></div>',
-            iconSize: [8, 8],
-            iconAnchor: [4, 4]
+                if (!merged) clusters.push({
+                    name: stop.name,
+                    lat: stop.lat,
+                    lon: stop.lon,
+                    stopIds: [stop.stopId]
+                });
+            });
         });
 
-        const marker = L.marker([cluster.lat, cluster.lon], {
-            icon,
-            interactive: true,
-            bubblingMouseEvents: false
+        window._stopLayerGroup = L.layerGroup();
+
+        clusters.forEach(cluster => {
+            const icon = L.divIcon({
+                className: '',
+                html: '<div class="bs-stop-dot"></div>',
+                iconSize: [8, 8],
+                iconAnchor: [4, 4]
+            });
+            const m = L.marker([cluster.lat, cluster.lon], {
+                icon,
+                interactive: true,
+                bubblingMouseEvents: false
+            });
+            m.on('click', e => {
+                L.DomEvent.stopPropagation(e);
+                openStopInBottomSheet(cluster.stopIds, cluster.name);
+            });
+            window._stopLayerGroup.addLayer(m);
         });
 
-        marker._stopData = cluster;
+        let _zoomRaf = false;
+        function _handleStopZoom() {
+            if (_zoomRaf) return;
+            _zoomRaf = true;
+            requestAnimationFrame(() => {
+                _zoomRaf = false;
+                if (!window._stopLayerGroup) return;
+                const z = map.getZoom();
+                const has = map.hasLayer(window._stopLayerGroup);
+                if (z >= 15 && !has) map.addLayer(window._stopLayerGroup);
+                else if (z < 15 && has) map.removeLayer(window._stopLayerGroup);
+            });
+        }
+        window._stopZoomHandler = _handleStopZoom;
+        map.on('zoomend', _handleStopZoom);
+        _handleStopZoom();
 
-        marker.on('click', (e) => {
-            L.DomEvent.stopPropagation(e);
-            openStopInBottomSheet(cluster.stopIds, cluster.name);
-        });
-
-        window._stopLayerGroup.addLayer(marker);
-        window._stopMarkers.push(marker);
-    });
-
-    let _zoomPending = false;
-    function handleStopZoom() {
-        if (_zoomPending) return;
-        _zoomPending = true;
-        requestAnimationFrame(() => {
-            _zoomPending = false;
-            const z = map.getZoom();
-            if (z >= 15) {
-                if (!map.hasLayer(window._stopLayerGroup)) {
-                    map.addLayer(window._stopLayerGroup);
-                }
-            } else {
-                if (map.hasLayer(window._stopLayerGroup)) {
-                    map.removeLayer(window._stopLayerGroup);
-                }
-            }
-        });
+    } catch (e) {
+        console.error('loadBusStopMarkers error:', e);
+        window._stopMarkersLoaded = false;
     }
-
-    map.on('zoomend', handleStopZoom);
-    handleStopZoom(); 
 }
 
 function filterByLine(lineId) {
@@ -11353,13 +11349,14 @@ function _resetNetworkScopedState() {
     watchId = null;
 
     if (window._stopLayerGroup) {
+    if (window._stopZoomHandler) map.off('zoomend', window._stopZoomHandler);
         try { map.removeLayer(window._stopLayerGroup); } catch (_) {}
         window._stopLayerGroup = null;
+        window._stopZoomHandler = null;
     }
-    window._stopMarkers = [];
     window._stopMarkersLoaded = false;
-    const stopView = document.getElementById('bs-stop-view');
-    if (stopView) stopView.remove();
+    const _sv = document.getElementById('bs-stop-view');
+    if (_sv) _sv.remove();
     _restoreBottomSheetTitle();
 }
 
@@ -12191,45 +12188,39 @@ async function openStopInBottomSheet(stopIds, stopName) {
 
     BottomSheet.expand();
 
-    const searchWrapper = document.getElementById('bs-search-wrapper');
-    const favSection    = document.getElementById('bs-favorites-section');
-    const grid          = document.querySelector('.bs-grid');
-    const separator     = document.querySelector('.bs-separator');
-    if (searchWrapper) searchWrapper.style.display = 'none';
-    if (favSection)    favSection.style.display    = 'none';
-    if (grid)          grid.style.display          = 'none';
-    if (separator)     separator.style.display     = 'none';
+    ['bs-search-wrapper', 'bs-favorites-section', 'bs-handle-buttons'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    const grid = document.querySelector('.bs-grid');
+    if (grid) grid.style.display = 'none';
 
-    const handleFlex = document.querySelector(
-        '#bottom-sheet .bs-handle-zone > div'
-    );
-    if (handleFlex && !handleFlex.dataset.originalHtml) {
-        handleFlex.dataset.originalHtml = handleFlex.innerHTML;
+    const titleEl = document.getElementById('bs-handle-title');
+    if (titleEl && !titleEl.dataset.saved) {
+        titleEl.dataset.saved = titleEl.innerHTML;
     }
-    if (handleFlex) {
-        handleFlex.innerHTML = `
-            <div style="display:flex;align-items:center;gap:10px;padding:0 6px;">
+    if (titleEl) {
+        titleEl.innerHTML = `
+            <div style="display:flex; align-items:center; gap:10px;">
                 <button id="bs-stop-back"
-                    style="background:rgba(255,255,255,0.15);border:none;border-radius:10px;
-                           width:32px;height:32px;display:flex;align-items:center;
-                           justify-content:center;cursor:pointer;color:white;font-size:18px;
-                           flex-shrink:0;transition:background 0.2s;">←</button>
+                    style="background:rgba(255,255,255,0.15); border:none; border-radius:10px;
+                           width:32px; height:32px; display:flex; align-items:center;
+                           justify-content:center; cursor:pointer; color:white;
+                           font-size:18px; flex-shrink:0;">‹</button>
                 <div style="overflow:hidden;">
-                    <div style="font-size:20px;font-weight:600;overflow:hidden;
-                                text-overflow:ellipsis;white-space:nowrap;max-width:230px;
-                                line-height:1.15;">
+                    <div style="font-size:20px; font-weight:600;
+                                overflow:hidden; text-overflow:ellipsis;
+                                white-space:nowrap; max-width:220px; line-height:1.15;">
                         ${stopName}
                     </div>
-                    <div style="font-size:11px;opacity:0.55;text-transform:uppercase;
-                                letter-spacing:0.06em;margin-top:1px;">
+                    <div style="font-size:11px; opacity:0.55; text-transform:uppercase;
+                                letter-spacing:0.06em; margin-top:1px;">
                         Prochains passages
                     </div>
                 </div>
             </div>`;
 
-        document.getElementById('bs-stop-back')?.addEventListener('click', () => {
-            _restoreBottomSheetTitle();
-        });
+        document.getElementById('bs-stop-back')?.addEventListener('click', _restoreBottomSheetTitle);
     }
 
     const content = document.getElementById('bs-content');
@@ -12242,11 +12233,14 @@ async function openStopInBottomSheet(stopIds, stopName) {
     }
     stopView.style.display = 'block';
     stopView.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;
-                    gap:10px;padding:28px 0;opacity:0.6;">
+        <div style="display:flex; flex-direction:column; align-items:center;
+                    gap:10px; padding:28px 0; opacity:0.6;">
             <div class="bs-spinner"></div>
             <div style="font-size:13px;">Chargement des passages…</div>
         </div>`;
+
+    const bsContent = document.getElementById('bs-content');
+    if (bsContent) bsContent.scrollTop = 0;
 
     const ids = Array.isArray(stopIds) ? stopIds : [stopIds];
     const passages = await _computeStopPassages(ids);
@@ -12516,29 +12510,29 @@ function _renderStopPassages(container, stopId, stopName, byLine) {
 }
 
 function _restoreBottomSheetTitle() {
-    const handleFlex = document.querySelector(
-        '#bottom-sheet .bs-handle-zone > div'
-    );
-    if (handleFlex && handleFlex.dataset.originalHtml) {
-        handleFlex.innerHTML = handleFlex.dataset.originalHtml;
-        delete handleFlex.dataset.originalHtml;
+    const titleEl = document.getElementById('bs-handle-title');
+    if (titleEl && titleEl.dataset.saved) {
+        titleEl.innerHTML = titleEl.dataset.saved;
+        delete titleEl.dataset.saved;
     }
+
+    const btns = document.getElementById('bs-handle-buttons');
+    if (btns) btns.style.display = 'flex';
 
     const stopView = document.getElementById('bs-stop-view');
     if (stopView) stopView.style.display = 'none';
 
-    const searchWrapper = document.getElementById('bs-search-wrapper');
-    const favSection    = document.getElementById('bs-favorites-section');
-    const grid          = document.querySelector('.bs-grid');
-    const separator     = document.querySelector('.bs-separator');
-    if (searchWrapper) searchWrapper.style.display = '';
-    if (favSection)    favSection.style.display    = '';
-    if (grid)          grid.style.display          = '';
-    if (separator)     separator.style.display     = '';
+    ['bs-search-wrapper', 'bs-favorites-section'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = '';
+    });
+    const grid = document.querySelector('.bs-grid');
+    if (grid) grid.style.display = '';
 
     _refreshBottomSheetGreeting();
     _refreshBottomSheetFavorites();
 }
+
 
 function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
     const container = document.getElementById(`bs-fav-times-${idx}`);
