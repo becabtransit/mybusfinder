@@ -3806,49 +3806,28 @@ async function loadBusStopMarkers() {
         if (!response.ok) return;
         const stopsData = await response.json();
 
-        function distM(lat1, lon1, lat2, lon2) {
-            const R = 6371000, toR = d => d * Math.PI / 180;
-            const dLat = toR(lat2 - lat1), dLon = toR(lon2 - lon1);
-            const a = Math.sin(dLat/2)**2
-                    + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLon/2)**2;
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        }
-
         const byName = {};
         Object.entries(stopsData).forEach(([stopId, data]) => {
-            if (!data.lat || !data.lon) return;
-            const key = (data.n || stopId).trim().toLowerCase();
-            if (!byName[key]) byName[key] = [];
-            byName[key].push({
-                stopId,
-                lat: parseFloat(data.lat),
-                lon: parseFloat(data.lon),
-                name: data.n || stopId
-            });
+            const lat = parseFloat(data.lat ?? data.stop_lat ?? 0);
+            const lon = parseFloat(data.lon ?? data.stop_lon ?? data.lng ?? 0);
+            const name = (data.n ?? data.stop_name ?? stopId).trim();
+            if (!lat || !lon || isNaN(lat) || isNaN(lon)) return;
+
+            const key = name.toLowerCase();
+            if (!byName[key]) {
+                byName[key] = { name, stopIds: [], lats: [], lons: [] };
+            }
+            byName[key].stopIds.push(stopId);
+            byName[key].lats.push(lat);
+            byName[key].lons.push(lon);
         });
 
-        const clusters = [];
-        Object.values(byName).forEach(group => {
-            group.forEach(stop => {
-                let merged = false;
-                for (const c of clusters) {
-                    if (distM(c.lat, c.lon, stop.lat, stop.lon) < 10) {
-                        const n = c.stopIds.length;
-                        c.lat = (c.lat * n + stop.lat) / (n + 1);
-                        c.lon = (c.lon * n + stop.lon) / (n + 1);
-                        c.stopIds.push(stop.stopId);
-                        merged = true;
-                        break;
-                    }
-                }
-                if (!merged) clusters.push({
-                    name: stop.name,
-                    lat: stop.lat,
-                    lon: stop.lon,
-                    stopIds: [stop.stopId]
-                });
-            });
-        });
+        const clusters = Object.values(byName).map(g => ({
+            name: g.name,
+            stopIds: g.stopIds,
+            lat: g.lats.reduce((a, b) => a + b, 0) / g.lats.length,
+            lon: g.lons.reduce((a, b) => a + b, 0) / g.lons.length,
+        }));
 
         const renderer = L.canvas({ padding: 0.5 });
         window._stopLayerGroup = L.layerGroup();
@@ -3869,13 +3848,8 @@ async function loadBusStopMarkers() {
                 L.DomEvent.stopPropagation(e);
                 openStopInBottomSheet(cluster.stopIds, cluster.name);
             });
-
-            circle.on('mouseover', function() {
-                this.setStyle({ radius: 7, weight: 2 });
-            });
-            circle.on('mouseout', function() {
-                this.setStyle({ radius: 4, weight: 1.5 });
-            });
+            circle.on('mouseover', function() { this.setStyle({ radius: 7, weight: 2 }); });
+            circle.on('mouseout',  function() { this.setStyle({ radius: 4, weight: 1.5 }); });
 
             window._stopLayerGroup.addLayer(circle);
         });
@@ -3898,10 +3872,10 @@ async function loadBusStopMarkers() {
         _handleStopZoom();
 
     } catch (e) {
-        console.error('loadBusStopMarkers error:', e);
+        console.error('loadBusStopMarkers:', e);
         window._stopMarkersLoaded = false;
     }
-}
+} 
 
 function filterByLine(lineId) {
     const lineIndex = selectedLines.indexOf(lineId);
