@@ -3798,57 +3798,104 @@ async function loadGeoJsonLines() {
 }
 
 async function loadBusStopMarkers() {
-    if (!stopIds.length || !Object.keys(stopNameMap).length) return;
-
-    const stopMarkerStyle = document.createElement('style');
-    stopMarkerStyle.textContent = `
-        .bs-stop-dot {
-            width: 10px; height: 10px;
-            background: #fff;
-            border: 2.5px solid rgba(0,0,0,0.55);
-            border-radius: 50%;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.22);
-            cursor: pointer;
-            transition: transform 0.2s cubic-bezier(0.25,1.5,0.5,1);
-        }
-        .bs-stop-dot:hover { transform: scale(1.5); }
-    `;
-    document.head.appendChild(stopMarkerStyle);
+    if (window._stopMarkersLoaded) return;
+    window._stopMarkersLoaded = true;
 
     const response = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'));
+    if (!response.ok) return;
     const stopsData = await response.json();
 
-    window._stopMarkers = [];
+    const merged = {}; 
 
+    const toRad = d => d * Math.PI / 180;
+    function distM(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat/2)**2 +
+                  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    const byName = {};
     Object.entries(stopsData).forEach(([stopId, data]) => {
         if (!data.lat || !data.lon) return;
+        const key = (data.n || stopId).trim().toLowerCase();
+        if (!byName[key]) byName[key] = [];
+        byName[key].push({ stopId, lat: parseFloat(data.lat), lon: parseFloat(data.lon), name: data.n || stopId });
+    });
 
+    Object.values(byName).forEach(group => {
+        const clusters = [];
+        group.forEach(stop => {
+            let added = false;
+            for (const cluster of clusters) {
+                if (distM(cluster.lat, cluster.lon, stop.lat, stop.lon) < 10) {
+                    const n = cluster.stopIds.length;
+                    cluster.lat = (cluster.lat * n + stop.lat) / (n + 1);
+                    cluster.lon = (cluster.lon * n + stop.lon) / (n + 1);
+                    cluster.stopIds.push(stop.stopId);
+                    added = true;
+                    break;
+                }
+            }
+            if (!added) clusters.push({ name: stop.name, lat: stop.lat, lon: stop.lon, stopIds: [stop.stopId] });
+        });
+        clusters.forEach(c => {
+            const key = `${c.lat.toFixed(6)},${c.lon.toFixed(6)}`;
+            merged[key] = c;
+        });
+    });
+
+    window._stopLayerGroup = L.layerGroup();
+    window._stopMarkers = [];
+
+    Object.values(merged).forEach(cluster => {
         const icon = L.divIcon({
             className: '',
-            html: `<div class="bs-stop-dot"></div>`,
-            iconSize: [10, 10],
-            iconAnchor: [5, 5]
+            html: '<div class="bs-stop-dot"></div>',
+            iconSize: [8, 8],
+            iconAnchor: [4, 4]
         });
 
-        const marker = L.marker([data.lat, data.lon], { icon, pane: 'shadowPane' });
+        const marker = L.marker([cluster.lat, cluster.lon], {
+            icon,
+            interactive: true,
+            bubblingMouseEvents: false
+        });
+
+        marker._stopData = cluster;
 
         marker.on('click', (e) => {
             L.DomEvent.stopPropagation(e);
-            openStopInBottomSheet(stopId, data.n || stopId);
+            openStopInBottomSheet(cluster.stopIds, cluster.name);
         });
 
-        map.on('zoomend', () => {
-            const z = map.getZoom();
-            if (z >= 15) {
-                if (!map.hasLayer(marker)) marker.addTo(map);
-            } else {
-                if (map.hasLayer(marker)) map.removeLayer(marker);
-            }
-        });
-
-        if (map.getZoom() >= 15) marker.addTo(map);
+        window._stopLayerGroup.addLayer(marker);
         window._stopMarkers.push(marker);
     });
+
+    let _zoomPending = false;
+    function handleStopZoom() {
+        if (_zoomPending) return;
+        _zoomPending = true;
+        requestAnimationFrame(() => {
+            _zoomPending = false;
+            const z = map.getZoom();
+            if (z >= 15) {
+                if (!map.hasLayer(window._stopLayerGroup)) {
+                    map.addLayer(window._stopLayerGroup);
+                }
+            } else {
+                if (map.hasLayer(window._stopLayerGroup)) {
+                    map.removeLayer(window._stopLayerGroup);
+                }
+            }
+        });
+    }
+
+    map.on('zoomend', handleStopZoom);
+    handleStopZoom(); 
 }
 
 function filterByLine(lineId) {
@@ -11305,12 +11352,12 @@ function _resetNetworkScopedState() {
     }
     watchId = null;
 
-    if (window._stopMarkers) {
-        window._stopMarkers.forEach(m => {
-            try { map.removeLayer(m); } catch (_) {}
-        });
-        window._stopMarkers = [];
+    if (window._stopLayerGroup) {
+        try { map.removeLayer(window._stopLayerGroup); } catch (_) {}
+        window._stopLayerGroup = null;
     }
+    window._stopMarkers = [];
+    window._stopMarkersLoaded = false;
     const stopView = document.getElementById('bs-stop-view');
     if (stopView) stopView.remove();
     _restoreBottomSheetTitle();
@@ -12138,25 +12185,43 @@ function _refreshBottomSheetFavorites() {
     });
 }
 
-async function openStopInBottomSheet(stopId, stopName) {
+async function openStopInBottomSheet(stopIds, stopName) {
     safeVibrate?.([30], true);
     soundsUX('MBF_Popup');
 
-    const titleEl = document.querySelector('#bottom-sheet .bs-handle-zone div div:first-child');
-    if (titleEl) {
-        titleEl._originalHTML = titleEl.innerHTML;
-        titleEl.innerHTML = `
-            <div style="display:flex;align-items:center;gap:8px;">
-                <button id="bs-stop-back" style="background:rgba(255,255,255,0.15);border:none;
-                    border-radius:8px;width:28px;height:28px;display:flex;align-items:center;
-                    justify-content:center;cursor:pointer;color:white;font-size:14px;flex-shrink:0;">
-                    <
-                </button>
-                <div>
-                    <div style="font-size:20px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px;">
+    BottomSheet.expand();
+
+    const searchWrapper = document.getElementById('bs-search-wrapper');
+    const favSection    = document.getElementById('bs-favorites-section');
+    const grid          = document.querySelector('.bs-grid');
+    const separator     = document.querySelector('.bs-separator');
+    if (searchWrapper) searchWrapper.style.display = 'none';
+    if (favSection)    favSection.style.display    = 'none';
+    if (grid)          grid.style.display          = 'none';
+    if (separator)     separator.style.display     = 'none';
+
+    const handleFlex = document.querySelector(
+        '#bottom-sheet .bs-handle-zone > div'
+    );
+    if (handleFlex && !handleFlex.dataset.originalHtml) {
+        handleFlex.dataset.originalHtml = handleFlex.innerHTML;
+    }
+    if (handleFlex) {
+        handleFlex.innerHTML = `
+            <div style="display:flex;align-items:center;gap:10px;padding:0 6px;">
+                <button id="bs-stop-back"
+                    style="background:rgba(255,255,255,0.15);border:none;border-radius:10px;
+                           width:32px;height:32px;display:flex;align-items:center;
+                           justify-content:center;cursor:pointer;color:white;font-size:18px;
+                           flex-shrink:0;transition:background 0.2s;">←</button>
+                <div style="overflow:hidden;">
+                    <div style="font-size:20px;font-weight:600;overflow:hidden;
+                                text-overflow:ellipsis;white-space:nowrap;max-width:230px;
+                                line-height:1.15;">
                         ${stopName}
                     </div>
-                    <div style="font-size:11px;opacity:0.6;text-transform:uppercase;letter-spacing:0.06em;">
+                    <div style="font-size:11px;opacity:0.55;text-transform:uppercase;
+                                letter-spacing:0.06em;margin-top:1px;">
                         Prochains passages
                     </div>
                 </div>
@@ -12164,90 +12229,79 @@ async function openStopInBottomSheet(stopId, stopName) {
 
         document.getElementById('bs-stop-back')?.addEventListener('click', () => {
             _restoreBottomSheetTitle();
-            _refreshBottomSheetFavorites();
-            document.getElementById('bs-search-wrapper').style.display = '';
-            document.getElementById('bs-favorites-section').style.display = '';
-            const grid = document.querySelector('.bs-grid');
-            if (grid) grid.style.display = '';
         });
     }
-
-    document.getElementById('bs-search-wrapper').style.display = 'none';
-    document.getElementById('bs-favorites-section').style.display = 'none';
-    const grid = document.querySelector('.bs-grid');
-    if (grid) grid.style.display = 'none';
 
     const content = document.getElementById('bs-content');
     let stopView = document.getElementById('bs-stop-view');
     if (!stopView) {
         stopView = document.createElement('div');
         stopView.id = 'bs-stop-view';
-        stopView.style.cssText = 'padding: 4px 37px 20px;';
+        stopView.style.cssText = 'padding: 4px 18px 20px;';
         content.appendChild(stopView);
     }
+    stopView.style.display = 'block';
     stopView.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 0;opacity:0.7;">
+        <div style="display:flex;flex-direction:column;align-items:center;
+                    gap:10px;padding:28px 0;opacity:0.6;">
             <div class="bs-spinner"></div>
             <div style="font-size:13px;">Chargement des passages…</div>
         </div>`;
-    stopView.style.display = 'block';
 
-    BottomSheet.expand();
-
-    const passages = await _computeStopPassages(stopId);
-    _renderStopPassages(stopView, stopId, stopName, passages);
+    const ids = Array.isArray(stopIds) ? stopIds : [stopIds];
+    const passages = await _computeStopPassages(ids);
+    _renderStopPassages(stopView, ids, stopName, passages);
 }
 
-async function _computeStopPassages(stopId) {
-    const cleanStop = stopId.replace('0:', '').trim();
+async function _computeStopPassages(stopIdArr) {
     const now = Date.now() / 1000;
     const byLine = {};
 
+    const cleanStops = stopIdArr.map(id => id.replace('0:', '').trim());
+
+    function matchStop(sid) {
+        const clean = sid.replace('0:', '').trim();
+        return cleanStops.includes(clean);
+    }
+
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
-        const match = nextStops.find(s =>
-            s.stopId.replace('0:', '') === cleanStop
-        );
+        const match = nextStops.find(s => matchStop(s.stopId));
         if (!match) return;
 
         const marker = [...markerPool.active.values()]
             .find(m => m.vehicleData?.trip?.tripId === tripId);
 
         const routeId = marker?.line || 'Inconnu';
-        const dest = marker?.destination || 'Destination inconnue';
+        const dest    = marker?.destination || 'Destination inconnue';
         const vehicleLabel = marker?.vehicleData?.vehicle?.label
             || marker?.vehicleData?.vehicle?.id || null;
 
         const stopTime = match.departureTime || match.arrivalTime;
         if (!stopTime) return;
 
-        let arrivalSecs = _parseStopTime(stopTime);
+        const arrivalSecs = _parseStopTime(stopTime);
         if (arrivalSecs === null || arrivalSecs < now - 30) return;
 
         const key = `${routeId}|||${dest}`;
         if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
-        byLine[key].times.push({
-            time: arrivalSecs,
-            realtime: true,
-            vehicleLabel,
-            marker: marker || null
-        });
+        byLine[key].times.push({ time: arrivalSecs, realtime: true, vehicleLabel, marker: marker || null });
     });
 
     if (window.stopTimesReady && window.staticStopTimes) {
         const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
-        const rtTripIds = new Set(
-            Object.entries(tripUpdates).flatMap(([tid]) => [tid])
-        );
+        const rtTripIds = new Set(Object.keys(tripUpdates));
 
         Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
             if (rtTripIds.has(tripId)) return;
             if (activeIds.length && tripServiceMap[tripId] &&
                 !activeIds.includes(tripServiceMap[tripId])) return;
 
-            const stopData = tripStops[cleanStop]
-                || tripStops[`0:${cleanStop}`]
-                || tripStops[stopId];
+            let stopData = null;
+            for (const cleanId of cleanStops) {
+                stopData = tripStops[cleanId] || tripStops[`0:${cleanId}`];
+                if (stopData) break;
+            }
             if (!stopData) return;
 
             const timeStr = stopData.d || stopData.a;
@@ -12259,22 +12313,15 @@ async function _computeStopPassages(stopId) {
             const marker = [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
             const routeId = marker?.line || _guessRouteFromTrip(tripId);
-            const dest = marker?.destination || 'Destination inconnue';
+            const dest    = marker?.destination || 'Destination inconnue';
 
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
 
             const dedupMin = Math.round(arrivalSecs / 60);
-            const alreadyExists = byLine[key].times.some(t =>
-                Math.round(t.time / 60) === dedupMin
-            );
-            if (!alreadyExists) {
-                byLine[key].times.push({
-                    time: arrivalSecs,
-                    realtime: false,
-                    vehicleLabel: null,
-                    marker: null
-                });
+            const exists = byLine[key].times.some(t => Math.round(t.time / 60) === dedupMin);
+            if (!exists) {
+                byLine[key].times.push({ time: arrivalSecs, realtime: false, vehicleLabel: null, marker: null });
             }
         });
     }
@@ -12469,18 +12516,28 @@ function _renderStopPassages(container, stopId, stopName, byLine) {
 }
 
 function _restoreBottomSheetTitle() {
-    const titleEl = document.querySelector('#bottom-sheet .bs-handle-zone div div:first-child');
-    if (titleEl && titleEl._originalHTML) {
-        titleEl.innerHTML = titleEl._originalHTML;
-        titleEl._originalHTML = null;
+    const handleFlex = document.querySelector(
+        '#bottom-sheet .bs-handle-zone > div'
+    );
+    if (handleFlex && handleFlex.dataset.originalHtml) {
+        handleFlex.innerHTML = handleFlex.dataset.originalHtml;
+        delete handleFlex.dataset.originalHtml;
     }
+
     const stopView = document.getElementById('bs-stop-view');
     if (stopView) stopView.style.display = 'none';
-    document.getElementById('bs-search-wrapper').style.display = '';
-    document.getElementById('bs-favorites-section').style.display = '';
-    const grid = document.querySelector('.bs-grid');
-    if (grid) grid.style.display = '';
+
+    const searchWrapper = document.getElementById('bs-search-wrapper');
+    const favSection    = document.getElementById('bs-favorites-section');
+    const grid          = document.querySelector('.bs-grid');
+    const separator     = document.querySelector('.bs-separator');
+    if (searchWrapper) searchWrapper.style.display = '';
+    if (favSection)    favSection.style.display    = '';
+    if (grid)          grid.style.display          = '';
+    if (separator)     separator.style.display     = '';
+
     _refreshBottomSheetGreeting();
+    _refreshBottomSheetFavorites();
 }
 
 function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
