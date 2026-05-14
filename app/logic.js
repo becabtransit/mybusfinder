@@ -12357,8 +12357,9 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                         font-style: ${item.realtime ? 'normal' : 'italic'};
                         padding: 3px 8px; border-radius: 20px; white-space: nowrap;
                         border: 1px solid rgba(255,255,255,0.15);
-                        background: ${isNow && item.realtime ? color : item.realtime ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.05)'};
-                        color: ${isNow && item.realtime ? textColor : item.realtime ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.38)'};`;
+                        background: ${color};
+                        color: ${textColor};
+                        opacity: ${item.realtime ? '1' : '0.7'};`;
 
                     pill.innerHTML = item.realtime ? rssIcon : '';
                     const span = document.createElement('span');
@@ -12905,8 +12906,7 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh =
 
                 if (t2.realtime) pill.innerHTML = rssIcon;
                 const labelEl = document.createElement('span');
-                const destText = entry.dest && entry.dest !== 'Destination inconnue' ? ` > ${entry.dest}` : '';
-                labelEl.textContent = numLabel ? `${label} · ${numLabel}${destText}` : `${label}${destText}`;
+                labelEl.textContent = numLabel ? `${label} · ${numLabel}` : label;
                 pill.appendChild(labelEl);
 
                 if (t2.marker) {
