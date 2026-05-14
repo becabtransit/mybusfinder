@@ -12221,7 +12221,7 @@ async function openStopInBottomSheet(stopIds, stopName) {
                     </div>
                     <div style="font-size:11px; opacity:0.55; text-transform:uppercase;
                                 letter-spacing:0.06em; margin-top:1px;">
-                        Prochains passages
+                        ${t("next_departures")}
                     </div>
                 </div>
             </div>`;
@@ -12443,9 +12443,6 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine) {
                 </svg>
                 <span style="font-size:16px; font-weight:700; color:${textColor};">
                     ${t('line')} ${lineLbl}
-                </span>
-                <span style="font-size:11px; color:${textColor}; opacity:0.7; margin-left:auto;">
-                    ${destinations.length} direction${destinations.length > 1 ? 's' : ''}
                 </span>
             </div>`;
         card.appendChild(header);
