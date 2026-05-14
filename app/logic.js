@@ -12182,19 +12182,25 @@ function _refreshBottomSheetFavorites() {
     if (!favorites.length) {
         section.style.display = 'block';
         list.innerHTML = `
-            <div class="bs-fav-empty">
-                <div class="bs-fav-empty-icon">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="1.4"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02
-                                         12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                    </svg>
+            <div class="bs-fav-empty bs-news-empty">
+                <p class="bs-news-title">${t("discoverdsheet")}</p>
+                <div class="bs-news-grid">
+                    <div class="bs-news-card">
+                        <img class="bs-news-image" src="src/dsheet/favorites.png" alt="Favorites Schedules - MyBusFinder">
+                        <p class="bs-news-item-title">${t("favorites_caption")}</p>
+                        <p class="bs-news-caption">${t("favorites_description")}</p>
+                    </div>
+                    <div class="bs-news-card">
+                        <img class="bs-news-image" src="src/dsheet/selectedstop.png" alt="Selected Stop - MyBusFinder">
+                        <p class="bs-news-item-title">${t("selectedstop_caption")}</p>
+                        <p class="bs-news-caption">${t("selectedstop_description")}</p>
+                    </div>
+                    <div class="bs-news-card">
+                        <img class="bs-news-image" src="src/dsheet/searchstop.png" alt="Search Stop - MyBusFinder">
+                        <p class="bs-news-item-title">${t("searchstop_caption")}</p>
+                        <p class="bs-news-caption">${t("searchstop_description")}</p>
+                    </div>
                 </div>
-                <p class="bs-fav-empty-title">${t("no_favorites")}</p>
-                <p class="bs-fav-empty-desc">
-                    ${t("nofavorites_info")}
-                </p>
             </div>`;
         return;
     }
