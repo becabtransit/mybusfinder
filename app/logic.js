@@ -12369,6 +12369,7 @@ async function openStopInBottomSheet(stopIds, stopName) {
 async function _computeStopPassages(stopIdArr) {
     const now = Date.now() / 1000;
     const byLine = {};
+    const seenKeys = new Set(); 
 
     const cleanStops = stopIdArr.map(id => id.replace('0:', '').trim());
 
@@ -12393,12 +12394,33 @@ async function _computeStopPassages(stopIdArr) {
         const stopTime = match.departureTime || match.arrivalTime;
         if (!stopTime) return;
 
-        const arrivalSecs = _parseStopTime(stopTime);
-        if (arrivalSecs === null || arrivalSecs < now - 30) return;
+        let arrivalSecs;
+        if (typeof stopTime === 'string' && stopTime.includes(':')) {
+            const parts = stopTime.split(':').map(Number);
+            const d = new Date();
+            arrivalSecs = new Date(
+                d.getFullYear(), d.getMonth(), d.getDate(),
+                parts[0], parts[1], parts[2] || 0
+            ).getTime() / 1000;
+            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
+        } else if (typeof stopTime === 'number' && stopTime > 86400) {
+            arrivalSecs = stopTime;
+        } else return;
+
+        if (arrivalSecs < now - 30) return;
+
+        const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+        if (seenKeys.has(dedupKey)) return;
+        seenKeys.add(dedupKey);
 
         const key = `${routeId}|||${dest}`;
         if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
-        byLine[key].times.push({ time: arrivalSecs, realtime: true, vehicleLabel, marker: marker || null });
+        byLine[key].times.push({
+            time: arrivalSecs,
+            realtime: true,
+            vehicleLabel,
+            marker: marker || null
+        });
     });
 
     if (window.stopTimesReady && window.staticStopTimes) {
@@ -12407,8 +12429,10 @@ async function _computeStopPassages(stopIdArr) {
 
         Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
             if (rtTripIds.has(tripId)) return;
-            if (activeIds.length && tripServiceMap[tripId] &&
-                !activeIds.includes(tripServiceMap[tripId])) return;
+
+            if (activeIds.length > 0 && tripServiceMap[tripId]) {
+                if (!activeIds.includes(tripServiceMap[tripId])) return;
+            }
 
             let stopData = null;
             for (const cleanId of cleanStops) {
@@ -12420,22 +12444,32 @@ async function _computeStopPassages(stopIdArr) {
             const timeStr = stopData.d || stopData.a;
             if (!timeStr) return;
 
-            const arrivalSecs = _parseStopTime(timeStr);
-            if (arrivalSecs === null || arrivalSecs < now - 60) return;
+            const parts = timeStr.split(':').map(Number);
+            const d = new Date();
+            let arrivalSecs = new Date(
+                d.getFullYear(), d.getMonth(), d.getDate(),
+                parts[0], parts[1], parts[2] || 0
+            ).getTime() / 1000;
+            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
+            if (arrivalSecs < now - 60) return;
 
             const marker = [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
             const routeId = marker?.line || _guessRouteFromTrip(tripId);
             const dest    = marker?.destination || 'Destination inconnue';
 
+            const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+            if (seenKeys.has(dedupKey)) return;
+            seenKeys.add(dedupKey);
+
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
-
-            const dedupMin = Math.round(arrivalSecs / 60);
-            const exists = byLine[key].times.some(t => Math.round(t.time / 60) === dedupMin);
-            if (!exists) {
-                byLine[key].times.push({ time: arrivalSecs, realtime: false, vehicleLabel: null, marker: null });
-            }
+            byLine[key].times.push({
+                time: arrivalSecs,
+                realtime: false,
+                vehicleLabel: null,
+                marker: null
+            });
         });
     }
 
