@@ -12120,21 +12120,6 @@ function _wireBottomSheetButtons() {
             collapseBottomSheet();
         });
     }
-    const featClock = document.getElementById('clock-feat');
-    if (featClock) {
-        featClock.addEventListener('click', () => {
-            safeVibrate?.([30], true);
-            showUpdatePopup('schedule.html?lang=' + (window.i18n ? window.i18n.currentLang : 'fr'));
-        });
-    }
-    const featActu = document.getElementById('actu');
-    if (featActu) {
-        featActu.addEventListener('click', () => {
-            safeVibrate?.([30], true);
-            showUpdatePopup('alerts.html?lang=' + (window.i18n ? window.i18n.currentLang : 'fr'));
-        });
-    }
-
     const linkSettings = document.getElementById('settings');
     if (linkSettings) {
         linkSettings.addEventListener('click', () => {
@@ -12373,13 +12358,6 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
     }
 
     if (favorites.length) {
-        const schedFavHeader = document.createElement('div');
-        schedFavHeader.style.cssText = `
-            font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
-            color: rgba(255,255,255,0.4); padding: ${stopFavs.length ? '12px' : '4px'} 4px 8px; font-weight: 600;`;
-        schedFavHeader.textContent = t('favorite_schedules') || 'Horaires favoris';
-        list.appendChild(schedFavHeader);
-
         favorites.slice(0, 6).forEach((favorite, idx) => {
             const routeId   = favorite.routeId   || '';
             const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
