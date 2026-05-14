@@ -12523,7 +12523,9 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine) {
         byRoute[rid].push(entry);
     });
 
-    const sortedRoutes = Object.entries(byRoute).sort(([, a], [, b]) => {
+    const sortedRoutes = Object.entries(byRoute)
+        .filter(([routeId]) => routeId !== 'Inconnu')
+        .sort(([, a], [, b]) => {
         const aNext = Math.min(...a.map(e => e.times[0]?.time ?? Infinity));
         const bNext = Math.min(...b.map(e => e.times[0]?.time ?? Infinity));
         const aRT = a.some(e => e.times.some(t => t.realtime));
