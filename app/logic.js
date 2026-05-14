@@ -8422,6 +8422,9 @@ async function fetchVehiclePositions() {
     if (!gtfsInitialized) {
         return;
     }
+
+    window.noVehiclesPopupShown = window.noVehiclesPopupShown || false;
+
     try {
         const response = await fetch(netPath('proxy-cors/proxy_vehpos.php'));
         const buffer = await response.arrayBuffer();
@@ -9430,7 +9433,22 @@ activeIds.forEach(id => {
     }
 });
 
-        
+if (activeVehicleIds.size === 0) {
+    if (!window.noVehiclesPopupShown) {
+        window.noVehiclesPopupShown = true;
+        showFluentPopup({
+            title: 'My Bus Finder',
+            message: t('toastnobus'),
+            buttons: {
+                primary: t('understood'),
+                primaryAction: () => fluentPopupManager.close()
+            }
+        });
+    }
+} else {
+    window.noVehiclesPopupShown = false;
+}
+
 let isMenuVisible = true;
 
 // ==================== VIRTUAL SCROLLING ====================
