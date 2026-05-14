@@ -10990,24 +10990,41 @@ function processTripsSync(data) {
     
     data.entity.forEach(entity => {
         if (entity.tripUpdate) {
-            const tripId = entity.tripUpdate.trip.tripId;
+            const trip = entity.tripUpdate.trip;
+            const tripId = trip?.tripId || trip?.trip_id;
+            if (!tripId) return;
+
+            const tripInfo = {
+                tripId,
+                routeId: trip?.routeId || trip?.route_id,
+                directionId: trip?.directionId || trip?.direction_id,
+                tripHeadsign: trip?.tripHeadsign || trip?.trip_headsign || trip?.headsign || trip?.stopHeadsign || trip?.stop_headsign || null,
+                startTime: trip?.startTime || trip?.start_time,
+                startDate: trip?.startDate || trip?.start_date,
+                scheduleRelationship: trip?.scheduleRelationship || trip?.schedule_relationship
+            };
+
             const stopUpdates = [];
+            const rawStopUpdates = entity.tripUpdate.stopTimeUpdate || entity.tripUpdate.stop_time_update || entity.tripUpdate.stopUpdates || entity.tripUpdate.stops || [];
             
-            if (entity.tripUpdate.stopTimeUpdate) {
-                entity.tripUpdate.stopTimeUpdate.forEach(stopUpdate => {
-                    const stopId = stopUpdate.stopId || '';
-                    const arrivalDelay = stopUpdate.arrival ? stopUpdate.arrival.delay : 0;
-                    const departureDelay = stopUpdate.departure ? stopUpdate.departure.delay : 0;
+            if (Array.isArray(rawStopUpdates)) {
+                rawStopUpdates.forEach(stopUpdate => {
+                    const stopId = stopUpdate.stopId || stopUpdate.stop_id || '';
+                    const arrivalDelay = stopUpdate.arrival ? stopUpdate.arrival.delay : (stopUpdate.arrivalDelay || stopUpdate.arrival_delay || 0);
+                    const departureDelay = stopUpdate.departure ? stopUpdate.departure.delay : (stopUpdate.departureDelay || stopUpdate.departure_delay || 0);
+                    const stopHeadsign = stopUpdate.stopHeadsign || stopUpdate.stop_headsign || stopUpdate.stopHeadsign || stopUpdate.stop_headsign || null;
                     
                     stopUpdates.push({
                         stopId: stopId,
                         arrivalDelay: arrivalDelay,
-                        departureDelay: departureDelay
+                        departureDelay: departureDelay,
+                        stopHeadsign: stopHeadsign
                     });
                 });
             }
             
             updates[tripId] = {
+                tripInfo,
                 stopUpdates: stopUpdates
             };
         }
@@ -12411,7 +12428,28 @@ async function _computeStopPassages(stopIdArr) {
             }
         });
 
+        if (!lastStopId) {
+            let maxTime = -Infinity;
+            Object.entries(tripStops).forEach(([stopId, stopData]) => {
+                const timeStr = stopData.d || stopData.a || stopData.departureTime || stopData.arrivalTime;
+                if (!timeStr || typeof timeStr !== 'string') return;
+                const parts = timeStr.split(':').map(Number);
+                if (parts.length < 2 || parts.some(isNaN)) return;
+                const secs = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
+                if (secs > maxTime) {
+                    maxTime = secs;
+                    lastStopId = stopId;
+                }
+            });
+        }
+
         if (!lastStopId) return null;
+
+        const stopData = tripStops[lastStopId] || tripStops[`0:${lastStopId}`] || {};
+        const headsign = stopData.stopHeadsign || stopData.stop_headsign || stopData.h || null;
+        if (headsign && !isUnknownDestination(headsign)) {
+            return normalizeStopSheetDestination(headsign);
+        }
 
         const cleaned = lastStopId.replace(/^0:/, '');
         return stopNameMap[lastStopId] || stopNameMap[cleaned] || cleaned;
@@ -12432,9 +12470,7 @@ async function _computeStopPassages(stopIdArr) {
             return normalizeStopSheetDestination(tripHeadsign);
         }
 
-        const stopUpdateHeadsign = tripData?.stopUpdates?.length
-            ? tripData.stopUpdates[tripData.stopUpdates.length - 1]?.stopHeadsign
-            : null;
+        const stopUpdateHeadsign = tripData?.stopUpdates?.find(update => update?.stopHeadsign)?.stopHeadsign || null;
         if (stopUpdateHeadsign && !isUnknownDestination(stopUpdateHeadsign)) {
             return normalizeStopSheetDestination(stopUpdateHeadsign);
         }
