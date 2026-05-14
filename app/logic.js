@@ -3828,7 +3828,7 @@ async function loadBusStopMarkers() {
 
         if (!map.getPane('stopsPane')) {
             map.createPane('stopsPane');
-            map.getPane('stopsPane').style.zIndex = 450;
+            map.getPane('stopsPane').style.zIndex = 4500000000000000000000000000000;
         }
 
         const renderer = L.canvas({ padding: 0.5 });
