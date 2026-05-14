@@ -12494,6 +12494,7 @@ async function _computeStopPassages(stopIdArr) {
         const rawRouteId = marker?.line || tripData?.tripInfo?.routeId || _guessRouteFromTrip(tripId);
         const routeId = normalizeStopSheetRouteId(rawRouteId);
         const dest = inferStopSheetDestination(marker, tripId, tripData);
+        if (isUnknownDestination(dest)) return;
         const vehicleLabel = marker?.vehicleData?.vehicle?.label
             || marker?.vehicleData?.vehicle?.id || null;
 
@@ -12578,7 +12579,15 @@ function _guessRouteFromTrip(tripId) {
 
 function _renderStopPassages(container, stopIdArr, stopName, byLine) {
     const now = Date.now() / 1000;
-    const entries = Object.values(byLine).filter(g => g.times.length > 0);
+
+    function isUnknownDestination(value) {
+        if (value === undefined || value === null) return true;
+        const normalized = String(value).trim().toLowerCase();
+        if (normalized === '') return true;
+        return ['inconnue', 'inconnu', 'destination inconnue', 'unknown', 'unknown destination', 'destination unknown'].includes(normalized);
+    }
+
+    const entries = Object.values(byLine).filter(g => g.times.length > 0 && !isUnknownDestination(g.dest));
 
     if (!entries.length) {
         container.innerHTML = `
