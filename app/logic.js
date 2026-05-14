@@ -12229,7 +12229,7 @@ function _withBsHeightAnimation(fn, threshold = 12) {
     });
 }
 
-function _refreshBottomSheetFavorites() {
+function _refreshBottomSheetFavorites(withAnimation = false) {
     if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') return;
     const doRefresh = () => {
     const section = document.getElementById('bs-favorites-section');
@@ -12461,7 +12461,7 @@ function _refreshBottomSheetFavorites() {
     }
     };
 
-    if (animate) {
+    if (withAnimation) {
         _withBsHeightAnimation(doRefresh);
     } else {
         doRefresh();
