@@ -12325,52 +12325,18 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                 const timesEl = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
                 if (!timesEl) return;
 
-                const allTimes = [];
-                Object.values(passages).forEach(group => {
-                    group.times.forEach(t2 => {
-                        allTimes.push({ ...t2, routeId: group.routeId, dest: group.dest });
-                    });
-                });
-                allTimes.sort((a, b) => a.time - b.time);
+                const withPassages = Object.values(passages).filter(g => g.times.length > 0);
 
-                if (!allTimes.length) {
+                if (!withPassages.length) {
                     timesEl.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
                     return;
                 }
 
-                const now = Date.now() / 1000;
-                const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 4a16 16 0 0 1 16 16"/>
-                    <path d="M4 11a9 9 0 0 1 9 9"/>
-                    <circle cx="5" cy="19" r="1"/>
-                </svg>`;
-
+                const passageContainer = document.createElement('div');
                 timesEl.innerHTML = '';
-                allTimes.slice(0, 5).forEach(item => {
-                    const color     = lineColors[item.routeId] || '#444';
-                    const textColor = getTextColor(color);
-                    const lname     = lineName[item.routeId] || item.routeId;
-                    const diffMin   = Math.round((item.time - now) / 60);
-                    const label     = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
-                    const isNow     = diffMin <= 0;
+                timesEl.appendChild(passageContainer);
 
-                    const pill = document.createElement('span');
-                    pill.style.cssText = `
-                        display: inline-flex; align-items: center; gap: 4px;
-                        font-size: 12px; font-weight: ${item.realtime ? '600' : '400'};
-                        font-style: ${item.realtime ? 'normal' : 'italic'};
-                        padding: 3px 8px; border-radius: 20px; white-space: nowrap;
-                        border: 1px solid rgba(255,255,255,0.15);
-                        background: ${isNow && item.realtime ? color : item.realtime ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.05)'};
-                        color: ${isNow && item.realtime ? textColor : item.realtime ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.38)'};`;
-
-                    pill.innerHTML = item.realtime ? rssIcon : '';
-                    const span = document.createElement('span');
-                    span.textContent = `${lname} · ${label}`;
-                    pill.appendChild(span);
-                    timesEl.appendChild(pill);
-                });
+                _renderStopPassages(passageContainer, fav.stopIds, fav.stopName, passages);
             });
         });
     }
@@ -12396,60 +12362,40 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
             card.style.cssText = `animation-delay:${idx * 55}ms`;
 
             card.innerHTML = `
-                <div class="bs-fav-card-header" style="background:${lineColor};">
-                    <div class="bs-fav-beam bs-fav-beam1"></div>
-                    <div class="bs-fav-beam bs-fav-beam2"></div>
-                    <div class="bs-fav-line-badge" style="color:${textColor};">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
-                                     V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
-                                     20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
-                                     17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
-                                     18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                        </svg>
-                        <span>Ligne ${lineName_}</span>
-                    </div>
-                    <p class="bs-fav-dest" style="color:${textColor};">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2.5"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                        ${destName}
-                    </p>
+            <div class="bs-fav-card-header" style="background: rgba(255,255,255,0.12);">
+                <div class="bs-fav-beam bs-fav-beam1"></div>
+                <div class="bs-fav-beam bs-fav-beam2"></div>
+                <div class="bs-fav-line-badge" style="color:white;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="10" r="3"/>
+                        <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+                    </svg>
+                    <span>${fav.stopName}</span>
                 </div>
-                <div class="bs-fav-card-body">
-                    <div class="bs-fav-stop-row">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round"
-                             style="flex-shrink:0;opacity:.55;">
-                            <circle cx="12" cy="10" r="3"/>
-                            <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
-                        </svg>
-                        <span class="bs-fav-stop-name">${stopName}</span>
-                    </div>
-                    <div class="bs-fav-times" id="bs-fav-times-${idx}">
-                        <div class="bs-fav-loading">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                                 stroke="currentColor" stroke-width="2"
-                                 stroke-linecap="round" stroke-linejoin="round"
-                                 style="opacity:.5">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polyline points="12 6 12 12 16 14"/>
-                            </svg>
-                            <span>Chargement…</span>
-                        </div>
-                    </div>
-                </div>`;
+            </div>
+            <div id="bs-stopfav-times-${fav.stopIds[0]}"
+                style="padding: 4px 0 2px;">
+                <div class="bs-fav-loading" style="padding: 12px 14px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round"
+                        style="opacity:.5">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <span>Chargement…</span>
+                </div>
+            </div>`;
 
-            card.addEventListener('click', () => {
+            card.addEventListener('click', (e) => {
+                if (e.target.closest(`#bs-stopfav-times-${fav.stopIds[0]}`)) return;
+
                 safeVibrate?.([30], true);
-                soundsUX('MBF_Menu_LineSelect');
-                BottomSheet.collapse();
-                openFavoriteSchedule(favorite);
+                soundsUX?.('MBF_Popup');
+                if (cluster) map?.setView([cluster.lat, cluster.lon], 17);
+                openStopInBottomSheet(fav.stopIds, fav.stopName);
             });
 
             list.appendChild(card);
