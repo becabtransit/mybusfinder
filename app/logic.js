@@ -12175,7 +12175,62 @@ function getFavoriteSchedules() {
     }
 }
 
+function _animateBsHeight(targetHeight, durationMs = 380) {
+    const sheet = document.getElementById('bottom-sheet');
+    if (!sheet) return;
+
+    const current = sheet.getBoundingClientRect().height;
+    const start   = performance.now();
+
+    const ease = t => t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 2) / 2; 
+
+    function frame(now) {
+        const elapsed  = now - start;
+        const progress = Math.min(elapsed / durationMs, 1);
+        const eased    = ease(progress);
+        const h        = current + (targetHeight - current) * eased;
+
+        sheet.style.height = `${h}px`;
+
+        if (progress < 1) {
+            requestAnimationFrame(frame);
+        } else {
+            sheet.style.height = '';
+        }
+    }
+
+    requestAnimationFrame(frame);
+}
+
+function _withBsHeightAnimation(fn) {
+    const sheet   = document.getElementById('bottom-sheet');
+    const content = document.getElementById('bs-content');
+    if (!sheet || !content) { fn(); return; }
+
+    const before = sheet.getBoundingClientRect().height;
+
+    sheet.style.height = `${before}px`;
+    sheet.style.overflow = 'hidden';
+
+    fn();
+
+    sheet.style.height = '';
+    const after = Math.min(content.scrollHeight + 60, window.innerHeight * 0.88);
+
+    sheet.style.height = `${before}px`;
+
+    requestAnimationFrame(() => {
+        _animateBsHeight(after);
+        setTimeout(() => {
+            sheet.style.overflow = '';
+        }, 400);
+    });
+}
+
 function _refreshBottomSheetFavorites() {
+    _withBsHeightAnimation(() => {
     if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') return;
     const section = document.getElementById('bs-favorites-section');
     const list    = document.getElementById('bs-favorites-list');
@@ -12404,6 +12459,7 @@ function _refreshBottomSheetFavorites() {
                 .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
         });
     }
+});
 }
 
 function _getStopFavorites() {
@@ -12511,12 +12567,14 @@ async function openStopInBottomSheet(stopIds, stopName) {
         content.appendChild(stopView);
     }
     stopView.style.display = 'block';
+    _withBsHeightAnimation(() => {
     stopView.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center;
                     gap:10px; padding:28px 0; opacity:0.6;">
             <div class="bs-spinner"></div>
             <div style="font-size:13px;">Chargement des passages…</div>
         </div>`;
+    });
 
     if (content) content.scrollTop = 0;
 
@@ -12527,6 +12585,7 @@ async function openStopInBottomSheet(stopIds, stopName) {
 
     const withPassages = Object.values(passages).filter(g => g.times.length > 0);
     if (withPassages.length === 0) {
+        _withBsHeightAnimation(() => {
         stopView.innerHTML = `
             <div style="display:flex; flex-direction:column; align-items:center;
                         gap:10px; padding:30px 0; text-align:center; opacity:0.6;">
@@ -12534,9 +12593,12 @@ async function openStopInBottomSheet(stopIds, stopName) {
                 <div style="font-size:14px;">${t('nodepartures')}</div>
             </div>`;
         return;
+        });
     }
 
-    _renderStopPassages(stopView, ids, stopName, passages);
+    _withBsHeightAnimation(() => {
+        _renderStopPassages(stopView, ids, stopName, passages);
+    });
 }
 
 async function _computeStopPassages(stopIdArr) {
@@ -12876,29 +12938,34 @@ async function _refreshBottomSheetStopView() {
 }
 
 function _restoreBottomSheetTitle() {
-    document.getElementById('bottom-sheet').dataset.stopView = 'false';
+    _withBsHeightAnimation(() => {
+        document.getElementById('bottom-sheet').dataset.stopView = 'false';
 
-    const titleEl = document.getElementById('bs-handle-title');
-    if (titleEl && titleEl.dataset.saved) {
-        titleEl.innerHTML = titleEl.dataset.saved;
-        delete titleEl.dataset.saved;
-    }
+        const titleEl = document.getElementById('bs-handle-title');
+        if (titleEl && titleEl.dataset.saved) {
+            titleEl.innerHTML = titleEl.dataset.saved;
+            delete titleEl.dataset.saved;
+        }
 
-    const btns = document.getElementById('bs-handle-buttons');
-    if (btns) btns.style.display = 'flex';
+        const btns = document.getElementById('bs-handle-buttons');
+        if (btns) btns.style.display = 'flex';
 
-    const stopView = document.getElementById('bs-stop-view');
-    if (stopView) stopView.style.display = 'none';
+        const stopView = document.getElementById('bs-stop-view');
+        if (stopView) stopView.style.display = 'none';
 
-    ['bs-search-wrapper', 'bs-favorites-section'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) { el.style.display = ''; delete el.dataset.hiddenByStop; }
+        ['bs-search-wrapper', 'bs-favorites-section'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.style.display = ''; delete el.dataset.hiddenByStop; }
+        });
+        const grid = document.querySelector('.bs-grid');
+        if (grid) { grid.style.display = ''; delete grid.dataset.hiddenByStop; }
+
+        _refreshBottomSheetGreeting();
+        const section = document.getElementById('bs-favorites-section');
+        const list    = document.getElementById('bs-favorites-list');
     });
-    const grid = document.querySelector('.bs-grid');
-    if (grid) { grid.style.display = ''; delete grid.dataset.hiddenByStop; }
 
-    _refreshBottomSheetGreeting();
-    _refreshBottomSheetFavorites();
+    setTimeout(() => _refreshBottomSheetFavorites(), 400);
 }
 
 
