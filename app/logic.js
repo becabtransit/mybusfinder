@@ -11034,7 +11034,11 @@ function startFetchUpdates() {
             FetchManager.onSuccess();
 
             if (BottomSheet.expanded) {
-                _refreshBottomSheetFavorites();
+                if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') {
+                    _refreshBottomSheetStopView();
+                } else {
+                    _refreshBottomSheetFavorites();
+                }
             }
         } catch (error) {
             console.warn('Erreur lors des mises à jour', error);
@@ -12350,6 +12354,8 @@ async function openStopInBottomSheet(stopIds, stopName) {
     if (content) content.scrollTop = 0;
 
     const ids = Array.isArray(stopIds) ? stopIds : [stopIds];
+    stopView.dataset.stopIds = JSON.stringify(ids);
+    stopView.dataset.stopName = stopName;
     const passages = await _computeStopPassages(ids);
 
     const withPassages = Object.values(passages).filter(g => g.times.length > 0);
@@ -12369,6 +12375,7 @@ async function openStopInBottomSheet(stopIds, stopName) {
 async function _computeStopPassages(stopIdArr) {
     const now = Date.now() / 1000;
     const byLine = {};
+    const seenKeys = new Set(); 
 
     const cleanStops = stopIdArr.map(id => id.replace('0:', '').trim());
 
@@ -12393,12 +12400,33 @@ async function _computeStopPassages(stopIdArr) {
         const stopTime = match.departureTime || match.arrivalTime;
         if (!stopTime) return;
 
-        const arrivalSecs = _parseStopTime(stopTime);
-        if (arrivalSecs === null || arrivalSecs < now - 30) return;
+        let arrivalSecs;
+        if (typeof stopTime === 'string' && stopTime.includes(':')) {
+            const parts = stopTime.split(':').map(Number);
+            const d = new Date();
+            arrivalSecs = new Date(
+                d.getFullYear(), d.getMonth(), d.getDate(),
+                parts[0], parts[1], parts[2] || 0
+            ).getTime() / 1000;
+            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
+        } else if (typeof stopTime === 'number' && stopTime > 86400) {
+            arrivalSecs = stopTime;
+        } else return;
+
+        if (arrivalSecs < now - 30) return;
+
+        const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+        if (seenKeys.has(dedupKey)) return;
+        seenKeys.add(dedupKey);
 
         const key = `${routeId}|||${dest}`;
         if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
-        byLine[key].times.push({ time: arrivalSecs, realtime: true, vehicleLabel, marker: marker || null });
+        byLine[key].times.push({
+            time: arrivalSecs,
+            realtime: true,
+            vehicleLabel,
+            marker: marker || null
+        });
     });
 
     if (window.stopTimesReady && window.staticStopTimes) {
@@ -12407,8 +12435,10 @@ async function _computeStopPassages(stopIdArr) {
 
         Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
             if (rtTripIds.has(tripId)) return;
-            if (activeIds.length && tripServiceMap[tripId] &&
-                !activeIds.includes(tripServiceMap[tripId])) return;
+
+            if (activeIds.length > 0 && tripServiceMap[tripId]) {
+                if (!activeIds.includes(tripServiceMap[tripId])) return;
+            }
 
             let stopData = null;
             for (const cleanId of cleanStops) {
@@ -12420,22 +12450,32 @@ async function _computeStopPassages(stopIdArr) {
             const timeStr = stopData.d || stopData.a;
             if (!timeStr) return;
 
-            const arrivalSecs = _parseStopTime(timeStr);
-            if (arrivalSecs === null || arrivalSecs < now - 60) return;
+            const parts = timeStr.split(':').map(Number);
+            const d = new Date();
+            let arrivalSecs = new Date(
+                d.getFullYear(), d.getMonth(), d.getDate(),
+                parts[0], parts[1], parts[2] || 0
+            ).getTime() / 1000;
+            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
+            if (arrivalSecs < now - 60) return;
 
             const marker = [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
             const routeId = marker?.line || _guessRouteFromTrip(tripId);
             const dest    = marker?.destination || 'Destination inconnue';
 
+            const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+            if (seenKeys.has(dedupKey)) return;
+            seenKeys.add(dedupKey);
+
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
-
-            const dedupMin = Math.round(arrivalSecs / 60);
-            const exists = byLine[key].times.some(t => Math.round(t.time / 60) === dedupMin);
-            if (!exists) {
-                byLine[key].times.push({ time: arrivalSecs, realtime: false, vehicleLabel: null, marker: null });
-            }
+            byLine[key].times.push({
+                time: arrivalSecs,
+                realtime: false,
+                vehicleLabel: null,
+                marker: null
+            });
         });
     }
 
@@ -12489,7 +12529,9 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine) {
         byRoute[rid].push(entry);
     });
 
-    const sortedRoutes = Object.entries(byRoute).sort(([, a], [, b]) => {
+    const sortedRoutes = Object.entries(byRoute)
+        .filter(([routeId]) => routeId !== 'Inconnu')
+        .sort(([, a], [, b]) => {
         const aNext = Math.min(...a.map(e => e.times[0]?.time ?? Infinity));
         const bNext = Math.min(...b.map(e => e.times[0]?.time ?? Infinity));
         const aRT = a.some(e => e.times.some(t => t.realtime));
@@ -12647,6 +12689,22 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine) {
 
         container.appendChild(card);
     });
+}
+
+async function _refreshBottomSheetStopView() {
+    const stopView = document.getElementById('bs-stop-view');
+    if (!stopView || stopView.style.display === 'none') return;
+    
+    try {
+        const stopIds = JSON.parse(stopView.dataset.stopIds || '[]');
+        const stopName = stopView.dataset.stopName || '';
+        if (!stopIds.length) return;
+        
+        const passages = await _computeStopPassages(stopIds);
+        _renderStopPassages(stopView, stopIds, stopName, passages);
+    } catch (e) {
+        console.warn('Erreur rafraîchissement vue arrêt:', e);
+    }
 }
 
 function _restoreBottomSheetTitle() {
