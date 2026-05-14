@@ -12389,6 +12389,13 @@ async function _computeStopPassages(stopIdArr) {
         return value === '' ? t('destinationunknown') || 'Destination inconnue' : value;
     }
 
+    function isUnknownDestination(value) {
+        if (value === undefined || value === null) return true;
+        const normalized = String(value).trim().toLowerCase();
+        if (normalized === '') return true;
+        return ['inconnue', 'inconnu', 'destination inconnue', 'unknown', 'unknown destination', 'unknown destination', 'destination unknown'].includes(normalized);
+    }
+
     function inferStaticDestination(tripId) {
         const tripStops = window.staticStopTimes?.[tripId];
         if (!tripStops) return null;
@@ -12411,24 +12418,29 @@ async function _computeStopPassages(stopIdArr) {
     }
 
     function inferStopSheetDestination(marker, tripId, tripData) {
-        if (marker?.destination) {
+        if (marker?.destination && !isUnknownDestination(marker.destination)) {
             return normalizeStopSheetDestination(marker.destination);
         }
 
+        const markerTripHeadsign = marker?.vehicleData?.trip?.tripHeadsign || marker?.vehicleData?.trip?.headsign || marker?.vehicleData?.trip?.trip_headsign;
+        if (markerTripHeadsign && !isUnknownDestination(markerTripHeadsign)) {
+            return normalizeStopSheetDestination(markerTripHeadsign);
+        }
+
         const tripHeadsign = tripData?.tripInfo?.tripHeadsign;
-        if (tripHeadsign) {
+        if (tripHeadsign && !isUnknownDestination(tripHeadsign)) {
             return normalizeStopSheetDestination(tripHeadsign);
         }
 
         const stopUpdateHeadsign = tripData?.stopUpdates?.length
             ? tripData.stopUpdates[tripData.stopUpdates.length - 1]?.stopHeadsign
             : null;
-        if (stopUpdateHeadsign) {
+        if (stopUpdateHeadsign && !isUnknownDestination(stopUpdateHeadsign)) {
             return normalizeStopSheetDestination(stopUpdateHeadsign);
         }
 
         const staticDestination = inferStaticDestination(tripId);
-        if (staticDestination) {
+        if (staticDestination && !isUnknownDestination(staticDestination)) {
             return normalizeStopSheetDestination(staticDestination);
         }
 
