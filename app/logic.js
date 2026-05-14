@@ -3808,15 +3808,12 @@ async function loadBusStopMarkers() {
 
         const byName = {};
         Object.entries(stopsData).forEach(([stopId, data]) => {
-            const lat = parseFloat(data.lat ?? data.stop_lat ?? 0);
-            const lon = parseFloat(data.lon ?? data.stop_lon ?? data.lng ?? 0);
+            const lat  = parseFloat(data.lat ?? data.stop_lat ?? 0);
+            const lon  = parseFloat(data.lon ?? data.stop_lon ?? data.lng ?? 0);
             const name = (data.n ?? data.stop_name ?? stopId).trim();
             if (!lat || !lon || isNaN(lat) || isNaN(lon)) return;
-
             const key = name.toLowerCase();
-            if (!byName[key]) {
-                byName[key] = { name, stopIds: [], lats: [], lons: [] };
-            }
+            if (!byName[key]) byName[key] = { name, stopIds: [], lats: [], lons: [] };
             byName[key].stopIds.push(stopId);
             byName[key].lats.push(lat);
             byName[key].lons.push(lon);
@@ -3829,45 +3826,48 @@ async function loadBusStopMarkers() {
             lon: g.lons.reduce((a, b) => a + b, 0) / g.lons.length,
         }));
 
+        if (!map.getPane('stopsPane')) {
+            map.createPane('stopsPane');
+            map.getPane('stopsPane').style.zIndex = 4500000000000000000000000000000;
+        }
+
         const renderer = L.canvas({ padding: 0.5 });
         window._stopLayerGroup = L.layerGroup();
 
-        const activeStopIds = new Set();
-        markerPool.active.forEach(marker => {
-            const sid = marker.vehicleData?.stopId;
-            if (sid) activeStopIds.add(sid.replace('0:', '').trim());
-        });
-
-        Object.values(tripUpdates).forEach(tripData => {
-            (tripData.nextStops || []).forEach(stop => {
-                activeStopIds.add(stop.stopId.replace('0:', '').trim());
-            });
-        });
-
-        const activeClusters = clusters.filter(cluster =>
-            cluster.stopIds.some(id => activeStopIds.has(id.replace('0:', '').trim()))
-        );
-
-        activeClusters.forEach(cluster => {
-            const circle = L.circleMarker([cluster.lat, cluster.lon], {
+        clusters.forEach(cluster => {
+            const circleVisible = L.circleMarker([cluster.lat, cluster.lon], {
                 renderer,
+                pane: 'stopsPane',
                 radius: 4,
                 fillColor: '#ffffff',
                 fillOpacity: 1,
                 color: 'rgba(0,0,0,0.55)',
                 weight: 1.5,
+                interactive: false,
+                bubblingMouseEvents: false
+            });
+
+            const circleTap = L.circleMarker([cluster.lat, cluster.lon], {
+                renderer,
+                pane: 'stopsPane',
+                radius: 16,
+                fillColor: '#000',
+                fillOpacity: 0,
+                color: 'transparent',
+                weight: 0,
                 interactive: true,
                 bubblingMouseEvents: false
             });
 
-            circle.on('click', e => {
+            circleTap.on('click', e => {
                 L.DomEvent.stopPropagation(e);
                 openStopInBottomSheet(cluster.stopIds, cluster.name);
             });
-            circle.on('mouseover', function() { this.setStyle({ radius: 7, weight: 2 }); });
-            circle.on('mouseout',  function() { this.setStyle({ radius: 4, weight: 1.5 }); });
+            circleTap.on('mouseover', () => circleVisible.setStyle({ radius: 7, weight: 2 }));
+            circleTap.on('mouseout',  () => circleVisible.setStyle({ radius: 4, weight: 1.5 }));
 
-            window._stopLayerGroup.addLayer(circle);
+            window._stopLayerGroup.addLayer(circleVisible);
+            window._stopLayerGroup.addLayer(circleTap);
         });
 
         let _zoomRaf = false;
@@ -3877,7 +3877,7 @@ async function loadBusStopMarkers() {
             requestAnimationFrame(() => {
                 _zoomRaf = false;
                 if (!window._stopLayerGroup) return;
-                const z = map.getZoom();
+                const z   = map.getZoom();
                 const has = map.hasLayer(window._stopLayerGroup);
                 if (z >= 15 && !has) map.addLayer(window._stopLayerGroup);
                 else if (z < 15 && has) map.removeLayer(window._stopLayerGroup);
@@ -3887,11 +3887,13 @@ async function loadBusStopMarkers() {
         map.on('zoomend', _handleStopZoom);
         _handleStopZoom();
 
+        window._stopClusters = clusters;
+
     } catch (e) {
         console.error('loadBusStopMarkers:', e);
         window._stopMarkersLoaded = false;
     }
-} 
+}
 
 function filterByLine(lineId) {
     const lineIndex = selectedLines.indexOf(lineId);
@@ -11138,13 +11140,11 @@ async function main() {
 
         await Promise.all([
             fetchVehiclePositions(),
-            loadGeoJsonLines(),
-            loadBusStopMarkers(),
             modeSombre(),
-            hideLoadingScreen()
+            hideLoadingScreen(),
         ]);
-            
-        loadGeoJsonLines();
+
+        await loadGeoJsonLines();
         loadBusStopMarkers();
         startFetchUpdates();
         
@@ -11923,93 +11923,190 @@ function _wireBottomSheetButtons() {
             bsSearchResults.style.display = 'none';
             return;
         }
-        if (!MenuManager || !MenuManager.allBuses || MenuManager.allBuses.length === 0) {
-            bsSearchResults.innerHTML =
-                '<div style="color:rgba(255,255,255,0.5);font-size:13px;padding:8px;">Données en cours de chargement…</div>';
-            bsSearchResults.style.display = 'block';
-            return;
+
+        const q = query.toLowerCase().trim();
+        const results = [];
+
+        if (MenuManager?.allBuses?.length) {
+            const busResults = MenuManager.allBuses
+                .map(item => ({ ...item, score: MenuManager._calculateScore(item, q), type: 'bus' }))
+                .filter(item => item.score > 0)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 8);
+            results.push(...busResults);
         }
 
-        const q = query.toLowerCase();
-        const results = MenuManager.allBuses
-            .map(item => ({ ...item, score: MenuManager._calculateScore(item, q) }))
-            .filter(item => item.score > 0)
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 12);
+        const stopResults = [];
+        if (window._stopClusters?.length) {
+            window._stopClusters.forEach(cluster => {
+                const nameLower = cluster.name.toLowerCase();
+                let score = 0;
+                if (nameLower === q)                score = 100;
+                else if (nameLower.startsWith(q))   score = 60;
+                else if (nameLower.includes(q))     score = 30;
+                else {
+                    // fuzzy simple
+                    let qi = 0;
+                    for (const ch of nameLower) {
+                        if (ch === q[qi]) qi++;
+                        if (qi === q.length) { score = 10; break; }
+                    }
+                }
+                if (score > 0) stopResults.push({ cluster, score, type: 'stop' });
+            });
+            stopResults.sort((a, b) => b.score - a.score);
+            results.push(...stopResults.slice(0, 5));
+        }
 
-        if (results.length === 0) {
-            bsSearchResults.innerHTML =
-                `<div style="color:rgba(255,255,255,0.5);text-align:center;padding:16px;font-size:13px;">
-                    Aucun résultat
+        if (!results.length) {
+            bsSearchResults.innerHTML = `
+                <div style="color:rgba(255,255,255,0.5);text-align:center;
+                            padding:16px;font-size:13px;">
+                    ${t("no_results")}
                 </div>`;
             bsSearchResults.style.display = 'block';
             return;
         }
 
+        const stopItems  = results.filter(r => r.type === 'stop');
+        const busItems   = results.filter(r => r.type === 'bus');
+
         const byLine = new Map();
-        results.forEach(item => {
+        busItems.forEach(item => {
             if (!byLine.has(item.line)) byLine.set(item.line, []);
             byLine.get(item.line).push(item);
         });
 
-        let html = '';
-        byLine.forEach((items, line) => {
-            const color = lineColors[line] || '#444';
-            const name  = lineName[line] || line;
-            const textC = getTextColor(color);
-
-            html += `<div style="margin-bottom:8px;">
-            <div style="font-size:11px;opacity:0.55;color:white;
-                        margin-bottom:4px;padding:0 4px;">${t("line")} ${name}</div>`;
-
-            items.slice(0, 3).forEach(item => {
-                const label = (item.vehicleLabel || '').toString()
-                    .replace('TCAR:Vehicle::', '').replace(':LOC', '').padStart(3, '0');
-                html += `
-                <div class="bs-result-item ripple-container"
-                    data-vehicle-id="${item.parkNumber}"
-                    style="display:flex;align-items:center;gap:10px;
-                            background:rgba(255,255,255,0.09); border-radius:10px;
-                            padding:8px 10px; margin-bottom:4px; cursor:pointer;">
-                <span style="background:${color};color:${textC};
-                            padding:2px 8px;border-radius:6px;
-                            font-size:12px;font-weight:600;white-space:nowrap;">${name}</span>
-                <span style="font-size:12px;font-weight:600;color:white;
-                            min-width:36px;">${label}</span>
-                <span style="font-size:12px;color:rgba(255,255,255,0.7);
-                            flex:1;overflow:hidden;text-overflow:ellipsis;
-                            white-space:nowrap;">➜ ${item.destination}</span>
-                </div>`;
-            });
-
-            if (items.length > 3) {
-                html += `<div style="font-size:11px;opacity:0.4;color:white;
-                                    text-align:center;padding:2px 0;">
-                        +${items.length - 3} autre(s)
-                        </div>`;
-            }
-            html += `</div>`;
-        });
-
-        bsSearchResults.innerHTML = html;
+        bsSearchResults.innerHTML = '';
         bsSearchResults.style.display = 'block';
 
-        bsSearchResults.querySelectorAll('.bs-result-item').forEach(el => {
-            el.addEventListener('click', () => {
-                const vid = el.dataset.vehicleId;
-                const marker = markerPool && markerPool.active
-                    ? markerPool.active.get(vid) : null;
-                if (!marker) return;
-                safeVibrate?.([50, 30, 50], true);
-                soundsUX('MBF_Menu_VehicleSelect');
-                map.setView(marker.getLatLng(), 15);
-                marker.openPopup();
-                BottomSheet.collapse();
-                bsSearchInput.value = '';
-                bsSearchClear.style.display = 'none';
-                bsSearchResults.style.display = 'none';
+        if (stopItems.length) {
+            const stopHeader = document.createElement('div');
+            stopHeader.style.cssText = `
+                font-size:10px; text-transform:uppercase; letter-spacing:0.1em;
+                color:rgba(255,255,255,0.4); padding:4px 4px 6px; font-weight:600;`;
+            stopHeader.textContent = t("stops");
+            bsSearchResults.appendChild(stopHeader);
+
+            stopItems.forEach(({ cluster }) => {
+                const item = document.createElement('div');
+                item.className = 'bs-result-item ripple-container';
+                item.style.cssText = `
+                    display:flex; align-items:center; gap:10px;
+                    background:rgba(255,255,255,0.09); border-radius:10px;
+                    padding:10px 12px; margin-bottom:6px; cursor:pointer;`;
+
+                item.innerHTML = `
+                    <div style="width:32px; height:32px; border-radius:10px;
+                                background:rgba(255,255,255,0.15); flex-shrink:0;
+                                display:flex; align-items:center; justify-content:center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="rgba(255,255,255,0.85)" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="10" r="3"/>
+                            <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+                        </svg>
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:14px; font-weight:600; color:white;
+                                    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            ${cluster.name}
+                        </div>
+                        <div style="font-size:11px; color:rgba(255,255,255,0.45); margin-top:1px;">
+                            ${cluster.stopIds.length} quai${cluster.stopIds.length > 1 ? 's' : ''}
+                        </div>
+                    </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="rgba(255,255,255,0.3)" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>`;
+
+                item.addEventListener('click', () => {
+                    safeVibrate?.([30], true);
+                    soundsUX('MBF_Menu_LineSelect');
+                    bsSearchInput.value = '';
+                    bsSearchClear.style.display = 'none';
+                    bsSearchResults.style.display = 'none';
+
+                    map.setView([cluster.lat, cluster.lon], 17);
+
+                    openStopInBottomSheet(cluster.stopIds, cluster.name);
+                });
+
+                bsSearchResults.appendChild(item);
             });
-        });
+        }
+
+        if (byLine.size) {
+            if (stopItems.length) {
+                const sep = document.createElement('div');
+                sep.style.cssText = `height:1px; background:rgba(255,255,255,0.08);
+                                    margin:6px 0 10px;`;
+                bsSearchResults.appendChild(sep);
+            }
+
+            const busHeader = document.createElement('div');
+            busHeader.style.cssText = `
+                font-size:10px; text-transform:uppercase; letter-spacing:0.1em;
+                color:rgba(255,255,255,0.4); padding:4px 4px 6px; font-weight:600;`;
+            busHeader.textContent = t("vehicles");
+            bsSearchResults.appendChild(busHeader);
+
+            byLine.forEach((items, line) => {
+                const color  = lineColors[line] || '#444';
+                const lname  = lineName[line] || line;
+                const textC  = getTextColor(color);
+
+                const lineEl = document.createElement('div');
+                lineEl.style.cssText = `margin-bottom:6px;`;
+                lineEl.innerHTML = `
+                    <div style="font-size:11px; opacity:0.55; color:white;
+                                margin-bottom:4px; padding:0 4px;">
+                        ${t('breadcrumb_lines')} ${lname}
+                    </div>`;
+
+                items.slice(0, 3).forEach(item => {
+                    const label = (item.vehicleLabel || '').toString()
+                        .replace('TCAR:Vehicle::', '').replace(':LOC', '').padStart(3, '0');
+
+                    const vEl = document.createElement('div');
+                    vEl.className = 'bs-result-item ripple-container';
+                    vEl.style.cssText = `
+                        display:flex; align-items:center; gap:10px;
+                        background:rgba(255,255,255,0.09); border-radius:10px;
+                        padding:8px 10px; margin-bottom:4px; cursor:pointer;`;
+                    vEl.innerHTML = `
+                        <span style="background:${color}; color:${textC};
+                                    padding:2px 8px; border-radius:6px;
+                                    font-size:12px; font-weight:600; white-space:nowrap;">
+                            ${lname}
+                        </span>
+                        <span style="font-size:12px; font-weight:600; color:white;
+                                    min-width:36px;">${label}</span>
+                        <span style="font-size:12px; color:rgba(255,255,255,0.7);
+                                    flex:1; overflow:hidden; text-overflow:ellipsis;
+                                    white-space:nowrap;">➜ ${item.destination}</span>`;
+
+                    vEl.addEventListener('click', () => {
+                        const marker = markerPool?.active?.get(item.parkNumber);
+                        if (!marker) return;
+                        safeVibrate?.([50, 30, 50], true);
+                        soundsUX('MBF_Menu_VehicleSelect');
+                        map.setView(marker.getLatLng(), 15);
+                        marker.openPopup();
+                        BottomSheet.collapse();
+                        bsSearchInput.value = '';
+                        bsSearchClear.style.display = 'none';
+                        bsSearchResults.style.display = 'none';
+                    });
+
+                    lineEl.appendChild(vEl);
+                });
+
+                bsSearchResults.appendChild(lineEl);
+            });
+        }
     }
 
     const featBus = document.getElementById('bus');
@@ -12085,19 +12182,25 @@ function _refreshBottomSheetFavorites() {
     if (!favorites.length) {
         section.style.display = 'block';
         list.innerHTML = `
-            <div class="bs-fav-empty">
-                <div class="bs-fav-empty-icon">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="1.4"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02
-                                         12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                    </svg>
+            <div class="bs-fav-empty bs-news-empty">
+                <p class="bs-news-title">${t("discoverdsheet")}</p>
+                <div class="bs-news-grid">
+                    <div class="bs-news-card">
+                        <img class="bs-news-image" src="src/dsheet/favorites.png" alt="Favorites Schedules - MyBusFinder">
+                        <p class="bs-news-item-title">${t("favorites_caption")}</p>
+                        <p class="bs-news-caption">${t("favorites_description")}</p>
+                    </div>
+                    <div class="bs-news-card">
+                        <img class="bs-news-image" src="src/dsheet/selectedstop.png" alt="Selected Stop - MyBusFinder">
+                        <p class="bs-news-item-title">${t("selectedstop_caption")}</p>
+                        <p class="bs-news-caption">${t("selectedstop_description")}</p>
+                    </div>
+                    <div class="bs-news-card">
+                        <img class="bs-news-image" src="src/dsheet/searchstop.png" alt="Search Stop - MyBusFinder">
+                        <p class="bs-news-item-title">${t("searchstop_caption")}</p>
+                        <p class="bs-news-caption">${t("searchstop_description")}</p>
+                    </div>
                 </div>
-                <p class="bs-fav-empty-title">${t("no_favorites")}</p>
-                <p class="bs-fav-empty-desc">
-                    ${t("nofavorites_info")}
-                </p>
             </div>`;
         return;
     }
