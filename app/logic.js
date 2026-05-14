@@ -11512,7 +11512,7 @@ async function softSwitchNetwork(newId) {
         await initializeApp();
         await main();
         _refreshBottomSheetGreeting();
-        _refreshBottomSheetFavorites();
+        _refreshBottomSheetFavorites(true);
         setMenuBtmVisible(false);
         const mapmonde = document.getElementById('map');
         mapmonde.classList.add('appearnotransition');
@@ -12204,22 +12204,22 @@ function _animateBsHeight(targetHeight, durationMs = 380) {
     requestAnimationFrame(frame);
 }
 
-function _withBsHeightAnimation(fn) {
+function _withBsHeightAnimation(fn, threshold = 12) {
     const sheet   = document.getElementById('bottom-sheet');
     const content = document.getElementById('bs-content');
     if (!sheet || !content) { fn(); return; }
 
     const before = sheet.getBoundingClientRect().height;
 
-    sheet.style.height = `${before}px`;
-    sheet.style.overflow = 'hidden';
-
     fn();
 
-    sheet.style.height = '';
-    const after = Math.min(content.scrollHeight + 60, window.innerHeight * 0.88);
+    const natural = content.scrollHeight + 60;
+    const after   = Math.min(natural, window.innerHeight * 0.88);
 
-    sheet.style.height = `${before}px`;
+    if (Math.abs(after - before) < threshold) return;
+
+    sheet.style.height   = `${before}px`;
+    sheet.style.overflow = 'hidden';
 
     requestAnimationFrame(() => {
         _animateBsHeight(after);
@@ -12230,8 +12230,8 @@ function _withBsHeightAnimation(fn) {
 }
 
 function _refreshBottomSheetFavorites() {
-    _withBsHeightAnimation(() => {
     if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') return;
+    const doRefresh = () => {
     const section = document.getElementById('bs-favorites-section');
     const list    = document.getElementById('bs-favorites-list');
     if (!section || !list) return;
@@ -12459,7 +12459,13 @@ function _refreshBottomSheetFavorites() {
                 .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
         });
     }
-});
+    };
+
+    if (animate) {
+        _withBsHeightAnimation(doRefresh);
+    } else {
+        doRefresh();
+    }
 }
 
 function _getStopFavorites() {
@@ -12497,7 +12503,7 @@ function _toggleStopFavorite(stopIdArr, stopName, btn) {
 
     _saveStopFavorites(favs);
     safeVibrate?.([30], true);
-    _refreshBottomSheetFavorites();
+    _refreshBottomSheetFavorites(true);
 }
 
 async function openStopInBottomSheet(stopIds, stopName) {
@@ -12965,7 +12971,7 @@ function _restoreBottomSheetTitle() {
         const list    = document.getElementById('bs-favorites-list');
     });
 
-    setTimeout(() => _refreshBottomSheetFavorites(), 400);
+    setTimeout(() => _refreshBottomSheetFavorites(true), 400);
 }
 
 
@@ -13321,7 +13327,7 @@ document.addEventListener('DOMContentLoaded', () => {
         BottomSheet.init();
         _wireBottomSheetButtons();
         _refreshBottomSheetGreeting();
-        _refreshBottomSheetFavorites();
+        _refreshBottomSheetFavorites(true);
 
         if (localStorage.getItem('nepasafficheraccueil') === 'true') {
             BottomSheet.collapse();
