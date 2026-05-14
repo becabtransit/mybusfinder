@@ -10990,41 +10990,24 @@ function processTripsSync(data) {
     
     data.entity.forEach(entity => {
         if (entity.tripUpdate) {
-            const trip = entity.tripUpdate.trip;
-            const tripId = trip?.tripId || trip?.trip_id;
-            if (!tripId) return;
-
-            const tripInfo = {
-                tripId,
-                routeId: trip?.routeId || trip?.route_id,
-                directionId: trip?.directionId || trip?.direction_id,
-                tripHeadsign: trip?.tripHeadsign || trip?.trip_headsign || trip?.headsign || trip?.stopHeadsign || trip?.stop_headsign || null,
-                startTime: trip?.startTime || trip?.start_time,
-                startDate: trip?.startDate || trip?.start_date,
-                scheduleRelationship: trip?.scheduleRelationship || trip?.schedule_relationship
-            };
-
+            const tripId = entity.tripUpdate.trip.tripId;
             const stopUpdates = [];
-            const rawStopUpdates = entity.tripUpdate.stopTimeUpdate || entity.tripUpdate.stop_time_update || entity.tripUpdate.stopUpdates || entity.tripUpdate.stops || [];
             
-            if (Array.isArray(rawStopUpdates)) {
-                rawStopUpdates.forEach(stopUpdate => {
-                    const stopId = stopUpdate.stopId || stopUpdate.stop_id || '';
-                    const arrivalDelay = stopUpdate.arrival ? stopUpdate.arrival.delay : (stopUpdate.arrivalDelay || stopUpdate.arrival_delay || 0);
-                    const departureDelay = stopUpdate.departure ? stopUpdate.departure.delay : (stopUpdate.departureDelay || stopUpdate.departure_delay || 0);
-                    const stopHeadsign = stopUpdate.stopHeadsign || stopUpdate.stop_headsign || stopUpdate.stopHeadsign || stopUpdate.stop_headsign || null;
+            if (entity.tripUpdate.stopTimeUpdate) {
+                entity.tripUpdate.stopTimeUpdate.forEach(stopUpdate => {
+                    const stopId = stopUpdate.stopId || '';
+                    const arrivalDelay = stopUpdate.arrival ? stopUpdate.arrival.delay : 0;
+                    const departureDelay = stopUpdate.departure ? stopUpdate.departure.delay : 0;
                     
                     stopUpdates.push({
                         stopId: stopId,
                         arrivalDelay: arrivalDelay,
-                        departureDelay: departureDelay,
-                        stopHeadsign: stopHeadsign
+                        departureDelay: departureDelay
                     });
                 });
             }
             
             updates[tripId] = {
-                tripInfo,
                 stopUpdates: stopUpdates
             };
         }
@@ -12394,95 +12377,6 @@ async function _computeStopPassages(stopIdArr) {
         return cleanStops.includes(clean);
     }
 
-    function normalizeStopSheetRouteId(routeId) {
-        if (routeId === undefined || routeId === null) return 'Inconnu';
-        const value = String(routeId).trim();
-        return value === '' ? 'Inconnu' : value;
-    }
-
-    function normalizeStopSheetDestination(destination) {
-        if (destination === undefined || destination === null) return t('destinationunknown') || 'Destination inconnue';
-        const value = String(destination).trim();
-        return value === '' ? t('destinationunknown') || 'Destination inconnue' : value;
-    }
-
-    function isUnknownDestination(value) {
-        if (value === undefined || value === null) return true;
-        const normalized = String(value).trim().toLowerCase();
-        if (normalized === '') return true;
-        return ['inconnue', 'inconnu', 'destination inconnue', 'unknown', 'unknown destination', 'unknown destination', 'destination unknown'].includes(normalized);
-    }
-
-    function inferStaticDestination(tripId) {
-        const tripStops = window.staticStopTimes?.[tripId];
-        if (!tripStops) return null;
-
-        let lastStopId = null;
-        let maxSeq = -Infinity;
-
-        Object.entries(tripStops).forEach(([stopId, stopData]) => {
-            const seq = Number(stopData.s || stopData.stop_sequence || stopData.stopSequence || -1);
-            if (Number.isFinite(seq) && seq > maxSeq) {
-                maxSeq = seq;
-                lastStopId = stopId;
-            }
-        });
-
-        if (!lastStopId) {
-            let maxTime = -Infinity;
-            Object.entries(tripStops).forEach(([stopId, stopData]) => {
-                const timeStr = stopData.d || stopData.a || stopData.departureTime || stopData.arrivalTime;
-                if (!timeStr || typeof timeStr !== 'string') return;
-                const parts = timeStr.split(':').map(Number);
-                if (parts.length < 2 || parts.some(isNaN)) return;
-                const secs = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
-                if (secs > maxTime) {
-                    maxTime = secs;
-                    lastStopId = stopId;
-                }
-            });
-        }
-
-        if (!lastStopId) return null;
-
-        const stopData = tripStops[lastStopId] || tripStops[`0:${lastStopId}`] || {};
-        const headsign = stopData.stopHeadsign || stopData.stop_headsign || stopData.h || null;
-        if (headsign && !isUnknownDestination(headsign)) {
-            return normalizeStopSheetDestination(headsign);
-        }
-
-        const cleaned = lastStopId.replace(/^0:/, '');
-        return stopNameMap[lastStopId] || stopNameMap[cleaned] || cleaned;
-    }
-
-    function inferStopSheetDestination(marker, tripId, tripData) {
-        if (marker?.destination && !isUnknownDestination(marker.destination)) {
-            return normalizeStopSheetDestination(marker.destination);
-        }
-
-        const markerTripHeadsign = marker?.vehicleData?.trip?.tripHeadsign || marker?.vehicleData?.trip?.headsign || marker?.vehicleData?.trip?.trip_headsign;
-        if (markerTripHeadsign && !isUnknownDestination(markerTripHeadsign)) {
-            return normalizeStopSheetDestination(markerTripHeadsign);
-        }
-
-        const tripHeadsign = tripData?.tripInfo?.tripHeadsign;
-        if (tripHeadsign && !isUnknownDestination(tripHeadsign)) {
-            return normalizeStopSheetDestination(tripHeadsign);
-        }
-
-        const stopUpdateHeadsign = tripData?.stopUpdates?.find(update => update?.stopHeadsign)?.stopHeadsign || null;
-        if (stopUpdateHeadsign && !isUnknownDestination(stopUpdateHeadsign)) {
-            return normalizeStopSheetDestination(stopUpdateHeadsign);
-        }
-
-        const staticDestination = inferStaticDestination(tripId);
-        if (staticDestination && !isUnknownDestination(staticDestination)) {
-            return normalizeStopSheetDestination(staticDestination);
-        }
-
-        return t('destinationunknown') || 'Destination inconnue';
-    }
-
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
         const match = nextStops.find(s => matchStop(s.stopId));
@@ -12491,10 +12385,8 @@ async function _computeStopPassages(stopIdArr) {
         const marker = [...markerPool.active.values()]
             .find(m => m.vehicleData?.trip?.tripId === tripId);
 
-        const rawRouteId = marker?.line || tripData?.tripInfo?.routeId || _guessRouteFromTrip(tripId);
-        const routeId = normalizeStopSheetRouteId(rawRouteId);
-        const dest = inferStopSheetDestination(marker, tripId, tripData);
-        if (isUnknownDestination(dest)) return;
+        const routeId = marker?.line || 'Inconnu';
+        const dest    = marker?.destination || 'Destination inconnue';
         const vehicleLabel = marker?.vehicleData?.vehicle?.label
             || marker?.vehicleData?.vehicle?.id || null;
 
@@ -12533,9 +12425,8 @@ async function _computeStopPassages(stopIdArr) {
 
             const marker = [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
-            const rawRouteId = marker?.line || tripUpdates[tripId]?.tripInfo?.routeId || _guessRouteFromTrip(tripId);
-            const routeId = normalizeStopSheetRouteId(rawRouteId);
-            const dest    = inferStopSheetDestination(marker, tripId, tripData);
+            const routeId = marker?.line || _guessRouteFromTrip(tripId);
+            const dest    = marker?.destination || 'Destination inconnue';
 
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
@@ -12579,15 +12470,7 @@ function _guessRouteFromTrip(tripId) {
 
 function _renderStopPassages(container, stopIdArr, stopName, byLine) {
     const now = Date.now() / 1000;
-
-    function isUnknownDestination(value) {
-        if (value === undefined || value === null) return true;
-        const normalized = String(value).trim().toLowerCase();
-        if (normalized === '') return true;
-        return ['inconnue', 'inconnu', 'destination inconnue', 'unknown', 'unknown destination', 'destination unknown'].includes(normalized);
-    }
-
-    const entries = Object.values(byLine).filter(g => g.times.length > 0 && !isUnknownDestination(g.dest));
+    const entries = Object.values(byLine).filter(g => g.times.length > 0);
 
     if (!entries.length) {
         container.innerHTML = `
