@@ -264,7 +264,7 @@
         }, 1000);
     });
 
-    VERSION_NAME = '3.6.0.3';
+    VERSION_NAME = '3.6.0.4';
 
     document.addEventListener('gesturestart', function (e) {
     e.preventDefault();
@@ -8422,6 +8422,9 @@ async function fetchVehiclePositions() {
     if (!gtfsInitialized) {
         return;
     }
+
+    window.noVehiclesPopupShown = window.noVehiclesPopupShown || false;
+
     try {
         const response = await fetch(netPath('proxy-cors/proxy_vehpos.php'));
         const buffer = await response.arrayBuffer();
@@ -9430,7 +9433,22 @@ activeIds.forEach(id => {
     }
 });
 
-        
+if (activeVehicleIds.size === 0) {
+    if (!window.noVehiclesPopupShown) {
+        window.noVehiclesPopupShown = true;
+        showFluentPopup({
+            title: 'My Bus Finder',
+            message: t('toastnobus'),
+            buttons: {
+                primary: t('understood'),
+                primaryAction: () => fluentPopupManager.close()
+            }
+        });
+    }
+} else {
+    window.noVehiclesPopupShown = false;
+}
+
 let isMenuVisible = true;
 
 // ==================== VIRTUAL SCROLLING ====================
@@ -11512,7 +11530,7 @@ async function softSwitchNetwork(newId) {
         await initializeApp();
         await main();
         _refreshBottomSheetGreeting();
-        _refreshBottomSheetFavorites();
+        _refreshBottomSheetFavorites(true);
         setMenuBtmVisible(false);
         const mapmonde = document.getElementById('map');
         mapmonde.classList.add('appearnotransition');
@@ -12120,21 +12138,6 @@ function _wireBottomSheetButtons() {
             collapseBottomSheet();
         });
     }
-    const featClock = document.getElementById('clock-feat');
-    if (featClock) {
-        featClock.addEventListener('click', () => {
-            safeVibrate?.([30], true);
-            showUpdatePopup('schedule.html?lang=' + (window.i18n ? window.i18n.currentLang : 'fr'));
-        });
-    }
-    const featActu = document.getElementById('actu');
-    if (featActu) {
-        featActu.addEventListener('click', () => {
-            safeVibrate?.([30], true);
-            showUpdatePopup('alerts.html?lang=' + (window.i18n ? window.i18n.currentLang : 'fr'));
-        });
-    }
-
     const linkSettings = document.getElementById('settings');
     if (linkSettings) {
         linkSettings.addEventListener('click', () => {
@@ -12175,15 +12178,71 @@ function getFavoriteSchedules() {
     }
 }
 
-function _refreshBottomSheetFavorites() {
+function _animateBsHeight(targetHeight, durationMs = 380) {
+    const sheet = document.getElementById('bottom-sheet');
+    if (!sheet) return;
+
+    const current = sheet.getBoundingClientRect().height;
+    const start   = performance.now();
+
+    const ease = t => t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 2) / 2; 
+
+    function frame(now) {
+        const elapsed  = now - start;
+        const progress = Math.min(elapsed / durationMs, 1);
+        const eased    = ease(progress);
+        const h        = current + (targetHeight - current) * eased;
+
+        sheet.style.height = `${h}px`;
+
+        if (progress < 1) {
+            requestAnimationFrame(frame);
+        } else {
+            sheet.style.height = '';
+        }
+    }
+
+    requestAnimationFrame(frame);
+}
+
+function _withBsHeightAnimation(fn, threshold = 12) {
+    const sheet   = document.getElementById('bottom-sheet');
+    const content = document.getElementById('bs-content');
+    if (!sheet || !content) { fn(); return; }
+
+    const before = sheet.getBoundingClientRect().height;
+
+    fn();
+
+    const natural = content.scrollHeight + 60;
+    const after   = Math.min(natural, window.innerHeight * 0.88);
+
+    if (Math.abs(after - before) < threshold) return;
+
+    sheet.style.height   = `${before}px`;
+    sheet.style.overflow = 'hidden';
+
+    requestAnimationFrame(() => {
+        _animateBsHeight(after);
+        setTimeout(() => {
+            sheet.style.overflow = '';
+        }, 400);
+    });
+}
+
+function _refreshBottomSheetFavorites(withAnimation = false) {
     if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') return;
+    const doRefresh = () => {
     const section = document.getElementById('bs-favorites-section');
     const list    = document.getElementById('bs-favorites-list');
     if (!section || !list) return;
 
     const favorites = getFavoriteSchedules();
+    const stopFavs  = _getStopFavorites();
 
-    if (!favorites.length) {
+    if (!favorites.length && !stopFavs.length) {
         section.style.display = 'block';
         list.innerHTML = `
             <div class="bs-fav-empty bs-news-empty">
@@ -12212,81 +12271,231 @@ function _refreshBottomSheetFavorites() {
     section.style.display = 'block';
     list.innerHTML = '';
 
-    favorites.slice(0, 6).forEach((favorite, idx) => {
-        const routeId   = favorite.routeId   || '';
-        const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
-        const destName  = favorite.destinationName || favorite.destinationId || '';
-        const lineName_ = favorite.routeName || lineName[routeId] || routeId;
-        const lineColor = lineColors[routeId] || '#444';
-        const textColor = getTextColor(lineColor);
+    if (stopFavs.length) {
+        stopFavs.forEach(fav => {
+            const cluster = window._stopClusters?.find(
+                c => c.stopIds.some(id => fav.stopIds.includes(id))
+            );
 
-        const card = document.createElement('div');
-        card.className     = 'bs-fav-card ripple-container';
-        card.style.cssText = `animation-delay:${idx * 55}ms`;
+            const card = document.createElement('div');
+            card.className = 'bs-fav-card ripple-container';
+            card.innerHTML = `
+                <div class="bs-fav-card-header" style="background: rgba(255,255,255,0.12);">
+                    <div class="bs-fav-beam bs-fav-beam1"></div>
+                    <div class="bs-fav-beam bs-fav-beam2"></div>
+                    <div class="bs-fav-line-badge" style="color:white;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="10" r="3"/>
+                            <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+                        </svg>
+                        <span>${fav.stopName}</span>
+                    </div>
+                </div>
+                <div class="bs-fav-card-body">
+                    <div class="bs-fav-times" id="bs-stopfav-times-${fav.stopIds[0]}">
+                        <div class="bs-fav-loading">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2"
+                                 stroke-linecap="round" stroke-linejoin="round"
+                                 style="opacity:.5">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <span>Chargement…</span>
+                        </div>
+                    </div>
+                </div>`;
 
-        card.innerHTML = `
-            <div class="bs-fav-card-header" style="background:${lineColor};">
-                <div class="bs-fav-beam bs-fav-beam1"></div>
-                <div class="bs-fav-beam bs-fav-beam2"></div>
-                <div class="bs-fav-line-badge" style="color:${textColor};">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
-                                 V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
-                                 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
-                                 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
-                                 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                    </svg>
-                    <span>Ligne ${lineName_}</span>
+            card.addEventListener('click', () => {
+                safeVibrate?.([30], true);
+                soundsUX?.('MBF_Popup');
+                if (cluster) map?.setView([cluster.lat, cluster.lon], 17);
+                openStopInBottomSheet(fav.stopIds, fav.stopName);
+            });
+
+            list.appendChild(card);
+
+            _computeStopPassages(fav.stopIds).then(passages => {
+                const timesEl = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
+                if (!timesEl) return;
+
+                const allTimes = [];
+                Object.values(passages).forEach(group => {
+                    if (group.routeId !== 'Inconnu') {
+                        group.times.forEach(t2 => {
+                            allTimes.push({ ...t2, routeId: group.routeId, dest: group.dest });
+                        });
+                    }
+                });
+                allTimes.sort((a, b) => a.time - b.time);
+
+                if (!allTimes.length) {
+                    timesEl.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+                    return;
+                }
+
+                const now = Date.now() / 1000;
+                const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4a16 16 0 0 1 16 16"/>
+                    <path d="M4 11a9 9 0 0 1 9 9"/>
+                    <circle cx="5" cy="19" r="1"/>
+                </svg>`;
+
+                timesEl.innerHTML = '';
+                allTimes.slice(0, 5).forEach(item => {
+                    const color     = lineColors[item.routeId] || '#444';
+                    const textColor = getTextColor(color);
+                    const lname     = lineName[item.routeId] || item.routeId;
+                    const diffMin   = Math.round((item.time - now) / 60);
+                    const label     = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
+                    const isNow     = diffMin <= 0;
+
+                    const pill = document.createElement('span');
+                    pill.style.cssText = `
+                        display: inline-flex; align-items: center; gap: 4px;
+                        font-size: 12px; font-weight: ${item.realtime ? '600' : '400'};
+                        font-style: ${item.realtime ? 'normal' : 'italic'};
+                        padding: 3px 8px; border-radius: 20px; white-space: nowrap;
+                        border: 1px solid rgba(255,255,255,0.15);
+                        background: ${color};
+                        color: ${textColor};
+                        opacity: ${item.realtime ? '1' : '0.7'};`;
+
+                    pill.innerHTML = item.realtime ? rssIcon : '';
+                    const span = document.createElement('span');
+                    const destText = item.dest && item.dest !== 'Destination inconnue' ? ` > ${item.dest}` : '';
+                    span.textContent = `${lname} · ${label}${destText}`;
+                    pill.appendChild(span);
+                    timesEl.appendChild(pill);
+                });
+            });
+        });
+    }
+
+    if (favorites.length) {
+        favorites.slice(0, 6).forEach((favorite, idx) => {
+            const routeId   = favorite.routeId   || '';
+            const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
+            const destName  = favorite.destinationName || favorite.destinationId || '';
+            const lineName_ = favorite.routeName || lineName[routeId] || routeId;
+            const lineColor = lineColors[routeId] || '#444';
+            const textColor = getTextColor(lineColor);
+
+            const card = document.createElement('div');
+            card.className     = 'bs-fav-card ripple-container';
+            card.style.cssText = `animation-delay:${idx * 55}ms`;
+
+            card.innerHTML = `
+                <div class="bs-fav-card-header" style="background:${lineColor};">
+                    <div class="bs-fav-beam bs-fav-beam1"></div>
+                    <div class="bs-fav-beam bs-fav-beam2"></div>
+                    <div class="bs-fav-line-badge" style="color:${textColor};">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
+                                     V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
+                                     20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
+                                     17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
+                                     18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                        </svg>
+                        <span>Ligne ${lineName_}</span>
+                    </div>
+                    <p class="bs-fav-dest" style="color:${textColor};">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2.5"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </p>
                 </div>
-                <p class="bs-fav-dest" style="color:${textColor};">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2.5"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <polyline points="9 18 15 12 9 6"/>
-                    </svg>
-                    ${destName}
-                </p>
-            </div>
-            <div class="bs-fav-card-body">
-                <div class="bs-fav-stop-row">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2"
-                         stroke-linecap="round" stroke-linejoin="round"
-                         aria-hidden="true" style="flex-shrink:0;opacity:.55;">
-                        <circle cx="12" cy="10" r="3"/>
-                        <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
-                    </svg>
-                    <span class="bs-fav-stop-name">${stopName}</span>
-                </div>
-                <div class="bs-fav-times" id="bs-fav-times-${idx}">
-                    <div class="bs-fav-loading">
+                <div class="bs-fav-card-body">
+                    <div class="bs-fav-stop-row">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="2"
                              stroke-linecap="round" stroke-linejoin="round"
-                             style="opacity:.5" aria-hidden="true">
-                            <circle cx="12" cy="12" r="10"/>
-                            <polyline points="12 6 12 12 16 14"/>
+                             style="flex-shrink:0;opacity:.55;">
+                            <circle cx="12" cy="10" r="3"/>
+                            <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
                         </svg>
-                        <span>Chargement…</span>
+                        <span class="bs-fav-stop-name">${stopName}</span>
                     </div>
-                </div>
-            </div>`;
+                    <div class="bs-fav-times" id="bs-fav-times-${idx}">
+                        <div class="bs-fav-loading">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2"
+                                 stroke-linecap="round" stroke-linejoin="round"
+                                 style="opacity:.5">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <span>Chargement…</span>
+                        </div>
+                    </div>
+                </div>`;
 
-        card.addEventListener('click', () => {
-            safeVibrate?.([30], true);
-            soundsUX('MBF_Menu_LineSelect');
-            BottomSheet.collapse();
-            openFavoriteSchedule(favorite);
+            card.addEventListener('click', () => {
+                safeVibrate?.([30], true);
+                soundsUX('MBF_Menu_LineSelect');
+                BottomSheet.collapse();
+                openFavoriteSchedule(favorite);
+            });
+
+            list.appendChild(card);
+
+            fetchRealtimeDataForFavorite(favorite)
+                .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor, favorite))
+                .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
         });
+    }
+    };
 
-        list.appendChild(card);
+    if (withAnimation) {
+        _withBsHeightAnimation(doRefresh);
+    } else {
+        doRefresh();
+    }
+}
 
-        fetchRealtimeDataForFavorite(favorite)
-            .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor, favorite))
-            .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
-    });
+function _getStopFavorites() {
+    const key = `favoriteStops_${window.ACTIVE_NETWORK || 'palmbus'}`;
+    try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+}
+
+function _saveStopFavorites(favs) {
+    const key = `favoriteStops_${window.ACTIVE_NETWORK || 'palmbus'}`;
+    localStorage.setItem(key, JSON.stringify(favs));
+}
+
+function _isStopFavorite(stopIdArr) {
+    const favs = _getStopFavorites();
+    return favs.some(f => f.stopIds.some(id => stopIdArr.includes(id)));
+}
+
+function _toggleStopFavorite(stopIdArr, stopName, btn) {
+    const favs = _getStopFavorites();
+    const idx  = favs.findIndex(f => f.stopIds.some(id => stopIdArr.includes(id)));
+
+    if (idx !== -1) {
+        favs.splice(idx, 1);
+        btn.textContent = '☆';
+        btn.style.background = 'rgba(255,255,255,0.12)';
+        if (typeof soundsUX === 'function') soundsUX('MBF_SettingOff');
+    } else {
+        favs.push({ stopIds: stopIdArr, stopName, addedAt: Date.now() });
+        btn.textContent = '★';
+        btn.style.background = 'rgba(255,215,0,0.25)';
+        btn.style.transform = 'scale(1.3)';
+        setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
+        if (typeof soundsUX === 'function') soundsUX('MBF_SettingOn');
+    }
+
+    _saveStopFavorites(favs);
+    safeVibrate?.([30], true);
+    _refreshBottomSheetFavorites(true);
 }
 
 async function openStopInBottomSheet(stopIds, stopName) {
@@ -12314,13 +12523,20 @@ async function openStopInBottomSheet(stopIds, stopName) {
     }
     if (titleEl) {
         titleEl.innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; align-items:center; gap:10px; width:100%;">
                 <button id="bs-stop-back"
                     style="background:rgba(255,255,255,0.15); border:none; border-radius:10px;
-                           width:32px; height:32px; display:flex; align-items:center;
-                           justify-content:center; cursor:pointer; color:white;
-                           font-size:20px; flex-shrink:0; line-height:1;">‹</button>
-                <div style="overflow:hidden;">
+                        width:32px; height:32px; display:flex; align-items:center;
+                        justify-content:center; cursor:pointer; color:white;
+                        font-size:20px; flex-shrink:0; line-height:1;">‹</button>
+                <button id="bs-stop-fav-btn"
+                    style="background:rgba(255,255,255,0.12); border:none; border-radius:10px;
+                        width:32px; height:32px; display:flex; align-items:center;
+                        justify-content:center; cursor:pointer; color:white;
+                        font-size:18px; flex-shrink:0; transition:transform 0.2s ease,background 0.2s ease;">
+                    ${_isStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds]) ? '★' : '☆'}
+                </button>
+                <div style="overflow:hidden; flex:1;">
                     <div style="font-size:20px; font-weight:600;
                                 overflow:hidden; text-overflow:ellipsis;
                                 white-space:nowrap; max-width:220px; line-height:1.15;">
@@ -12332,7 +12548,12 @@ async function openStopInBottomSheet(stopIds, stopName) {
                     </div>
                 </div>
             </div>`;
+
         document.getElementById('bs-stop-back')?.addEventListener('click', _restoreBottomSheetTitle);
+        document.getElementById('bs-stop-fav-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _toggleStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds], stopName, e.currentTarget);
+        });
     }
 
     const content = document.getElementById('bs-content');
@@ -12344,12 +12565,14 @@ async function openStopInBottomSheet(stopIds, stopName) {
         content.appendChild(stopView);
     }
     stopView.style.display = 'block';
+    _withBsHeightAnimation(() => {
     stopView.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center;
                     gap:10px; padding:28px 0; opacity:0.6;">
             <div class="bs-spinner"></div>
             <div style="font-size:13px;">Chargement des passages…</div>
         </div>`;
+    });
 
     if (content) content.scrollTop = 0;
 
@@ -12360,6 +12583,7 @@ async function openStopInBottomSheet(stopIds, stopName) {
 
     const withPassages = Object.values(passages).filter(g => g.times.length > 0);
     if (withPassages.length === 0) {
+        _withBsHeightAnimation(() => {
         stopView.innerHTML = `
             <div style="display:flex; flex-direction:column; align-items:center;
                         gap:10px; padding:30px 0; text-align:center; opacity:0.6;">
@@ -12367,9 +12591,12 @@ async function openStopInBottomSheet(stopIds, stopName) {
                 <div style="font-size:14px;">${t('nodepartures')}</div>
             </div>`;
         return;
+        });
     }
 
-    _renderStopPassages(stopView, ids, stopName, passages);
+    _withBsHeightAnimation(() => {
+        _renderStopPassages(stopView, ids, stopName, passages);
+    });
 }
 
 async function _computeStopPassages(stopIdArr) {
@@ -12510,9 +12737,9 @@ function _guessRouteFromTrip(tripId) {
 
 function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh = false) {
     const now = Date.now() / 1000;
-    const entries = Object.values(byLine).filter(g => g.times.length > 0);
+    const allEntries = Object.values(byLine).filter(g => g.times.length > 0);
 
-    if (!entries.length) {
+    if (!allEntries.length) {
         container.innerHTML = `
             <div style="display:flex;flex-direction:column;align-items:center;
                         gap:10px;padding:30px 0;text-align:center;opacity:0.6;">
@@ -12523,7 +12750,7 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh =
     }
 
     const byRoute = {};
-    entries.forEach(entry => {
+    allEntries.forEach(entry => {
         const rid = entry.routeId;
         if (!byRoute[rid]) byRoute[rid] = [];
         byRoute[rid].push(entry);
@@ -12539,6 +12766,16 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh =
         if (aRT !== bRT) return aRT ? -1 : 1;
         return aNext - bNext;
     });
+
+    if (!sortedRoutes.length) {
+        container.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;
+                        gap:10px;padding:30px 0;text-align:center;opacity:0.6;">
+                <div style="font-size:36px;">🚌</div>
+                <div style="font-size:14px;">${t('nodepartures')}</div>
+            </div>`;
+        return;
+    }
 
     const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -12709,29 +12946,34 @@ async function _refreshBottomSheetStopView() {
 }
 
 function _restoreBottomSheetTitle() {
-    document.getElementById('bottom-sheet').dataset.stopView = 'false';
+    _withBsHeightAnimation(() => {
+        document.getElementById('bottom-sheet').dataset.stopView = 'false';
 
-    const titleEl = document.getElementById('bs-handle-title');
-    if (titleEl && titleEl.dataset.saved) {
-        titleEl.innerHTML = titleEl.dataset.saved;
-        delete titleEl.dataset.saved;
-    }
+        const titleEl = document.getElementById('bs-handle-title');
+        if (titleEl && titleEl.dataset.saved) {
+            titleEl.innerHTML = titleEl.dataset.saved;
+            delete titleEl.dataset.saved;
+        }
 
-    const btns = document.getElementById('bs-handle-buttons');
-    if (btns) btns.style.display = 'flex';
+        const btns = document.getElementById('bs-handle-buttons');
+        if (btns) btns.style.display = 'flex';
 
-    const stopView = document.getElementById('bs-stop-view');
-    if (stopView) stopView.style.display = 'none';
+        const stopView = document.getElementById('bs-stop-view');
+        if (stopView) stopView.style.display = 'none';
 
-    ['bs-search-wrapper', 'bs-favorites-section'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) { el.style.display = ''; delete el.dataset.hiddenByStop; }
+        ['bs-search-wrapper', 'bs-favorites-section'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.style.display = ''; delete el.dataset.hiddenByStop; }
+        });
+        const grid = document.querySelector('.bs-grid');
+        if (grid) { grid.style.display = ''; delete grid.dataset.hiddenByStop; }
+
+        _refreshBottomSheetGreeting();
+        const section = document.getElementById('bs-favorites-section');
+        const list    = document.getElementById('bs-favorites-list');
     });
-    const grid = document.querySelector('.bs-grid');
-    if (grid) { grid.style.display = ''; delete grid.dataset.hiddenByStop; }
 
-    _refreshBottomSheetGreeting();
-    _refreshBottomSheetFavorites();
+    setTimeout(() => _refreshBottomSheetFavorites(true), 400);
 }
 
 
@@ -12800,7 +13042,8 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
         const labelNum = arrival.vehicleLabel
             ? String(arrival.vehicleLabel).padStart(3,'0').replace(/[A-Z]+:/g,'')
             : null;
-        labelEl.textContent = labelNum ? `${label} · ${labelNum}` : label;
+        const destText = arrival.destination && arrival.destination !== 'Destination inconnue' ? ` > ${arrival.destination}` : '';
+        labelEl.textContent = labelNum ? `${label} · ${labelNum}${destText}` : `${label}${destText}`;
         pill.appendChild(labelEl);
 
         if (isRT && arrival.marker) {
@@ -12969,6 +13212,7 @@ async function fetchRealtimeDataForFavorite(favorite) {
                        || markerForTrip?.vehicleData?.vehicle?.id
                        || null,
             marker:       markerForTrip || null,
+            destination:  markerForTrip?.destination || 'Destination inconnue',
             realtime:     true
         });
     });
@@ -13021,6 +13265,7 @@ async function fetchRealtimeDataForFavorite(favorite) {
                            || markerForTrip?.vehicleData?.vehicle?.id
                            || null,
                 marker:       markerForTrip || null,
+                destination:  markerForTrip?.destination || 'Destination inconnue',
                 realtime:     false
             });
         });
@@ -13087,7 +13332,7 @@ document.addEventListener('DOMContentLoaded', () => {
         BottomSheet.init();
         _wireBottomSheetButtons();
         _refreshBottomSheetGreeting();
-        _refreshBottomSheetFavorites();
+        _refreshBottomSheetFavorites(true);
 
         if (localStorage.getItem('nepasafficheraccueil') === 'true') {
             BottomSheet.collapse();
