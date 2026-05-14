@@ -3832,7 +3832,23 @@ async function loadBusStopMarkers() {
         const renderer = L.canvas({ padding: 0.5 });
         window._stopLayerGroup = L.layerGroup();
 
-        clusters.forEach(cluster => {
+        const activeStopIds = new Set();
+        markerPool.active.forEach(marker => {
+            const sid = marker.vehicleData?.stopId;
+            if (sid) activeStopIds.add(sid.replace('0:', '').trim());
+        });
+
+        Object.values(tripUpdates).forEach(tripData => {
+            (tripData.nextStops || []).forEach(stop => {
+                activeStopIds.add(stop.stopId.replace('0:', '').trim());
+            });
+        });
+
+        const activeClusters = clusters.filter(cluster =>
+            cluster.stopIds.some(id => activeStopIds.has(id.replace('0:', '').trim()))
+        );
+
+        activeClusters.forEach(cluster => {
             const circle = L.circleMarker([cluster.lat, cluster.lon], {
                 renderer,
                 radius: 4,
@@ -12349,27 +12365,33 @@ function _guessRouteFromTrip(tripId) {
     return parts[0] || 'Inconnu';
 }
 
-function _renderStopPassages(container, stopId, stopName, byLine) {
+function _renderStopPassages(container, stopIdArr, stopName, byLine) {
     const now = Date.now() / 1000;
-    const entries = Object.values(byLine);
+    const entries = Object.values(byLine).filter(g => g.times.length > 0);
 
     if (!entries.length) {
         container.innerHTML = `
             <div style="display:flex;flex-direction:column;align-items:center;
-                        gap:10px;padding:30px 0;text-align:center;">
-                <div style="font-size:36px;opacity:0.5;">🚌</div>
-                <div style="font-size:14px;opacity:0.6;">${t('nodepartures')}</div>
+                        gap:10px;padding:30px 0;text-align:center;opacity:0.6;">
+                <div style="font-size:36px;">🚌</div>
+                <div style="font-size:14px;">${t('nodepartures')}</div>
             </div>`;
         return;
     }
 
-    entries.sort((a, b) => {
-        const aRT = a.times.some(t => t.realtime);
-        const bRT = b.times.some(t => t.realtime);
-        if (aRT && !bRT) return -1;
-        if (!aRT && bRT) return 1;
-        const aNext = a.times[0]?.time || Infinity;
-        const bNext = b.times[0]?.time || Infinity;
+    const byRoute = {};
+    entries.forEach(entry => {
+        const rid = entry.routeId;
+        if (!byRoute[rid]) byRoute[rid] = [];
+        byRoute[rid].push(entry);
+    });
+
+    const sortedRoutes = Object.entries(byRoute).sort(([, a], [, b]) => {
+        const aNext = Math.min(...a.map(e => e.times[0]?.time ?? Infinity));
+        const bNext = Math.min(...b.map(e => e.times[0]?.time ?? Infinity));
+        const aRT = a.some(e => e.times.some(t => t.realtime));
+        const bRT = b.some(e => e.times.some(t => t.realtime));
+        if (aRT !== bRT) return aRT ? -1 : 1;
         return aNext - bNext;
     });
 
@@ -12382,10 +12404,12 @@ function _renderStopPassages(container, stopId, stopName, byLine) {
 
     container.innerHTML = '';
 
-    entries.forEach(({ routeId, dest, times }, idx) => {
-        const color = lineColors[routeId] || '#444';
+    sortedRoutes.forEach(([routeId, destinations], routeIdx) => {
+        const color    = lineColors[routeId] || '#444';
         const textColor = getTextColor(color);
-        const lineLbl = lineName[routeId] || routeId;
+        const lineLbl  = lineName[routeId] || routeId;
+
+        destinations.sort((a, b) => (a.times[0]?.time ?? Infinity) - (b.times[0]?.time ?? Infinity));
 
         const card = document.createElement('div');
         card.style.cssText = `
@@ -12394,7 +12418,7 @@ function _renderStopPassages(container, stopId, stopName, byLine) {
             background: rgba(255,255,255,0.07);
             border: 1px solid rgba(255,255,255,0.12);
             margin-bottom: 10px;
-            animation: bsFadeUp 0.45s cubic-bezier(0.25,1.5,0.5,1) ${idx * 55}ms both;
+            animation: bsFadeUp 0.45s cubic-bezier(0.25,1.5,0.5,1) ${routeIdx * 55}ms both;
         `;
 
         const header = document.createElement('div');
@@ -12403,16 +12427,13 @@ function _renderStopPassages(container, stopId, stopName, byLine) {
             padding: 11px 14px 10px;
             overflow: hidden;
             background: ${color};
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
         `;
         header.innerHTML = `
             <div class="bs-fav-beam bs-fav-beam1"></div>
             <div class="bs-fav-beam bs-fav-beam2"></div>
-            <div class="bs-fav-line-badge" style="color:${textColor};">
+            <div style="display:flex; align-items:center; gap:8px; position:relative; z-index:1;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2"
+                    stroke="${textColor}" stroke-width="2"
                     stroke-linecap="round" stroke-linejoin="round">
                     <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
                              V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
@@ -12420,91 +12441,110 @@ function _renderStopPassages(container, stopId, stopName, byLine) {
                              17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
                              18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
                 </svg>
-                <span style="font-size:14px;font-weight:700;">Ligne ${lineLbl}</span>
-            </div>
-            <p class="bs-fav-dest" style="color:${textColor};margin:0;">
+                <span style="font-size:16px; font-weight:700; color:${textColor};">
+                    ${t('line')} ${lineLbl}
+                </span>
+                <span style="font-size:11px; color:${textColor}; opacity:0.7; margin-left:auto;">
+                    ${destinations.length} direction${destinations.length > 1 ? 's' : ''}
+                </span>
+            </div>`;
+        card.appendChild(header);
+
+        destinations.forEach((entry, destIdx) => {
+            const destSection = document.createElement('div');
+            destSection.style.cssText = `
+                padding: 10px 14px 12px;
+                ${destIdx < destinations.length - 1
+                    ? 'border-bottom: 1px solid rgba(255,255,255,0.08);'
+                    : ''}
+            `;
+
+            const destHeader = document.createElement('div');
+            destHeader.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                margin-bottom: 8px;
+            `;
+            destHeader.innerHTML = `
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2.5"
+                    stroke="rgba(255,255,255,0.6)" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 18 15 12 9 6"/>
                 </svg>
-                ${dest}
-            </p>`;
+                <span style="font-size:13px; color:rgba(255,255,255,0.75);
+                             overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    ${entry.dest}
+                </span>`;
+            destSection.appendChild(destHeader);
 
-        const body = document.createElement('div');
-        body.style.cssText = 'padding: 9px 14px 11px; display:flex; flex-direction:column; gap:7px;';
+            const timesRow = document.createElement('div');
+            timesRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; align-items:center;';
 
-        const timesRow = document.createElement('div');
-        timesRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-height:24px;';
+            entry.times.forEach(t2 => {
+                const diffMin = Math.round((t2.time - now) / 60);
+                const label   = diffMin <= 1 ? t('imminent') : `${diffMin} ${t('min')}`;
+                const isNow   = diffMin <= 0;
+                const numLabel = t2.vehicleLabel
+                    ? String(t2.vehicleLabel).replace(/[A-Z]+:/g, '').padStart(3, '0')
+                    : null;
 
-        times.forEach(entry => {
-            const diffMin = Math.round((entry.time - now) / 60);
-            const label = diffMin <= 1
-                ? t('imminent')
-                : `${diffMin} ${t('min')}`;
-            const isNow = diffMin <= 0;
-            const numLabel = entry.vehicleLabel
-                ? String(entry.vehicleLabel).replace(/[A-Z]+:/g, '').padStart(3, '0')
-                : null;
+                const pill = document.createElement('span');
+                pill.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 12px;
+                    font-weight: ${t2.realtime ? '600' : '400'};
+                    font-style: ${t2.realtime ? 'normal' : 'italic'};
+                    padding: 4px 10px;
+                    border-radius: 20px;
+                    white-space: nowrap;
+                    border: 1px solid rgba(255,255,255,0.18);
+                    cursor: ${t2.marker ? 'pointer' : 'default'};
+                    transition: transform 0.15s ease, background 0.15s ease;
+                `;
 
-            const pill = document.createElement('span');
-            pill.style.cssText = `
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-                font-size: 12px;
-                font-weight: ${entry.realtime ? '600' : '400'};
-                padding: 3px 9px;
-                border-radius: 20px;
-                white-space: nowrap;
-                border: 1px solid rgba(255,255,255,0.18);
-                font-style: ${entry.realtime ? 'normal' : 'italic'};
-                transition: background 0.15s ease, transform 0.15s ease;
-                cursor: ${entry.marker ? 'pointer' : 'default'};
-            `;
+                if (isNow && t2.realtime) {
+                    pill.style.background  = color;
+                    pill.style.color       = textColor;
+                    pill.style.fontWeight  = '700';
+                    pill.style.borderColor = 'transparent';
+                } else if (t2.realtime) {
+                    pill.style.background = 'rgba(255,255,255,0.14)';
+                    pill.style.color      = 'rgba(255,255,255,0.9)';
+                } else {
+                    pill.style.background  = 'rgba(255,255,255,0.05)';
+                    pill.style.color       = 'rgba(255,255,255,0.35)';
+                    pill.style.borderColor = 'rgba(255,255,255,0.06)';
+                }
 
-            if (isNow && entry.realtime) {
-                pill.style.background = color;
-                pill.style.color = textColor;
-                pill.style.fontWeight = '700';
-            } else if (entry.realtime) {
-                pill.style.background = 'rgba(255,255,255,0.14)';
-                pill.style.color = 'rgba(255,255,255,0.9)';
-            } else {
-                pill.style.background = 'rgba(255,255,255,0.05)';
-                pill.style.color = 'rgba(255,255,255,0.38)';
-                pill.style.borderColor = 'rgba(255,255,255,0.07)';
-            }
+                if (t2.realtime) pill.innerHTML = rssIcon;
+                const labelEl = document.createElement('span');
+                labelEl.textContent = numLabel ? `${label} · ${numLabel}` : label;
+                pill.appendChild(labelEl);
 
-            if (entry.realtime) pill.innerHTML = rssIcon;
-            const labelEl = document.createElement('span');
-            labelEl.textContent = numLabel ? `${label} · ${numLabel}` : label;
-            pill.appendChild(labelEl);
+                if (t2.marker) {
+                    pill.addEventListener('click', e => {
+                        e.stopPropagation();
+                        safeVibrate?.([30, 20, 30], true);
+                        soundsUX('MBF_Menu_VehicleSelect');
+                        map.setView(t2.marker.getLatLng(), 15);
+                        t2.marker.openPopup();
+                        BottomSheet.collapse();
+                        _restoreBottomSheetTitle();
+                    });
+                    pill.addEventListener('pointerenter', () => pill.style.transform = 'scale(1.05)');
+                    pill.addEventListener('pointerleave', () => pill.style.transform = 'scale(1)');
+                }
 
-            if (entry.marker) {
-                pill.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    safeVibrate?.([30, 20, 30], true);
-                    soundsUX('MBF_Menu_VehicleSelect');
-                    map.setView(entry.marker.getLatLng(), 15);
-                    entry.marker.openPopup();
-                    BottomSheet.collapse();
-                    _restoreBottomSheetTitle();
-                });
-                pill.addEventListener('pointerenter', () => {
-                    pill.style.transform = 'scale(1.05)';
-                });
-                pill.addEventListener('pointerleave', () => {
-                    pill.style.transform = 'scale(1)';
-                });
-            }
+                timesRow.appendChild(pill);
+            });
 
-            timesRow.appendChild(pill);
+            destSection.appendChild(timesRow);
+            card.appendChild(destSection);
         });
 
-        body.appendChild(timesRow);
-        card.appendChild(header);
-        card.appendChild(body);
         container.appendChild(card);
     });
 }
