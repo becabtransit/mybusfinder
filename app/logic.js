@@ -11034,7 +11034,11 @@ function startFetchUpdates() {
             FetchManager.onSuccess();
 
             if (BottomSheet.expanded) {
-                _refreshBottomSheetFavorites();
+                if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') {
+                    _refreshBottomSheetStopView();
+                } else {
+                    _refreshBottomSheetFavorites();
+                }
             }
         } catch (error) {
             console.warn('Erreur lors des mises à jour', error);
@@ -12350,6 +12354,8 @@ async function openStopInBottomSheet(stopIds, stopName) {
     if (content) content.scrollTop = 0;
 
     const ids = Array.isArray(stopIds) ? stopIds : [stopIds];
+    stopView.dataset.stopIds = JSON.stringify(ids);
+    stopView.dataset.stopName = stopName;
     const passages = await _computeStopPassages(ids);
 
     const withPassages = Object.values(passages).filter(g => g.times.length > 0);
@@ -12683,6 +12689,22 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine) {
 
         container.appendChild(card);
     });
+}
+
+async function _refreshBottomSheetStopView() {
+    const stopView = document.getElementById('bs-stop-view');
+    if (!stopView || stopView.style.display === 'none') return;
+    
+    try {
+        const stopIds = JSON.parse(stopView.dataset.stopIds || '[]');
+        const stopName = stopView.dataset.stopName || '';
+        if (!stopIds.length) return;
+        
+        const passages = await _computeStopPassages(stopIds);
+        _renderStopPassages(stopView, stopIds, stopName, passages);
+    } catch (e) {
+        console.warn('Erreur rafraîchissement vue arrêt:', e);
+    }
 }
 
 function _restoreBottomSheetTitle() {
