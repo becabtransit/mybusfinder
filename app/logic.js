@@ -1199,7 +1199,10 @@ async function initMap() {
 
     if (L) { 
         window.mapInstance = L.map('map', {
-            zoomControl: false
+            zoomControl: false,
+            zoomSnap: 0,
+            zoomDelta: 0.25,
+            zoomAnimation: true
         }).setView(
             savedPosition && savedPosition.center ? savedPosition.center : defaultCoords,
             savedPosition && savedPosition.zoom ? savedPosition.zoom : defaultZoom
@@ -13432,20 +13435,6 @@ window.softSwitchNetwork = softSwitchNetwork;
         rafId = requestAnimationFrame(smoothLoop);
     }
 
-    function findNearestMarkerCenter(clientX, clientY) {
-        const m = getMap();
-        if (!m || typeof markerPool === 'undefined') return null;
-        const clickLatLng = m.containerPointToLatLng([clientX, clientY]);
-        let best = null, bestDist = Infinity;
-
-        markerPool.active.forEach((marker) => {
-            if (!marker || !marker.getLatLng) return;
-            const d = clickLatLng.distanceTo(marker.getLatLng());
-            if (d < bestDist) { bestDist = d; best = marker.getLatLng(); }
-        });
-
-        return best && bestDist < 8000 ? best : null;
-    }
 
     function onDown(e) {
         const m = getMap();
@@ -13460,18 +13449,9 @@ window.softSwitchNetwork = softSwitchNetwork;
         active      = true;
         lastEmojiStr = '';
 
-        const nearest = findNearestMarkerCenter(
-            window.innerWidth - 14,
-            pt.clientY
-        );
-        if (nearest) {
-            centerLat = nearest.lat;
-            centerLng = nearest.lng;
-        } else {
-            const c = m.getCenter();
-            centerLat = c.lat;
-            centerLng = c.lng;
-        }
+        const c = m.getCenter();
+        centerLat = c.lat;
+        centerLng = c.lng;
 
         emojiEl.style.top = pt.clientY + 'px';
         emojiEl.textContent = getEmoji(startZoom);
@@ -13507,14 +13487,14 @@ window.softSwitchNetwork = softSwitchNetwork;
 
         const m = getMap();
         if (m) {
-            const rounded = Math.round(targetZoom);
+            const finalZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, targetZoom));
             if (centerLat !== null) {
-                m.setView([centerLat, centerLng], rounded, {
+                m.setView([centerLat, centerLng], finalZoom, {
                     animate: true,
                     duration: 0.4
                 });
             } else {
-                m.setZoom(rounded, { animate: true, duration: 0.4 });
+                m.setZoom(finalZoom, { animate: true, duration: 0.4 });
             }
         }
 
