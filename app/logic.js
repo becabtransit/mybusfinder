@@ -12212,6 +12212,62 @@ function _refreshBottomSheetFavorites() {
     section.style.display = 'block';
     list.innerHTML = '';
 
+    const stopFavs = _getStopFavorites();
+    if (stopFavs.length) {
+        const stopFavHeader = document.createElement('div');
+        stopFavHeader.style.cssText = `
+            font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+            color: rgba(255,255,255,0.4); padding: 4px 4px 8px; font-weight: 600;`;
+        stopFavHeader.textContent = t('favorite_stops') || 'Arrêts favoris';
+        list.appendChild(stopFavHeader);
+
+        const stopRow = document.createElement('div');
+        stopRow.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;';
+
+        stopFavs.forEach(fav => {
+            const chip = document.createElement('button');
+            chip.style.cssText = `
+                display: inline-flex; align-items: center; gap: 6px;
+                background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
+                border-radius: 20px; padding: 6px 12px;
+                color: white; font-size: 13px; font-weight: 500;
+                cursor: pointer; font-family: 'League Spartan', sans-serif;
+                transition: background 0.15s ease, transform 0.15s ease;`;
+            chip.innerHTML = `
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="10" r="3"/>
+                    <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+                </svg>
+                <span>${fav.stopName}</span>`;
+
+            chip.addEventListener('pointerenter', () => {
+                chip.style.background   = 'rgba(255,255,255,0.2)';
+                chip.style.transform    = 'scale(1.03)';
+            });
+            chip.addEventListener('pointerleave', () => {
+                chip.style.background   = 'rgba(255,255,255,0.1)';
+                chip.style.transform    = 'scale(1)';
+            });
+            chip.addEventListener('click', () => {
+                safeVibrate?.([30], true);
+                soundsUX?.('MBF_Menu_LineSelect');
+
+                const cluster = window._stopClusters?.find(
+                    c => c.stopIds.some(id => fav.stopIds.includes(id))
+                );
+                if (cluster) map?.setView([cluster.lat, cluster.lon], 17);
+
+                openStopInBottomSheet(fav.stopIds, fav.stopName);
+            });
+
+            stopRow.appendChild(chip);
+        });
+
+        list.appendChild(stopRow);
+    }
+
     favorites.slice(0, 6).forEach((favorite, idx) => {
         const routeId   = favorite.routeId   || '';
         const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
@@ -12289,6 +12345,44 @@ function _refreshBottomSheetFavorites() {
     });
 }
 
+function _getStopFavorites() {
+    const key = `favoriteStops_${window.ACTIVE_NETWORK || 'palmbus'}`;
+    try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+}
+
+function _saveStopFavorites(favs) {
+    const key = `favoriteStops_${window.ACTIVE_NETWORK || 'palmbus'}`;
+    localStorage.setItem(key, JSON.stringify(favs));
+}
+
+function _isStopFavorite(stopIdArr) {
+    const favs = _getStopFavorites();
+    return favs.some(f => f.stopIds.some(id => stopIdArr.includes(id)));
+}
+
+function _toggleStopFavorite(stopIdArr, stopName, btn) {
+    const favs = _getStopFavorites();
+    const idx  = favs.findIndex(f => f.stopIds.some(id => stopIdArr.includes(id)));
+
+    if (idx !== -1) {
+        favs.splice(idx, 1);
+        btn.textContent = '☆';
+        btn.style.background = 'rgba(255,255,255,0.12)';
+        if (typeof soundsUX === 'function') soundsUX('MBF_SettingOff');
+    } else {
+        favs.push({ stopIds: stopIdArr, stopName, addedAt: Date.now() });
+        btn.textContent = '★';
+        btn.style.background = 'rgba(255,215,0,0.25)';
+        btn.style.transform = 'scale(1.3)';
+        setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
+        if (typeof soundsUX === 'function') soundsUX('MBF_SettingOn');
+    }
+
+    _saveStopFavorites(favs);
+    safeVibrate?.([30], true);
+    _refreshBottomSheetFavorites();
+}
+
 async function openStopInBottomSheet(stopIds, stopName) {
     safeVibrate?.([30], true);
     soundsUX('MBF_Popup');
@@ -12314,13 +12408,13 @@ async function openStopInBottomSheet(stopIds, stopName) {
     }
     if (titleEl) {
         titleEl.innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; align-items:center; gap:10px; width:100%;">
                 <button id="bs-stop-back"
                     style="background:rgba(255,255,255,0.15); border:none; border-radius:10px;
-                           width:32px; height:32px; display:flex; align-items:center;
-                           justify-content:center; cursor:pointer; color:white;
-                           font-size:20px; flex-shrink:0; line-height:1;">‹</button>
-                <div style="overflow:hidden;">
+                        width:32px; height:32px; display:flex; align-items:center;
+                        justify-content:center; cursor:pointer; color:white;
+                        font-size:20px; flex-shrink:0; line-height:1;">‹</button>
+                <div style="overflow:hidden; flex:1;">
                     <div style="font-size:20px; font-weight:600;
                                 overflow:hidden; text-overflow:ellipsis;
                                 white-space:nowrap; max-width:220px; line-height:1.15;">
@@ -12331,8 +12425,20 @@ async function openStopInBottomSheet(stopIds, stopName) {
                         ${t("next_departures")}
                     </div>
                 </div>
+                <button id="bs-stop-fav-btn"
+                    style="background:rgba(255,255,255,0.12); border:none; border-radius:10px;
+                        width:32px; height:32px; display:flex; align-items:center;
+                        justify-content:center; cursor:pointer; color:white;
+                        font-size:18px; flex-shrink:0; transition:transform 0.2s ease,background 0.2s ease;">
+                    ${_isStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds]) ? '★' : '☆'}
+                </button>
             </div>`;
+
         document.getElementById('bs-stop-back')?.addEventListener('click', _restoreBottomSheetTitle);
+        document.getElementById('bs-stop-fav-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _toggleStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds], stopName, e.currentTarget);
+        });
     }
 
     const content = document.getElementById('bs-content');
