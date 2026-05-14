@@ -12182,8 +12182,9 @@ function _refreshBottomSheetFavorites() {
     if (!section || !list) return;
 
     const favorites = getFavoriteSchedules();
+    const stopFavs  = _getStopFavorites();
 
-    if (!favorites.length) {
+    if (!favorites.length && !stopFavs.length) {
         section.style.display = 'block';
         list.innerHTML = `
             <div class="bs-fav-empty bs-news-empty">
@@ -12212,7 +12213,6 @@ function _refreshBottomSheetFavorites() {
     section.style.display = 'block';
     list.innerHTML = '';
 
-    const stopFavs = _getStopFavorites();
     if (stopFavs.length) {
         const stopFavHeader = document.createElement('div');
         stopFavHeader.style.cssText = `
@@ -12234,8 +12234,8 @@ function _refreshBottomSheetFavorites() {
                     <div class="bs-fav-beam bs-fav-beam2"></div>
                     <div class="bs-fav-line-badge" style="color:white;">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="10" r="3"/>
                             <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
                         </svg>
@@ -12246,9 +12246,9 @@ function _refreshBottomSheetFavorites() {
                     <div class="bs-fav-times" id="bs-stopfav-times-${fav.stopIds[0]}">
                         <div class="bs-fav-loading">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round"
-                                style="opacity:.5">
+                                 stroke="currentColor" stroke-width="2"
+                                 stroke-linecap="round" stroke-linejoin="round"
+                                 style="opacity:.5">
                                 <circle cx="12" cy="12" r="10"/>
                                 <polyline points="12 6 12 12 16 14"/>
                             </svg>
@@ -12320,81 +12320,90 @@ function _refreshBottomSheetFavorites() {
         });
     }
 
-    favorites.slice(0, 6).forEach((favorite, idx) => {
-        const routeId   = favorite.routeId   || '';
-        const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
-        const destName  = favorite.destinationName || favorite.destinationId || '';
-        const lineName_ = favorite.routeName || lineName[routeId] || routeId;
-        const lineColor = lineColors[routeId] || '#444';
-        const textColor = getTextColor(lineColor);
+    if (favorites.length) {
+        const schedFavHeader = document.createElement('div');
+        schedFavHeader.style.cssText = `
+            font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+            color: rgba(255,255,255,0.4); padding: ${stopFavs.length ? '12px' : '4px'} 4px 8px; font-weight: 600;`;
+        schedFavHeader.textContent = t('favorite_schedules') || 'Horaires favoris';
+        list.appendChild(schedFavHeader);
 
-        const card = document.createElement('div');
-        card.className     = 'bs-fav-card ripple-container';
-        card.style.cssText = `animation-delay:${idx * 55}ms`;
+        favorites.slice(0, 6).forEach((favorite, idx) => {
+            const routeId   = favorite.routeId   || '';
+            const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
+            const destName  = favorite.destinationName || favorite.destinationId || '';
+            const lineName_ = favorite.routeName || lineName[routeId] || routeId;
+            const lineColor = lineColors[routeId] || '#444';
+            const textColor = getTextColor(lineColor);
 
-        card.innerHTML = `
-            <div class="bs-fav-card-header" style="background:${lineColor};">
-                <div class="bs-fav-beam bs-fav-beam1"></div>
-                <div class="bs-fav-beam bs-fav-beam2"></div>
-                <div class="bs-fav-line-badge" style="color:${textColor};">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
-                                 V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
-                                 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
-                                 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
-                                 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                    </svg>
-                    <span>Ligne ${lineName_}</span>
+            const card = document.createElement('div');
+            card.className     = 'bs-fav-card ripple-container';
+            card.style.cssText = `animation-delay:${idx * 55}ms`;
+
+            card.innerHTML = `
+                <div class="bs-fav-card-header" style="background:${lineColor};">
+                    <div class="bs-fav-beam bs-fav-beam1"></div>
+                    <div class="bs-fav-beam bs-fav-beam2"></div>
+                    <div class="bs-fav-line-badge" style="color:${textColor};">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
+                                     V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
+                                     20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
+                                     17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
+                                     18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                        </svg>
+                        <span>Ligne ${lineName_}</span>
+                    </div>
+                    <p class="bs-fav-dest" style="color:${textColor};">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2.5"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                        ${destName}
+                    </p>
                 </div>
-                <p class="bs-fav-dest" style="color:${textColor};">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2.5"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <polyline points="9 18 15 12 9 6"/>
-                    </svg>
-                    ${destName}
-                </p>
-            </div>
-            <div class="bs-fav-card-body">
-                <div class="bs-fav-stop-row">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2"
-                         stroke-linecap="round" stroke-linejoin="round"
-                         aria-hidden="true" style="flex-shrink:0;opacity:.55;">
-                        <circle cx="12" cy="10" r="3"/>
-                        <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
-                    </svg>
-                    <span class="bs-fav-stop-name">${stopName}</span>
-                </div>
-                <div class="bs-fav-times" id="bs-fav-times-${idx}">
-                    <div class="bs-fav-loading">
+                <div class="bs-fav-card-body">
+                    <div class="bs-fav-stop-row">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="2"
                              stroke-linecap="round" stroke-linejoin="round"
-                             style="opacity:.5" aria-hidden="true">
-                            <circle cx="12" cy="12" r="10"/>
-                            <polyline points="12 6 12 12 16 14"/>
+                             style="flex-shrink:0;opacity:.55;">
+                            <circle cx="12" cy="10" r="3"/>
+                            <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
                         </svg>
-                        <span>Chargement…</span>
+                        <span class="bs-fav-stop-name">${stopName}</span>
                     </div>
-                </div>
-            </div>`;
+                    <div class="bs-fav-times" id="bs-fav-times-${idx}">
+                        <div class="bs-fav-loading">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2"
+                                 stroke-linecap="round" stroke-linejoin="round"
+                                 style="opacity:.5">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <span>Chargement…</span>
+                        </div>
+                    </div>
+                </div>`;
 
-        card.addEventListener('click', () => {
-            safeVibrate?.([30], true);
-            soundsUX('MBF_Menu_LineSelect');
-            BottomSheet.collapse();
-            openFavoriteSchedule(favorite);
+            card.addEventListener('click', () => {
+                safeVibrate?.([30], true);
+                soundsUX('MBF_Menu_LineSelect');
+                BottomSheet.collapse();
+                openFavoriteSchedule(favorite);
+            });
+
+            list.appendChild(card);
+
+            fetchRealtimeDataForFavorite(favorite)
+                .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor, favorite))
+                .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
         });
-
-        list.appendChild(card);
-
-        fetchRealtimeDataForFavorite(favorite)
-            .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor, favorite))
-            .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
-    });
+    }
 }
 
 function _getStopFavorites() {
@@ -12460,16 +12469,23 @@ async function openStopInBottomSheet(stopIds, stopName) {
     }
     if (titleEl) {
         titleEl.innerHTML = `
-            <div style="position:relative; display:flex; align-items:center;
-                        gap:10px; width:100%; padding-right:36px;">
+            <div style="display:flex; align-items:center; gap:10px; width:100%;">
                 <button id="bs-stop-back"
                     style="background:rgba(255,255,255,0.15); border:none; border-radius:10px;
                         width:32px; height:32px; display:flex; align-items:center;
                         justify-content:center; cursor:pointer; color:white;
                         font-size:20px; flex-shrink:0; line-height:1;">‹</button>
-                <div style="overflow:hidden; flex:1; min-width:0;">
-                    <div style="font-size:20px; font-weight:600; overflow:hidden;
-                                text-overflow:ellipsis; white-space:nowrap; line-height:1.15;">
+                <button id="bs-stop-fav-btn"
+                    style="background:rgba(255,255,255,0.12); border:none; border-radius:10px;
+                        width:32px; height:32px; display:flex; align-items:center;
+                        justify-content:center; cursor:pointer; color:white;
+                        font-size:18px; flex-shrink:0; transition:transform 0.2s ease,background 0.2s ease;">
+                    ${_isStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds]) ? '★' : '☆'}
+                </button>
+                <div style="overflow:hidden; flex:1;">
+                    <div style="font-size:20px; font-weight:600;
+                                overflow:hidden; text-overflow:ellipsis;
+                                white-space:nowrap; max-width:220px; line-height:1.15;">
                         ${stopName}
                     </div>
                     <div style="font-size:11px; opacity:0.55; text-transform:uppercase;
@@ -12477,25 +12493,12 @@ async function openStopInBottomSheet(stopIds, stopName) {
                         ${t("next_departures")}
                     </div>
                 </div>
-                <button id="bs-stop-fav-btn"
-                    style="position:absolute; right:0; top:50%; transform:translateY(-50%);
-                        background:rgba(255,255,255,0.15); border:none; border-radius:10px;
-                        width:32px; height:32px; display:flex; align-items:center;
-                        justify-content:center; cursor:pointer; color:white;
-                        font-size:18px; flex-shrink:0; line-height:1;
-                        transition:transform 0.2s ease, background 0.2s ease;">
-                    ${_isStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds]) ? '★' : '☆'}
-                </button>
             </div>`;
 
         document.getElementById('bs-stop-back')?.addEventListener('click', _restoreBottomSheetTitle);
         document.getElementById('bs-stop-fav-btn')?.addEventListener('click', (e) => {
             e.stopPropagation();
-            _toggleStopFavorite(
-                Array.isArray(stopIds) ? stopIds : [stopIds],
-                stopName,
-                e.currentTarget
-            );
+            _toggleStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds], stopName, e.currentTarget);
         });
     }
 
