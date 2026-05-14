@@ -12225,44 +12225,101 @@ function _refreshBottomSheetFavorites() {
         stopRow.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;';
 
         stopFavs.forEach(fav => {
-            const chip = document.createElement('button');
-            chip.style.cssText = `
-                display: inline-flex; align-items: center; gap: 6px;
-                background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
-                border-radius: 20px; padding: 6px 12px;
-                color: white; font-size: 13px; font-weight: 500;
-                cursor: pointer; font-family: 'League Spartan', sans-serif;
-                transition: background 0.15s ease, transform 0.15s ease;`;
-            chip.innerHTML = `
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="10" r="3"/>
-                    <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
-                </svg>
-                <span>${fav.stopName}</span>`;
+            const cluster = window._stopClusters?.find(
+                c => c.stopIds.some(id => fav.stopIds.includes(id))
+            );
 
-            chip.addEventListener('pointerenter', () => {
-                chip.style.background   = 'rgba(255,255,255,0.2)';
-                chip.style.transform    = 'scale(1.03)';
-            });
-            chip.addEventListener('pointerleave', () => {
-                chip.style.background   = 'rgba(255,255,255,0.1)';
-                chip.style.transform    = 'scale(1)';
-            });
-            chip.addEventListener('click', () => {
+            const card = document.createElement('div');
+            card.className = 'bs-fav-card ripple-container';
+            card.innerHTML = `
+                <div class="bs-fav-card-header" style="background: rgba(255,255,255,0.12);">
+                    <div class="bs-fav-beam bs-fav-beam1"></div>
+                    <div class="bs-fav-beam bs-fav-beam2"></div>
+                    <div class="bs-fav-line-badge" style="color:white;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="10" r="3"/>
+                            <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+                        </svg>
+                        <span>${fav.stopName}</span>
+                    </div>
+                </div>
+                <div class="bs-fav-card-body">
+                    <div class="bs-fav-times" id="bs-stopfav-times-${fav.stopIds[0]}">
+                        <div class="bs-fav-loading">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round"
+                                style="opacity:.5">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <span>Chargement…</span>
+                        </div>
+                    </div>
+                </div>`;
+
+            card.addEventListener('click', () => {
                 safeVibrate?.([30], true);
-                soundsUX?.('MBF_Menu_LineSelect');
-
-                const cluster = window._stopClusters?.find(
-                    c => c.stopIds.some(id => fav.stopIds.includes(id))
-                );
+                soundsUX?.('MBF_Popup');
                 if (cluster) map?.setView([cluster.lat, cluster.lon], 17);
-
                 openStopInBottomSheet(fav.stopIds, fav.stopName);
             });
 
-            stopRow.appendChild(chip);
+            list.appendChild(card);
+
+            _computeStopPassages(fav.stopIds).then(passages => {
+                const timesEl = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
+                if (!timesEl) return;
+
+                const allTimes = [];
+                Object.values(passages).forEach(group => {
+                    group.times.forEach(t2 => {
+                        allTimes.push({ ...t2, routeId: group.routeId, dest: group.dest });
+                    });
+                });
+                allTimes.sort((a, b) => a.time - b.time);
+
+                if (!allTimes.length) {
+                    timesEl.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+                    return;
+                }
+
+                const now = Date.now() / 1000;
+                const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4a16 16 0 0 1 16 16"/>
+                    <path d="M4 11a9 9 0 0 1 9 9"/>
+                    <circle cx="5" cy="19" r="1"/>
+                </svg>`;
+
+                timesEl.innerHTML = '';
+                allTimes.slice(0, 5).forEach(item => {
+                    const color     = lineColors[item.routeId] || '#444';
+                    const textColor = getTextColor(color);
+                    const lname     = lineName[item.routeId] || item.routeId;
+                    const diffMin   = Math.round((item.time - now) / 60);
+                    const label     = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
+                    const isNow     = diffMin <= 0;
+
+                    const pill = document.createElement('span');
+                    pill.style.cssText = `
+                        display: inline-flex; align-items: center; gap: 4px;
+                        font-size: 12px; font-weight: ${item.realtime ? '600' : '400'};
+                        font-style: ${item.realtime ? 'normal' : 'italic'};
+                        padding: 3px 8px; border-radius: 20px; white-space: nowrap;
+                        border: 1px solid rgba(255,255,255,0.15);
+                        background: ${isNow && item.realtime ? color : item.realtime ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.05)'};
+                        color: ${isNow && item.realtime ? textColor : item.realtime ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.38)'};`;
+
+                    pill.innerHTML = item.realtime ? rssIcon : '';
+                    const span = document.createElement('span');
+                    span.textContent = `${lname} · ${label}`;
+                    pill.appendChild(span);
+                    timesEl.appendChild(pill);
+                });
+            });
         });
 
         list.appendChild(stopRow);
@@ -12414,10 +12471,10 @@ async function openStopInBottomSheet(stopIds, stopName) {
                         width:32px; height:32px; display:flex; align-items:center;
                         justify-content:center; cursor:pointer; color:white;
                         font-size:20px; flex-shrink:0; line-height:1;">‹</button>
-                <div style="overflow:hidden; flex:1;">
+                <div style="overflow:hidden; flex:1; min-width:0;">
                     <div style="font-size:20px; font-weight:600;
                                 overflow:hidden; text-overflow:ellipsis;
-                                white-space:nowrap; max-width:220px; line-height:1.15;">
+                                white-space:nowrap; line-height:1.15;">
                         ${stopName}
                     </div>
                     <div style="font-size:11px; opacity:0.55; text-transform:uppercase;
@@ -12426,10 +12483,10 @@ async function openStopInBottomSheet(stopIds, stopName) {
                     </div>
                 </div>
                 <button id="bs-stop-fav-btn"
-                    style="background:rgba(255,255,255,0.12); border:none; border-radius:10px;
-                        width:32px; height:32px; display:flex; align-items:center;
-                        justify-content:center; cursor:pointer; color:white;
-                        font-size:18px; flex-shrink:0; transition:transform 0.2s ease,background 0.2s ease;">
+                    style="margin-left:auto; background:none; border:none;
+                        cursor:pointer; color:white; font-size:22px;
+                        flex-shrink:0; line-height:1; padding:4px;
+                        transition:transform 0.2s ease; opacity:0.85;">
                     ${_isStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds]) ? '★' : '☆'}
                 </button>
             </div>`;
@@ -12437,7 +12494,11 @@ async function openStopInBottomSheet(stopIds, stopName) {
         document.getElementById('bs-stop-back')?.addEventListener('click', _restoreBottomSheetTitle);
         document.getElementById('bs-stop-fav-btn')?.addEventListener('click', (e) => {
             e.stopPropagation();
-            _toggleStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds], stopName, e.currentTarget);
+            _toggleStopFavorite(
+                Array.isArray(stopIds) ? stopIds : [stopIds],
+                stopName,
+                e.currentTarget
+            );
         });
     }
 
