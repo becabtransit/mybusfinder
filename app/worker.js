@@ -178,6 +178,7 @@ function extractTripInfo(tripUpdate) {
         tripId,
         routeId: trip.routeId || trip.route_id,
         directionId: trip.directionId || trip.direction_id,
+        tripHeadsign: trip.tripHeadsign || trip.trip_headsign || trip.headsign || trip.stopHeadsign || trip.stop_headsign || null,
         startTime: trip.startTime || trip.start_time,
         startDate: trip.startDate || trip.start_date,
         scheduleRelationship: trip.scheduleRelationship || trip.schedule_relationship

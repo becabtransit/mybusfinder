@@ -12389,6 +12389,52 @@ async function _computeStopPassages(stopIdArr) {
         return value === '' ? t('destinationunknown') || 'Destination inconnue' : value;
     }
 
+    function inferStaticDestination(tripId) {
+        const tripStops = window.staticStopTimes?.[tripId];
+        if (!tripStops) return null;
+
+        let lastStopId = null;
+        let maxSeq = -Infinity;
+
+        Object.entries(tripStops).forEach(([stopId, stopData]) => {
+            const seq = Number(stopData.s || stopData.stop_sequence || stopData.stopSequence || -1);
+            if (Number.isFinite(seq) && seq > maxSeq) {
+                maxSeq = seq;
+                lastStopId = stopId;
+            }
+        });
+
+        if (!lastStopId) return null;
+
+        const cleaned = lastStopId.replace(/^0:/, '');
+        return stopNameMap[lastStopId] || stopNameMap[cleaned] || cleaned;
+    }
+
+    function inferStopSheetDestination(marker, tripId, tripData) {
+        if (marker?.destination) {
+            return normalizeStopSheetDestination(marker.destination);
+        }
+
+        const tripHeadsign = tripData?.tripInfo?.tripHeadsign;
+        if (tripHeadsign) {
+            return normalizeStopSheetDestination(tripHeadsign);
+        }
+
+        const stopUpdateHeadsign = tripData?.stopUpdates?.length
+            ? tripData.stopUpdates[tripData.stopUpdates.length - 1]?.stopHeadsign
+            : null;
+        if (stopUpdateHeadsign) {
+            return normalizeStopSheetDestination(stopUpdateHeadsign);
+        }
+
+        const staticDestination = inferStaticDestination(tripId);
+        if (staticDestination) {
+            return normalizeStopSheetDestination(staticDestination);
+        }
+
+        return t('destinationunknown') || 'Destination inconnue';
+    }
+
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
         const match = nextStops.find(s => matchStop(s.stopId));
@@ -12397,9 +12443,9 @@ async function _computeStopPassages(stopIdArr) {
         const marker = [...markerPool.active.values()]
             .find(m => m.vehicleData?.trip?.tripId === tripId);
 
-        const rawRouteId = marker?.line || tripUpdates[tripId]?.tripInfo?.routeId || _guessRouteFromTrip(tripId);
+        const rawRouteId = marker?.line || tripData?.tripInfo?.routeId || _guessRouteFromTrip(tripId);
         const routeId = normalizeStopSheetRouteId(rawRouteId);
-        const dest = normalizeStopSheetDestination(marker?.destination || 'Destination inconnue');
+        const dest = inferStopSheetDestination(marker, tripId, tripData);
         const vehicleLabel = marker?.vehicleData?.vehicle?.label
             || marker?.vehicleData?.vehicle?.id || null;
 
@@ -12440,7 +12486,7 @@ async function _computeStopPassages(stopIdArr) {
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
             const rawRouteId = marker?.line || tripUpdates[tripId]?.tripInfo?.routeId || _guessRouteFromTrip(tripId);
             const routeId = normalizeStopSheetRouteId(rawRouteId);
-            const dest    = normalizeStopSheetDestination(marker?.destination || 'Destination inconnue');
+            const dest    = inferStopSheetDestination(marker, tripId, tripData);
 
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
