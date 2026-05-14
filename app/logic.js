@@ -12221,9 +12221,6 @@ function _refreshBottomSheetFavorites() {
         stopFavHeader.textContent = t('favorite_stops') || 'Arrêts favoris';
         list.appendChild(stopFavHeader);
 
-        const stopRow = document.createElement('div');
-        stopRow.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;';
-
         stopFavs.forEach(fav => {
             const cluster = window._stopClusters?.find(
                 c => c.stopIds.some(id => fav.stopIds.includes(id))
@@ -12321,8 +12318,6 @@ function _refreshBottomSheetFavorites() {
                 });
             });
         });
-
-        list.appendChild(stopRow);
     }
 
     favorites.slice(0, 6).forEach((favorite, idx) => {
@@ -12465,16 +12460,16 @@ async function openStopInBottomSheet(stopIds, stopName) {
     }
     if (titleEl) {
         titleEl.innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px; width:100%;">
+            <div style="position:relative; display:flex; align-items:center;
+                        gap:10px; width:100%; padding-right:36px;">
                 <button id="bs-stop-back"
                     style="background:rgba(255,255,255,0.15); border:none; border-radius:10px;
                         width:32px; height:32px; display:flex; align-items:center;
                         justify-content:center; cursor:pointer; color:white;
                         font-size:20px; flex-shrink:0; line-height:1;">‹</button>
                 <div style="overflow:hidden; flex:1; min-width:0;">
-                    <div style="font-size:20px; font-weight:600;
-                                overflow:hidden; text-overflow:ellipsis;
-                                white-space:nowrap; line-height:1.15;">
+                    <div style="font-size:20px; font-weight:600; overflow:hidden;
+                                text-overflow:ellipsis; white-space:nowrap; line-height:1.15;">
                         ${stopName}
                     </div>
                     <div style="font-size:11px; opacity:0.55; text-transform:uppercase;
@@ -12483,10 +12478,12 @@ async function openStopInBottomSheet(stopIds, stopName) {
                     </div>
                 </div>
                 <button id="bs-stop-fav-btn"
-                    style="margin-left:auto; background:none; border:none;
-                        cursor:pointer; color:white; font-size:22px;
-                        flex-shrink:0; line-height:1; padding:4px;
-                        transition:transform 0.2s ease; opacity:0.85;">
+                    style="position:absolute; right:0; top:50%; transform:translateY(-50%);
+                        background:rgba(255,255,255,0.15); border:none; border-radius:10px;
+                        width:32px; height:32px; display:flex; align-items:center;
+                        justify-content:center; cursor:pointer; color:white;
+                        font-size:18px; flex-shrink:0; line-height:1;
+                        transition:transform 0.2s ease, background 0.2s ease;">
                     ${_isStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds]) ? '★' : '☆'}
                 </button>
             </div>`;
