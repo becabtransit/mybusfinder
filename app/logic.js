@@ -12508,7 +12508,7 @@ function _guessRouteFromTrip(tripId) {
     return parts[0] || 'Inconnu';
 }
 
-function _renderStopPassages(container, stopIdArr, stopName, byLine) {
+function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh = false) {
     const now = Date.now() / 1000;
     const entries = Object.values(byLine).filter(g => g.times.length > 0);
 
@@ -12557,13 +12557,14 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine) {
         destinations.sort((a, b) => (a.times[0]?.time ?? Infinity) - (b.times[0]?.time ?? Infinity));
 
         const card = document.createElement('div');
+        const animationStyle = isRefresh ? '' : `animation: bsFadeUp 0.45s cubic-bezier(0.25,1.5,0.5,1) ${routeIdx * 55}ms both;`;
         card.style.cssText = `
             border-radius: 18px;
             overflow: hidden;
             background: rgba(255,255,255,0.07);
             border: 1px solid rgba(255,255,255,0.12);
             margin-bottom: 10px;
-            animation: bsFadeUp 0.45s cubic-bezier(0.25,1.5,0.5,1) ${routeIdx * 55}ms both;
+            ${animationStyle}
         `;
 
         const header = document.createElement('div');
@@ -12701,7 +12702,7 @@ async function _refreshBottomSheetStopView() {
         if (!stopIds.length) return;
         
         const passages = await _computeStopPassages(stopIds);
-        _renderStopPassages(stopView, stopIds, stopName, passages);
+        _renderStopPassages(stopView, stopIds, stopName, passages, true);
     } catch (e) {
         console.warn('Erreur rafraîchissement vue arrêt:', e);
     }
