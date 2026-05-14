@@ -12377,6 +12377,18 @@ async function _computeStopPassages(stopIdArr) {
         return cleanStops.includes(clean);
     }
 
+    function normalizeStopSheetRouteId(routeId) {
+        if (routeId === undefined || routeId === null) return 'Inconnu';
+        const value = String(routeId).trim();
+        return value === '' ? 'Inconnu' : value;
+    }
+
+    function normalizeStopSheetDestination(destination) {
+        if (destination === undefined || destination === null) return t('destinationunknown') || 'Destination inconnue';
+        const value = String(destination).trim();
+        return value === '' ? t('destinationunknown') || 'Destination inconnue' : value;
+    }
+
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
         const match = nextStops.find(s => matchStop(s.stopId));
@@ -12385,8 +12397,9 @@ async function _computeStopPassages(stopIdArr) {
         const marker = [...markerPool.active.values()]
             .find(m => m.vehicleData?.trip?.tripId === tripId);
 
-        const routeId = marker?.line || 'Inconnu';
-        const dest    = marker?.destination || 'Destination inconnue';
+        const rawRouteId = marker?.line || tripUpdates[tripId]?.tripInfo?.routeId || _guessRouteFromTrip(tripId);
+        const routeId = normalizeStopSheetRouteId(rawRouteId);
+        const dest = normalizeStopSheetDestination(marker?.destination || 'Destination inconnue');
         const vehicleLabel = marker?.vehicleData?.vehicle?.label
             || marker?.vehicleData?.vehicle?.id || null;
 
@@ -12425,8 +12438,9 @@ async function _computeStopPassages(stopIdArr) {
 
             const marker = [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
-            const routeId = marker?.line || _guessRouteFromTrip(tripId);
-            const dest    = marker?.destination || 'Destination inconnue';
+            const rawRouteId = marker?.line || tripUpdates[tripId]?.tripInfo?.routeId || _guessRouteFromTrip(tripId);
+            const routeId = normalizeStopSheetRouteId(rawRouteId);
+            const dest    = normalizeStopSheetDestination(marker?.destination || 'Destination inconnue');
 
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
