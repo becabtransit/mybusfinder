@@ -12516,168 +12516,144 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine) {
         return;
     }
 
-    const byRoute = {};
-    entries.forEach(entry => {
-        const rid = entry.routeId;
-        if (!byRoute[rid]) byRoute[rid] = [];
-        byRoute[rid].push(entry);
-    });
-
-    const sortedRoutes = Object.entries(byRoute).sort(([, a], [, b]) => {
-        const aNext = Math.min(...a.map(e => e.times[0]?.time ?? Infinity));
-        const bNext = Math.min(...b.map(e => e.times[0]?.time ?? Infinity));
-        const aRT = a.some(e => e.times.some(t => t.realtime));
-        const bRT = b.some(e => e.times.some(t => t.realtime));
+    const sortedEntries = entries.slice().sort((a, b) => {
+        const aNext = Math.min(...a.times.map(t => t.time));
+        const bNext = Math.min(...b.times.map(t => t.time));
+        const aRT = a.times.some(t => t.realtime);
+        const bRT = b.times.some(t => t.realtime);
         if (aRT !== bRT) return aRT ? -1 : 1;
         return aNext - bNext;
     });
 
-    const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 4a16 16 0 0 1 16 16"/>
-        <path d="M4 11a9 9 0 0 1 9 9"/>
-        <circle cx="5" cy="19" r="1"/>
-    </svg>`;
-
     container.innerHTML = '';
 
-    sortedRoutes.forEach(([routeId, destinations], routeIdx) => {
-        const color    = lineColors[routeId] || '#444';
-        const textColor = getTextColor(color);
-        const lineLbl  = lineName[routeId] || routeId;
-
-        destinations.sort((a, b) => (a.times[0]?.time ?? Infinity) - (b.times[0]?.time ?? Infinity));
+    sortedEntries.forEach((entry, idx) => {
+        const routeId   = entry.routeId || 'Inconnu';
+        const destName  = entry.dest || '';
+        const stopLabel = stopName || (Array.isArray(stopIdArr) ? stopIdArr[0] : stopIdArr);
+        const lineName_ = lineName[routeId] || routeId;
+        const lineColor = lineColors[routeId] || '#444';
+        const textColor = getTextColor(lineColor);
 
         const card = document.createElement('div');
-        card.style.cssText = `
-            border-radius: 18px;
-            overflow: hidden;
-            background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.12);
-            margin-bottom: 10px;
-            animation: bsFadeUp 0.45s cubic-bezier(0.25,1.5,0.5,1) ${routeIdx * 55}ms both;
-        `;
-
-        const header = document.createElement('div');
-        header.style.cssText = `
-            position: relative;
-            padding: 11px 14px 10px;
-            overflow: hidden;
-            background: ${color};
-        `;
-        header.innerHTML = `
-            <div class="bs-fav-beam bs-fav-beam1"></div>
-            <div class="bs-fav-beam bs-fav-beam2"></div>
-            <div style="display:flex; align-items:center; gap:8px; position:relative; z-index:1;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                    stroke="${textColor}" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
-                             V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
-                             20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
-                             17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
-                             18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                </svg>
-                <span style="font-size:16px; font-weight:700; color:${textColor};">
-                    ${t('line')} ${lineLbl}
-                </span>
+        card.className = 'bs-fav-card ripple-container';
+        card.style.cssText = `animation: bsFadeUp 0.45s cubic-bezier(0.25,1.5,0.5,1) ${idx * 55}ms both;`;
+        card.innerHTML = `
+            <div class="bs-fav-card-header" style="background:${lineColor};">
+                <div class="bs-fav-beam bs-fav-beam1"></div>
+                <div class="bs-fav-beam bs-fav-beam2"></div>
+                <div class="bs-fav-line-badge" style="color:${textColor};">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
+                                 V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
+                                 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
+                                 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
+                                 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                    </svg>
+                    <span>Ligne ${lineName_}</span>
+                </div>
+                <p class="bs-fav-dest" style="color:${textColor};">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.5"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                    ${destName}
+                </p>
+            </div>
+            <div class="bs-fav-card-body">
+                <div class="bs-fav-stop-row">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round"
+                         aria-hidden="true" style="flex-shrink:0;opacity:.55;">
+                        <circle cx="12" cy="10" r="3"/>
+                        <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+                    </svg>
+                    <span class="bs-fav-stop-name">${stopLabel}</span>
+                </div>
+                <div class="bs-fav-times" id="bs-stop-times-${idx}"></div>
             </div>`;
-        card.appendChild(header);
 
-        destinations.forEach((entry, destIdx) => {
-            const destSection = document.createElement('div');
-            destSection.style.cssText = `
-                padding: 10px 14px 12px;
-                ${destIdx < destinations.length - 1
-                    ? 'border-bottom: 1px solid rgba(255,255,255,0.08);'
-                    : ''}
-            `;
+        const timesContainer = card.querySelector(`#bs-stop-times-${idx}`);
+        if (timesContainer) {
+            if (!entry.times || !entry.times.length) {
+                timesContainer.innerHTML = `<span class="bs-fav-no-data">${t('nodepartures')}</span>`;
+            } else {
+                entry.times.slice(0, 5).forEach((arrival) => {
+                    const diffMin = Math.round((arrival.time - now) / 60);
+                    const label = diffMin <= 1 ? t('imminent') : `${diffMin} ${t('min')}`;
+                    const isNow = diffMin <= 0;
+                    const numLabel = arrival.vehicleLabel
+                        ? String(arrival.vehicleLabel).replace(/[A-Z]+:/g, '').padStart(3, '0')
+                        : null;
 
-            const destHeader = document.createElement('div');
-            destHeader.style.cssText = `
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                margin-bottom: 8px;
-            `;
-            destHeader.innerHTML = `
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                    stroke="rgba(255,255,255,0.6)" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                </svg>
-                <span style="font-size:13px; color:rgba(255,255,255,0.75);
-                             overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                    ${entry.dest}
-                </span>`;
-            destSection.appendChild(destHeader);
+                    const pill = document.createElement('span');
+                    pill.style.cssText = `
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        font-size: 12px;
+                        font-weight: ${arrival.realtime ? '600' : '400'};
+                        font-style: ${arrival.realtime ? 'normal' : 'italic'};
+                        padding: 3px 9px;
+                        border-radius: 20px;
+                        white-space: nowrap;
+                        border: 1px solid rgba(255,255,255,0.18);
+                        cursor: ${arrival.marker ? 'pointer' : 'default'};
+                        transition: background 0.15s ease, transform 0.15s ease;
+                    `;
 
-            const timesRow = document.createElement('div');
-            timesRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; align-items:center;';
+                    if (isNow && arrival.realtime) {
+                        pill.style.background = lineColor;
+                        pill.style.color = textColor;
+                        pill.style.fontWeight = '700';
+                    } else if (arrival.realtime) {
+                        pill.style.background = 'rgba(255,255,255,0.14)';
+                        pill.style.color = 'rgba(255,255,255,0.9)';
+                    } else {
+                        pill.style.background = 'rgba(255,255,255,0.05)';
+                        pill.style.color = 'rgba(255,255,255,0.38)';
+                        pill.style.borderColor = 'rgba(255,255,255,0.07)';
+                        pill.style.fontStyle = 'italic';
+                    }
 
-            entry.times.forEach(t2 => {
-                const diffMin = Math.round((t2.time - now) / 60);
-                const label   = diffMin <= 1 ? t('imminent') : `${diffMin} ${t('min')}`;
-                const isNow   = diffMin <= 0;
-                const numLabel = t2.vehicleLabel
-                    ? String(t2.vehicleLabel).replace(/[A-Z]+:/g, '').padStart(3, '0')
-                    : null;
+                    if (arrival.realtime) {
+                        pill.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            style="flex-shrink:0;" aria-label="Temps réel">
+                            <g>
+                                <path d="M4 4a16 16 0 0 1 16 16"/>
+                                <path d="M4 11a9 9 0 0 1 9 9"/>
+                            </g>
+                            <circle cx="5" cy="19" r="1"/>
+                        </svg>`;
+                    }
 
-                const pill = document.createElement('span');
-                pill.style.cssText = `
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 4px;
-                    font-size: 12px;
-                    font-weight: ${t2.realtime ? '600' : '400'};
-                    font-style: ${t2.realtime ? 'normal' : 'italic'};
-                    padding: 4px 10px;
-                    border-radius: 20px;
-                    white-space: nowrap;
-                    border: 1px solid rgba(255,255,255,0.18);
-                    cursor: ${t2.marker ? 'pointer' : 'default'};
-                    transition: transform 0.15s ease, background 0.15s ease;
-                `;
+                    const labelEl = document.createElement('span');
+                    labelEl.textContent = numLabel ? `${label} · ${numLabel}` : label;
+                    pill.appendChild(labelEl);
 
-                if (isNow && t2.realtime) {
-                    pill.style.background  = color;
-                    pill.style.color       = textColor;
-                    pill.style.fontWeight  = '700';
-                    pill.style.borderColor = 'transparent';
-                } else if (t2.realtime) {
-                    pill.style.background = 'rgba(255,255,255,0.14)';
-                    pill.style.color      = 'rgba(255,255,255,0.9)';
-                } else {
-                    pill.style.background  = 'rgba(255,255,255,0.05)';
-                    pill.style.color       = 'rgba(255,255,255,0.35)';
-                    pill.style.borderColor = 'rgba(255,255,255,0.06)';
-                }
+                    if (arrival.marker) {
+                        pill.addEventListener('click', e => {
+                            e.stopPropagation();
+                            safeVibrate?.([30, 20, 30], true);
+                            soundsUX('MBF_Menu_VehicleSelect');
+                            map.setView(arrival.marker.getLatLng(), 15);
+                            arrival.marker.openPopup();
+                            BottomSheet.collapse();
+                            _restoreBottomSheetTitle();
+                        });
+                        pill.addEventListener('pointerenter', () => pill.style.transform = 'scale(1.05)');
+                        pill.addEventListener('pointerleave', () => pill.style.transform = 'scale(1)');
+                    }
 
-                if (t2.realtime) pill.innerHTML = rssIcon;
-                const labelEl = document.createElement('span');
-                labelEl.textContent = numLabel ? `${label} · ${numLabel}` : label;
-                pill.appendChild(labelEl);
-
-                if (t2.marker) {
-                    pill.addEventListener('click', e => {
-                        e.stopPropagation();
-                        safeVibrate?.([30, 20, 30], true);
-                        soundsUX('MBF_Menu_VehicleSelect');
-                        map.setView(t2.marker.getLatLng(), 15);
-                        t2.marker.openPopup();
-                        BottomSheet.collapse();
-                        _restoreBottomSheetTitle();
-                    });
-                    pill.addEventListener('pointerenter', () => pill.style.transform = 'scale(1.05)');
-                    pill.addEventListener('pointerleave', () => pill.style.transform = 'scale(1)');
-                }
-
-                timesRow.appendChild(pill);
-            });
-
-            destSection.appendChild(timesRow);
-            card.appendChild(destSection);
-        });
+                    timesContainer.appendChild(pill);
+                });
+            }
+        }
 
         container.appendChild(card);
     });
