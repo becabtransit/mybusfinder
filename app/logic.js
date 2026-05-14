@@ -12414,7 +12414,6 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                              stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="9 18 15 12 9 6"/>
                         </svg>
-                        ${destName}
                     </p>
                 </div>
                 <div class="bs-fav-card-body">
