@@ -12410,6 +12410,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                              stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="9 18 15 12 9 6"/>
                         </svg>
+                        ${destName}
                     </p>
                 </div>
                 <div class="bs-fav-card-body">
@@ -13042,8 +13043,7 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
         const labelNum = arrival.vehicleLabel
             ? String(arrival.vehicleLabel).padStart(3,'0').replace(/[A-Z]+:/g,'')
             : null;
-        const destText = arrival.destination && arrival.destination !== 'Destination inconnue' ? ` > ${arrival.destination}` : '';
-        labelEl.textContent = labelNum ? `${label} · ${labelNum}${destText}` : `${label}${destText}`;
+        labelEl.textContent = labelNum ? `${label} · ${labelNum}` : `${label}`;
         pill.appendChild(labelEl);
 
         if (isRT && arrival.marker) {
