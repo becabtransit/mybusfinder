@@ -1848,6 +1848,14 @@ window.addEventListener('message', function(event) {
 
 
 
+function smoothCenterMarker(marker) {
+    if (!map || !marker) return;
+    map.flyTo(marker.getLatLng(), map.getZoom(), {
+        animate: true,
+        duration: 0.8
+    });
+}
+
 function focusOnVehicle(vehicleId) {
     try {        
         closeUpdatePopup();
@@ -1862,7 +1870,7 @@ function focusOnVehicle(vehicleId) {
         
         
         try {
-            map.setView(marker.getLatLng(), 17);
+            smoothCenterMarker(marker);
             marker.openPopup();
             
             const markerIcon = marker._icon.querySelector('.marker-icon');
@@ -3152,7 +3160,7 @@ async function decodeProtobuf(buffer) {
 
         const marker = findMarkerByVehicleId(vehicleId);
         if (marker) {
-            map.setView(marker.getLatLng(), 17);
+            smoothCenterMarker(marker);
             
             marker.openPopup();
             
