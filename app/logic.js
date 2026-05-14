@@ -11140,15 +11140,12 @@ async function main() {
 
         await Promise.all([
             fetchVehiclePositions(),
-            loadGeoJsonLines(),
             modeSombre(),
             hideLoadingScreen(),
-            setTimeout(() => {
-                loadBusStopMarkers();
-            }, 1000)
         ]);
-            
-        loadGeoJsonLines();
+
+        await loadGeoJsonLines();
+        loadBusStopMarkers();
         startFetchUpdates();
         
     } catch (error) {
