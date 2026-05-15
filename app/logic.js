@@ -8828,6 +8828,11 @@ async function fetchVehiclePositions() {
                     vehicle?.vehicle?.trip?.tripId,
                     vehicle?.vehicle?.label || vehicle?.vehicle?.id
                 );
+                console.log('[MBF DEBUG] generatePopupContent nextService', {
+                    vehicleTripId: vehicle?.vehicle?.trip?.tripId,
+                    vehicleLabel: vehicle?.vehicle?.label || vehicle?.vehicle?.id,
+                    nextService,
+                });
 
                 const nextServiceHTML = (() => {
                     if (!window.stopTimesReady) return '';
@@ -9150,10 +9155,19 @@ async function fetchVehiclePositions() {
                 }
 
                 function _getNextServiceForVehicle(tripId, vehicleLabel) {
+                    console.log('[MBF DEBUG] _getNextServiceForVehicle start', {
+                        tripId,
+                        vehicleLabel,
+                        stopTimesReady: !!window.stopTimesReady,
+                        staticStopTimesKeys: window.staticStopTimes ? Object.keys(window.staticStopTimes).length : 0,
+                    });
                     if (!window.staticStopTimes || !window.stopTimesReady) return null;
 
                     const currentTrip = window.staticStopTimes[tripId];
-                    if (!currentTrip) return null;
+                    if (!currentTrip) {
+                        console.log('[MBF DEBUG] _getNextServiceForVehicle no currentTrip', { tripId });
+                        return null;
+                    }
 
                     // trouver l'heure de fin du trip courant( dernier arret)
                     const stopTimes = Object.values(currentTrip);
@@ -9209,7 +9223,15 @@ async function fetchVehiclePositions() {
                         }
                     }
 
-                    if (!bestTrip) return null;
+                    if (!bestTrip) {
+                        console.log('[MBF DEBUG] _getNextServiceForVehicle no bestTrip found', {
+                            tripId,
+                            lastTime,
+                            vehicleLabel,
+                            allTrips: Object.keys(window.staticStopTimes).length,
+                        });
+                        return null;
+                    }
 
                     const nextTripStops = window.staticStopTimes[bestTrip.tripId];
                     if (!nextTripStops) return null;
@@ -12879,6 +12901,12 @@ async function openStopInBottomSheet(stopIds, stopName) {
 }
 
 async function _computeStopPassages(stopIdArr) {
+    console.log('[MBF DEBUG] _computeStopPassages start', {
+        stopIdArr,
+        tripUpdatesCount: Object.keys(tripUpdates).length,
+        stopTimesReady: !!window.stopTimesReady,
+        staticStopTimesKeys: window.staticStopTimes ? Object.keys(window.staticStopTimes).length : 0,
+    });
     const now = Date.now() / 1000;
     const byLine = {};
     const seenKeys = new Set();
@@ -12923,6 +12951,7 @@ async function _computeStopPassages(stopIdArr) {
     });
 
     if (!window.stopTimesReady && !window._stopTimesLoadAttempted) {
+        console.log('[MBF DEBUG] _computeStopPassages loading stop_times');
         window._stopTimesLoadAttempted = true;
         try {
             const r = await fetch(
@@ -12933,6 +12962,7 @@ async function _computeStopPassages(stopIdArr) {
                 const json = await r.json();
                 window.staticStopTimes = json;
                 window.stopTimesReady  = true;
+                console.log('[MBF DEBUG] _computeStopPassages stop_times loaded', { count: Object.keys(json).length });
             }
         } catch (e) {
             console.warn('Chargement stop_times échoué:', e);
@@ -12940,6 +12970,10 @@ async function _computeStopPassages(stopIdArr) {
     }
 
     if (window.staticStopTimes && Object.keys(window.staticStopTimes).length > 0) {
+        console.log('[MBF DEBUG] _computeStopPassages static stopTimes available', {
+            activeIdsCount: (window._gtfsCalendarCache?.calendar ? Object.keys(window._gtfsCalendarCache.calendar).length : null),
+            rtTripIdsCount: Object.keys(tripUpdates).length,
+        });
         const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
         const rtTripIds = new Set(Object.keys(tripUpdates));
 
@@ -13031,6 +13065,12 @@ async function _computeStopPassages(stopIdArr) {
             return (t.time - arr[i - 1].time) > 90;
         });
         group.times = group.times.slice(0, 8);
+    });
+
+    console.log('[MBF DEBUG] _computeStopPassages result', {
+        stopIdArr,
+        groups: Object.keys(byLine).length,
+        byLineSample: Object.entries(byLine).slice(0, 3).map(([k, v]) => ({ key: k, count: v.times.length }))
     });
 
     return byLine;
@@ -13477,6 +13517,12 @@ function _getTripServiceId(tripId, routeId) {
 }
 
 async function fetchRealtimeDataForFavorite(favorite) {
+    console.log('[MBF DEBUG] fetchRealtimeDataForFavorite start', {
+        favorite,
+        tripUpdatesCount: Object.keys(tripUpdates).length,
+        stopTimesReady: !!window.stopTimesReady,
+        staticStopTimesKeys: window.staticStopTimes ? Object.keys(window.staticStopTimes).length : 0,
+    });
     const routeId  = favorite.routeId  || '';
     const stopId   = favorite.stopId   || '';
     const destId   = favorite.destinationId || '';
@@ -13507,6 +13553,15 @@ async function fetchRealtimeDataForFavorite(favorite) {
         let arrivalSecs = _parseStopTime(stopTime);
         if (arrivalSecs === null || arrivalSecs < now - 30) return;
 
+        console.log('[MBF DEBUG] fetchRealtimeDataForFavorite RT match', {
+            tripId,
+            stopId: cleanStop,
+            stopTime,
+            arrivalSecs,
+            markerForTripLine: markerForTrip?.line,
+            markerForTripDestination: markerForTrip?.destination,
+        });
+
         const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
         if (seenKeys.has(dedupKey)) return;
         seenKeys.add(dedupKey);
@@ -13523,6 +13578,7 @@ async function fetchRealtimeDataForFavorite(favorite) {
     });
 
     if (!window.stopTimesReady && !window._stopTimesLoadAttempted) {
+        console.log('[MBF DEBUG] fetchRealtimeDataForFavorite loading stop_times');
         window._stopTimesLoadAttempted = true;
         try {
             const r = await fetch(
@@ -13532,6 +13588,7 @@ async function fetchRealtimeDataForFavorite(favorite) {
             if (r.ok) {
                 window.staticStopTimes = await r.json();
                 window.stopTimesReady  = true;
+                console.log('[MBF DEBUG] fetchRealtimeDataForFavorite stop_times loaded', { count: Object.keys(window.staticStopTimes).length });
             }
         } catch (e) {
             console.warn('stop_times load failed:', e);
@@ -13617,7 +13674,13 @@ async function fetchRealtimeDataForFavorite(favorite) {
         return (item.time - arr[i - 1].time) > 90;
     });
 
-    return deduped.slice(0, 8);
+    const finalResults = deduped.slice(0, 8);
+    console.log('[MBF DEBUG] fetchRealtimeDataForFavorite result', {
+        favorite,
+        count: finalResults.length,
+        firstItems: finalResults.slice(0, 3),
+    });
+    return finalResults;
 }
 
 function processRealtimeDataForFavorite(message, routeId, stopId) {
