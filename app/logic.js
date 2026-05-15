@@ -1267,8 +1267,8 @@ async function initMap() {
                     "minzoom": 15,
                     "paint": {
                         "fill-extrusion-color": "#cccccc",
-                        "fill-extrusion-height": ["coalesce", ["to-number", ["get", "height"]], 0],
-                        "fill-extrusion-base": ["coalesce", ["to-number", ["get", "min_height"]], 0],
+                        "fill-extrusion-height": ["get", "height"],
+                        "fill-extrusion-base": ["get", "min_height"],
                         "fill-extrusion-opacity": 0.7
                     }
                 });
@@ -5035,8 +5035,8 @@ function applyMapView() {
                     "minzoom": 15,
                     "paint": {
                         "fill-extrusion-color": "#cccccc",
-                        "fill-extrusion-height": ["coalesce", ["to-number", ["get", "height"]], 0],
-                        "fill-extrusion-base": ["coalesce", ["to-number", ["get", "min_height"]], 0],
+                        "fill-extrusion-height": ["get", "height"],
+                        "fill-extrusion-base": ["get", "min_height"],
                         "fill-extrusion-opacity": 0.7
                     }
                 });
@@ -8441,12 +8441,6 @@ async function fetchVehiclePositions() {
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
 
-        console.log('[MBF DEBUG] fetchVehiclePositions start', {
-            entityCount: data?.entity?.length ?? 0,
-            stopTimesReady: !!window.stopTimesReady,
-            staticStopTimesCount: window.staticStopTimes ? Object.keys(window.staticStopTimes).length : 0,
-        });
-
         const activeVehicleIds = new Set();
 
         const activeTripIds = new Set();
@@ -8489,17 +8483,6 @@ async function fetchVehiclePositions() {
                 const line = vehicle.trip && vehicle.trip.routeId ? vehicle.trip.routeId : 'Inconnu';
                 const directionId = vehicle.trip ? vehicle.trip.directionId : undefined;
                 activeVehicleIds.add(id);
-
-                console.log('[MBF DEBUG] processing vehicle', {
-                    id,
-                    line,
-                    tripId: vehicle.trip?.tripId,
-                    vehicleLabel: vehicle.vehicle?.label || vehicle.vehicle?.id,
-                    stopId: vehicle.stopId,
-                    latitude: vehicle.position?.latitude,
-                    longitude: vehicle.position?.longitude,
-                    hasPosition: !!vehicle.position,
-                });
 
                 const statusMap = {
                     0: t("notinservicemaj"), // ❌ Hors service commercial
@@ -8547,7 +8530,7 @@ async function fetchVehiclePositions() {
 
                 const speed = vehicle.position.speed ? (vehicle.position.speed).toFixed(0) + ' km/h' : 'Arrêté';
                 const bearing = vehicle.position.bearing || 'Inconnu';
-                const tripId = vehicle.trip?.tripId || vehicle.vehicle?.trip?.tripId || 'Inconnu';
+                const tripId = vehicle.trip && vehicle.trip.tripId ? vehicle.trip.tripId : 'Inconnu';
 
                 const lastStopId = tripUpdates[tripId] ? tripUpdates[tripId].lastStopId : 'Inconnu';
                 const lastStopNameun = stopNameMap[lastStopId] || 'Haut-le-Pied';
@@ -8842,14 +8825,9 @@ async function fetchVehiclePositions() {
                 `;
 
                 const nextService = _getNextServiceForVehicle(
-                    vehicle?.trip?.tripId || vehicle?.vehicle?.trip?.tripId,
+                    tripId,
                     vehicle?.vehicle?.label || vehicle?.vehicle?.id
                 );
-                console.log('[MBF DEBUG] generatePopupContent nextService', {
-                    vehicleTripId: vehicle?.trip?.tripId || vehicle?.vehicle?.trip?.tripId,
-                    vehicleLabel: vehicle?.vehicle?.label || vehicle?.vehicle?.id,
-                    nextService,
-                });
 
                 const nextServiceHTML = (() => {
                     if (!window.stopTimesReady) return '';
@@ -9172,19 +9150,10 @@ async function fetchVehiclePositions() {
                 }
 
                 function _getNextServiceForVehicle(tripId, vehicleLabel) {
-                    console.log('[MBF DEBUG] _getNextServiceForVehicle start', {
-                        tripId,
-                        vehicleLabel,
-                        stopTimesReady: !!window.stopTimesReady,
-                        staticStopTimesKeys: window.staticStopTimes ? Object.keys(window.staticStopTimes).length : 0,
-                    });
                     if (!window.staticStopTimes || !window.stopTimesReady) return null;
 
                     const currentTrip = window.staticStopTimes[tripId];
-                    if (!currentTrip) {
-                        console.log('[MBF DEBUG] _getNextServiceForVehicle no currentTrip', { tripId });
-                        return null;
-                    }
+                    if (!currentTrip) return null;
 
                     // trouver l'heure de fin du trip courant( dernier arret)
                     const stopTimes = Object.values(currentTrip);
@@ -9240,15 +9209,7 @@ async function fetchVehiclePositions() {
                         }
                     }
 
-                    if (!bestTrip) {
-                        console.log('[MBF DEBUG] _getNextServiceForVehicle no bestTrip found', {
-                            tripId,
-                            lastTime,
-                            vehicleLabel,
-                            allTrips: Object.keys(window.staticStopTimes).length,
-                        });
-                        return null;
-                    }
+                    if (!bestTrip) return null;
 
                     const nextTripStops = window.staticStopTimes[bestTrip.tripId];
                     if (!nextTripStops) return null;
@@ -9263,7 +9224,8 @@ async function fetchVehiclePositions() {
                         });
 
                     const lastStopId   = sortedStopIds[sortedStopIds.length - 1]?.[0];
-    const lastStopName = stopNameMap[lastStopId] || '';
+                    const lastStopName = stopNameMap[lastStopId] || lastStopName?.[0] || '';
+                    const firstStopId  = sortedStopIds[0]?.[0];
                     const firstDep     = sortedStopIds[0]?.[1]?.d || sortedStopIds[0]?.[1]?.a || '';
 
                     const nextMarker = [...markerPool.active.values()]
@@ -9490,9 +9452,6 @@ async function fetchVehiclePositions() {
 
             if (markerPool.has(id)) {
                 const marker = markerPool.get(id);
-                const wasPopupOpen = marker.isPopupOpen();
-                const wasInMap = map.hasLayer(marker);
-
                 animateMarker(marker, [latitude, longitude]);
 
                 if (navVehicleId === id) {
@@ -9512,18 +9471,6 @@ async function fetchVehiclePositions() {
                     marker.destination !== lastStopName ||
                     marker._lastNextStopsHTML !== nextStopsHTML
                 );
-
-                console.log('[MBF DEBUG] update marker', {
-                    id,
-                    line,
-                    latitude,
-                    longitude,
-                    wasPopupOpen,
-                    wasInMap,
-                    hasChanges,
-                    markerLine: marker.line,
-                    markerDestination: marker.destination,
-                });
 
                 if (hasChanges) {
                     marker.vehicleData = vehicle;
@@ -9593,19 +9540,9 @@ async function fetchVehiclePositions() {
                 marker.destination = lastStopName;
                 marker._lastNextStopsHTML = nextStopsHTML;
                 
-                const willBeAdded = !selectedLine || selectedLine === line;
-                if (willBeAdded) {
+                if (!selectedLine || selectedLine === line) {
                     marker.addTo(map);
                 }
-
-                console.log('[MBF DEBUG] acquire marker', {
-                    id,
-                    line,
-                    latitude,
-                    longitude,
-                    willBeAdded,
-                    selectedLine,
-                });
 
                 const popupPlaceholder = L.popup().setContent('<div style="padding:10px;color:white;font-family:League Spartan;">⏳ Chargement...</div>');
                 marker.bindPopup(popupPlaceholder);
@@ -12943,19 +12880,15 @@ async function openStopInBottomSheet(stopIds, stopName) {
 }
 
 async function _computeStopPassages(stopIdArr) {
-    console.log('[MBF DEBUG] _computeStopPassages start', {
-        stopIdArr,
-        tripUpdatesCount: Object.keys(tripUpdates).length,
-        stopTimesReady: !!window.stopTimesReady,
-        staticStopTimesKeys: window.staticStopTimes ? Object.keys(window.staticStopTimes).length : 0,
-    });
     const now = Date.now() / 1000;
     const byLine = {};
-    const seenKeys = new Set();
+    const seenKeys = new Set(); 
+
     const cleanStops = stopIdArr.map(id => id.replace('0:', '').trim());
 
     function matchStop(sid) {
-        return cleanStops.includes(sid.replace('0:', '').trim());
+        const clean = sid.replace('0:', '').trim();
+        return cleanStops.includes(clean);
     }
 
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
@@ -12974,10 +12907,22 @@ async function _computeStopPassages(stopIdArr) {
         const stopTime = match.departureTime || match.arrivalTime;
         if (!stopTime) return;
 
-        let arrivalSecs = _parseStopTime(stopTime);
-        if (arrivalSecs === null || arrivalSecs < now - 30) return;
+        let arrivalSecs;
+        if (typeof stopTime === 'string' && stopTime.includes(':')) {
+            const parts = stopTime.split(':').map(Number);
+            const d = new Date();
+            arrivalSecs = new Date(
+                d.getFullYear(), d.getMonth(), d.getDate(),
+                parts[0], parts[1], parts[2] || 0
+            ).getTime() / 1000;
+            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
+        } else if (typeof stopTime === 'number' && stopTime > 86400) {
+            arrivalSecs = stopTime;
+        } else return;
 
-        const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
+        if (arrivalSecs < now - 30) return;
+
+        const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
         if (seenKeys.has(dedupKey)) return;
         seenKeys.add(dedupKey);
 
@@ -12987,132 +12932,63 @@ async function _computeStopPassages(stopIdArr) {
             time: arrivalSecs,
             realtime: true,
             vehicleLabel,
-            marker: marker || null,
-            tripId
+            marker: marker || null
         });
     });
 
-    if (!window.stopTimesReady && !window._stopTimesLoadAttempted) {
-        console.log('[MBF DEBUG] _computeStopPassages loading stop_times');
-        window._stopTimesLoadAttempted = true;
-        try {
-            const r = await fetch(
-                new URL(netPath('proxy-cors/proxy_gtfs.php?action=stop_times'), window.location.href).href,
-                { cache: 'no-store' }
-            );
-            if (r.ok) {
-                const json = await r.json();
-                window.staticStopTimes = json;
-                window.stopTimesReady  = true;
-                console.log('[MBF DEBUG] _computeStopPassages stop_times loaded', { count: Object.keys(json).length });
-            }
-        } catch (e) {
-            console.warn('Chargement stop_times échoué:', e);
-        }
-    }
-
-    if (window.staticStopTimes && Object.keys(window.staticStopTimes).length > 0) {
-        console.log('[MBF DEBUG] _computeStopPassages static stopTimes available', {
-            activeIdsCount: (window._gtfsCalendarCache?.calendar ? Object.keys(window._gtfsCalendarCache.calendar).length : null),
-            rtTripIdsCount: Object.keys(tripUpdates).length,
-        });
+    if (window.stopTimesReady && window.staticStopTimes) {
         const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
         const rtTripIds = new Set(Object.keys(tripUpdates));
 
-        const rtByTrip = {};
-        Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
-            (tripData.nextStops || []).forEach(stop => {
-                const sid = stop.stopId.replace('0:', '').trim();
-                if (!rtByTrip[tripId]) rtByTrip[tripId] = {};
-                rtByTrip[tripId][sid] = stop.departureTime || stop.arrivalTime;
-            });
-        });
+        Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
+            if (rtTripIds.has(tripId)) return;
 
-        for (const [tripId, tripStops] of Object.entries(window.staticStopTimes)) {
             if (activeIds.length > 0 && tripServiceMap[tripId]) {
-                if (!activeIds.includes(tripServiceMap[tripId])) continue;
-            } else if (activeIds.length > 0 && !tripServiceMap[tripId]) {
-                continue;
+                if (!activeIds.includes(tripServiceMap[tripId])) return;
             }
 
             let stopData = null;
-            let matchedStopId = null;
             for (const cleanId of cleanStops) {
                 stopData = tripStops[cleanId] || tripStops[`0:${cleanId}`];
-                if (stopData) { matchedStopId = cleanId; break; }
+                if (stopData) break;
             }
-            if (!stopData) continue;
+            if (!stopData) return;
 
             const timeStr = stopData.d || stopData.a;
-            if (!timeStr) continue;
+            if (!timeStr) return;
 
             const parts = timeStr.split(':').map(Number);
             const d = new Date();
-            let theoreticalSecs = new Date(
+            let arrivalSecs = new Date(
                 d.getFullYear(), d.getMonth(), d.getDate(),
                 parts[0], parts[1], parts[2] || 0
             ).getTime() / 1000;
-            if (theoreticalSecs < now - 3600) theoreticalSecs += 86400;
-            if (theoreticalSecs < now - 60) continue;
+            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
+            if (arrivalSecs < now - 60) return;
 
-            let finalSecs = theoreticalSecs;
-            let isRealtime = false;
-            let rtVehicleLabel = null;
-            let rtMarker = null;
-
-            if (rtByTrip[tripId]?.[matchedStopId]) {
-                const rtTime = _parseStopTime(rtByTrip[tripId][matchedStopId]);
-                if (rtTime !== null) {
-                    finalSecs = rtTime;
-                    isRealtime = true;
-                }
-                const rtMarkerObj = [...markerPool.active.values()]
-                    .find(m => m.vehicleData?.trip?.tripId === tripId);
-                if (rtMarkerObj) {
-                    rtMarker = rtMarkerObj;
-                    rtVehicleLabel = rtMarkerObj.vehicleData?.vehicle?.label
-                        || rtMarkerObj.vehicleData?.vehicle?.id || null;
-                }
-            }
-
-            if (finalSecs < now - 30) continue;
-
-            const dedupKey = `st|${tripId}|${Math.round(finalSecs / 60)}`;
-            if (seenKeys.has(dedupKey)) continue;
-            const rtDedupKey = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
-            if (seenKeys.has(rtDedupKey)) continue;
-            seenKeys.add(dedupKey);
-
-            const marker = rtMarker || [...markerPool.active.values()]
+            const marker = [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
             const routeId = marker?.line || _guessRouteFromTrip(tripId);
             const dest    = marker?.destination || 'Destination inconnue';
 
+            const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+            if (seenKeys.has(dedupKey)) return;
+            seenKeys.add(dedupKey);
+
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
             byLine[key].times.push({
-                time: finalSecs,
-                realtime: isRealtime,
-                vehicleLabel: rtVehicleLabel,
-                marker: rtMarker,
-                tripId
+                time: arrivalSecs,
+                realtime: false,
+                vehicleLabel: null,
+                marker: null
             });
-        }
+        });
     }
 
     Object.values(byLine).forEach(group => {
         group.times.sort((a, b) => a.time - b.time);
-        group.times = group.times.filter((t, i, arr) => {
-            if (i === 0) return true;
-            return (t.time - arr[i - 1].time) > 90;
-        });
-        group.times = group.times.slice(0, 8);
-    });
-
-    console.log('[MBF DEBUG] _computeStopPassages result', {
-        stopIdArr,
-        groups: Object.keys(byLine).length,
-        byLineSample: Object.entries(byLine).slice(0, 3).map(([k, v]) => ({ key: k, count: v.times.length }))
+        group.times = group.times.slice(0, 6);
     });
 
     return byLine;
@@ -13559,12 +13435,6 @@ function _getTripServiceId(tripId, routeId) {
 }
 
 async function fetchRealtimeDataForFavorite(favorite) {
-    console.log('[MBF DEBUG] fetchRealtimeDataForFavorite start', {
-        favorite,
-        tripUpdatesCount: Object.keys(tripUpdates).length,
-        stopTimesReady: !!window.stopTimesReady,
-        staticStopTimesKeys: window.staticStopTimes ? Object.keys(window.staticStopTimes).length : 0,
-    });
     const routeId  = favorite.routeId  || '';
     const stopId   = favorite.stopId   || '';
     const destId   = favorite.destinationId || '';
@@ -13595,15 +13465,6 @@ async function fetchRealtimeDataForFavorite(favorite) {
         let arrivalSecs = _parseStopTime(stopTime);
         if (arrivalSecs === null || arrivalSecs < now - 30) return;
 
-        console.log('[MBF DEBUG] fetchRealtimeDataForFavorite RT match', {
-            tripId,
-            stopId: cleanStop,
-            stopTime,
-            arrivalSecs,
-            markerForTripLine: markerForTrip?.line,
-            markerForTripDestination: markerForTrip?.destination,
-        });
-
         const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
         if (seenKeys.has(dedupKey)) return;
         seenKeys.add(dedupKey);
@@ -13620,7 +13481,6 @@ async function fetchRealtimeDataForFavorite(favorite) {
     });
 
     if (!window.stopTimesReady && !window._stopTimesLoadAttempted) {
-        console.log('[MBF DEBUG] fetchRealtimeDataForFavorite loading stop_times');
         window._stopTimesLoadAttempted = true;
         try {
             const r = await fetch(
@@ -13630,7 +13490,6 @@ async function fetchRealtimeDataForFavorite(favorite) {
             if (r.ok) {
                 window.staticStopTimes = await r.json();
                 window.stopTimesReady  = true;
-                console.log('[MBF DEBUG] fetchRealtimeDataForFavorite stop_times loaded', { count: Object.keys(window.staticStopTimes).length });
             }
         } catch (e) {
             console.warn('stop_times load failed:', e);
@@ -13716,13 +13575,7 @@ async function fetchRealtimeDataForFavorite(favorite) {
         return (item.time - arr[i - 1].time) > 90;
     });
 
-    const finalResults = deduped.slice(0, 8);
-    console.log('[MBF DEBUG] fetchRealtimeDataForFavorite result', {
-        favorite,
-        count: finalResults.length,
-        firstItems: finalResults.slice(0, 3),
-    });
-    return finalResults;
+    return deduped.slice(0, 8);
 }
 
 function processRealtimeDataForFavorite(message, routeId, stopId) {
