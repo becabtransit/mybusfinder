@@ -1267,8 +1267,8 @@ async function initMap() {
                     "minzoom": 15,
                     "paint": {
                         "fill-extrusion-color": "#cccccc",
-                        "fill-extrusion-height": ["get", "height"],
-                        "fill-extrusion-base": ["get", "min_height"],
+                        "fill-extrusion-height": ["coalesce", ["to-number", ["get", "height"]], 0],
+                        "fill-extrusion-base": ["coalesce", ["to-number", ["get", "min_height"]], 0],
                         "fill-extrusion-opacity": 0.7
                     }
                 });
@@ -5035,8 +5035,8 @@ function applyMapView() {
                     "minzoom": 15,
                     "paint": {
                         "fill-extrusion-color": "#cccccc",
-                        "fill-extrusion-height": ["get", "height"],
-                        "fill-extrusion-base": ["get", "min_height"],
+                        "fill-extrusion-height": ["coalesce", ["to-number", ["get", "height"]], 0],
+                        "fill-extrusion-base": ["coalesce", ["to-number", ["get", "min_height"]], 0],
                         "fill-extrusion-opacity": 0.7
                     }
                 });
@@ -8441,6 +8441,12 @@ async function fetchVehiclePositions() {
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
 
+        console.log('[MBF DEBUG] fetchVehiclePositions start', {
+            entityCount: data?.entity?.length ?? 0,
+            stopTimesReady: !!window.stopTimesReady,
+            staticStopTimesCount: window.staticStopTimes ? Object.keys(window.staticStopTimes).length : 0,
+        });
+
         const activeVehicleIds = new Set();
 
         const activeTripIds = new Set();
@@ -8483,6 +8489,17 @@ async function fetchVehiclePositions() {
                 const line = vehicle.trip && vehicle.trip.routeId ? vehicle.trip.routeId : 'Inconnu';
                 const directionId = vehicle.trip ? vehicle.trip.directionId : undefined;
                 activeVehicleIds.add(id);
+
+                console.log('[MBF DEBUG] processing vehicle', {
+                    id,
+                    line,
+                    tripId: vehicle.trip?.tripId,
+                    vehicleLabel: vehicle.vehicle?.label || vehicle.vehicle?.id,
+                    stopId: vehicle.stopId,
+                    latitude: vehicle.position?.latitude,
+                    longitude: vehicle.position?.longitude,
+                    hasPosition: !!vehicle.position,
+                });
 
                 const statusMap = {
                     0: t("notinservicemaj"), // ❌ Hors service commercial
@@ -8530,7 +8547,7 @@ async function fetchVehiclePositions() {
 
                 const speed = vehicle.position.speed ? (vehicle.position.speed).toFixed(0) + ' km/h' : 'Arrêté';
                 const bearing = vehicle.position.bearing || 'Inconnu';
-                const tripId = vehicle.trip && vehicle.trip.tripId ? vehicle.trip.tripId : 'Inconnu';
+                const tripId = vehicle.trip?.tripId || vehicle.vehicle?.trip?.tripId || 'Inconnu';
 
                 const lastStopId = tripUpdates[tripId] ? tripUpdates[tripId].lastStopId : 'Inconnu';
                 const lastStopNameun = stopNameMap[lastStopId] || 'Haut-le-Pied';
@@ -8825,11 +8842,11 @@ async function fetchVehiclePositions() {
                 `;
 
                 const nextService = _getNextServiceForVehicle(
-                    vehicle?.vehicle?.trip?.tripId,
+                    vehicle?.trip?.tripId || vehicle?.vehicle?.trip?.tripId,
                     vehicle?.vehicle?.label || vehicle?.vehicle?.id
                 );
                 console.log('[MBF DEBUG] generatePopupContent nextService', {
-                    vehicleTripId: vehicle?.vehicle?.trip?.tripId,
+                    vehicleTripId: vehicle?.trip?.tripId || vehicle?.vehicle?.trip?.tripId,
                     vehicleLabel: vehicle?.vehicle?.label || vehicle?.vehicle?.id,
                     nextService,
                 });
@@ -9473,6 +9490,9 @@ async function fetchVehiclePositions() {
 
             if (markerPool.has(id)) {
                 const marker = markerPool.get(id);
+                const wasPopupOpen = marker.isPopupOpen();
+                const wasInMap = map.hasLayer(marker);
+
                 animateMarker(marker, [latitude, longitude]);
 
                 if (navVehicleId === id) {
@@ -9492,6 +9512,18 @@ async function fetchVehiclePositions() {
                     marker.destination !== lastStopName ||
                     marker._lastNextStopsHTML !== nextStopsHTML
                 );
+
+                console.log('[MBF DEBUG] update marker', {
+                    id,
+                    line,
+                    latitude,
+                    longitude,
+                    wasPopupOpen,
+                    wasInMap,
+                    hasChanges,
+                    markerLine: marker.line,
+                    markerDestination: marker.destination,
+                });
 
                 if (hasChanges) {
                     marker.vehicleData = vehicle;
@@ -9561,9 +9593,19 @@ async function fetchVehiclePositions() {
                 marker.destination = lastStopName;
                 marker._lastNextStopsHTML = nextStopsHTML;
                 
-                if (!selectedLine || selectedLine === line) {
+                const willBeAdded = !selectedLine || selectedLine === line;
+                if (willBeAdded) {
                     marker.addTo(map);
                 }
+
+                console.log('[MBF DEBUG] acquire marker', {
+                    id,
+                    line,
+                    latitude,
+                    longitude,
+                    willBeAdded,
+                    selectedLine,
+                });
 
                 const popupPlaceholder = L.popup().setContent('<div style="padding:10px;color:white;font-family:League Spartan;">⏳ Chargement...</div>');
                 marker.bindPopup(popupPlaceholder);
