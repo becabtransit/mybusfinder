@@ -8824,72 +8824,6 @@ async function fetchVehiclePositions() {
                     </div>
                 `;
 
-                const nextService = _getNextServiceForVehicle(
-                    tripId,
-                    vehicle?.vehicle?.label || vehicle?.vehicle?.id
-                );
-
-                const nextServiceHTML = (() => {
-                    if (!window.stopTimesReady) return '';
-                    const textC = TextColorUtils.getOptimal(backgroundColor);
-
-                    if (!nextService) {
-                        return `
-                        <div class="popup-next-service" style="
-                            margin-top: 8px;
-                            padding: 8px 10px;
-                            background: rgba(0,0,0,0.15);
-                            border-radius: 10px;
-                            font-size: 11px;
-                            opacity: 0.6;
-                            display: flex;
-                            align-items: center;
-                            gap: 6px;
-                            color: ${textC};
-                        ">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                                <polyline points="9 22 9 12 15 12 15 22"/>
-                            </svg>
-                            ${t("retourdepot")}
-                        </div>`;
-                    }
-
-                    const depParts = nextService.departure.split(':').map(Number);
-                    const depStr   = `${String(depParts[0]).padStart(2,'0')}:${String(depParts[1]).padStart(2,'0')}`;
-                    const nextTextC = TextColorUtils.getOptimal(nextService.color);
-
-                    return `
-                    <div class="popup-next-service" style="
-                        margin-top: 8px;
-                        padding: 8px 10px;
-                        background: rgba(0,0,0,0.15);
-                        border-radius: 10px;
-                        font-size: 11px;
-                        display: flex;
-                        align-items: center;
-                        gap: 8px;
-                        color: ${textC};
-                    ">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; opacity:0.7;">
-                            <circle cx="12" cy="12" r="10"/>
-                            <polyline points="12 6 12 12 16 14"/>
-                        </svg>
-                        <span style="opacity:0.65; white-space:nowrap;">${t("nextservice")}</span>
-                        <span style="background:${nextService.color}; color:${nextTextC};
-                                    padding:1px 7px; border-radius:6px; font-weight:700;
-                                    font-size:11px; white-space:nowrap;">
-                            ${nextService.lineName}
-                        </span>
-                        <span style="opacity:0.8; white-space:nowrap;">➜ ${nextService.terminus}</span>
-                        <span style="margin-left:auto; font-weight:600; white-space:nowrap;">${depStr}</span>
-                    </div>`;
-                })();
-
                 initTimeToggle();
 
                 const delayInfo = tripUpdates[tripId] ? tripUpdates[tripId].stopUpdates.find(update => update.stopId === stopId) : null;
@@ -9024,6 +8958,51 @@ async function fetchVehiclePositions() {
                 const backgroundColor = lineColors[line] || '#000000';
                 const textColor = getTextColorForBackground(backgroundColor);
 
+                const nextService = _getNextServiceForVehicle(tripId, id);
+                const _nextSvcTextC = TextColorUtils.getOptimal(backgroundColor);
+
+                let nextServiceHTML = '';
+                if (window.stopTimesReady) {
+                    if (!nextService) {
+                        nextServiceHTML = `
+                        <div style="margin-top:6px;padding:7px 10px;background:rgba(0,0,0,0.12);
+                            border-radius:10px;font-size:11px;opacity:0.6;
+                            display:flex;align-items:center;gap:6px;color:${_nextSvcTextC};">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                                <polyline points="9 22 9 12 15 12 15 22"/>
+                            </svg>
+                            ${t("retourdepot")}
+                        </div>`;
+                    } else {
+                        const _nxtLineTextC = TextColorUtils.getOptimal(nextService.color);
+                        nextServiceHTML = `
+                        <div style="margin-top:6px;padding:7px 10px;background:rgba(0,0,0,0.12);
+                            border-radius:10px;font-size:11px;
+                            display:flex;align-items:center;gap:7px;
+                            color:${_nextSvcTextC};flex-wrap:nowrap;overflow:hidden;">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" style="flex-shrink:0;opacity:0.6;">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <span style="opacity:0.65;white-space:nowrap;flex-shrink:0;">${t("nextservice")}</span>
+                            <span style="background:${nextService.color};color:${_nxtLineTextC};
+                                padding:1px 7px;border-radius:6px;font-weight:700;
+                                font-size:11px;white-space:nowrap;flex-shrink:0;">
+                                ${nextService.lineName}
+                            </span>
+                            <span style="opacity:0.8;white-space:nowrap;overflow:hidden;
+                                text-overflow:ellipsis;flex:1;">➜ ${nextService.terminus}</span>
+                            <span style="font-weight:600;white-space:nowrap;flex-shrink:0;margin-left:auto;">
+                                ${nextService.departure}
+                            </span>
+                        </div>`;
+                    }
+                }
 
                 let arrivalTime = 'Inconnu';
                 if (scheduledArrival) {
@@ -9225,70 +9204,12 @@ async function fetchVehiclePositions() {
                     return bestCandidate;
                 }
 
-                function generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
+                function generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id, nextServiceHTML) {
                     const cacheKey = `${id}-${line}-${nextStopsHTML.substring(0, 80)}`;
-
                     if (contentCache.get(cacheKey)) {
                         return contentCache.get(cacheKey);
                     }
-
-                    const _nextSvc = _getNextServiceForVehicle(tripId, id);
-                    const _nextSvcTextC = TextColorUtils.getOptimal(backgroundColor);
-
-                    let nextServiceHTML = '';
-                    if (window.stopTimesReady) {
-                        if (!_nextSvc) {
-                            nextServiceHTML = `
-                                <div style="
-                                    margin-top:6px; padding:7px 10px;
-                                    background:rgba(0,0,0,0.12); border-radius:10px;
-                                    font-size:11px; opacity:0.6;
-                                    display:flex; align-items:center; gap:6px;
-                                    color:${_nextSvcTextC};">
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                                        stroke="currentColor" stroke-width="2"
-                                        stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                                        <polyline points="9 22 9 12 15 12 15 22"/>
-                                    </svg>
-                                    ${t("retourdepot")}
-                                </div>`;
-                        } else {
-                            const _nxtLineTextC = TextColorUtils.getOptimal(_nextSvc.color);
-                            nextServiceHTML = `
-                                <div style="
-                                    margin-top:6px; padding:7px 10px;
-                                    background:rgba(0,0,0,0.12); border-radius:10px;
-                                    font-size:11px;
-                                    display:flex; align-items:center; gap:7px;
-                                    color:${_nextSvcTextC}; flex-wrap:nowrap; overflow:hidden;">
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round" style="flex-shrink:0; opacity:0.6;">
-                                        <circle cx="12" cy="12" r="10"/>
-                                        <polyline points="12 6 12 12 16 14"/>
-                                    </svg>
-                                    <span style="opacity:0.65; white-space:nowrap; flex-shrink:0;">
-                                        ${t("nextservice")}
-                                    </span>
-                                    <span style="
-                                        background:${_nextSvc.color}; color:${_nxtLineTextC};
-                                        padding:1px 7px; border-radius:6px;
-                                        font-weight:700; font-size:11px;
-                                        white-space:nowrap; flex-shrink:0;">
-                                        ${_nextSvc.lineName}
-                                    </span>
-                                    <span style="opacity:0.8; white-space:nowrap; overflow:hidden;
-                                                text-overflow:ellipsis; flex:1;">
-                                        ➜ ${_nextSvc.terminus}
-                                    </span>
-                                    <span style="font-weight:600; white-space:nowrap; flex-shrink:0; margin-left:auto;">
-                                        ${_nextSvc.departure}
-                                    </span>
-                                </div>`;
-                        }
-                    }
-
+                    nextServiceHTML = nextServiceHTML || '';
                     const popupContent = `
                         <div class="popup-container" data-vehicle-id="${id}" style="box-shadow: 0px 0px 20px 0px ${backgroundColor}9c; background-color: ${backgroundColor}9c; color: ${textColor};">
                             
@@ -9416,11 +9337,11 @@ async function fetchVehiclePositions() {
                     return updated;
                 }
 
-                function updatePopupContent(marker, vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
+                function updatePopupContent(marker, vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id, nextServiceHTML) {
                     const popup = marker.getPopup();
                     if (!popup) return false;
                     
-                    const newContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
+                    const newContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id, nextServiceHTML);
                     
                     // màj si le contenu a changé
                     if (popup.getContent() !== newContent) {
@@ -9541,7 +9462,7 @@ async function fetchVehiclePositions() {
                         const newContent = generatePopupContent(
                             vehicle, line, lastStopName, nextStopsHTML,
                             vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText,
-                            backgroundColor, textColor, id
+                            backgroundColor, textColor, id, nextServiceHTML
                         );
                         const popup = marker.getPopup();
                         if (popup) {
@@ -9595,7 +9516,7 @@ async function fetchVehiclePositions() {
                             const popupContent = generatePopupContent(
                                 vehicle, line, lastStopName, nextStopsHTML,
                                 vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText,
-                                backgroundColor, textColor, id
+                                backgroundColor, textColor, id, nextServiceHTML
                             );
                             popup.setContent(popupContent);
                             popup.update();
@@ -12527,137 +12448,6 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
             list.appendChild(card);
 
-            async function _computeStopPassages(stopIdArr) {
-                const now = Date.now() / 1000;
-                const byLine = {};
-                const seenKeys = new Set();
-                const cleanStops = stopIdArr.map(id => id.replace('0:', '').trim());
-
-                function matchStop(sid) {
-                    return cleanStops.includes(sid.replace('0:', '').trim());
-                }
-
-                Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
-                    const nextStops = tripData.nextStops || [];
-                    const match = nextStops.find(s => matchStop(s.stopId));
-                    if (!match) return;
-
-                    const marker = [...markerPool.active.values()]
-                        .find(m => m.vehicleData?.trip?.tripId === tripId);
-
-                    const routeId = marker?.line || 'Inconnu';
-                    const dest    = marker?.destination || 'Destination inconnue';
-                    const vehicleLabel = marker?.vehicleData?.vehicle?.label
-                        || marker?.vehicleData?.vehicle?.id || null;
-
-                    const stopTime = match.departureTime || match.arrivalTime;
-                    if (!stopTime) return;
-                    const arrivalSecs = _parseStopTime(stopTime);
-                    if (arrivalSecs === null || arrivalSecs < now - 30) return;
-
-                    const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
-                    if (seenKeys.has(dedupKey)) return;
-                    seenKeys.add(dedupKey);
-
-                    const key = `${routeId}|||${dest}`;
-                    if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
-                    byLine[key].times.push({
-                        time: arrivalSecs, realtime: true, vehicleLabel,
-                        marker: marker || null, tripId
-                    });
-                });
-
-                if (window.stopTimesReady && window.staticStopTimes
-                    && Object.keys(window.staticStopTimes).length > 0) {
-
-                    const rtTimeByTripStop = {};
-                    const rtMarkerByTrip = {};
-                    Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
-                        const marker = [...markerPool.active.values()]
-                            .find(m => m.vehicleData?.trip?.tripId === tripId);
-                        if (marker) rtMarkerByTrip[tripId] = marker;
-                        (tripData.nextStops || []).forEach(stop => {
-                            const sid = stop.stopId.replace('0:', '').trim();
-                            const t   = _parseStopTime(stop.departureTime || stop.arrivalTime);
-                            if (t !== null) {
-                                if (!rtTimeByTripStop[tripId]) rtTimeByTripStop[tripId] = {};
-                                rtTimeByTripStop[tripId][sid] = t;
-                            }
-                        });
-                    });
-
-                    let activeIds = [];
-                    let tripServiceMap = {};
-                    try {
-                        const cal = await _getActiveServiceIdsToday();
-                        activeIds = cal.activeIds;
-                        tripServiceMap = cal.tripServiceMap;
-                    } catch(e) {}
-
-                    for (const [tripId, tripStops] of Object.entries(window.staticStopTimes)) {
-                        if (activeIds.length > 0) {
-                            const serviceId = tripServiceMap[tripId];
-                            if (!serviceId || !activeIds.includes(serviceId)) continue;
-                        }
-
-                        let stopData = null;
-                        let matchedCleanId = null;
-                        for (const cid of cleanStops) {
-                            stopData = tripStops[cid] || tripStops[`0:${cid}`];
-                            if (stopData) { matchedCleanId = cid; break; }
-                        }
-                        if (!stopData) continue;
-
-                        const timeStr = stopData.d || stopData.a;
-                        if (!timeStr) continue;
-
-                        const parts = timeStr.split(':').map(Number);
-                        const d = new Date();
-                        let theoreticalSecs = new Date(
-                            d.getFullYear(), d.getMonth(), d.getDate(),
-                            parts[0], parts[1], parts[2] || 0
-                        ).getTime() / 1000;
-                        if (theoreticalSecs < now - 3600) theoreticalSecs += 86400;
-                        if (theoreticalSecs < now - 60) continue;
-
-                        let finalSecs  = theoreticalSecs;
-                        let isRealtime = false;
-                        const rtTime   = rtTimeByTripStop[tripId]?.[matchedCleanId];
-                        if (rtTime !== null && rtTime !== undefined) {
-                            finalSecs  = rtTime;
-                            isRealtime = true;
-                        }
-
-                        const dedupRt = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
-                        const dedupSt = `st|${tripId}|${Math.round(finalSecs / 60)}`;
-                        if (seenKeys.has(dedupRt) || seenKeys.has(dedupSt)) continue;
-                        seenKeys.add(dedupSt);
-
-                        const rtMarker = rtMarkerByTrip[tripId] || null;
-                        const routeId  = rtMarker?.line || _guessRouteFromTrip(tripId);
-                        const dest     = rtMarker?.destination || 'Destination inconnue';
-
-                        const key = `${routeId}|||${dest}`;
-                        if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
-                        byLine[key].times.push({
-                            time: finalSecs, realtime: isRealtime,
-                            vehicleLabel: rtMarker?.vehicleData?.vehicle?.label
-                                    || rtMarker?.vehicleData?.vehicle?.id || null,
-                            marker: rtMarker, tripId
-                        });
-                    }
-                }
-
-                Object.values(byLine).forEach(group => {
-                    group.times.sort((a, b) => a.time - b.time);
-                    group.times = group.times.filter((t, i, arr) =>
-                        i === 0 || (t.time - arr[i - 1].time) > 90
-                    );
-                    group.times = group.times.slice(0, 8);
-                });
-
-                return byLine;
-            }
         });
     }
 
@@ -12889,13 +12679,11 @@ async function openStopInBottomSheet(stopIds, stopName) {
 async function _computeStopPassages(stopIdArr) {
     const now = Date.now() / 1000;
     const byLine = {};
-    const seenKeys = new Set(); 
-
+    const seenKeys = new Set();
     const cleanStops = stopIdArr.map(id => id.replace('0:', '').trim());
 
     function matchStop(sid) {
-        const clean = sid.replace('0:', '').trim();
-        return cleanStops.includes(clean);
+        return cleanStops.includes(sid.replace('0:', '').trim());
     }
 
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
@@ -12913,89 +12701,108 @@ async function _computeStopPassages(stopIdArr) {
 
         const stopTime = match.departureTime || match.arrivalTime;
         if (!stopTime) return;
+        const arrivalSecs = _parseStopTime(stopTime);
+        if (arrivalSecs === null || arrivalSecs < now - 30) return;
 
-        let arrivalSecs;
-        if (typeof stopTime === 'string' && stopTime.includes(':')) {
-            const parts = stopTime.split(':').map(Number);
-            const d = new Date();
-            arrivalSecs = new Date(
-                d.getFullYear(), d.getMonth(), d.getDate(),
-                parts[0], parts[1], parts[2] || 0
-            ).getTime() / 1000;
-            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
-        } else if (typeof stopTime === 'number' && stopTime > 86400) {
-            arrivalSecs = stopTime;
-        } else return;
-
-        if (arrivalSecs < now - 30) return;
-
-        const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+        const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
         if (seenKeys.has(dedupKey)) return;
         seenKeys.add(dedupKey);
 
         const key = `${routeId}|||${dest}`;
         if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
         byLine[key].times.push({
-            time: arrivalSecs,
-            realtime: true,
-            vehicleLabel,
-            marker: marker || null
+            time: arrivalSecs, realtime: true, vehicleLabel,
+            marker: marker || null, tripId
         });
     });
 
-    if (window.stopTimesReady && window.staticStopTimes) {
-        const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
-        const rtTripIds = new Set(Object.keys(tripUpdates));
+    if (window.stopTimesReady && window.staticStopTimes
+        && Object.keys(window.staticStopTimes).length > 0) {
 
-        Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
-            if (rtTripIds.has(tripId)) return;
+        const rtTimeByTripStop = {};
+        const rtMarkerByTrip = {};
+        Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+            const marker = [...markerPool.active.values()]
+                .find(m => m.vehicleData?.trip?.tripId === tripId);
+            if (marker) rtMarkerByTrip[tripId] = marker;
+            (tripData.nextStops || []).forEach(stop => {
+                const sid = stop.stopId.replace('0:', '').trim();
+                const t   = _parseStopTime(stop.departureTime || stop.arrivalTime);
+                if (t !== null) {
+                    if (!rtTimeByTripStop[tripId]) rtTimeByTripStop[tripId] = {};
+                    rtTimeByTripStop[tripId][sid] = t;
+                }
+            });
+        });
 
-            if (activeIds.length > 0 && tripServiceMap[tripId]) {
-                if (!activeIds.includes(tripServiceMap[tripId])) return;
+        let activeIds = [];
+        let tripServiceMap = {};
+        try {
+            const cal = await _getActiveServiceIdsToday();
+            activeIds = cal.activeIds;
+            tripServiceMap = cal.tripServiceMap;
+        } catch(e) {}
+
+        for (const [tripId, tripStops] of Object.entries(window.staticStopTimes)) {
+            if (activeIds.length > 0) {
+                const serviceId = tripServiceMap[tripId];
+                if (!serviceId || !activeIds.includes(serviceId)) continue;
             }
 
             let stopData = null;
-            for (const cleanId of cleanStops) {
-                stopData = tripStops[cleanId] || tripStops[`0:${cleanId}`];
-                if (stopData) break;
+            let matchedCleanId = null;
+            for (const cid of cleanStops) {
+                stopData = tripStops[cid] || tripStops[`0:${cid}`];
+                if (stopData) { matchedCleanId = cid; break; }
             }
-            if (!stopData) return;
+            if (!stopData) continue;
 
             const timeStr = stopData.d || stopData.a;
-            if (!timeStr) return;
+            if (!timeStr) continue;
 
             const parts = timeStr.split(':').map(Number);
             const d = new Date();
-            let arrivalSecs = new Date(
+            let theoreticalSecs = new Date(
                 d.getFullYear(), d.getMonth(), d.getDate(),
                 parts[0], parts[1], parts[2] || 0
             ).getTime() / 1000;
-            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
-            if (arrivalSecs < now - 60) return;
+            if (theoreticalSecs < now - 3600) theoreticalSecs += 86400;
+            if (theoreticalSecs < now - 60) continue;
 
-            const marker = [...markerPool.active.values()]
-                .find(m => m.vehicleData?.trip?.tripId === tripId);
-            const routeId = marker?.line || _guessRouteFromTrip(tripId);
-            const dest    = marker?.destination || 'Destination inconnue';
+            let finalSecs  = theoreticalSecs;
+            let isRealtime = false;
+            const rtTime   = rtTimeByTripStop[tripId]?.[matchedCleanId];
+            if (rtTime !== null && rtTime !== undefined) {
+                finalSecs  = rtTime;
+                isRealtime = true;
+            }
 
-            const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
-            if (seenKeys.has(dedupKey)) return;
-            seenKeys.add(dedupKey);
+            const dedupRt = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
+            const dedupSt = `st|${tripId}|${Math.round(finalSecs / 60)}`;
+            if (seenKeys.has(dedupRt) || seenKeys.has(dedupSt)) continue;
+            seenKeys.add(dedupSt);
+
+            const rtMarker = rtMarkerByTrip[tripId] || null;
+            const routeId  = rtMarker?.line || _guessRouteFromTrip(tripId);
+            const dest     = rtMarker?.destination || 'Destination inconnue';
 
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
             byLine[key].times.push({
-                time: arrivalSecs,
-                realtime: false,
-                vehicleLabel: null,
-                marker: null
+                time: finalSecs, realtime: isRealtime,
+                vehicleLabel: rtMarker?.vehicleData?.vehicle?.label
+                        || rtMarker?.vehicleData?.vehicle?.id || null,
+                marker: rtMarker, tripId
             });
-        });
+        }
     }
 
     Object.values(byLine).forEach(group => {
         group.times.sort((a, b) => a.time - b.time);
-        group.times = group.times.slice(0, 6);
+        group.times = group.times.filter((t, i, arr) =>
+            i === 0 || (t.time - arr[i - 1].time) > 90
+        );
+        group.times = group.times.slice(0, 8);
     });
 
     return byLine;
