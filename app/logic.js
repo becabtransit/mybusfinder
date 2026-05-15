@@ -8825,7 +8825,7 @@ async function fetchVehiclePositions() {
                 `;
 
                 const nextService = _getNextServiceForVehicle(
-                    tripId,
+                    vehicle?.vehicle?.trip?.tripId,
                     vehicle?.vehicle?.label || vehicle?.vehicle?.id
                 );
 
@@ -9224,8 +9224,7 @@ async function fetchVehiclePositions() {
                         });
 
                     const lastStopId   = sortedStopIds[sortedStopIds.length - 1]?.[0];
-                    const lastStopName = stopNameMap[lastStopId] || lastStopName?.[0] || '';
-                    const firstStopId  = sortedStopIds[0]?.[0];
+    const lastStopName = stopNameMap[lastStopId] || '';
                     const firstDep     = sortedStopIds[0]?.[1]?.d || sortedStopIds[0]?.[1]?.a || '';
 
                     const nextMarker = [...markerPool.active.values()]
@@ -12882,13 +12881,11 @@ async function openStopInBottomSheet(stopIds, stopName) {
 async function _computeStopPassages(stopIdArr) {
     const now = Date.now() / 1000;
     const byLine = {};
-    const seenKeys = new Set(); 
-
+    const seenKeys = new Set();
     const cleanStops = stopIdArr.map(id => id.replace('0:', '').trim());
 
     function matchStop(sid) {
-        const clean = sid.replace('0:', '').trim();
-        return cleanStops.includes(clean);
+        return cleanStops.includes(sid.replace('0:', '').trim());
     }
 
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
@@ -12907,22 +12904,10 @@ async function _computeStopPassages(stopIdArr) {
         const stopTime = match.departureTime || match.arrivalTime;
         if (!stopTime) return;
 
-        let arrivalSecs;
-        if (typeof stopTime === 'string' && stopTime.includes(':')) {
-            const parts = stopTime.split(':').map(Number);
-            const d = new Date();
-            arrivalSecs = new Date(
-                d.getFullYear(), d.getMonth(), d.getDate(),
-                parts[0], parts[1], parts[2] || 0
-            ).getTime() / 1000;
-            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
-        } else if (typeof stopTime === 'number' && stopTime > 86400) {
-            arrivalSecs = stopTime;
-        } else return;
+        let arrivalSecs = _parseStopTime(stopTime);
+        if (arrivalSecs === null || arrivalSecs < now - 30) return;
 
-        if (arrivalSecs < now - 30) return;
-
-        const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+        const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
         if (seenKeys.has(dedupKey)) return;
         seenKeys.add(dedupKey);
 
@@ -12932,63 +12917,120 @@ async function _computeStopPassages(stopIdArr) {
             time: arrivalSecs,
             realtime: true,
             vehicleLabel,
-            marker: marker || null
+            marker: marker || null,
+            tripId
         });
     });
 
-    if (window.stopTimesReady && window.staticStopTimes) {
+    if (!window.stopTimesReady && !window._stopTimesLoadAttempted) {
+        window._stopTimesLoadAttempted = true;
+        try {
+            const r = await fetch(
+                new URL(netPath('proxy-cors/proxy_gtfs.php?action=stop_times'), window.location.href).href,
+                { cache: 'no-store' }
+            );
+            if (r.ok) {
+                const json = await r.json();
+                window.staticStopTimes = json;
+                window.stopTimesReady  = true;
+            }
+        } catch (e) {
+            console.warn('Chargement stop_times échoué:', e);
+        }
+    }
+
+    if (window.staticStopTimes && Object.keys(window.staticStopTimes).length > 0) {
         const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
         const rtTripIds = new Set(Object.keys(tripUpdates));
 
-        Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
-            if (rtTripIds.has(tripId)) return;
+        const rtByTrip = {};
+        Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+            (tripData.nextStops || []).forEach(stop => {
+                const sid = stop.stopId.replace('0:', '').trim();
+                if (!rtByTrip[tripId]) rtByTrip[tripId] = {};
+                rtByTrip[tripId][sid] = stop.departureTime || stop.arrivalTime;
+            });
+        });
 
+        for (const [tripId, tripStops] of Object.entries(window.staticStopTimes)) {
             if (activeIds.length > 0 && tripServiceMap[tripId]) {
-                if (!activeIds.includes(tripServiceMap[tripId])) return;
+                if (!activeIds.includes(tripServiceMap[tripId])) continue;
+            } else if (activeIds.length > 0 && !tripServiceMap[tripId]) {
+                continue;
             }
 
             let stopData = null;
+            let matchedStopId = null;
             for (const cleanId of cleanStops) {
                 stopData = tripStops[cleanId] || tripStops[`0:${cleanId}`];
-                if (stopData) break;
+                if (stopData) { matchedStopId = cleanId; break; }
             }
-            if (!stopData) return;
+            if (!stopData) continue;
 
             const timeStr = stopData.d || stopData.a;
-            if (!timeStr) return;
+            if (!timeStr) continue;
 
             const parts = timeStr.split(':').map(Number);
             const d = new Date();
-            let arrivalSecs = new Date(
+            let theoreticalSecs = new Date(
                 d.getFullYear(), d.getMonth(), d.getDate(),
                 parts[0], parts[1], parts[2] || 0
             ).getTime() / 1000;
-            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
-            if (arrivalSecs < now - 60) return;
+            if (theoreticalSecs < now - 3600) theoreticalSecs += 86400;
+            if (theoreticalSecs < now - 60) continue;
 
-            const marker = [...markerPool.active.values()]
+            let finalSecs = theoreticalSecs;
+            let isRealtime = false;
+            let rtVehicleLabel = null;
+            let rtMarker = null;
+
+            if (rtByTrip[tripId]?.[matchedStopId]) {
+                const rtTime = _parseStopTime(rtByTrip[tripId][matchedStopId]);
+                if (rtTime !== null) {
+                    finalSecs = rtTime;
+                    isRealtime = true;
+                }
+                const rtMarkerObj = [...markerPool.active.values()]
+                    .find(m => m.vehicleData?.trip?.tripId === tripId);
+                if (rtMarkerObj) {
+                    rtMarker = rtMarkerObj;
+                    rtVehicleLabel = rtMarkerObj.vehicleData?.vehicle?.label
+                        || rtMarkerObj.vehicleData?.vehicle?.id || null;
+                }
+            }
+
+            if (finalSecs < now - 30) continue;
+
+            const dedupKey = `st|${tripId}|${Math.round(finalSecs / 60)}`;
+            if (seenKeys.has(dedupKey)) continue;
+            const rtDedupKey = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
+            if (seenKeys.has(rtDedupKey)) continue;
+            seenKeys.add(dedupKey);
+
+            const marker = rtMarker || [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
             const routeId = marker?.line || _guessRouteFromTrip(tripId);
             const dest    = marker?.destination || 'Destination inconnue';
 
-            const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
-            if (seenKeys.has(dedupKey)) return;
-            seenKeys.add(dedupKey);
-
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
             byLine[key].times.push({
-                time: arrivalSecs,
-                realtime: false,
-                vehicleLabel: null,
-                marker: null
+                time: finalSecs,
+                realtime: isRealtime,
+                vehicleLabel: rtVehicleLabel,
+                marker: rtMarker,
+                tripId
             });
-        });
+        }
     }
 
     Object.values(byLine).forEach(group => {
         group.times.sort((a, b) => a.time - b.time);
-        group.times = group.times.slice(0, 6);
+        group.times = group.times.filter((t, i, arr) => {
+            if (i === 0) return true;
+            return (t.time - arr[i - 1].time) > 90;
+        });
+        group.times = group.times.slice(0, 8);
     });
 
     return byLine;
