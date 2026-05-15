@@ -12686,6 +12686,7 @@ async function _computeStopPassages(stopIdArr) {
         return cleanStops.includes(sid.replace('0:', '').trim());
     }
 
+    // ── 1. GTFS-RT (temps réel) ────────────────────────────────────────
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
         const match = nextStops.find(s => matchStop(s.stopId));
@@ -12701,7 +12702,8 @@ async function _computeStopPassages(stopIdArr) {
 
         const stopTime = match.departureTime || match.arrivalTime;
         if (!stopTime) return;
-        const arrivalSecs = _parseStopTime(stopTime);
+
+        let arrivalSecs = _parseStopTime(stopTime);
         if (arrivalSecs === null || arrivalSecs < now - 30) return;
 
         const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
@@ -12711,55 +12713,68 @@ async function _computeStopPassages(stopIdArr) {
         const key = `${routeId}|||${dest}`;
         if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
         byLine[key].times.push({
-            time: arrivalSecs, realtime: true, vehicleLabel,
-            marker: marker || null, tripId
+            time: arrivalSecs,
+            realtime: true,
+            vehicleLabel,
+            marker: marker || null,
+            tripId
         });
     });
 
-    if (window.stopTimesReady && window.staticStopTimes
-        && Object.keys(window.staticStopTimes).length > 0) {
+    // ── 2. GTFS statique (théorique) ───────────────────────────────────
+    // On tente même si stopTimesReady est false — on load à la demande
+    if (!window.stopTimesReady && !window._stopTimesLoadAttempted) {
+        window._stopTimesLoadAttempted = true;
+        try {
+            const r = await fetch(
+                new URL(netPath('proxy-cors/proxy_gtfs.php?action=stop_times'), window.location.href).href,
+                { cache: 'no-store' }
+            );
+            if (r.ok) {
+                const json = await r.json();
+                window.staticStopTimes = json;
+                window.stopTimesReady  = true;
+            }
+        } catch (e) {
+            console.warn('Chargement stop_times échoué:', e);
+        }
+    }
 
-        const rtTimeByTripStop = {};
-        const rtMarkerByTrip = {};
+    if (window.staticStopTimes && Object.keys(window.staticStopTimes).length > 0) {
+        const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
+        const rtTripIds = new Set(Object.keys(tripUpdates));
+
+        // Construire la map RT : tripId → arrêt → temps réel (pour fusion)
+        const rtByTrip = {};
         Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
-            const marker = [...markerPool.active.values()]
-                .find(m => m.vehicleData?.trip?.tripId === tripId);
-            if (marker) rtMarkerByTrip[tripId] = marker;
             (tripData.nextStops || []).forEach(stop => {
                 const sid = stop.stopId.replace('0:', '').trim();
-                const t   = _parseStopTime(stop.departureTime || stop.arrivalTime);
-                if (t !== null) {
-                    if (!rtTimeByTripStop[tripId]) rtTimeByTripStop[tripId] = {};
-                    rtTimeByTripStop[tripId][sid] = t;
-                }
+                if (!rtByTrip[tripId]) rtByTrip[tripId] = {};
+                rtByTrip[tripId][sid] = stop.departureTime || stop.arrivalTime;
             });
         });
 
-        let activeIds = [];
-        let tripServiceMap = {};
-        try {
-            const cal = await _getActiveServiceIdsToday();
-            activeIds = cal.activeIds;
-            tripServiceMap = cal.tripServiceMap;
-        } catch(e) {}
-
         for (const [tripId, tripStops] of Object.entries(window.staticStopTimes)) {
-            if (activeIds.length > 0) {
-                const serviceId = tripServiceMap[tripId];
-                if (!serviceId || !activeIds.includes(serviceId)) continue;
+            // Filtrage calendrier
+            if (activeIds.length > 0 && tripServiceMap[tripId]) {
+                if (!activeIds.includes(tripServiceMap[tripId])) continue;
+            } else if (activeIds.length > 0 && !tripServiceMap[tripId]) {
+                continue; // service inconnu, skip
             }
 
+            // Chercher l'arrêt demandé dans ce trip
             let stopData = null;
-            let matchedCleanId = null;
-            for (const cid of cleanStops) {
-                stopData = tripStops[cid] || tripStops[`0:${cid}`];
-                if (stopData) { matchedCleanId = cid; break; }
+            let matchedStopId = null;
+            for (const cleanId of cleanStops) {
+                stopData = tripStops[cleanId] || tripStops[`0:${cleanId}`];
+                if (stopData) { matchedStopId = cleanId; break; }
             }
             if (!stopData) continue;
 
             const timeStr = stopData.d || stopData.a;
             if (!timeStr) continue;
 
+            // Calculer l'heure théorique
             const parts = timeStr.split(':').map(Number);
             const d = new Date();
             let theoreticalSecs = new Date(
@@ -12769,39 +12784,63 @@ async function _computeStopPassages(stopIdArr) {
             if (theoreticalSecs < now - 3600) theoreticalSecs += 86400;
             if (theoreticalSecs < now - 60) continue;
 
-            let finalSecs  = theoreticalSecs;
+            // Fusion RT : si ce trip a des données RT pour cet arrêt, prendre le temps RT
+            let finalSecs = theoreticalSecs;
             let isRealtime = false;
-            const rtTime   = rtTimeByTripStop[tripId]?.[matchedCleanId];
-            if (rtTime !== null && rtTime !== undefined) {
-                finalSecs  = rtTime;
-                isRealtime = true;
+            let rtVehicleLabel = null;
+            let rtMarker = null;
+
+            if (rtByTrip[tripId]?.[matchedStopId]) {
+                const rtTime = _parseStopTime(rtByTrip[tripId][matchedStopId]);
+                if (rtTime !== null) {
+                    finalSecs = rtTime;
+                    isRealtime = true;
+                }
+                const rtMarkerObj = [...markerPool.active.values()]
+                    .find(m => m.vehicleData?.trip?.tripId === tripId);
+                if (rtMarkerObj) {
+                    rtMarker = rtMarkerObj;
+                    rtVehicleLabel = rtMarkerObj.vehicleData?.vehicle?.label
+                        || rtMarkerObj.vehicleData?.vehicle?.id || null;
+                }
             }
 
-            const dedupRt = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
-            const dedupSt = `st|${tripId}|${Math.round(finalSecs / 60)}`;
-            if (seenKeys.has(dedupRt) || seenKeys.has(dedupSt)) continue;
-            seenKeys.add(dedupSt);
+            if (finalSecs < now - 30) continue;
 
-            const rtMarker = rtMarkerByTrip[tripId] || null;
-            const routeId  = rtMarker?.line || _guessRouteFromTrip(tripId);
-            const dest     = rtMarker?.destination || 'Destination inconnue';
+            // Éviter doublons avec les passages RT déjà insérés
+            const dedupKey = `st|${tripId}|${Math.round(finalSecs / 60)}`;
+            if (seenKeys.has(dedupKey)) continue;
+            // Aussi vérifier qu'on n'a pas déjà ce trip en RT pur
+            const rtDedupKey = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
+            if (seenKeys.has(rtDedupKey)) continue;
+            seenKeys.add(dedupKey);
+
+            // Deviner la route depuis le marker actif ou le trip index
+            const marker = rtMarker || [...markerPool.active.values()]
+                .find(m => m.vehicleData?.trip?.tripId === tripId);
+            const routeId = marker?.line || _guessRouteFromTrip(tripId);
+            const dest    = marker?.destination || 'Destination inconnue';
 
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
             byLine[key].times.push({
-                time: finalSecs, realtime: isRealtime,
-                vehicleLabel: rtMarker?.vehicleData?.vehicle?.label
-                        || rtMarker?.vehicleData?.vehicle?.id || null,
-                marker: rtMarker, tripId
+                time: finalSecs,
+                realtime: isRealtime,
+                vehicleLabel: rtVehicleLabel,
+                marker: rtMarker,
+                tripId
             });
         }
     }
 
+    // ── 3. Tri et limite par groupe ────────────────────────────────────
     Object.values(byLine).forEach(group => {
         group.times.sort((a, b) => a.time - b.time);
-        group.times = group.times.filter((t, i, arr) =>
-            i === 0 || (t.time - arr[i - 1].time) > 90
-        );
+        // Dédoublonner les passages trop proches (< 90s d'écart)
+        group.times = group.times.filter((t, i, arr) => {
+            if (i === 0) return true;
+            return (t.time - arr[i - 1].time) > 90;
+        });
         group.times = group.times.slice(0, 8);
     });
 
