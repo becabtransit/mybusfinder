@@ -9128,80 +9128,103 @@ async function fetchVehiclePositions() {
                     }
                 }
 
-                function _getNextServiceForVehicle(currentTripId, vehicleId) {
-                    if (!currentTripId || currentTripId === 'Inconnu') return null;
+                function _getNextServiceForVehicle(tripId, vehicleLabel) {
+                    if (!window.staticStopTimes || !window.stopTimesReady) return null;
 
-                    const currentTripData = tripUpdates[currentTripId];
-                    if (!currentTripData) return null;
+                    const currentTrip = window.staticStopTimes[tripId];
+                    if (!currentTrip) return null;
 
-                    const allStops = currentTripData.nextStops || [];
-                    if (!allStops.length) return null;
+                    // Trouver l'heure de fin du trip courant (dernier arrêt)
+                    const stopTimes = Object.values(currentTrip);
+                    if (!stopTimes.length) return null;
 
-                    const now = Date.now() / 1000;
-                    let lastStopSecs = 0;
-                    allStops.forEach(stop => {
-                        const t = _parseStopTime(stop.departureTime || stop.arrivalTime);
-                        if (t !== null && t > lastStopSecs) lastStopSecs = t;
-                    });
+                    const lastTime = stopTimes
+                        .map(st => {
+                            const ts = st.d || st.a;
+                            if (!ts) return 0;
+                            const p = ts.split(':').map(Number);
+                            return p[0] * 3600 + p[1] * 60 + (p[2] || 0);
+                        })
+                        .reduce((max, v) => Math.max(max, v), 0);
 
-                    if (!lastStopSecs) return null;
+                    if (!lastTime) return null;
 
-                    let bestCandidate = null;
+                    // Chercher le prochain trip du même véhicule (par vehicleLabel dans les markers actifs)
+                    // On cherche dans staticStopTimes un trip qui commence après lastTime
+                    // et qui partage le même routeId ou un routeId proche
+                    // Heuristique : trouver dans tripUpdates un trip avec le même vehicleLabel
+                    // dont l'heure de début est après lastTime
+
+                    const labelStr = String(vehicleLabel || '');
+                    let bestTrip = null;
                     let bestStartSecs = Infinity;
 
-                    for (const [tripId, tripData] of Object.entries(tripUpdates)) {
-                        if (tripId === currentTripId) continue;
+                    const now = Date.now() / 1000;
+                    const d = new Date();
+                    const nowSecs = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
 
-                        const stops = tripData.nextStops || [];
+                    for (const [tid, tripStops] of Object.entries(window.staticStopTimes)) {
+                        if (tid === tripId) continue;
+
+                        const stops = Object.values(tripStops);
                         if (!stops.length) continue;
 
-                        let firstSecs = Infinity;
-                        stops.forEach(stop => {
-                            const t = _parseStopTime(stop.departureTime || stop.arrivalTime);
-                            if (t !== null && t < firstSecs) firstSecs = t;
-                        });
+                        // Premier arrêt du candidat
+                        const firstTimeStr = stops
+                            .map(st => st.d || st.a)
+                            .filter(Boolean)
+                            .sort()[0];
+                        if (!firstTimeStr) continue;
 
-                        if (firstSecs === Infinity) continue;
+                        const fp = firstTimeStr.split(':').map(Number);
+                        const firstSecs = fp[0] * 3600 + fp[1] * 60 + (fp[2] || 0);
 
-                        const gap = firstSecs - lastStopSecs;
-                        if (gap < -120 || gap > 10800) continue;
-
+                        // Ce trip doit commencer après la fin du trip courant
+                        // et dans les prochaines 2h
+                        const gapSecs = firstSecs - lastTime;
+                        if (gapSecs < -120 || gapSecs > 7200) continue;
                         if (firstSecs < bestStartSecs) {
                             bestStartSecs = firstSecs;
-
-                            const nextMarker = [...markerPool.active.values()]
-                                .find(m => m.vehicleData?.trip?.tripId === tripId);
-
-                            const routeId  = nextMarker?.line || _guessRouteFromTrip(tripId);
-                            const lastStop = stops[stops.length - 1];
-                            const terminus = stopNameMap[lastStop?.stopId?.replace('0:', '')] || '';
-                            const dep      = stops[0]?.departureTime || stops[0]?.arrivalTime || '';
-
-                            let depStr = '';
-                            if (dep && dep.includes(':')) {
-                                const p = dep.split(':');
-                                depStr = `${String(p[0]).padStart(2,'0')}:${String(p[1]).padStart(2,'0')}`;
-                            } else {
-                                const depSecs = _parseStopTime(dep);
-                                if (depSecs) {
-                                    const dd = new Date(depSecs * 1000);
-                                    depStr = `${String(dd.getHours()).padStart(2,'0')}:${String(dd.getMinutes()).padStart(2,'0')}`;
-                                }
-                            }
-
-                            bestCandidate = {
-                                tripId,
-                                routeId,
-                                lineName:  lineName[routeId] || routeId,
-                                color:     lineColors[routeId] || '#444',
-                                departure: depStr,
-                                terminus,
-                                startSecs: firstSecs
-                            };
+                            bestTrip = { tripId: tid, firstSecs, firstTimeStr };
                         }
                     }
 
-                    return bestCandidate;
+                    if (!bestTrip) return null;
+
+                    // Trouver la destination du prochain trip (dernier arrêt)
+                    const nextTripStops = window.staticStopTimes[bestTrip.tripId];
+                    if (!nextTripStops) return null;
+
+                    const sortedStopIds = Object.entries(nextTripStops)
+                        .sort(([, a], [, b]) => {
+                            const ta = (a.d || a.a || '').split(':').map(Number);
+                            const tb = (b.d || b.a || '').split(':').map(Number);
+                            const sa = ta[0] * 3600 + ta[1] * 60 + (ta[2] || 0);
+                            const sb = tb[0] * 3600 + tb[1] * 60 + (tb[2] || 0);
+                            return sa - sb;
+                        });
+
+                    const lastStopId   = sortedStopIds[sortedStopIds.length - 1]?.[0];
+                    const lastStopName = stopNameMap[lastStopId] || lastStopName?.[0] || '';
+                    const firstStopId  = sortedStopIds[0]?.[0];
+                    const firstDep     = sortedStopIds[0]?.[1]?.d || sortedStopIds[0]?.[1]?.a || '';
+
+                    // Trouver la ligne du prochain trip dans tripUpdates si dispo
+                    const nextMarker = [...markerPool.active.values()]
+                        .find(m => m.vehicleData?.trip?.tripId === bestTrip.tripId);
+                    const nextRouteId = nextMarker?.line || _guessRouteFromTrip(bestTrip.tripId);
+                    const nextLineName = lineName[nextRouteId] || nextRouteId;
+                    const nextColor    = lineColors[nextRouteId] || '#444';
+
+                    return {
+                        tripId:    bestTrip.tripId,
+                        routeId:   nextRouteId,
+                        lineName:  nextLineName,
+                        color:     nextColor,
+                        departure: firstDep,
+                        terminus:  lastStopName,
+                        startSecs: bestTrip.firstSecs
+                    };
                 }
 
                 function generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id, nextServiceHTML) {
@@ -12686,7 +12709,6 @@ async function _computeStopPassages(stopIdArr) {
         return cleanStops.includes(sid.replace('0:', '').trim());
     }
 
-    // ── 1. GTFS-RT (temps réel) ────────────────────────────────────────
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
         const match = nextStops.find(s => matchStop(s.stopId));
@@ -12721,8 +12743,6 @@ async function _computeStopPassages(stopIdArr) {
         });
     });
 
-    // ── 2. GTFS statique (théorique) ───────────────────────────────────
-    // On tente même si stopTimesReady est false — on load à la demande
     if (!window.stopTimesReady && !window._stopTimesLoadAttempted) {
         window._stopTimesLoadAttempted = true;
         try {
@@ -12744,7 +12764,6 @@ async function _computeStopPassages(stopIdArr) {
         const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
         const rtTripIds = new Set(Object.keys(tripUpdates));
 
-        // Construire la map RT : tripId → arrêt → temps réel (pour fusion)
         const rtByTrip = {};
         Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
             (tripData.nextStops || []).forEach(stop => {
@@ -12755,14 +12774,12 @@ async function _computeStopPassages(stopIdArr) {
         });
 
         for (const [tripId, tripStops] of Object.entries(window.staticStopTimes)) {
-            // Filtrage calendrier
             if (activeIds.length > 0 && tripServiceMap[tripId]) {
                 if (!activeIds.includes(tripServiceMap[tripId])) continue;
             } else if (activeIds.length > 0 && !tripServiceMap[tripId]) {
-                continue; // service inconnu, skip
+                continue;
             }
 
-            // Chercher l'arrêt demandé dans ce trip
             let stopData = null;
             let matchedStopId = null;
             for (const cleanId of cleanStops) {
@@ -12774,7 +12791,6 @@ async function _computeStopPassages(stopIdArr) {
             const timeStr = stopData.d || stopData.a;
             if (!timeStr) continue;
 
-            // Calculer l'heure théorique
             const parts = timeStr.split(':').map(Number);
             const d = new Date();
             let theoreticalSecs = new Date(
@@ -12784,7 +12800,6 @@ async function _computeStopPassages(stopIdArr) {
             if (theoreticalSecs < now - 3600) theoreticalSecs += 86400;
             if (theoreticalSecs < now - 60) continue;
 
-            // Fusion RT : si ce trip a des données RT pour cet arrêt, prendre le temps RT
             let finalSecs = theoreticalSecs;
             let isRealtime = false;
             let rtVehicleLabel = null;
@@ -12807,15 +12822,12 @@ async function _computeStopPassages(stopIdArr) {
 
             if (finalSecs < now - 30) continue;
 
-            // Éviter doublons avec les passages RT déjà insérés
             const dedupKey = `st|${tripId}|${Math.round(finalSecs / 60)}`;
             if (seenKeys.has(dedupKey)) continue;
-            // Aussi vérifier qu'on n'a pas déjà ce trip en RT pur
             const rtDedupKey = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
             if (seenKeys.has(rtDedupKey)) continue;
             seenKeys.add(dedupKey);
 
-            // Deviner la route depuis le marker actif ou le trip index
             const marker = rtMarker || [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
             const routeId = marker?.line || _guessRouteFromTrip(tripId);
@@ -12833,10 +12845,8 @@ async function _computeStopPassages(stopIdArr) {
         }
     }
 
-    // ── 3. Tri et limite par groupe ────────────────────────────────────
     Object.values(byLine).forEach(group => {
         group.times.sort((a, b) => a.time - b.time);
-        // Dédoublonner les passages trop proches (< 90s d'écart)
         group.times = group.times.filter((t, i, arr) => {
             if (i === 0) return true;
             return (t.time - arr[i - 1].time) > 90;
