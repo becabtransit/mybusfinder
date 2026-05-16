@@ -1572,6 +1572,8 @@ class MarkerPool {
     release(id) {
         const marker = this.active.get(id);
         if (!marker) return;
+
+        marker._popupGenerated = false;
         
         if (marker.isPopupOpen()) {
             marker.closePopup();
@@ -1586,9 +1588,6 @@ class MarkerPool {
         this.active.delete(id);
         
         if (this.pool.length < this.maxSize) {
-            marker._popupGenerated = false; // ← ajouter
-            marker.vehicleData = null;      // ← ajouter
-            marker._lastNextStopsHTML = ''; // ← ajouter
             this.pool.push(marker);
         }
     }
@@ -9265,7 +9264,7 @@ async function fetchVehiclePositions() {
                 }
 
                 function generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
-                    const cacheKey = `${id}-${line}-${nextStopsHTML.substring(0, 80)}`;
+                    const cacheKey = `${id}-${line}-${backgroundColor}-${nextStopsHTML.length}`;
                     if (contentCache.get(cacheKey)) {
                         return contentCache.get(cacheKey);
                     }
@@ -9479,7 +9478,6 @@ async function fetchVehiclePositions() {
                     marker.vehicleData = vehicle;
                     marker.destination = lastStopName;
                     marker._lastNextStopsHTML = nextStopsHTML;
-                    marker._popupGenerated = false;
 
                     if (marker.line !== line) {
                         marker.line = line;
@@ -9551,9 +9549,20 @@ async function fetchVehiclePositions() {
                 const popupPlaceholder = L.popup().setContent('<div style="padding:10px;color:white;font-family:League Spartan;">⏳ Chargement...</div>');
                 marker.bindPopup(popupPlaceholder);
 
+                const capturedVehicle = vehicle;
+                const capturedLine = line;
+                const capturedLastStopName = lastStopName;
+                const capturedNextStopsHTML = nextStopsHTML;
+                const capturedVehicleOptionsBadges = vehicleOptionsBadges;
+                const capturedVehicleBrandHtml = vehicleBrandHtml;
+                const capturedStopsHeaderText = stopsHeaderText;
+                const capturedBackgroundColor = backgroundColor;
+                const capturedTextColor = textColor;
+                const capturedId = id;
+
                 eventManager.on(marker, 'popupopen', function(e) {
                     if (marker.minimalPopup) {
-                        createOrUpdateMinimalTooltip(id, false);
+                        createOrUpdateMinimalTooltip(capturedId, false);
                     }
 
                     const popup = marker.getPopup();
@@ -9561,9 +9570,9 @@ async function fetchVehiclePositions() {
                         marker._popupGenerated = true;
                         requestAnimationFrame(() => {
                             const popupContent = generatePopupContent(
-                                vehicle, line, lastStopName, nextStopsHTML,
-                                vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText,
-                                backgroundColor, textColor, id
+                                capturedVehicle, capturedLine, capturedLastStopName, capturedNextStopsHTML,
+                                capturedVehicleOptionsBadges, capturedVehicleBrandHtml, capturedStopsHeaderText,
+                                capturedBackgroundColor, capturedTextColor, capturedId
                             );
                             popup.setContent(popupContent);
                             popup.update();
