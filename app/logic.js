@@ -3550,10 +3550,8 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         const id = this.id;
         const vehicleOptionsBadges = getVehicleOptionsBadges(id);
         const line = route_id;
-        const lastStopId = getLastStopIdForVehicle(id);
-        const lastStopName = stopNameMap[lastStopId] || lastStopId || t('unknown');
 
-        _showVehicleOptionsInBottomSheet(id, vehicleOptionsBadges, line, lastStopName);
+        _showVehicleOptionsInBottomSheet(id, vehicleOptionsBadges, line);
 
         if (menubtm) {
             const markerId = marker.id;
@@ -3638,7 +3636,7 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     return marker;
 }
 
-function _showVehicleOptionsInBottomSheet(vehicleId, optionsBadgesHTML, brandHTML, line, destination) {
+function _showVehicleOptionsInBottomSheet(vehicleId, optionsBadgesHTML, line) {
     const sheet = document.getElementById('bottom-sheet');
     if (!sheet) return;
 
