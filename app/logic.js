@@ -3544,26 +3544,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const { color } = getCachedColors(route_id);
     
     marker.on('popupopen', function(e) {
-        const popup = marker.getPopup();
-        if (popup && !marker._popupGenerated) {
-            marker._popupGenerated = true;
-            
-            const keysToDelete = [];
-            contentCache.cache.forEach((_, key) => {
-                if (key.startsWith(`${id}-`)) keysToDelete.push(key);
-            });
-            keysToDelete.forEach(k => contentCache.cache.delete(k));
-            
-            requestAnimationFrame(() => {
-                const popupContent = generatePopupContent(
-                    vehicle, line, lastStopName, nextStopsHTML,
-                    vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText,
-                    backgroundColor, textColor, id
-                );
-                popup.setContent(popupContent);
-                popup.update();
-            });
-        }
         const menubtm = document.getElementById('menubtm');
         safeVibrate([50]);
         const consulted = parseInt(localStorage.getItem('mbf_vehicles_consulted') || '0', 10);
