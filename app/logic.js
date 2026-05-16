@@ -13346,6 +13346,70 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
     });
 }
 
+async function fetchRealtimeDataForStopFavorite(favorite, container) {
+    if (!container || !favorite) return;
+    const ids = Array.isArray(favorite.stopIds) ? favorite.stopIds : [favorite.stopIds];
+    if (!ids.length) {
+        container.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+        return;
+    }
+
+    const passages = await _computeStopPassages(ids);
+    const arrivals = Object.values(passages)
+        .flatMap(entry => entry.times || [])
+        .sort((a, b) => a.time - b.time)
+        .slice(0, 5);
+
+    _displayStopFavTimes(container, arrivals);
+}
+
+function _displayStopFavTimes(container, arrivals) {
+    if (!container) return;
+    if (!arrivals || arrivals.length === 0) {
+        container.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+        return;
+    }
+
+    container.innerHTML = '';
+    const now = Date.now() / 1000;
+
+    arrivals.forEach(arrival => {
+        const diffMin = Math.round((arrival.time - now) / 60);
+        const label = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
+        const isRT = arrival.realtime === true || arrival.marker;
+
+        const pill = document.createElement('span');
+        pill.style.cssText = `
+            display:inline-flex;
+            align-items:center;
+            gap:6px;
+            font-size:11px;
+            padding:4px 8px;
+            border-radius:16px;
+            white-space:nowrap;
+            border:1px solid rgba(255,255,255,0.16);
+            background:${isRT ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'};
+            color:${isRT ? 'white' : 'rgba(255,255,255,0.7)'};
+            cursor:${arrival.marker ? 'pointer' : 'default'};
+        `;
+
+        pill.textContent = `${label}`;
+
+        if (arrival.marker) {
+            pill.addEventListener('click', e => {
+                e.stopPropagation();
+                safeVibrate?.([30, 20, 30], true);
+                soundsUX('MBF_Menu_VehicleSelect');
+                map.setView(arrival.marker.getLatLng(), 15);
+                arrival.marker.openPopup();
+                BottomSheet.collapse();
+            });
+        }
+
+        container.appendChild(pill);
+    });
+}
+
 function openFavoriteSchedule(favorite) {
     if (!favorite || !favorite.routeId || !favorite.stopId) return;
     const route       = encodeURIComponent(favorite.routeId);
