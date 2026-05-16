@@ -9262,18 +9262,28 @@ async function fetchVehiclePositions() {
                                 </div>
                             </div>
 
-                            <div class="stops-section" style="color: ${textColor}; display: flex; flex-direction: column; max-height: 200px;">
-                                <div class="stops-header" id="popup-header-${id}"
-                                    style="flex-shrink: 0; padding-bottom: 6px;">
+                            <div class="stops-section" style="color: ${textColor}; display: flex; flex-direction: column;">
+                                <div id="popup-header-${id}"
+                                    style="
+                                        flex-shrink: 0;
+                                        position: relative;
+                                        z-index: 2;
+                                        backdrop-filter: blur(12px);
+                                        -webkit-backdrop-filter: blur(12px);
+                                        background: linear-gradient(to bottom, ${backgroundColor}dd 80%, ${backgroundColor}00 100%);
+                                        padding-bottom: 10px;
+                                        margin-bottom: -8px;
+                                    ">
                                     ${stopsHeaderText}
                                 </div>
                                 <div style="
                                     overflow-y: auto;
-                                    flex: 1;
+                                    max-height: 160px;
                                     scrollbar-width: none;
                                     -ms-overflow-style: none;
-                                    mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
-                                    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+                                    position: relative;
+                                    z-index: 1;
+                                    padding-top: 8px;
                                 ">
                                     <div id="popup-stops-${id}" class="nextStopsContent next-stops-content">
                                         ${nextStopsHTML}
