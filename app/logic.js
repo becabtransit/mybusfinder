@@ -3549,11 +3549,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         localStorage.setItem('mbf_vehicles_consulted', (consulted + 1).toString());
         soundsUX('MBF_VehicleOpen');
         saveAndFilterSingleLine(route_id);
-        const id = this.id;
-        const vehicleOptionsBadges = getVehicleOptionsBadges(id);
-        const line = route_id;
-
-        _showVehicleOptionsInBottomSheet(id, vehicleOptionsBadges, line);
 
         if (menubtm) {
             const markerId = marker.id;
@@ -3577,8 +3572,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         soundsUX('MBF_VehicleClose');
         restoreFilterState();
         
-        _hideVehicleOptionsFromBottomSheet();
-
         if (menubtm) {
             try {
                 setTimeout(async () => {
@@ -3636,95 +3629,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     });
     
     return marker;
-}
-
-function _showVehicleOptionsInBottomSheet(vehicleId, optionsBadgesHTML, line) {
-    _hideVehicleOptionsFromBottomSheet();
-
-    const content = document.getElementById('bs-content');
-    if (!content) return;
-
-    const color = lineColors[line] || '#444';
-    const textColor = getTextColor(color);
-    const lineLbl = lineName[line] || line;
-
-    const panel = document.createElement('div');
-    panel.id = 'bs-vehicle-options-panel';
-    panel.style.cssText = `
-        padding: 12px 18px 20px;
-        animation: bsFadeUp 0.35s cubic-bezier(0.25, 1.5, 0.5, 1) both;
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-    `;
-
-    panel.innerHTML = `
-        <div style="display:flex; align-items:center; gap:12px;">
-            <span style="
-                background: ${color};
-                color: ${textColor};
-                padding: 4px 14px;
-                border-radius: 10px;
-                font-size: 20px;
-                font-weight: 700;
-            ">${t('line')} ${lineLbl}</span>
-        </div>
-
-        ${optionsBadgesHTML ? `
-        <div>
-            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em;
-                        color:rgba(255,255,255,0.45); margin-bottom:8px;">
-                ${t('options') || 'Équipements'}
-            </div>
-            <div style="display:flex; flex-wrap:wrap; gap:8px;">
-                ${optionsBadgesHTML}
-            </div>
-        </div>
-        ` : `
-        <div style="font-size:13px; opacity:0.5; text-align:center; padding: 16px 0;">
-            ${t('nooptions') || 'Aucun équipement connu pour ce véhicule'}
-        </div>
-        `}
-    `;
-
-    const toHide = ['bs-search-wrapper', 'bs-favorites-section'];
-    toHide.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) { el.dataset.hiddenByVehicle = 'true'; el.style.display = 'none'; }
-    });
-    const grid = content.querySelector('.bs-grid');
-    if (grid) { grid.dataset.hiddenByVehicle = 'true'; grid.style.display = 'none'; }
-
-    content.appendChild(panel);
-}
-
-function _hideVehicleOptionsFromBottomSheet() {
-    const panel = document.getElementById('bs-vehicle-options-panel');
-    if (!panel) return;
-
-    panel.style.opacity = '0';
-    panel.style.transform = 'translateY(10px)';
-    panel.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
-
-    setTimeout(() => {
-        panel.remove();
-
-        ['bs-search-wrapper', 'bs-favorites-section'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el && el.dataset.hiddenByVehicle) {
-                delete el.dataset.hiddenByVehicle;
-                el.style.display = '';
-            }
-        });
-        const content = document.getElementById('bs-content');
-        if (content) {
-            const grid = content.querySelector('.bs-grid');
-            if (grid && grid.dataset.hiddenByVehicle) {
-                delete grid.dataset.hiddenByVehicle;
-                grid.style.display = '';
-            }
-        }
-    }, 220);
 }
 
 function clearMarkerCache() {
@@ -8835,6 +8739,7 @@ async function fetchVehiclePositions() {
                     stopsHeaderText = `
                         <div class="stops-header-widget" style="margin-bottom: 8px;">
                             <div class="stops-icons-row">
+                                ${parcBadgeHTML}
                                 <span class="stops-icon-badge">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
                                     <span class="stops-badge-label">${t("notinservicemaj")}</span>
@@ -9295,6 +9200,18 @@ async function fetchVehiclePositions() {
                                     <p class="vehicle-direction" id="popup-direction-${id}">➜ ${lastStopName}</p>
                                     <div>
                                         <div class="vehicle-brand-container">${vehicleBrandHtml}</div>
+                                        <div class="vehicle-options-container">
+                                            <div class="options-scroll-area">
+                                                <div class="options custom-scrollbar">
+                                                    <span class="parc-badge">
+                                                        <svg class="parc-icon" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
+                                                        <span class="parc-number-hidden">${(vehicle?.vehicle?.label?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || vehicle?.vehicle?.id?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || t("unknownparc"))}</span>
+                                                    </span>
+                                                    ${vehicleOptionsBadges}
+                                                </div>
+                                            </div>
+                                        </div>
+
                                     </div>
                                 </div>
                             </div>
