@@ -3714,8 +3714,6 @@ const AnimationManager = {
             cancelAnimationFrame(this.activeAnimations.get(markerId).frameId);
         }
         
-        const startLatLng = marker.getLatLng();
-        const endLatLng = L.latLng(newPosition[0], newPosition[1]);
         
         // Si distance trop courte, pas d'animation
         const distance = startLatLng.distanceTo(endLatLng);
