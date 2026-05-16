@@ -4550,43 +4550,43 @@ function getVehicleOptionsBadges(parkNumber) {
         const params = model.params;
 
         if (params.isElectric) {
-            badges += `<span class="stops-icon-badge">
+            badges += `<span class="stops-icon-badge stops-icon-badge--collapsible">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path fill-rule="evenodd" clip-rule="evenodd" d="M11.9 5L7.5 13.615H13V19L18.5 9.308H13L11.9 5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                 <span class="stops-badge-label">${t("electric")}</span>
             </span>`;
         }
         if (params.isHybrid) {
-            badges += `<span class="stops-icon-badge">
+            badges += `<span class="stops-icon-badge stops-icon-badge--collapsible">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.9357 0.250176C11.5215 0.252442 11.1876 0.59006 11.1898 1.00427C11.1921 1.41847 11.5297 1.75242 11.9439 1.75015L11.9357 0.250176ZM2.28847 6.83416L1.65477 6.433C1.64467 6.44895 1.63518 6.46528 1.62632 6.48194L2.28847 6.83416ZM3.1337 6.90115C3.35525 6.55117 3.25114 6.08785 2.90115 5.8663C2.55117 5.64475 2.08785 5.74886 1.8663 6.09885L3.1337 6.90115ZM11.9439 1.75015C14.1874 1.73788 16.373 2.46203 18.1653 3.81151L19.0676 2.61319C17.013 1.06623 14.5076 0.236108 11.9357 0.250176L11.9439 1.75015ZM18.1653 3.81151C19.9576 5.16098 21.2577 7.06123 21.866 9.22072L23.3098 8.814C22.6125 6.33849 21.1222 4.16015 19.0676 2.61319L18.1653 3.81151ZM21.866 9.22072C22.4743 11.3802 22.3574 13.6796 21.533 15.7662L22.9281 16.3174C23.8731 13.9255 24.0072 11.2895 23.3098 8.814L21.866 9.22072ZM21.533 15.7662C20.7086 17.8528 19.2224 19.6113 17.3024 20.7719L18.0784 22.0556C20.2794 20.7252 21.9831 18.7094 22.9281 16.3174L21.533 15.7662ZM17.3024 20.7719C15.3824 21.9325 13.1346 22.4311 10.9039 22.1912L10.7435 23.6826C13.3007 23.9576 15.8774 23.3861 18.0784 22.0556L17.3024 20.7719ZM10.9039 22.1912C8.67327 21.9513 6.58292 20.9861 4.9536 19.4438L3.92242 20.5332C5.79017 22.3012 8.18643 23.4076 10.7435 23.6826L10.9039 22.1912ZM4.9536 19.4438C3.32429 17.9015 2.246 15.8672 1.88418 13.653L0.403819 13.8949C0.818584 16.4331 2.05467 18.7651 3.92242 20.5332L4.9536 19.4438ZM1.88418 13.653C1.52237 11.4388 1.89701 9.16712 2.95062 7.18637L1.62632 6.48194C0.418517 8.75255 -0.0109459 11.3567 0.403819 13.8949L1.88418 13.653ZM2.92217 7.23531L3.1337 6.90115L1.8663 6.09885L1.65477 6.433L2.92217 7.23531Z" fill="currentColor"></path></svg>
                 <span class="stops-badge-label">${t("hybrid")}</span>
             </span>`;
         }
         if (params.isGnv) {
-            badges += `<span class="stops-icon-badge">
+            badges += `<span class="stops-icon-badge stops-icon-badge--collapsible">
                 <svg width="14" height="14" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M17,8C8,10,5.9,16.17,3.82,21.34L5.71,22l1-2.3A4.49,4.49,0,0,0,8,20C19,20,22,3,22,3,21,5,14,5.25,9,6.25S2,11.5,2,13.5a6.22,6.22,0,0,0,1.75,3.75C7,8,17,8,17,8Z"></path></svg>
                 <span class="stops-badge-label">${t("gnv")}</span>
             </span>`;
         }
         if (params.isUsbPlugs) {
-            badges += `<span class="stops-icon-badge">
+            badges += `<span class="stops-icon-badge stops-icon-badge--collapsible">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="17" r="1"></circle><circle cx="8" cy="9" r="1"></circle><path d="M11.25 16C11.25 16.4142 11.5858 16.75 12 16.75C12.4142 16.75 12.75 16.4142 12.75 16H11.25ZM12 6L12.5303 5.46967C12.2374 5.17678 11.7626 5.17678 11.4697 5.46967L12 6ZM12.4697 7.53033C12.7626 7.82322 13.2374 7.82322 13.5303 7.53033C13.8232 7.23744 13.8232 6.76256 13.5303 6.46967L12.4697 7.53033ZM10.4697 6.46967C10.1768 6.76256 10.1768 7.23744 10.4697 7.53033C10.7626 7.82322 11.2374 7.82322 11.5303 7.53033L10.4697 6.46967ZM11.4697 6.53033L12.4697 7.53033L13.5303 6.46967L12.5303 5.46967L11.4697 6.53033ZM11.4697 5.46967L10.4697 6.46967L11.5303 7.53033L12.5303 6.53033L11.4697 5.46967ZM12.75 16V14.125H11.25V16H12.75ZM12.75 14.125V6H11.25V14.125H12.75Z" fill="currentColor"></path><path d="M8 10V11.0296C8 11.9044 8.5685 12.6777 9.40345 12.9386L10.8069 13.3772C11.5167 13.599 12 14.2563 12 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M16 11V12.0296C16 12.9044 15.4315 13.6777 14.5966 13.9386L13.1931 14.3772C12.4833 14.599 12 15.2563 12 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M15 10C15 9.5286 15 9.29289 15.1464 9.14645C15.2929 9 15.5286 9 16 9C16.4714 9 16.7071 9 16.8536 9.14645C17 9.29289 17 9.5286 17 10C17 10.4714 17 10.7071 16.8536 10.8536C16.7071 11 16.4714 11 16 11C15.5286 11 15.2929 11 15.1464 10.8536C15 10.7071 15 10.4714 15 10Z" stroke="currentColor" stroke-width="1.5"></path></svg>
                 <span class="stops-badge-label">${t("usb")}</span>
             </span>`;
         }
         if (params.isAirConditioned) {
-            badges += `<span class="stops-icon-badge">
+            badges += `<span class="stops-icon-badge stops-icon-badge--collapsible">
                 <svg width="14" height="14" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M29,8v5c0,1.1-.9,2-2,2h-1.21l-.1-1H6.31l-.1,1h-1.21c-1.1,0-2-.9-2-2v-5c0-1.1,.9-2,2-2H27c1.1,0,2,.9,2,2Z"></path><path d="M27,5H5c-1.6543,0-3,1.3457-3,3v5c0,1.6543,1.3457,3,3,3h.098l-.0926,.8975c-.0293,.2812,.0625,.562,.252,.7725,.1899,.21,.4595,.3301,.7427,.3301H26c.2832,0,.5527-.1201,.7427-.3301,.1895-.2104,.2812-.4912,.252-.7725l-.0926-.8975h.098c1.6543,0,3-1.3457,3-3v-5c0-1.6543-1.3457-3-3-3Z"></path></svg>
                 <span class="stops-badge-label">${t("ac")}</span>
             </span>`;
         }
         if (params.isHeatingUnit) {
-            badges += `<span class="stops-icon-badge">
+            badges += `<span class="stops-icon-badge stops-icon-badge--collapsible">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M12 16v6M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h6M16 12h6M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24"/></svg>
                 <span class="stops-badge-label">${t("hot")}</span>
             </span>`;
         }
         if (model != null) {
-            badges += `<span class="stops-icon-badge">
+            badges += `<span class="stops-icon-badge stops-icon-badge--collapsible">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5026 5.01692L9.96661 3.65785C9.62068 2.78072 8.37933 2.78072 8.03339 3.65784L6.96137 6.37599C6.85576 6.64378 6.64378 6.85575 6.37599 6.96137L3.65785 8.03339C2.78072 8.37932 2.78072 9.62067 3.65784 9.96661L6.37599 11.0386C6.64378 11.1442 6.85575 11.3562 6.96137 11.624L8.03339 14.3422C8.37932 15.2193 9.62067 15.2193 9.96661 14.3422L11.0386 11.624C11.1442 11.3562 11.3562 11.1442 11.624 11.0386L14.3422 9.96661C15.2193 9.62068 15.2193 8.37933 14.3422 8.03339L12.9831 7.49738"/><path d="M16.4885 13.3481C16.6715 12.884 17.3285 12.884 17.5115 13.3481L18.3121 15.3781C18.368 15.5198 18.4802 15.632 18.6219 15.6879L20.6519 16.4885C21.116 16.6715 21.116 17.3285 20.6519 17.5115L18.6219 18.3121C18.4802 18.368 18.368 18.4802 18.3121 18.6219L17.5115 20.6519C17.3285 21.116 16.6715 21.116 16.4885 20.6519L15.6879 18.6219C15.632 18.4802 15.5198 18.368 15.3781 18.3121L13.3481 17.5115C12.884 17.3285 12.884 16.6715 13.3481 16.4885L15.3781 15.6879C15.5198 15.632 15.632 15.5198 15.6879 15.3781L16.4885 13.3481Z"/></svg>
                 <span class="stops-badge-label">${model.name}</span>
             </span>`;
@@ -8002,8 +8002,6 @@ animationStyle.textContent = `
         animation: explosion 0.6s cubic-bezier(0.25, 1.5, 0.5, 1);
     }
 
-
-
 `;
 document.head.appendChild(animationStyle);
 
@@ -8672,15 +8670,6 @@ async function fetchVehiclePositions() {
                     stopsHeaderText = `
                         <div class="stops-header-widget">
                             <div class="stops-icons-row">
-                                <span class="stops-icon-badge" style="max-width:none; gap:6px; padding:5px 12px; pointer-events:none;">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                                    </svg>
-                                    <span class="stops-badge-label" style="opacity:1; max-width:160px;">${(vehicle?.vehicle?.label || vehicle?.vehicle?.id || t("unknownparc")).toString().padStart(3,'0').replace("TCAR:Vehicle::","").replace(":LOC","").replace("RLA","").replace("SUM","").replace("TCA","")}</span>
-                                </span>
-                                ${vehicleOptionsBadges}
-                            </div>
-                            <div class="stops-icons-row">
                                 ${terminusBadgeHTML}
                                 ${statusBadge}
                             </div>
@@ -8703,15 +8692,6 @@ async function fetchVehiclePositions() {
                     if (filteredStops.length === 1 && minutes === 0) {
                         stopsHeaderText = `
                             <div class="stops-header-widget">
-                            <div class="stops-icons-row">
-                                <span class="stops-icon-badge" style="max-width:none; gap:6px; padding:5px 12px; pointer-events:none;">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                                    </svg>
-                                    <span class="stops-badge-label" style="opacity:1; max-width:160px;">${(vehicle?.vehicle?.label || vehicle?.vehicle?.id || t("unknownparc")).toString().padStart(3,'0').replace("TCAR:Vehicle::","").replace(":LOC","").replace("RLA","").replace("SUM","").replace("TCA","")}</span>
-                                </span>
-                                ${vehicleOptionsBadges}
-                            </div>
                                 <div class="stops-icons-row">
                                     ${terminusBadgeHTML}
                                     ${delayBadgeHTML}
@@ -8728,15 +8708,6 @@ async function fetchVehiclePositions() {
                         stopsHeaderText = `
                             <div class="stops-header-widget">
                                 <div class="stops-icons-row">
-                                    <span class="stops-icon-badge" style="max-width:none; gap:6px; padding:5px 12px; pointer-events:none;">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                                        </svg>
-                                        <span class="stops-badge-label" style="opacity:1; max-width:160px;">${(vehicle?.vehicle?.label || vehicle?.vehicle?.id || t("unknownparc")).toString().padStart(3,'0').replace("TCAR:Vehicle::","").replace(":LOC","").replace("RLA","").replace("SUM","").replace("TCA","")}</span>
-                                    </span>
-                                    ${vehicleOptionsBadges}
-                                </div>
-                                <div class="stops-icons-row">
                                     ${terminusBadgeHTML}
                                     ${delayBadgeHTML}
                                     <span class="stops-icon-badge">
@@ -8751,15 +8722,6 @@ async function fetchVehiclePositions() {
                     } else if (minutes > 3) {
                         stopsHeaderText = `
                             <div class="stops-header-widget">
-                                <div class="stops-icons-row">
-                                    <span class="stops-icon-badge" style="max-width:none; gap:6px; padding:5px 12px; pointer-events:none;">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                                        </svg>
-                                        <span class="stops-badge-label" style="opacity:1; max-width:160px;">${(vehicle?.vehicle?.label || vehicle?.vehicle?.id || t("unknownparc")).toString().padStart(3,'0').replace("TCAR:Vehicle::","").replace(":LOC","").replace("RLA","").replace("SUM","").replace("TCA","")}</span>
-                                    </span>
-                                    ${vehicleOptionsBadges}
-                                </div>
                                 <div class="stops-icons-row">
                                     ${terminusBadgeHTML}
                                     ${delayBadgeHTML}
@@ -8776,15 +8738,6 @@ async function fetchVehiclePositions() {
                         stopsHeaderText = `
                             <div class="stops-header-widget">
                                 <div class="stops-icons-row">
-                                    <span class="stops-icon-badge" style="max-width:none; gap:6px; padding:5px 12px; pointer-events:none;">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                                        </svg>
-                                        <span class="stops-badge-label" style="opacity:1; max-width:160px;">${(vehicle?.vehicle?.label || vehicle?.vehicle?.id || t("unknownparc")).toString().padStart(3,'0').replace("TCAR:Vehicle::","").replace(":LOC","").replace("RLA","").replace("SUM","").replace("TCA","")}</span>
-                                    </span>
-                                    ${vehicleOptionsBadges}
-                                </div>
-                                <div class="stops-icons-row">
                                     ${terminusBadgeHTML}
                                     ${delayBadgeHTML}
                                     <span class="stops-icon-badge">
@@ -8800,77 +8753,38 @@ async function fetchVehiclePositions() {
 
                 let stopsListHTML = '';
                 if (filteredStops.length > 0) {
-                stopsListHTML = filteredStops.map(stop => {
-                    const stopTime = stop.arrivalTime || stop.departureTime;
-                    let timeLeftText = '';
+                    stopsListHTML = filteredStops.map(stop => {
+                        const stopTime = stop.arrivalTime || stop.departureTime;
+                        let timeLeftText = '';
 
-                    if (stopTime && stopTime.includes(':')) {
-                        const parts = stopTime.split(':').map(Number);
-                        const now = new Date();
-                        const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-                        let arrivalSeconds = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
-                        let diff = arrivalSeconds - nowSeconds;
-                        if (diff < -3600) diff += 86400;
-                        timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
-                    } else if (stopTime && !isNaN(stopTime)) {
-                        const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
-                        timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
-                    }
-
-                    const stopName = stopNameMap[stop.stopId] || stop.stopId;
-                    const cleanStopId = stop.stopId.replace('0:', '').trim();
-                    const safeStopName = stopName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-
-                    const corresLines = getCorrespondencesForStop(stop.stopId, line);
-                    const corresHTML = corresLines.length > 0
-                        ? `<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:4px;">
-                            ${corresLines.map(rid => {
-                                const col = lineColors[rid] || '#444';
-                                const tc  = getTextColor(col);
-                                const ln  = lineName[rid] || rid;
-                                const safeStopId = stop.stopId.replace(/'/g, "\\'");
-                                return `<span
-                                    class="ripple-container"
-                                    onclick="event.stopPropagation(); openStopFromPopup('${safeStopId}', '${safeStopName}')"
-                                    style="background:${col}; color:${tc};
-                                        padding:2px 7px; border-radius:6px;
-                                        font-size:9px; font-weight:700;
-                                        cursor:pointer; display:inline-flex;
-                                        align-items:center; gap:3px;
-                                        transition:transform 0.15s ease;"
-                                    onmouseenter="this.style.transform='scale(1.08)'"
-                                    onmouseleave="this.style.transform='scale(1)'"
-                                >
-                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
-                                        stroke="currentColor" stroke-width="2.5"
-                                        stroke-linecap="round" stroke-linejoin="round">
-                                        <polyline points="9 18 15 12 9 6"/>
-                                    </svg>
-                                    ${ln}
-                                </span>`;
-                            }).join('')}
-                        </div>`
-                        : '';
-
-                    return `
-                    <li style="list-style: none; padding: 0px; display: flex; flex-direction: column; margin-bottom: 2px;">
-                        <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+                        if (stopTime && stopTime.includes(':')) {
+                            const parts = stopTime.split(':').map(Number);
+                            const now = new Date();
+                            const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                            let arrivalSeconds = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
+                            
+                            let diff = arrivalSeconds - nowSeconds;
+                            if (diff < -3600) diff += 86400;
+                            
+                            timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
+                        } else if (stopTime && !isNaN(stopTime)) {
+                            const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
+                            timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
+                        }
+                        
+                        const stopName = stopNameMap[stop.stopId] || stop.stopId;
+                                                
+                        return `
+                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
                             <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
                                 <div class="stop-name-wrapper" style="position: relative; display: inline-block; padding-right: 10px;">
-                                    <div class="stop-name"
-                                        style="position: relative; display: inline-block; cursor:pointer;
-                                            text-decoration-style: dotted;
-                                            transition: opacity 0.15s ease;"
-                                        onclick="openStopFromPopup('${stop.stopId.replace(/'/g, "\\'")}', '${safeStopName}')"
-                                        onmouseenter="this.style.opacity='0.7'"
-                                        onmouseleave="this.style.opacity='1'"
-                                    >${stopName}</div>
+                                    <div class="stop-name" style="position: relative; display: inline-block;">${stopName}</div>
                                 </div>
                             </div>
                             <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
-                                <div class="time-display"
-                                    data-time-left="${timeLeftText}"
-                                    data-departure-time="${stop.arrivalTime || stop.departureTime || 'Inconnu'}">
+                                <div class="time-display" 
+                                    data-time-left="${timeLeftText}" 
+                                    data-departure-time="${stop.arrivalTime || stop.departureTime || "Inconnu"}">
                                     ${timeLeftText}
                                 </div>
                                 <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -8881,10 +8795,8 @@ async function fetchVehiclePositions() {
                                     <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
                                 </svg>
                             </div>
-                        </div>
-                        ${corresHTML}
-                    </li>`;
-                }).join('');
+                        </li>`;
+                    }).join('');
                 }
 
                 const nextStopsHTML = `
@@ -9185,6 +9097,18 @@ async function fetchVehiclePositions() {
                                     <p class="vehicle-direction" id="popup-direction-${id}">➜ ${lastStopName}</p>
                                     <div>
                                         <div class="vehicle-brand-container">${vehicleBrandHtml}</div>
+                                        <div class="vehicle-options-container">
+                                            <div class="options-scroll-area">
+                                                <div class="options custom-scrollbar">
+                                                    <span class="parc-badge">
+                                                        <svg class="parc-icon" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
+                                                        <span class="parc-number">${(vehicle?.vehicle?.label?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || vehicle?.vehicle?.id?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || t("unknownparc")).toString().padStart(3, '0')}</span>
+                                                        <span class="parc-number-hidden">${(vehicle?.vehicle?.label?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || vehicle?.vehicle?.id?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || t("unknownparc"))}</span>
+                                                    </span>
+                                                    ${vehicleOptionsBadges}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
