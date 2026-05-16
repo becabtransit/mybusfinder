@@ -12381,13 +12381,112 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
             list.appendChild(card);
 
-            const stopFavTimes = card.querySelector('.bs-fav-times');
-            fetchRealtimeDataForStopFavorite(fav, stopFavTimes)
-                .catch(() => {
-                    if (stopFavTimes) stopFavTimes.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
-                });
-        
+            _computeStopPassages(fav.stopIds).then(byLine => {
+                const timesEl = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
+                if (!timesEl) return;
 
+                const now = Date.now() / 1000;
+
+                const entries = Object.values(byLine)
+                    .filter(g => g.routeId !== 'Inconnu')
+                    .sort((a, b) => (a.times[0]?.time ?? Infinity) - (b.times[0]?.time ?? Infinity));
+
+                if (!entries.length) {
+                    timesEl.innerHTML = `<span class="bs-fav-no-data">${t('nodepartures')}</span>`;
+                    return;
+                }
+
+                const rssIcon = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    style="flex-shrink:0;opacity:.8">
+                    <path d="M4 4a16 16 0 0 1 16 16"/>
+                    <path d="M4 11a9 9 0 0 1 9 9"/>
+                    <circle cx="5" cy="19" r="1"/>
+                </svg>`;
+
+                timesEl.innerHTML = '';
+
+                entries.forEach((group, gi) => {
+                    const color     = lineColors[group.routeId] || '#444';
+                    const txtColor  = getTextColor(color);
+                    const lname     = lineName[group.routeId] || group.routeId;
+
+                    const row = document.createElement('div');
+                    row.style.cssText = `
+                        padding: 7px 12px 8px;
+                        ${gi > 0 ? 'border-top: 0.5px solid rgba(255,255,255,.07);' : ''}
+                        display: flex; flex-direction: column; gap: 5px;`;
+
+                    const header = document.createElement('div');
+                    header.style.cssText = `display:flex;align-items:center;gap:6px;`;
+                    header.innerHTML = `
+                        <span style="
+                            font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;
+                            background:${color};color:${txtColor};flex-shrink:0;white-space:nowrap;">
+                            ${lname}
+                        </span>
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none"
+                            stroke="rgba(255,255,255,.4)" stroke-width="2.5"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                            style="flex-shrink:0;">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                        <span style="font-size:11px;color:rgba(255,255,255,.55);
+                            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
+                            ${group.dest !== 'Destination inconnue' ? group.dest : '—'}
+                        </span>`;
+
+                    const pills = document.createElement('div');
+                    pills.style.cssText = `display:flex;flex-wrap:wrap;gap:4px;`;
+
+                    group.times.slice(0, 4).forEach(t2 => {
+                        const diffMin = Math.round((t2.time - now) / 60);
+                        const label   = diffMin <= 1 ? t('imminent') : `${diffMin} ${t('min')}`;
+                        const isNow   = diffMin <= 1 && t2.realtime;
+
+                        const pill = document.createElement('span');
+                        pill.style.cssText = `
+                            display: inline-flex; align-items: center; gap: 3px;
+                            font-size: 11px;
+                            font-weight: ${t2.realtime ? '600' : '400'};
+                            font-style: ${t2.realtime ? 'normal' : 'italic'};
+                            padding: 3px 8px; border-radius: 20px; white-space: nowrap;
+                            border: 0.5px solid ${isNow ? 'transparent' : 'rgba(255,255,255,.15)'};
+                            background: ${isNow ? color : t2.realtime ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.05)'};
+                            color: ${isNow ? txtColor : t2.realtime ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.38)'};`;
+
+                        pill.innerHTML = t2.realtime ? rssIcon : '';
+
+                        if (t2.marker) {
+                            pill.dataset.trip = t2.tripId;
+                            pill.style.cursor = 'pointer';
+                            pill.addEventListener('click', e => {
+                                e.stopPropagation();
+                                const marker = [...markerPool.active.values()]
+                                    .find(m => m.vehicleData?.trip?.tripId === t2.tripId);
+                                if (!marker) return;
+                                safeVibrate?.([30, 20, 30], true);
+                                soundsUX?.('MBF_Menu_VehicleSelect');
+                                map.setView(marker.getLatLng(), 15);
+                                marker.openPopup();
+                                BottomSheet.collapse();
+                            });
+                        }
+
+                        const span = document.createElement('span');
+                        span.textContent = label;
+                        pill.appendChild(span);
+                        pills.appendChild(pill);
+                    });
+
+                    row.appendChild(header);
+                    row.appendChild(pills);
+                    timesEl.appendChild(row);
+                });
+            }).catch(() => {
+                const timesEl = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
+                if (timesEl) timesEl.innerHTML = `<span class="bs-fav-no-data">${t('nodepartures')}</span>`;
+            });
 
             async function _computeStopPassages(stopIdArr) {
                 const now = Date.now() / 1000;
@@ -13339,70 +13438,6 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
             pill.addEventListener('pointerleave', () => {
                 pill.style.transform = 'scale(1)';
                 pill.style.background = isNow ? lineColor : 'rgba(255,255,255,0.14)';
-            });
-        }
-
-        container.appendChild(pill);
-    });
-}
-
-async function fetchRealtimeDataForStopFavorite(favorite, container) {
-    if (!container || !favorite) return;
-    const ids = Array.isArray(favorite.stopIds) ? favorite.stopIds : [favorite.stopIds];
-    if (!ids.length) {
-        container.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
-        return;
-    }
-
-    const passages = await _computeStopPassages(ids);
-    const arrivals = Object.values(passages)
-        .flatMap(entry => entry.times || [])
-        .sort((a, b) => a.time - b.time)
-        .slice(0, 5);
-
-    _displayStopFavTimes(container, arrivals);
-}
-
-function _displayStopFavTimes(container, arrivals) {
-    if (!container) return;
-    if (!arrivals || arrivals.length === 0) {
-        container.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
-        return;
-    }
-
-    container.innerHTML = '';
-    const now = Date.now() / 1000;
-
-    arrivals.forEach(arrival => {
-        const diffMin = Math.round((arrival.time - now) / 60);
-        const label = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
-        const isRT = arrival.realtime === true || arrival.marker;
-
-        const pill = document.createElement('span');
-        pill.style.cssText = `
-            display:inline-flex;
-            align-items:center;
-            gap:6px;
-            font-size:11px;
-            padding:4px 8px;
-            border-radius:16px;
-            white-space:nowrap;
-            border:1px solid rgba(255,255,255,0.16);
-            background:${isRT ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'};
-            color:${isRT ? 'white' : 'rgba(255,255,255,0.7)'};
-            cursor:${arrival.marker ? 'pointer' : 'default'};
-        `;
-
-        pill.textContent = `${label}`;
-
-        if (arrival.marker) {
-            pill.addEventListener('click', e => {
-                e.stopPropagation();
-                safeVibrate?.([30, 20, 30], true);
-                soundsUX('MBF_Menu_VehicleSelect');
-                map.setView(arrival.marker.getLatLng(), 15);
-                arrival.marker.openPopup();
-                BottomSheet.collapse();
             });
         }
 
