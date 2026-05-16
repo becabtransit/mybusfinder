@@ -12388,11 +12388,167 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
             list.appendChild(card);
 
-            const stopFavTimes = card.querySelector('.bs-fav-times');
-            fetchRealtimeDataForStopFavorite(fav, stopFavTimes)
-                .catch(() => {
-                    if (stopFavTimes) stopFavTimes.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+            async function _computeStopPassages(stopIdArr) {
+                const now = Date.now() / 1000;
+                const byLine = {};
+                const seenKeys = new Set();
+                const cleanStops = stopIdArr.map(id => id.replace('0:', '').trim());
+
+                function matchStop(sid) {
+                    return cleanStops.includes(sid.replace('0:', '').trim());
+                }
+
+                Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+                    const nextStops = tripData.nextStops || [];
+                    const match = nextStops.find(s => matchStop(s.stopId));
+                    if (!match) return;
+
+                    const marker = [...markerPool.active.values()]
+                        .find(m => m.vehicleData?.trip?.tripId === tripId);
+
+                    const routeId = marker?.line || 'Inconnu';
+                    const dest    = marker?.destination || 'Destination inconnue';
+                    const vehicleLabel = marker?.vehicleData?.vehicle?.label
+                        || marker?.vehicleData?.vehicle?.id || null;
+
+                    const stopTime = match.departureTime || match.arrivalTime;
+                    if (!stopTime) return;
+
+                    let arrivalSecs = _parseStopTime(stopTime);
+                    if (arrivalSecs === null || arrivalSecs < now - 30) return;
+
+                    const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
+                    if (seenKeys.has(dedupKey)) return;
+                    seenKeys.add(dedupKey);
+
+                    const key = `${routeId}|||${dest}`;
+                    if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
+                    byLine[key].times.push({
+                        time: arrivalSecs,
+                        realtime: true,
+                        vehicleLabel,
+                        marker: marker || null,
+                        tripId
+                    });
                 });
+
+                // on tente meme si stoptimesready est false, on load a la demande
+                if (!window.stopTimesReady && !window._stopTimesLoadAttempted) {
+                    window._stopTimesLoadAttempted = true;
+                    try {
+                        const r = await fetch(
+                            new URL(netPath('proxy-cors/proxy_gtfs.php?action=stop_times'), window.location.href).href,
+                            { cache: 'no-store' }
+                        );
+                        if (r.ok) {
+                            const json = await r.json();
+                            window.staticStopTimes = json;
+                            window.stopTimesReady  = true;
+                        }
+                    } catch (e) {
+                        console.warn('Chargement stop_times échoué:', e);
+                    }
+                }
+
+                if (window.staticStopTimes && Object.keys(window.staticStopTimes).length > 0) {
+                    const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
+                    const rtTripIds = new Set(Object.keys(tripUpdates));
+
+                    const rtByTrip = {};
+                    Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+                        (tripData.nextStops || []).forEach(stop => {
+                            const sid = stop.stopId.replace('0:', '').trim();
+                            if (!rtByTrip[tripId]) rtByTrip[tripId] = {};
+                            rtByTrip[tripId][sid] = stop.departureTime || stop.arrivalTime;
+                        });
+                    });
+
+                    for (const [tripId, tripStops] of Object.entries(window.staticStopTimes)) {
+                        if (activeIds.length > 0 && tripServiceMap[tripId]) {
+                            if (!activeIds.includes(tripServiceMap[tripId])) continue;
+                        } else if (activeIds.length > 0 && !tripServiceMap[tripId]) {
+                            continue; 
+                        }
+
+                        let stopData = null;
+                        let matchedStopId = null;
+                        for (const cleanId of cleanStops) {
+                            stopData = tripStops[cleanId] || tripStops[`0:${cleanId}`];
+                            if (stopData) { matchedStopId = cleanId; break; }
+                        }
+                        if (!stopData) continue;
+
+                        const timeStr = stopData.d || stopData.a;
+                        if (!timeStr) continue;
+
+                        const parts = timeStr.split(':').map(Number);
+                        const d = new Date();
+                        let theoreticalSecs = new Date(
+                            d.getFullYear(), d.getMonth(), d.getDate(),
+                            parts[0], parts[1], parts[2] || 0
+                        ).getTime() / 1000;
+                        if (theoreticalSecs < now - 3600) theoreticalSecs += 86400;
+                        if (theoreticalSecs < now - 60) continue;
+
+                        let finalSecs = theoreticalSecs;
+                        let isRealtime = false;
+                        let rtVehicleLabel = null;
+                        let rtMarker = null;
+
+                        if (rtByTrip[tripId]?.[matchedStopId]) {
+                            const rtTime = _parseStopTime(rtByTrip[tripId][matchedStopId]);
+                            if (rtTime !== null) {
+                                finalSecs = rtTime;
+                                isRealtime = true;
+                            }
+                            const rtMarkerObj = [...markerPool.active.values()]
+                                .find(m => m.vehicleData?.trip?.tripId === tripId);
+                            if (rtMarkerObj) {
+                                rtMarker = rtMarkerObj;
+                                rtVehicleLabel = rtMarkerObj.vehicleData?.vehicle?.label
+                                    || rtMarkerObj.vehicleData?.vehicle?.id || null;
+                            }
+                        }
+
+                        if (finalSecs < now - 30) continue;
+
+                        const dedupKey = `st|${tripId}|${Math.round(finalSecs / 60)}`;
+                        if (seenKeys.has(dedupKey)) continue;
+                        // Aussi vérifier qu'on n'a pas déjà ce trip en RT pur
+                        const rtDedupKey = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
+                        if (seenKeys.has(rtDedupKey)) continue;
+                        seenKeys.add(dedupKey);
+
+                        // deviner la route depuis le marker actif ou le trip index
+                        const marker = rtMarker || [...markerPool.active.values()]
+                            .find(m => m.vehicleData?.trip?.tripId === tripId);
+                        const routeId = marker?.line || _guessRouteFromTrip(tripId);
+                        const dest    = marker?.destination || 'Destination inconnue';
+
+                        const key = `${routeId}|||${dest}`;
+                        if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
+                        byLine[key].times.push({
+                            time: finalSecs,
+                            realtime: isRealtime,
+                            vehicleLabel: rtVehicleLabel,
+                            marker: rtMarker,
+                            tripId
+                        });
+                    }
+                }
+
+                Object.values(byLine).forEach(group => {
+                    group.times.sort((a, b) => a.time - b.time);
+                    group.times = group.times.filter((t, i, arr) => {
+                        if (i === 0) return true;
+                        return (t.time - arr[i - 1].time) > 90;
+                    });
+                    group.times = group.times.slice(0, 8);
+                });
+
+                return byLine;
+            }
+
         });
     }
 
@@ -13138,70 +13294,6 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
             pill.addEventListener('pointerleave', () => {
                 pill.style.transform = 'scale(1)';
                 pill.style.background = isNow ? lineColor : 'rgba(255,255,255,0.14)';
-            });
-        }
-
-        container.appendChild(pill);
-    });
-}
-
-async function fetchRealtimeDataForStopFavorite(favorite, container) {
-    if (!container || !favorite) return;
-    const ids = Array.isArray(favorite.stopIds) ? favorite.stopIds : [favorite.stopIds];
-    if (!ids.length) {
-        container.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
-        return;
-    }
-
-    const passages = await _computeStopPassages(ids);
-    const arrivals = Object.values(passages)
-        .flatMap(entry => entry.times || [])
-        .sort((a, b) => a.time - b.time)
-        .slice(0, 5);
-
-    _displayStopFavTimes(container, arrivals);
-}
-
-function _displayStopFavTimes(container, arrivals) {
-    if (!container) return;
-    if (!arrivals || arrivals.length === 0) {
-        container.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
-        return;
-    }
-
-    container.innerHTML = '';
-    const now = Date.now() / 1000;
-
-    arrivals.forEach(arrival => {
-        const diffMin = Math.round((arrival.time - now) / 60);
-        const label = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
-        const isRT = arrival.realtime === true || arrival.marker;
-
-        const pill = document.createElement('span');
-        pill.style.cssText = `
-            display:inline-flex;
-            align-items:center;
-            gap:6px;
-            font-size:11px;
-            padding:4px 8px;
-            border-radius:16px;
-            white-space:nowrap;
-            border:1px solid rgba(255,255,255,0.16);
-            background:${isRT ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'};
-            color:${isRT ? 'white' : 'rgba(255,255,255,0.7)'};
-            cursor:${arrival.marker ? 'pointer' : 'default'};
-        `;
-
-        pill.textContent = `${label}`;
-
-        if (arrival.marker) {
-            pill.addEventListener('click', e => {
-                e.stopPropagation();
-                safeVibrate?.([30, 20, 30], true);
-                soundsUX('MBF_Menu_VehicleSelect');
-                map.setView(arrival.marker.getLatLng(), 15);
-                arrival.marker.openPopup();
-                BottomSheet.collapse();
             });
         }
 
