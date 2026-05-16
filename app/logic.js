@@ -3906,6 +3906,25 @@ async function loadBusStopMarkers() {
     }
 }
 
+async function loadStopMeta() {
+    try {
+        const res = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'));
+        if (!res.ok) return;
+        const stopsData = await res.json();
+
+        window._stopMeta = {};
+        Object.entries(stopsData).forEach(([stopId, data]) => {
+            const clean = stopId.replace('0:', '').trim();
+            const pc = data.pc && data.pc.trim() !== '' ? data.pc.trim() : null;
+            window._stopMeta[clean] = {
+                platform: pc
+            };
+        });
+    } catch(e) {
+        console.warn('loadStopMeta:', e);
+    }
+}
+
 function filterByLine(lineId) {
     const lineIndex = selectedLines.indexOf(lineId);
 
@@ -8428,6 +8447,52 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
     }
 }
 
+function _parseStopTimeSimple(stopTime) {
+    if (!stopTime) return null;
+    if (typeof stopTime === 'string' && stopTime.includes(':')) {
+        const parts = stopTime.split(':').map(Number);
+        const now = new Date();
+        let secs = new Date(
+            now.getFullYear(), now.getMonth(), now.getDate(),
+            parts[0], parts[1], parts[2] || 0
+        ).getTime() / 1000;
+        if (secs < Date.now() / 1000 - 3600) secs += 86400;
+        return secs;
+    }
+    if (typeof stopTime === 'number' && stopTime > 86400) return stopTime;
+    return null;
+}
+
+function getCorrespondencesForStop(stopId, currentLine) {
+    const lines = new Set();
+    const cleanTarget = stopId.replace('0:', '').trim();
+    markerPool.active.forEach(marker => {
+        if (marker.line === currentLine || marker.line === 'Inconnu') return;
+        const tripId = marker.vehicleData?.trip?.tripId;
+        const stops = tripUpdates[tripId]?.nextStops || [];
+        if (stops.some(s => s.stopId.replace('0:', '').trim() === cleanTarget)) {
+            lines.add(marker.line);
+        }
+    });
+    return [...lines];
+}
+
+function isStopServedOneDirection(stopId, routeId) {
+    const cleanTarget = stopId.replace('0:', '').trim();
+    const directions = new Set();
+
+    markerPool.active.forEach(marker => {
+        if (marker.line !== routeId) return;
+        const tripId = marker.vehicleData?.trip?.tripId;
+        const dirId  = marker.vehicleData?.trip?.directionId;
+        const stops  = tripUpdates[tripId]?.nextStops || [];
+        if (stops.some(s => s.stopId.replace('0:', '').trim() === cleanTarget)) {
+            directions.add(dirId ?? 0);
+        }
+    });
+
+    return directions.size === 1 && [...directions][0] !== undefined;
+}
 
 async function fetchVehiclePositions() {
     if (!gtfsInitialized) {
@@ -8770,48 +8835,193 @@ async function fetchVehiclePositions() {
 
                 let stopsListHTML = '';
                 if (filteredStops.length > 0) {
-                    stopsListHTML = filteredStops.map(stop => {
+                    const allStops = nextStops; // tous les arrets du trip
+                    const currentIdx = currentStopIndex !== -1 ? currentStopIndex : 0;
+
+                    const pastStops = allStops.slice(0, currentIdx).filter(stop => {
+                        const t = stop.arrivalTime || stop.departureTime;
+                        if (!t) return true;
+                        const secs = _parseStopTimeSimple(t);
+                        return secs !== null && secs < Math.floor(Date.now() / 1000) - 30;
+                    });
+
+                    stopsListHTML = '';
+
+                    if (pastStops.length > 0) {
+                        const pastItemsHTML = pastStops.map(stop => {
+                            const sn = stopNameMap[stop.stopId] || stop.stopId;
+                            const safeId = stop.stopId.replace(/'/g, "\\'");
+                            const safeName = sn.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                            const t2 = stop.arrivalTime || stop.departureTime || '';
+                            const parts = t2.includes(':') ? t2.split(':').map(Number) : [];
+                            const timeStr = parts.length >= 2
+                                ? `${String(parts[0] % 24).padStart(2,'0')}:${String(parts[1]).padStart(2,'0')}`
+                                : '';
+                            return `
+                            <li style="list-style:none; padding:0; display:flex; flex-direction:column;
+                                    margin-bottom:2px; opacity:0.4;">
+                                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                    <div style="overflow:hidden; max-width:70%; white-space:nowrap;">
+                                        <span style="font-size:13px; cursor:pointer; text-decoration-line:line-through;
+                                                    text-decoration-style:solid; opacity:0.8;"
+                                            onclick="openStopFromPopup('${safeId}','${safeName}')"
+                                            onmouseenter="this.style.opacity='0.5'"
+                                            onmouseleave="this.style.opacity='0.8'">
+                                            ${sn}
+                                        </span>
+                                    </div>
+                                    <div style="font-size:11px; opacity:0.6; white-space:nowrap;">${timeStr}</div>
+                                </div>
+                            </li>`;
+                        }).join('');
+
+                        stopsListHTML += `
+                        <li style="list-style:none; padding:0; margin-bottom:4px;">
+                            <details class="past-stops-details">
+                                <summary style="font-size:10px; opacity:0.45; cursor:pointer;
+                                                text-transform:uppercase; letter-spacing:0.08em;
+                                                padding:4px 0; list-style:none; user-select:none;
+                                                display:flex; align-items:center; gap:5px;">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2.5"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="18 15 12 9 6 15"/>
+                                    </svg>
+                                    ${pastStops.length} ${t('past_stops') || 'arrêts passés'}
+                                </summary>
+                                <ul style="padding:0; margin:4px 0 6px; list-style:none;">
+                                    ${pastItemsHTML}
+                                </ul>
+                            </details>
+                        </li>`;
+                    }
+
+                    stopsListHTML += `
+                    <li style="list-style:none; padding:2px 0 4px; margin-bottom:4px;
+                            border-top:1px solid rgba(255,255,255,0.12); display:flex;
+                            align-items:center; gap:6px;">
+                        <span style="font-size:9px; opacity:0.4; text-transform:uppercase;
+                                    letter-spacing:0.08em; white-space:nowrap;">
+                            ${t('next_stops') || 'Prochains arrêts'}
+                        </span>
+                    </li>`;
+
+                    stopsListHTML += filteredStops.map((stop, stopIdx) => {
                         const stopTime = stop.arrivalTime || stop.departureTime;
                         let timeLeftText = '';
 
                         if (stopTime && stopTime.includes(':')) {
                             const parts = stopTime.split(':').map(Number);
-                            const now = new Date();
-                            const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                            const now2 = new Date();
+                            const nowSeconds = now2.getHours() * 3600 + now2.getMinutes() * 60 + now2.getSeconds();
                             let arrivalSeconds = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
-                            
                             let diff = arrivalSeconds - nowSeconds;
                             if (diff < -3600) diff += 86400;
-                            
                             timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
                         } else if (stopTime && !isNaN(stopTime)) {
                             const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
                             timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
                         }
-                        
+
                         const stopName = stopNameMap[stop.stopId] || stop.stopId;
-                                                
-                        return `
-                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                            <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
-                                <div class="stop-name-wrapper" style="position: relative; display: inline-block; padding-right: 10px;">
-                                    <div class="stop-name" style="position: relative; display: inline-block;">${stopName}</div>
-                                </div>
-                            </div>
-                            <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
-                                <div class="time-display" 
-                                    data-time-left="${timeLeftText}" 
-                                    data-departure-time="${stop.arrivalTime || stop.departureTime || "Inconnu"}">
-                                    ${timeLeftText}
-                                </div>
-                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <g class="rss-waves">
-                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
-                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
-                                    </g>
-                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
+                        const cleanStopId = stop.stopId.replace('0:', '').trim();
+                        const safeStopId = stop.stopId.replace(/'/g, "\\'");
+                        const safeStopName = stopName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                        const stopMeta = window._stopMeta?.[cleanStopId]
+                                    || window._stopMeta?.[stop.stopId] || null;
+                        const platformCode = stopMeta?.platform || stopMeta?.platform_code || null;
+                        const isOneDirection = isStopServedOneDirection(stop.stopId, line);
+
+                        const platformBadge = platformCode
+                            ? `<span style="font-size:9px; opacity:0.55; background:rgba(255,255,255,0.1);
+                                            border-radius:5px; padding:1px 5px; margin-left:4px;
+                                            font-weight:600; flex-shrink:0;">
+                                Q${platformCode}
+                            </span>`
+                            : '';
+
+                        const oneWayBadge = isOneDirection
+                            ? `<span style="font-size:9px; opacity:0.5; background:rgba(255,255,255,0.08);
+                                            border-radius:5px; padding:1px 5px; margin-left:4px; flex-shrink:0;">
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2.5"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                    <polyline points="12 5 19 12 12 19"/>
                                 </svg>
+                            </span>`
+                            : '';
+
+                        let corresHTML = '';
+                        if (stopIdx < 3) {
+                            const corresLines = getCorrespondencesForStop(stop.stopId, line);
+                            if (corresLines.length > 0) {
+                                corresHTML = `<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:4px;">
+                                    ${corresLines.map(rid => {
+                                        const col = lineColors[rid] || '#444';
+                                        const tc  = getTextColor(col);
+                                        const ln  = lineName[rid] || rid;
+                                        return `<span
+                                            class="ripple-container"
+                                            onclick="event.stopPropagation(); openStopFromPopup('${safeStopId}','${safeStopName}')"
+                                            style="background:${col}; color:${tc};
+                                                padding:2px 7px; border-radius:6px;
+                                                font-size:9px; font-weight:700;
+                                                cursor:pointer; display:inline-flex;
+                                                align-items:center; gap:3px;
+                                                transition:transform 0.15s ease;"
+                                            onmouseenter="this.style.transform='scale(1.08)'"
+                                            onmouseleave="this.style.transform='scale(1)'"
+                                        >
+                                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" stroke-width="2.5"
+                                                stroke-linecap="round" stroke-linejoin="round">
+                                                <polyline points="9 18 15 12 9 6"/>
+                                            </svg>
+                                            ${ln}
+                                        </span>`;
+                                    }).join('')}
+                                </div>`;
+                            }
+                        }
+
+                        return `
+                        <li style="list-style:none; padding:0; display:flex; flex-direction:column;
+                                margin-bottom:2px;">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                <div style="overflow:hidden; max-width:70%; display:flex;
+                                            align-items:center; flex-wrap:wrap; gap:2px;">
+                                    <span class="stop-name"
+                                        style="position:relative; display:inline-block; cursor:pointer;
+                                            white-space:nowrap; transition:opacity 0.15s ease;"
+                                        onclick="openStopFromPopup('${safeStopId}','${safeStopName}')"
+                                        onmouseenter="this.style.opacity='0.7'"
+                                        onmouseleave="this.style.opacity='1'"
+                                    >${stopName}</span>
+                                    ${platformBadge}
+                                    ${oneWayBadge}
+                                </div>
+                                <div class="time-container" style="position:relative; min-height:1.2em;
+                                                                text-align:right; flex-shrink:0;">
+                                    <div class="time-display"
+                                        data-time-left="${timeLeftText}"
+                                        data-departure-time="${stop.arrivalTime || stop.departureTime || 'Inconnu'}">
+                                        ${timeLeftText}
+                                    </div>
+                                    <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg"
+                                        width="8" height="8" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <g class="rss-waves">
+                                            <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"/>
+                                            <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"/>
+                                        </g>
+                                        <circle class="rss-dot" cx="5" cy="19" r="1"/>
+                                    </svg>
+                                </div>
                             </div>
+                            ${corresHTML}
                         </li>`;
                     }).join('');
                 }
@@ -11175,6 +11385,7 @@ async function main() {
 
         await loadGeoJsonLines();
         loadBusStopMarkers();
+        loadStopMeta();
         startFetchUpdates();
         
     } catch (error) {
@@ -12551,6 +12762,17 @@ async function openStopInBottomSheet(stopIds, stopName) {
         _renderStopPassages(stopView, ids, stopName, passages);
     });
 }
+
+window.openStopFromPopup = function(stopId, stopName) {
+    const cleanId = stopId.replace('0:', '').trim();
+    const cluster = window._stopClusters?.find(
+        c => c.stopIds.some(id => id.replace('0:', '').trim() === cleanId)
+    );
+    const ids  = cluster ? cluster.stopIds : [stopId];
+    const name = cluster ? cluster.name   : stopName;
+    mapInstance.closePopup();
+    openStopInBottomSheet(ids, name);
+};
 
 async function _computeStopPassages(stopIdArr) {
     const now = Date.now() / 1000;

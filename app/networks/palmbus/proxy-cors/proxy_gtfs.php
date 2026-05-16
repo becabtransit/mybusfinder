@@ -129,9 +129,12 @@ function createOptimizedStops($extractDir, $outputFile) {
         $stopId = $item['stop_id'] ?? '';
         if ($stopId) {
             $stops[$stopId] = [
-                'n' => $item['stop_name'] ?? '',
-                'lat' => $item['stop_lat'] ?? '',
-                'lon' => $item['stop_lon'] ?? '' 
+                'n'   => $item['stop_name']      ?? '',
+                'lat' => $item['stop_lat']        ?? '',
+                'lon' => $item['stop_lon']        ?? '',
+                'pc'  => $item['platform_code']   ?? '',
+                'lt'  => $item['location_type']   ?? '',
+                'ps'  => $item['parent_station']  ?? ''
             ];
         }
     });
