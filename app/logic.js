@@ -8070,6 +8070,43 @@ function closeMenu() {
     }
 }
 
+function toggleVehicleOptions(vehicleId) {
+    const optionsEl = document.getElementById(`vehicle-options-${vehicleId}`);
+    const badgeEl   = document.getElementById(`parc-badge-${vehicleId}`);
+    if (!optionsEl) return;
+
+    const isOpen = optionsEl.dataset.open === 'true';
+
+    if (isOpen) {
+        optionsEl.style.maxHeight = '0';
+        optionsEl.style.opacity   = '0';
+        optionsEl.style.marginTop = '0';
+        optionsEl.dataset.open    = 'false';
+        if (badgeEl) {
+            badgeEl.style.background = '';
+            badgeEl.style.transform  = '';
+        }
+    } else {
+        // mesure la hauteur naturelle avant d'animer
+        optionsEl.style.maxHeight = optionsEl.scrollHeight + 'px';
+        optionsEl.style.opacity   = '1';
+        optionsEl.style.marginTop = '6px';
+        optionsEl.dataset.open    = 'true';
+        if (badgeEl) {
+            badgeEl.style.background = 'rgba(255,255,255,0.22)';
+            badgeEl.style.transform  = 'scale(1.06)';
+            setTimeout(() => {
+                if (badgeEl) badgeEl.style.transform = 'scale(1)';
+            }, 300);
+        }
+    }
+
+    safeVibrate?.([20], true);
+    soundsUX('MBF_SettingOn');
+}
+
+window.toggleVehicleOptions = toggleVehicleOptions;
+
 function computeDelaySeconds(tripId, stopId, rtArrivalTime) {
     if (!window.staticStopTimes || !rtArrivalTime) return null;
 
@@ -8694,11 +8731,14 @@ async function fetchVehiclePositions() {
                     .padStart(3, '0');
 
                 const parcBadgeHTML = parcLabel ? `
-                    <span class="stops-icon-badge" style="max-width:none !important; padding:5px 10px !important;">
-                        <span class="stops-badge-label" style="opacity:1 !important; max-width:none !important;">
-                            ${parcLabel}
-                        </span>
-                    </span>` : '';
+                <span class="stops-icon-badge parc-pill" 
+                    id="parc-badge-${id}"
+                    onclick="toggleVehicleOptions('${id}')"
+                    style="cursor:pointer;">
+                    <span class="stops-badge-label" style="opacity:1 !important; max-width:none !important;">
+                        ${parcLabel}
+                    </span>
+                </span>` : '';
 
 
                 const statusBadge = status !== "" ? `
@@ -9202,11 +9242,17 @@ async function fetchVehiclePositions() {
                                         <div class="vehicle-brand-container">${vehicleBrandHtml}</div>
                                         <div class="vehicle-options-container">
                                             <div class="options-scroll-area">
-                                                <div class="options custom-scrollbar">
-                                                    <span class="parc-badge">
-                                                        <svg class="parc-icon" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-                                                        <span class="parc-number-hidden">${(vehicle?.vehicle?.label?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || vehicle?.vehicle?.id?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || t("unknownparc"))}</span>
-                                                    </span>
+                                                <div class="options custom-scrollbar" 
+                                                    id="vehicle-options-${id}"
+                                                    style="
+                                                        max-height: 0;
+                                                        overflow: hidden;
+                                                        opacity: 0;
+                                                        transition: max-height 0.45s cubic-bezier(0.25,1.5,0.5,1),
+                                                                    opacity 0.3s ease,
+                                                                    margin-top 0.3s ease;
+                                                        margin-top: 0;
+                                                    ">
                                                     ${vehicleOptionsBadges}
                                                 </div>
                                             </div>
