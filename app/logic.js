@@ -12387,105 +12387,80 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
                 const now = Date.now() / 1000;
 
-                const entries = Object.values(byLine)
-                    .filter(g => g.routeId !== 'Inconnu')
-                    .sort((a, b) => (a.times[0]?.time ?? Infinity) - (b.times[0]?.time ?? Infinity));
+                const rssIcon = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;opacity:.7"><path d="M4 4a16 16 0 0 1 16 16"/><path d="M4 11a9 9 0 0 1 9 9"/><circle cx="5" cy="19" r="1"/></svg>`;
 
-                if (!entries.length) {
-                    timesEl.innerHTML = `<span class="bs-fav-no-data">${t('nodepartures')}</span>`;
+                const arrivals = [];
+                Object.values(byLine).forEach(group => {
+                    group.times.forEach(t2 => {
+                        arrivals.push({
+                            ...t2,
+                            destination: group.dest,
+                            routeId: group.routeId,
+                        });
+                    });
+                });
+
+                if (!arrivals.length) {
+                    timesEl.innerHTML = `<div style="padding:10px 14px 12px;font-size:12px;color:rgba(255,255,255,.3);font-style:italic;">${t('nodepartures')}</div>`;
                     return;
                 }
 
-                const rssIcon = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                    style="flex-shrink:0;opacity:.8">
-                    <path d="M4 4a16 16 0 0 1 16 16"/>
-                    <path d="M4 11a9 9 0 0 1 9 9"/>
-                    <circle cx="5" cy="19" r="1"/>
-                </svg>`;
+                const byDest = {};
+                arrivals.forEach(a => {
+                    const key = a.destination || 'Destination inconnue';
+                    if (!byDest[key]) byDest[key] = [];
+                    byDest[key].push(a);
+                });
 
-                timesEl.innerHTML = '';
+                const groups = Object.entries(byDest)
+                    .sort(([, a], [, b]) => (a[0]?.time ?? Infinity) - (b[0]?.time ?? Infinity));
 
-                entries.forEach((group, gi) => {
-                    const color     = lineColors[group.routeId] || '#444';
-                    const txtColor  = getTextColor(color);
-                    const lname     = lineName[group.routeId] || group.routeId;
+                timesEl.innerHTML = groups.map(([dest, times], gi) => {
+                    const border    = gi > 0 ? 'border-top:0.5px solid rgba(255,255,255,.07);' : '';
+                    const routeId   = times[0]?.routeId || '';
+                    const lineColor = lineColors[routeId] || '#444';
+                    const textColor = getTextColor(lineColor);
 
-                    const row = document.createElement('div');
-                    row.style.cssText = `
-                        padding: 7px 12px 8px;
-                        ${gi > 0 ? 'border-top: 0.5px solid rgba(255,255,255,.07);' : ''}
-                        display: flex; flex-direction: column; gap: 5px;`;
-
-                    const header = document.createElement('div');
-                    header.style.cssText = `display:flex;align-items:center;gap:6px;`;
-                    header.innerHTML = `
-                        <span style="
-                            font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;
-                            background:${color};color:${txtColor};flex-shrink:0;white-space:nowrap;">
-                            ${lname}
-                        </span>
-                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none"
-                            stroke="rgba(255,255,255,.4)" stroke-width="2.5"
-                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
-                            style="flex-shrink:0;">
-                            <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                        <span style="font-size:11px;color:rgba(255,255,255,.55);
-                            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
-                            ${group.dest !== 'Destination inconnue' ? group.dest : '—'}
-                        </span>`;
-
-                    const pills = document.createElement('div');
-                    pills.style.cssText = `display:flex;flex-wrap:wrap;gap:4px;`;
-
-                    group.times.slice(0, 4).forEach(t2 => {
+                    const pills = times.map(t2 => {
                         const diffMin = Math.round((t2.time - now) / 60);
-                        const label   = diffMin <= 1 ? t('imminent') : `${diffMin} ${t('min')}`;
+                        const label   = diffMin <= 1 ? t('imminent') : `${diffMin} min`;
+                        const veh     = t2.vehicleLabel
+                            ? ` <span style="opacity:.5;font-size:10px;font-weight:400">· ${String(t2.vehicleLabel).replace(/[A-Z]+:/g, '').padStart(3, '0')}</span>`
+                            : '';
                         const isNow   = diffMin <= 1 && t2.realtime;
+                        const pillBg  = isNow ? lineColor   : t2.realtime ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.05)';
+                        const pillClr = isNow ? textColor   : t2.realtime ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.38)';
+                        const rtIcon  = t2.realtime ? rssIcon : '';
+                        return `<span style="font-size:12px;font-weight:${t2.realtime ? '600' : '400'};font-style:${t2.realtime ? 'normal' : 'italic'};padding:4px 9px;border-radius:20px;border:0.5px solid ${isNow ? 'transparent' : 'rgba(255,255,255,.15)'};background:${pillBg};color:${pillClr};white-space:nowrap;display:inline-flex;align-items:center;gap:3px;" ${t2.marker ? `data-trip="${t2.tripId}"` : ''}>${rtIcon}${label}${veh}</span>`;
+                    }).join('');
 
-                        const pill = document.createElement('span');
-                        pill.style.cssText = `
-                            display: inline-flex; align-items: center; gap: 3px;
-                            font-size: 11px;
-                            font-weight: ${t2.realtime ? '600' : '400'};
-                            font-style: ${t2.realtime ? 'normal' : 'italic'};
-                            padding: 3px 8px; border-radius: 20px; white-space: nowrap;
-                            border: 0.5px solid ${isNow ? 'transparent' : 'rgba(255,255,255,.15)'};
-                            background: ${isNow ? color : t2.realtime ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.05)'};
-                            color: ${isNow ? txtColor : t2.realtime ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.38)'};`;
+                    return `
+                        <div style="padding:8px 14px 10px;${border}">
+                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                                <span style="font-size:12px;color:rgba(255,255,255,.65);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${dest}</span>
+                            </div>
+                            <div style="display:flex;flex-wrap:wrap;gap:5px;">${pills}</div>
+                        </div>`;
+                }).join('');
 
-                        pill.innerHTML = t2.realtime ? rssIcon : '';
-
-                        if (t2.marker) {
-                            pill.dataset.trip = t2.tripId;
-                            pill.style.cursor = 'pointer';
-                            pill.addEventListener('click', e => {
-                                e.stopPropagation();
-                                const marker = [...markerPool.active.values()]
-                                    .find(m => m.vehicleData?.trip?.tripId === t2.tripId);
-                                if (!marker) return;
-                                safeVibrate?.([30, 20, 30], true);
-                                soundsUX?.('MBF_Menu_VehicleSelect');
-                                map.setView(marker.getLatLng(), 15);
-                                marker.openPopup();
-                                BottomSheet.collapse();
-                            });
-                        }
-
-                        const span = document.createElement('span');
-                        span.textContent = label;
-                        pill.appendChild(span);
-                        pills.appendChild(pill);
+                timesEl.querySelectorAll('[data-trip]').forEach(pill => {
+                    pill.style.cursor = 'pointer';
+                    pill.addEventListener('click', e => {
+                        e.stopPropagation();
+                        const marker = [...markerPool.active.values()]
+                            .find(m => m.vehicleData?.trip?.tripId === pill.dataset.trip);
+                        if (!marker) return;
+                        safeVibrate?.([30, 20, 30], true);
+                        soundsUX?.('MBF_Menu_VehicleSelect');
+                        map.setView(marker.getLatLng(), 15);
+                        marker.openPopup();
+                        BottomSheet.collapse();
                     });
-
-                    row.appendChild(header);
-                    row.appendChild(pills);
-                    timesEl.appendChild(row);
                 });
             }).catch(() => {
                 const timesEl = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
-                if (timesEl) timesEl.innerHTML = `<span class="bs-fav-no-data">${t('nodepartures')}</span>`;
+                if (timesEl) timesEl.innerHTML = `<div style="padding:10px 14px 12px;font-size:12px;color:rgba(255,255,255,.3);font-style:italic;">${t('nodepartures')}</div>`;
             });
 
             async function _computeStopPassages(stopIdArr) {
