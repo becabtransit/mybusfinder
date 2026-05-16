@@ -3548,7 +3548,11 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         soundsUX('MBF_VehicleOpen');
         saveAndFilterSingleLine(route_id);
         const id = this.id;
-
+        const vehicleOptionsBadges = getVehicleOptionsBadges(id);
+        const vehicleBrandHtml = getVehicleBrandHTML(id);
+        const line = route_id;
+        const lastStopId = getLastStopIdForVehicle(id);
+        const lastStopName = stopNameMap[lastStopId] || lastStopId || t('unknown');
 
         _showVehicleOptionsInBottomSheet(id, vehicleOptionsBadges, vehicleBrandHtml, line, lastStopName);
 
