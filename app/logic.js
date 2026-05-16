@@ -8567,13 +8567,6 @@ async function fetchVehiclePositions() {
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
                 const now = Math.floor(Date.now() / 1000);
 
-                let pastStops = [];
-                if (currentStopIndex > 0) {
-                    pastStops = nextStops.slice(0, currentStopIndex).filter(stop =>
-                        stop.delay === null || stop.delay >= -300
-                    );
-                }
-
                 let filteredStops = [];
                 if (currentStopIndex !== -1) {
                     filteredStops = nextStops.slice(currentStopIndex).filter(stop => {
@@ -8804,154 +8797,97 @@ async function fetchVehiclePositions() {
 
                 let stopsListHTML = '';
                 if (filteredStops.length > 0) {
-                    const pastStopsHTML = pastStops.length > 0 ? pastStops.map(stop => {
-                    const stopName = stopNameMap[stop.stopId] || stop.stopId;
-                    const stopTime = stop.arrivalTime || stop.departureTime;
-                    let timeText = '';
-                    if (stopTime && stopTime.includes(':')) {
-                        timeText = stopTime.substring(0, 5);
-                    }
-                    const platform = getStopPlatform(stop.stopId);
-                    const safeStopName = stopName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    stopsListHTML = filteredStops.map(stop => {
+                        const stopTime = stop.arrivalTime || stop.departureTime;
+                        let timeLeftText = '';
 
-                    return `
-                    <li style="list-style:none; padding:0; display:flex; flex-direction:column;
-                            margin-bottom:2px; opacity:0.4; filter:saturate(0.4);">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                            <div style="overflow:hidden; max-width:70%; white-space:nowrap;">
-                                <div style="display:inline-block; cursor:pointer;
-                                            text-decoration-line:line-through;
-                                            text-decoration-style:solid;
-                                            font-size:inherit;"
-                                    onclick="openStopFromPopup('${stop.stopId.replace(/'/g, "\\'")}', '${safeStopName}')"
-                                    onmouseenter="this.style.opacity='0.7'"
-                                    onmouseleave="this.style.opacity='1'"
-                                >${stopName}</div>
-                                ${platform ? `<span style="font-size:9px; opacity:0.7; margin-left:5px;
-                                    background:rgba(255,255,255,0.1); padding:1px 5px;
-                                    border-radius:4px;">${platform}</span>` : ''}
-                            </div>
-                            <div style="text-align:right; font-size:inherit; opacity:0.6;">${timeText}</div>
-                        </div>
-                    </li>`;
-                }).join('') : '';
+                        if (stopTime && stopTime.includes(':')) {
+                            const parts = stopTime.split(':').map(Number);
+                            const now = new Date();
+                            const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                            let arrivalSeconds = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
+                            let diff = arrivalSeconds - nowSeconds;
+                            if (diff < -3600) diff += 86400;
+                            timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
+                        } else if (stopTime && !isNaN(stopTime)) {
+                            const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
+                            timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
+                        }
 
-                stopsListHTML = filteredStops.map((stop, stopIndexInFiltered) => {
-                    const stopTime = stop.arrivalTime || stop.departureTime;
-                    let timeLeftText = '';
+                        const stopName = stopNameMap[stop.stopId] || stop.stopId;
+                        const cleanStopId = stop.stopId.replace('0:', '').trim();
+                        const safeStopName = stopName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
-                    if (stopTime && stopTime.includes(':')) {
-                        const parts = stopTime.split(':').map(Number);
-                        const now = new Date();
-                        const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-                        let arrivalSeconds = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
-                        let diff = arrivalSeconds - nowSeconds;
-                        if (diff < -3600) diff += 86400;
-                        timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
-                    } else if (stopTime && !isNaN(stopTime)) {
-                        const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
-                        timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
-                    }
+                        const stopIndexInFiltered = filteredStops.indexOf(stop);
+                        const corresLines = stopIndexInFiltered < 3 ? getCorrespondencesForStop(stop.stopId, line) : [];
+                        const corresHTML = corresLines.length > 0
+                            ? `<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:4px;">
+                                ${corresLines.map(rid => {
+                                    const col = lineColors[rid] || '#444';
+                                    const tc  = getTextColor(col);
+                                    const ln  = lineName[rid] || rid;
+                                    const safeStopId = stop.stopId.replace(/'/g, "\\'");
+                                    return `<span
+                                        class="ripple-container"
+                                        onclick="event.stopPropagation(); openStopFromPopup('${safeStopId}', '${safeStopName}')"
+                                        style="background:${col}; color:${tc};
+                                            padding:2px 7px; border-radius:6px;
+                                            font-size:9px; font-weight:700;
+                                            cursor:pointer; display:inline-flex;
+                                            align-items:center; gap:3px;
+                                            transition:transform 0.15s ease;"
+                                        onmouseenter="this.style.transform='scale(1.08)'"
+                                        onmouseleave="this.style.transform='scale(1)'"
+                                    >
+                                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2.5"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="9 18 15 12 9 6"/>
+                                        </svg>
+                                        ${ln}
+                                    </span>`;
+                                }).join('')}
+                            </div>`
+                            : '';
 
-                    const stopName = stopNameMap[stop.stopId] || stop.stopId;
-                    const cleanStopId = stop.stopId.replace('0:', '').trim();
-                    const safeStopName = stopName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                    const platform = getStopPlatform(stop.stopId);
-
-                    const corresLines = stopIndexInFiltered < 3 ? getCorrespondencesForStop(stop.stopId, line) : [];
-                    const corresHTML = corresLines.length > 0
-                        ? `<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:4px;">
-                            ${corresLines.map(rid => {
-                                const col = lineColors[rid] || '#444';
-                                const tc  = getTextColor(col);
-                                const ln  = lineName[rid] || rid;
-                                return `<span
-                                    class="ripple-container"
-                                    onclick="event.stopPropagation(); openStopFromPopup('${stop.stopId.replace(/'/g, "\\'")}', '${safeStopName}')"
-                                    style="background:${col}; color:${tc};
-                                        padding:2px 7px; border-radius:6px;
-                                        font-size:9px; font-weight:700;
-                                        cursor:pointer; display:inline-flex;
-                                        align-items:center; gap:3px;
-                                        transition:transform 0.15s ease;"
-                                    onmouseenter="this.style.transform='scale(1.08)'"
-                                    onmouseleave="this.style.transform='scale(1)'"
-                                >
-                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
-                                        stroke="currentColor" stroke-width="2.5"
-                                        stroke-linecap="round" stroke-linejoin="round">
-                                        <polyline points="9 18 15 12 9 6"/>
+                        return `
+                        <li style="list-style: none; padding: 0px; display: flex; flex-direction: column; margin-bottom: 2px;">
+                            <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+                                <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
+                                    <div class="stop-name-wrapper" style="position: relative; display: inline-block; padding-right: 10px;">
+                                        <div class="stop-name"
+                                            style="position: relative; display: inline-block; cursor:pointer;
+                                                text-decoration-style: dotted;
+                                                transition: opacity 0.15s ease;"
+                                            onclick="openStopFromPopup('${stop.stopId.replace(/'/g, "\\'")}', '${safeStopName}')"
+                                            onmouseenter="this.style.opacity='0.7'"
+                                            onmouseleave="this.style.opacity='1'"
+                                        >${stopName}</div>
+                                    </div>
+                                </div>
+                                <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
+                                    <div class="time-display"
+                                        data-time-left="${timeLeftText}"
+                                        data-departure-time="${stop.arrivalTime || stop.departureTime || 'Inconnu'}">
+                                        ${timeLeftText}
+                                    </div>
+                                    <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <g class="rss-waves">
+                                            <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
+                                            <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                        </g>
+                                        <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
                                     </svg>
-                                    ${ln}
-                                </span>`;
-                            }).join('')}
-                        </div>`
-                        : '';
-
-                    return `
-                    <li style="list-style:none; padding:0; display:flex; flex-direction:column; margin-bottom:2px;">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                            <div class="stop-name-container" style="position:relative; overflow:hidden; max-width:70%; white-space:nowrap;">
-                                <div class="stop-name-wrapper" style="position:relative; display:inline-block; padding-right:10px;">
-                                    <div class="stop-name"
-                                        style="position:relative; display:inline-block; cursor:pointer;
-                                            transition:opacity 0.15s ease;"
-                                        onclick="openStopFromPopup('${stop.stopId.replace(/'/g, "\\'")}', '${safeStopName}')"
-                                        onmouseenter="this.style.opacity='0.7'"
-                                        onmouseleave="this.style.opacity='1'"
-                                    >${stopName}</div>
-                                    ${platform ? `<span style="font-size:9px; opacity:0.65; margin-left:5px;
-                                        background:rgba(255,255,255,0.1); padding:1px 5px;
-                                        border-radius:4px; vertical-align:middle;">${platform}</span>` : ''}
                                 </div>
                             </div>
-                            <div class="time-container" style="position:relative; min-height:1.2em; text-align:right;">
-                                <div class="time-display"
-                                    data-time-left="${timeLeftText}"
-                                    data-departure-time="${stop.arrivalTime || stop.departureTime || 'Inconnu'}">
-                                    ${timeLeftText}
-                                </div>
-                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8"
-                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                    stroke-linecap="round" stroke-linejoin="round">
-                                    <g class="rss-waves">
-                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
-                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
-                                    </g>
-                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
-                                </svg>
-                            </div>
-                        </div>
-                        ${corresHTML}
-                    </li>`;
-                }).join('');
+                            ${corresHTML}
+                        </li>`;
+                    }).join('');
                 }
 
-                const hasPastStops = pastStops.length > 0;
                 const nextStopsHTML = `
-                    <div style="position:relative; max-height:120px; overflow-y:auto;
-                                scroll-behavior:smooth;"
-                        id="stops-scroll-${id}">
-                        ${hasPastStops ? `
-                        <div style="text-align:center; padding:4px 0 6px; cursor:pointer;
-                                    opacity:0.5; font-size:10px; letter-spacing:0.05em;
-                                    text-transform:uppercase; user-select:none;"
-                            onclick="document.getElementById('past-stops-${id}').style.display =
-                                    document.getElementById('past-stops-${id}').style.display === 'none'
-                                    ? 'block' : 'none';
-                                    this.textContent = document.getElementById('past-stops-${id}').style.display === 'none'
-                                    ? '${pastStops.length} ${t('paststops') || 'arrêts passés'} ↑'
-                                    : '↑ masquer';">
-                            ${pastStops.length} ${t('paststops') || 'arrêts passés'} ↑
-                        </div>
-                        <div id="past-stops-${id}" style="display:none;">
-                            <ul style="padding:0; margin:0; list-style-type:none;">
-                                ${pastStopsHTML}
-                            </ul>
-                            <div style="height:6px; border-bottom:1px solid rgba(255,255,255,0.15);
-                                        margin-bottom:6px;"></div>
-                        </div>` : ''}
-                        <ul style="padding:0; margin:0; list-style-type:none;">
+                    <div style="position: relative; max-height: 120px;">
+                        <ul style="padding: 0; margin: 0; list-style-type: none; max-height: 120px;">
                             ${stopsListHTML}
                         </ul>
                     </div>
