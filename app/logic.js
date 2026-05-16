@@ -3675,7 +3675,6 @@ function _showVehicleOptionsInBottomSheet(vehicleId, optionsBadgesHTML, line) {
                 font-weight: 700;
                 color: ${textColor};
             ">${t('line')} ${lineLbl}</span>
-            <span style="font-size:14px; opacity:0.8;">➜ ${destination}</span>
         </div>
 
         ${optionsBadgesHTML ? `
