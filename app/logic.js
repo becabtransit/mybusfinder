@@ -1586,6 +1586,9 @@ class MarkerPool {
         this.active.delete(id);
         
         if (this.pool.length < this.maxSize) {
+            marker._popupGenerated = false; // ← ajouter
+            marker.vehicleData = null;      // ← ajouter
+            marker._lastNextStopsHTML = ''; // ← ajouter
             this.pool.push(marker);
         }
     }
@@ -3541,6 +3544,26 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const { color } = getCachedColors(route_id);
     
     marker.on('popupopen', function(e) {
+        const popup = marker.getPopup();
+        if (popup && !marker._popupGenerated) {
+            marker._popupGenerated = true;
+            
+            const keysToDelete = [];
+            contentCache.cache.forEach((_, key) => {
+                if (key.startsWith(`${id}-`)) keysToDelete.push(key);
+            });
+            keysToDelete.forEach(k => contentCache.cache.delete(k));
+            
+            requestAnimationFrame(() => {
+                const popupContent = generatePopupContent(
+                    vehicle, line, lastStopName, nextStopsHTML,
+                    vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText,
+                    backgroundColor, textColor, id
+                );
+                popup.setContent(popupContent);
+                popup.update();
+            });
+        }
         const menubtm = document.getElementById('menubtm');
         safeVibrate([50]);
         const consulted = parseInt(localStorage.getItem('mbf_vehicles_consulted') || '0', 10);
@@ -9476,6 +9499,7 @@ async function fetchVehiclePositions() {
                     marker.vehicleData = vehicle;
                     marker.destination = lastStopName;
                     marker._lastNextStopsHTML = nextStopsHTML;
+                    marker._popupGenerated = false;
 
                     if (marker.line !== line) {
                         marker.line = line;
@@ -12435,6 +12459,7 @@ function _getDayCounterpart(routeId) {
 }
 
 function _refreshBottomSheetFavorites(withAnimation = false) {
+    if (document.getElementById('bs-vehicle-options-panel')) return;
     if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') return;
     const doRefresh = () => {
     const section = document.getElementById('bs-favorites-section');
