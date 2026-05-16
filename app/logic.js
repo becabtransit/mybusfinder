@@ -12381,6 +12381,14 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
             list.appendChild(card);
 
+            const stopFavTimes = card.querySelector('.bs-fav-times');
+            fetchRealtimeDataForStopFavorite(fav, stopFavTimes)
+                .catch(() => {
+                    if (stopFavTimes) stopFavTimes.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+                });
+        
+
+
             async function _computeStopPassages(stopIdArr) {
                 const now = Date.now() / 1000;
                 const byLine = {};
