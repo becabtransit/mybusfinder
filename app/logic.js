@@ -3637,10 +3637,10 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
 }
 
 function _showVehicleOptionsInBottomSheet(vehicleId, optionsBadgesHTML, line) {
-    const sheet = document.getElementById('bottom-sheet');
-    if (!sheet) return;
-
     _hideVehicleOptionsFromBottomSheet();
+
+    const content = document.getElementById('bs-content');
+    if (!content) return;
 
     const color = lineColors[line] || '#444';
     const textColor = getTextColor(color);
@@ -3649,16 +3649,7 @@ function _showVehicleOptionsInBottomSheet(vehicleId, optionsBadgesHTML, line) {
     const panel = document.createElement('div');
     panel.id = 'bs-vehicle-options-panel';
     panel.style.cssText = `
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: ${color}e8;
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        z-index: 10;
-        padding: 20px 20px 30px;
-        overflow-y: auto;
-        color: ${textColor};
-        font-family: 'League Spartan', sans-serif;
+        padding: 12px 18px 20px;
         animation: bsFadeUp 0.35s cubic-bezier(0.25, 1.5, 0.5, 1) both;
         display: flex;
         flex-direction: column;
@@ -3668,18 +3659,19 @@ function _showVehicleOptionsInBottomSheet(vehicleId, optionsBadgesHTML, line) {
     panel.innerHTML = `
         <div style="display:flex; align-items:center; gap:12px;">
             <span style="
-                background: rgba(255,255,255,0.2);
+                background: ${color};
+                color: ${textColor};
                 padding: 4px 14px;
                 border-radius: 10px;
                 font-size: 20px;
                 font-weight: 700;
-                color: ${textColor};
             ">${t('line')} ${lineLbl}</span>
         </div>
 
         ${optionsBadgesHTML ? `
         <div>
-            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em; opacity:0.55; margin-bottom:8px;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em;
+                        color:rgba(255,255,255,0.45); margin-bottom:8px;">
                 ${t('options') || 'Équipements'}
             </div>
             <div style="display:flex; flex-wrap:wrap; gap:8px;">
@@ -3693,21 +3685,44 @@ function _showVehicleOptionsInBottomSheet(vehicleId, optionsBadgesHTML, line) {
         `}
     `;
 
-    if (!BottomSheet.expanded) {
-        BottomSheet.expand();
-    }
+    const toHide = ['bs-search-wrapper', 'bs-favorites-section'];
+    toHide.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.dataset.hiddenByVehicle = 'true'; el.style.display = 'none'; }
+    });
+    const grid = content.querySelector('.bs-grid');
+    if (grid) { grid.dataset.hiddenByVehicle = 'true'; grid.style.display = 'none'; }
 
-    sheet.appendChild(panel);
+    content.appendChild(panel);
 }
 
 function _hideVehicleOptionsFromBottomSheet() {
     const panel = document.getElementById('bs-vehicle-options-panel');
     if (!panel) return;
-    panel.style.animation = 'none';
+
     panel.style.opacity = '0';
     panel.style.transform = 'translateY(10px)';
     panel.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
-    setTimeout(() => panel.remove(), 220);
+
+    setTimeout(() => {
+        panel.remove();
+
+        ['bs-search-wrapper', 'bs-favorites-section'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.dataset.hiddenByVehicle) {
+                delete el.dataset.hiddenByVehicle;
+                el.style.display = '';
+            }
+        });
+        const content = document.getElementById('bs-content');
+        if (content) {
+            const grid = content.querySelector('.bs-grid');
+            if (grid && grid.dataset.hiddenByVehicle) {
+                delete grid.dataset.hiddenByVehicle;
+                grid.style.display = '';
+            }
+        }
+    }, 220);
 }
 
 function clearMarkerCache() {
@@ -8774,13 +8789,6 @@ async function fetchVehiclePositions() {
 
                 const parcBadgeHTML = parcLabel ? `
                     <span class="stops-icon-badge" style="max-width:none !important; padding:5px 10px !important;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="1" y="3" width="15" height="13" rx="2"/>
-                            <path d="M16 8h4l3 3v5h-7V8z"/>
-                            <circle cx="5.5" cy="18.5" r="2.5"/>
-                            <circle cx="18.5" cy="18.5" r="2.5"/>
-                        </svg>
                         <span class="stops-badge-label" style="opacity:1 !important; max-width:none !important;">
                             ${parcLabel}
                         </span>
