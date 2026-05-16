@@ -3549,12 +3549,11 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         saveAndFilterSingleLine(route_id);
         const id = this.id;
         const vehicleOptionsBadges = getVehicleOptionsBadges(id);
-        const vehicleBrandHtml = getVehicleBrandHTML(id);
         const line = route_id;
         const lastStopId = getLastStopIdForVehicle(id);
         const lastStopName = stopNameMap[lastStopId] || lastStopId || t('unknown');
 
-        _showVehicleOptionsInBottomSheet(id, vehicleOptionsBadges, vehicleBrandHtml, line, lastStopName);
+        _showVehicleOptionsInBottomSheet(id, vehicleOptionsBadges, line, lastStopName);
 
         if (menubtm) {
             const markerId = marker.id;
@@ -3679,18 +3678,6 @@ function _showVehicleOptionsInBottomSheet(vehicleId, optionsBadgesHTML, brandHTM
                 color: ${textColor};
             ">${t('line')} ${lineLbl}</span>
             <span style="font-size:14px; opacity:0.8;">➜ ${destination}</span>
-        </div>
-
-        <div style="
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: rgba(0,0,0,0.15);
-            border-radius: 14px;
-            padding: 12px 14px;
-        ">
-            ${brandHTML || ''}
-            <div style="font-size: 13px; opacity: 0.7; flex:1;">${t('vehicle_details') || 'Détails du véhicule'}</div>
         </div>
 
         ${optionsBadgesHTML ? `
