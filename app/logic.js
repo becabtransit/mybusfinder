@@ -264,7 +264,7 @@
         }, 1000);
     });
 
-    VERSION_NAME = '3.6.0.4';
+    VERSION_NAME = '3.6.0.5';
 
     document.addEventListener('gesturestart', function (e) {
     e.preventDefault();
@@ -6606,13 +6606,11 @@ const MenuManager = {
         
         let filteredStops = [];
         if (currentStopIndex !== -1) {
-            filteredStops = nextStops.slice(currentStopIndex).filter(stop => 
-                stop.delay === null || stop.delay >= -60
-            );
+            filteredStops = nextStops.slice(currentStopIndex).filter(stop => {
+                return stop.delay === null || stop.delay >= -60;
+            });
         } else {
-            filteredStops = nextStops.filter(stop => 
-                stop.delay === null || stop.delay > 0
-            );
+            filteredStops = nextStops.filter(stop => stop.delay === null || stop.delay > 0);
         }
         
         const statusMap = {
@@ -8428,6 +8426,35 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
     }
 }
 
+function getCorrespondencesForStop(stopId, currentLine) {
+    const lines = new Set();
+    const cleanTarget = stopId.replace('0:', '').trim();
+    markerPool.active.forEach(marker => {
+        if (marker.line === currentLine || marker.line === 'Inconnu') return;
+        const tripId = marker.vehicleData?.trip?.tripId;
+        const stops = tripUpdates[tripId]?.nextStops || [];
+        if (stops.some(s => s.stopId.replace('0:', '').trim() === cleanTarget)) {
+            lines.add(marker.line);
+        }
+    });
+    return [...lines];
+}
+
+function getStopPlatform(stopId) {
+    const cleanId = stopId.replace('0:', '').trim();
+    const name = stopNameMap[cleanId] || stopNameMap[stopId] || '';
+    const platformMatch = name.match(/\b(?:quai|voie|platform|voie|porte|hall|pier)\s*([A-Z0-9]+)/i);
+    if (platformMatch) return platformMatch[0];
+
+    if (window.staticStopTimes) {
+        for (const tripStops of Object.values(window.staticStopTimes)) {
+            const stopData = tripStops[cleanId] || tripStops[`0:${cleanId}`];
+            if (stopData?.platform_code) return stopData.platform_code;
+            if (stopData?.stop_headsign) return stopData.stop_headsign;
+        }
+    }
+    return null;
+}
 
 async function fetchVehiclePositions() {
     if (!gtfsInitialized) {
@@ -8779,39 +8806,76 @@ async function fetchVehiclePositions() {
                             const now = new Date();
                             const nowSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
                             let arrivalSeconds = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
-                            
                             let diff = arrivalSeconds - nowSeconds;
                             if (diff < -3600) diff += 86400;
-                            
                             timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
                         } else if (stopTime && !isNaN(stopTime)) {
                             const diff = Math.floor(Number(stopTime) - Date.now() / 1000);
                             timeLeftText = diff <= 60 ? t("imminent") : `${Math.ceil(diff / 60)} min`;
                         }
-                        
+
                         const stopName = stopNameMap[stop.stopId] || stop.stopId;
-                                                
+                        const cleanStopId = stop.stopId.replace('0:', '').trim();
+                        const safeStopName = stopName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                        const stopIndexInFiltered = filteredStops.indexOf(stop);
+                        const corresLines = stopIndexInFiltered < 1 ? getCorrespondencesForStop(stop.stopId, line) : [];
+                        const corresHTML = corresLines.length > 0
+                            ? `<div style="display:flex; gap:4px; flex-wrap:wrap;">
+                                ${corresLines.map(rid => {
+                                    const col = lineColors[rid] || '#444';
+                                    const tc  = getTextColor(col);
+                                    const ln  = lineName[rid] || rid;
+                                    const safeStopId = stop.stopId.replace(/'/g, "\\'");
+                                    return `<span
+                                        class="ripple-container"
+                                        onclick="event.stopPropagation(); openStopFromPopup('${safeStopId}', '${safeStopName}')"
+                                        style="background:${col}; color:${tc};
+                                            padding: 4px 13px 2px; border-radius:6px;
+                                            font-size:10px; font-weight:700;
+                                            cursor:pointer; display:inline-flex;
+                                            align-items:center; gap:3px;
+                                            transition:transform 0.15s ease;"
+                                        onmouseenter="this.style.transform='scale(1.08)'"
+                                        onmouseleave="this.style.transform='scale(1)'"
+                                    >
+                                        ${ln}
+                                    </span>`;
+                                }).join('')}
+                            </div>`
+                            : '';
+
                         return `
-                        <li style="list-style: none; padding: 0px; display: flex; justify-content: space-between;">
-                            <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
-                                <div class="stop-name-wrapper" style="position: relative; display: inline-block; padding-right: 10px;">
-                                    <div class="stop-name" style="position: relative; display: inline-block;">${stopName}</div>
+                        <li style="list-style: none; padding: 0px; display: flex; flex-direction: column; margin-bottom: 2px;">
+                            <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+                                <div class="stop-name-container" style="position: relative; overflow: hidden; max-width: 70%; white-space: nowrap;">
+                                    <div class="stop-name-wrapper" style="position: relative; display: inline-block; padding-right: 10px;">
+                                        <div class="stop-name"
+                                            style="position: relative; display: inline-block; cursor:pointer;
+                                                text-decoration-style: dotted;
+                                                transition: opacity 0.15s ease;"
+                                            onclick="openStopFromPopup('${stop.stopId.replace(/'/g, "\\'")}', '${safeStopName}')"
+                                            onmouseenter="this.style.opacity='0.7'"
+                                            onmouseleave="this.style.opacity='1'"
+                                        >${stopName}</div>
+                                    </div>
+                                </div>
+                                <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
+                                    <div class="time-display"
+                                        data-time-left="${timeLeftText}"
+                                        data-departure-time="${stop.arrivalTime || stop.departureTime || 'Inconnu'}">
+                                        ${timeLeftText}
+                                    </div>
+                                    <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <g class="rss-waves">
+                                            <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
+                                            <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
+                                        </g>
+                                        <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
+                                    </svg>
                                 </div>
                             </div>
-                            <div class="time-container" style="position: relative; min-height: 1.2em; text-align: right;">
-                                <div class="time-display" 
-                                    data-time-left="${timeLeftText}" 
-                                    data-departure-time="${stop.arrivalTime || stop.departureTime || "Inconnu"}">
-                                    ${timeLeftText}
-                                </div>
-                                <svg class="time-indicator" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <g class="rss-waves">
-                                        <path class="rss-arc-large" d="M4 4a16 16 0 0 1 16 16"></path>
-                                        <path class="rss-arc-small" d="M4 11a9 9 0 0 1 9 9"></path>
-                                    </g>
-                                    <circle class="rss-dot" cx="5" cy="19" r="1"></circle>
-                                </svg>
-                            </div>
+                            ${corresHTML}
                         </li>`;
                     }).join('');
                 }
@@ -8958,7 +9022,6 @@ async function fetchVehiclePositions() {
                 const backgroundColor = lineColors[line] || '#000000';
                 const textColor = getTextColorForBackground(backgroundColor);
 
-
                 let arrivalTime = 'Inconnu';
                 if (scheduledArrival) {
                     const arrivalDate = new Date(scheduledArrival * 1000);
@@ -9085,11 +9148,9 @@ async function fetchVehiclePositions() {
 
                 function generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
                     const cacheKey = `${id}-${line}-${nextStopsHTML.substring(0, 80)}`;
-
                     if (contentCache.get(cacheKey)) {
                         return contentCache.get(cacheKey);
                     }
-
                     const popupContent = `
                         <div class="popup-container" data-vehicle-id="${id}" style="box-shadow: 0px 0px 20px 0px ${backgroundColor}9c; background-color: ${backgroundColor}9c; color: ${textColor};">
                             
@@ -9141,7 +9202,6 @@ async function fetchVehiclePositions() {
                                     </div>
                                 </ul>
                             </div>
-                        </div>
                     `;
 
                     contentCache.set(cacheKey, popupContent);
@@ -12328,61 +12388,6 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
             list.appendChild(card);
 
-            _computeStopPassages(fav.stopIds).then(passages => {
-                const timesEl = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
-                if (!timesEl) return;
-
-                const allTimes = [];
-                Object.values(passages).forEach(group => {
-                    if (group.routeId !== 'Inconnu') {
-                        group.times.forEach(t2 => {
-                            allTimes.push({ ...t2, routeId: group.routeId, dest: group.dest });
-                        });
-                    }
-                });
-                allTimes.sort((a, b) => a.time - b.time);
-
-                if (!allTimes.length) {
-                    timesEl.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
-                    return;
-                }
-
-                const now = Date.now() / 1000;
-                const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 4a16 16 0 0 1 16 16"/>
-                    <path d="M4 11a9 9 0 0 1 9 9"/>
-                    <circle cx="5" cy="19" r="1"/>
-                </svg>`;
-
-                timesEl.innerHTML = '';
-                allTimes.slice(0, 5).forEach(item => {
-                    const color     = lineColors[item.routeId] || '#444';
-                    const textColor = getTextColor(color);
-                    const lname     = lineName[item.routeId] || item.routeId;
-                    const diffMin   = Math.round((item.time - now) / 60);
-                    const label     = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
-                    const isNow     = diffMin <= 0;
-
-                    const pill = document.createElement('span');
-                    pill.style.cssText = `
-                        display: inline-flex; align-items: center; gap: 4px;
-                        font-size: 12px; font-weight: ${item.realtime ? '600' : '400'};
-                        font-style: ${item.realtime ? 'normal' : 'italic'};
-                        padding: 3px 8px; border-radius: 20px; white-space: nowrap;
-                        border: 1px solid rgba(255,255,255,0.15);
-                        background: ${color};
-                        color: ${textColor};
-                        opacity: ${item.realtime ? '1' : '0.7'};`;
-
-                    pill.innerHTML = item.realtime ? rssIcon : '';
-                    const span = document.createElement('span');
-                    const destText = item.dest && item.dest !== 'Destination inconnue' ? ` > ${item.dest}` : '';
-                    span.textContent = `${lname} · ${label}${destText}`;
-                    pill.appendChild(span);
-                    timesEl.appendChild(pill);
-                });
-            });
         });
     }
 
@@ -12611,16 +12616,25 @@ async function openStopInBottomSheet(stopIds, stopName) {
     });
 }
 
+window.openStopFromPopup = function(stopId, stopName) {
+    const cleanId = stopId.replace('0:', '').trim();
+    const cluster = window._stopClusters?.find(
+        c => c.stopIds.some(id => id.replace('0:', '').trim() === cleanId)
+    );
+    const ids  = cluster ? cluster.stopIds : [stopId];
+    const name = cluster ? cluster.name   : stopName;
+    mapInstance.closePopup();
+    openStopInBottomSheet(ids, name);
+};
+
 async function _computeStopPassages(stopIdArr) {
     const now = Date.now() / 1000;
     const byLine = {};
-    const seenKeys = new Set(); 
-
+    const seenKeys = new Set();
     const cleanStops = stopIdArr.map(id => id.replace('0:', '').trim());
 
     function matchStop(sid) {
-        const clean = sid.replace('0:', '').trim();
-        return cleanStops.includes(clean);
+        return cleanStops.includes(sid.replace('0:', '').trim());
     }
 
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
@@ -12639,22 +12653,10 @@ async function _computeStopPassages(stopIdArr) {
         const stopTime = match.departureTime || match.arrivalTime;
         if (!stopTime) return;
 
-        let arrivalSecs;
-        if (typeof stopTime === 'string' && stopTime.includes(':')) {
-            const parts = stopTime.split(':').map(Number);
-            const d = new Date();
-            arrivalSecs = new Date(
-                d.getFullYear(), d.getMonth(), d.getDate(),
-                parts[0], parts[1], parts[2] || 0
-            ).getTime() / 1000;
-            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
-        } else if (typeof stopTime === 'number' && stopTime > 86400) {
-            arrivalSecs = stopTime;
-        } else return;
+        let arrivalSecs = _parseStopTime(stopTime);
+        if (arrivalSecs === null || arrivalSecs < now - 30) return;
 
-        if (arrivalSecs < now - 30) return;
-
-        const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+        const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
         if (seenKeys.has(dedupKey)) return;
         seenKeys.add(dedupKey);
 
@@ -12664,63 +12666,120 @@ async function _computeStopPassages(stopIdArr) {
             time: arrivalSecs,
             realtime: true,
             vehicleLabel,
-            marker: marker || null
+            marker: marker || null,
+            tripId
         });
     });
 
-    if (window.stopTimesReady && window.staticStopTimes) {
+    if (!window.stopTimesReady && !window._stopTimesLoadAttempted) {
+        window._stopTimesLoadAttempted = true;
+        try {
+            const r = await fetch(
+                new URL(netPath('proxy-cors/proxy_gtfs.php?action=stop_times'), window.location.href).href,
+                { cache: 'no-store' }
+            );
+            if (r.ok) {
+                const json = await r.json();
+                window.staticStopTimes = json;
+                window.stopTimesReady  = true;
+            }
+        } catch (e) {
+            console.warn('Chargement stop_times échoué:', e);
+        }
+    }
+
+    if (window.staticStopTimes && Object.keys(window.staticStopTimes).length > 0) {
         const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
         const rtTripIds = new Set(Object.keys(tripUpdates));
 
-        Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
-            if (rtTripIds.has(tripId)) return;
+        const rtByTrip = {};
+        Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+            (tripData.nextStops || []).forEach(stop => {
+                const sid = stop.stopId.replace('0:', '').trim();
+                if (!rtByTrip[tripId]) rtByTrip[tripId] = {};
+                rtByTrip[tripId][sid] = stop.departureTime || stop.arrivalTime;
+            });
+        });
 
+        for (const [tripId, tripStops] of Object.entries(window.staticStopTimes)) {
             if (activeIds.length > 0 && tripServiceMap[tripId]) {
-                if (!activeIds.includes(tripServiceMap[tripId])) return;
+                if (!activeIds.includes(tripServiceMap[tripId])) continue;
+            } else if (activeIds.length > 0 && !tripServiceMap[tripId]) {
+                continue;
             }
 
             let stopData = null;
+            let matchedStopId = null;
             for (const cleanId of cleanStops) {
                 stopData = tripStops[cleanId] || tripStops[`0:${cleanId}`];
-                if (stopData) break;
+                if (stopData) { matchedStopId = cleanId; break; }
             }
-            if (!stopData) return;
+            if (!stopData) continue;
 
             const timeStr = stopData.d || stopData.a;
-            if (!timeStr) return;
+            if (!timeStr) continue;
 
             const parts = timeStr.split(':').map(Number);
             const d = new Date();
-            let arrivalSecs = new Date(
+            let theoreticalSecs = new Date(
                 d.getFullYear(), d.getMonth(), d.getDate(),
                 parts[0], parts[1], parts[2] || 0
             ).getTime() / 1000;
-            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
-            if (arrivalSecs < now - 60) return;
+            if (theoreticalSecs < now - 3600) theoreticalSecs += 86400;
+            if (theoreticalSecs < now - 60) continue;
 
-            const marker = [...markerPool.active.values()]
+            let finalSecs = theoreticalSecs;
+            let isRealtime = false;
+            let rtVehicleLabel = null;
+            let rtMarker = null;
+
+            if (rtByTrip[tripId]?.[matchedStopId]) {
+                const rtTime = _parseStopTime(rtByTrip[tripId][matchedStopId]);
+                if (rtTime !== null) {
+                    finalSecs = rtTime;
+                    isRealtime = true;
+                }
+                const rtMarkerObj = [...markerPool.active.values()]
+                    .find(m => m.vehicleData?.trip?.tripId === tripId);
+                if (rtMarkerObj) {
+                    rtMarker = rtMarkerObj;
+                    rtVehicleLabel = rtMarkerObj.vehicleData?.vehicle?.label
+                        || rtMarkerObj.vehicleData?.vehicle?.id || null;
+                }
+            }
+
+            if (finalSecs < now - 30) continue;
+
+            const dedupKey = `st|${tripId}|${Math.round(finalSecs / 60)}`;
+            if (seenKeys.has(dedupKey)) continue;
+            const rtDedupKey = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
+            if (seenKeys.has(rtDedupKey)) continue;
+            seenKeys.add(dedupKey);
+
+            const marker = rtMarker || [...markerPool.active.values()]
                 .find(m => m.vehicleData?.trip?.tripId === tripId);
             const routeId = marker?.line || _guessRouteFromTrip(tripId);
             const dest    = marker?.destination || 'Destination inconnue';
 
-            const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
-            if (seenKeys.has(dedupKey)) return;
-            seenKeys.add(dedupKey);
-
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
             byLine[key].times.push({
-                time: arrivalSecs,
-                realtime: false,
-                vehicleLabel: null,
-                marker: null
+                time: finalSecs,
+                realtime: isRealtime,
+                vehicleLabel: rtVehicleLabel,
+                marker: rtMarker,
+                tripId
             });
-        });
+        }
     }
 
     Object.values(byLine).forEach(group => {
         group.times.sort((a, b) => a.time - b.time);
-        group.times = group.times.slice(0, 6);
+        group.times = group.times.filter((t, i, arr) => {
+            if (i === 0) return true;
+            return (t.time - arr[i - 1].time) > 90;
+        });
+        group.times = group.times.slice(0, 8);
     });
 
     return byLine;
@@ -13167,122 +13226,132 @@ function _getTripServiceId(tripId, routeId) {
 }
 
 async function fetchRealtimeDataForFavorite(favorite) {
-    const routeId  = favorite.routeId  || '';
-    const stopId   = favorite.stopId   || '';
-    const destId   = favorite.destinationId || '';
-    const now      = Date.now() / 1000;
-    const results  = [];
-    const seenKeys = new Set();
+    const routeId   = favorite.routeId  || '';
+    const stopId    = favorite.stopId   || '';
+    const destId    = favorite.destinationId || '';
+    const now       = Date.now() / 1000;
+    const results   = [];
+    const seenKeys  = new Set();
+    const cleanStop = stopId.replace('0:', '').trim();
 
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
-        const cleanStop = stopId.replace('0:', '');
-
         const stopMatch = nextStops.find(s =>
-            s.stopId.replace('0:', '') === cleanStop
+            s.stopId.replace('0:', '').trim() === cleanStop
         );
         if (!stopMatch) return;
 
-        const markerForTrip = [...markerPool.active.values()]
+        const marker = [...markerPool.active.values()]
             .find(m => m.vehicleData?.trip?.tripId === tripId);
 
-        if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
-
-        if (destId && markerForTrip?.destination) {
-            const dest    = markerForTrip.destination.toLowerCase();
+        if (routeId && marker && marker.line !== routeId) return;
+        if (destId && marker?.destination) {
+            const dest    = marker.destination.toLowerCase();
             const favDest = (favorite.destinationName || destId).toLowerCase();
             if (!dest.includes(favDest) && !favDest.includes(dest)) return;
         }
 
         const stopTime = stopMatch.departureTime || stopMatch.arrivalTime;
         if (!stopTime) return;
+        const arrivalSecs = _parseStopTime(stopTime);
+        if (arrivalSecs === null || arrivalSecs < now - 30) return;
 
-        let arrivalSecs;
-        if (typeof stopTime === 'string' && stopTime.includes(':')) {
-            const parts = stopTime.split(':').map(Number);
-            const d = new Date();
-            arrivalSecs = new Date(
-                d.getFullYear(), d.getMonth(), d.getDate(),
-                parts[0], parts[1], parts[2] || 0
-            ).getTime() / 1000;
-            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
-        } else if (typeof stopTime === 'number' && stopTime > 86400) {
-            arrivalSecs = stopTime;
-        } else return;
-
-        if (arrivalSecs < now - 30) return;
-
-        const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
+        const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
         if (seenKeys.has(dedupKey)) return;
         seenKeys.add(dedupKey);
 
         results.push({
-            time:         arrivalSecs,
-            tripId,
-            vehicleLabel: markerForTrip?.vehicleData?.vehicle?.label
-                       || markerForTrip?.vehicleData?.vehicle?.id
-                       || null,
-            marker:       markerForTrip || null,
-            destination:  markerForTrip?.destination || 'Destination inconnue',
-            realtime:     true
+            time: arrivalSecs, tripId,
+            vehicleLabel: marker?.vehicleData?.vehicle?.label
+                       || marker?.vehicleData?.vehicle?.id || null,
+            marker: marker || null,
+            destination: marker?.destination || 'Destination inconnue',
+            realtime: true
         });
     });
 
-    if (window.stopTimesReady && window.staticStopTimes) {
-        const rtTripIds = new Set(results.map(r => r.tripId));
+    if (window.stopTimesReady && window.staticStopTimes
+        && Object.keys(window.staticStopTimes).length > 0) {
 
-        const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
+        const rtTimeByTripStop = {};
+        const rtMarkerByTrip   = {};
+        Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+            const marker = [...markerPool.active.values()]
+                .find(m => m.vehicleData?.trip?.tripId === tripId);
+            if (marker) rtMarkerByTrip[tripId] = marker;
+            (tripData.nextStops || []).forEach(stop => {
+                const sid = stop.stopId.replace('0:', '').trim();
+                const t   = _parseStopTime(stop.departureTime || stop.arrivalTime);
+                if (t !== null) {
+                    if (!rtTimeByTripStop[tripId]) rtTimeByTripStop[tripId] = {};
+                    rtTimeByTripStop[tripId][sid] = t;
+                }
+            });
+        });
 
-        Object.entries(window.staticStopTimes).forEach(([tripId, tripStops]) => {
-            if (rtTripIds.has(tripId)) return;
+        let activeIds = [];
+        let tripServiceMap = {};
+        try {
+            const cal = await _getActiveServiceIdsToday();
+            activeIds = cal.activeIds;
+            tripServiceMap = cal.tripServiceMap;
+        } catch(e) {}
 
-            if (activeIds.length > 0 && tripServiceMap[tripId]) {
-                if (!activeIds.includes(tripServiceMap[tripId])) return;
+        for (const [tripId, tripStops] of Object.entries(window.staticStopTimes)) {
+            if (activeIds.length > 0) {
+                const serviceId = tripServiceMap[tripId];
+                if (!serviceId || !activeIds.includes(serviceId)) continue;
             }
 
-            const markerForTrip = [...markerPool.active.values()]
-                .find(m => m.vehicleData?.trip?.tripId === tripId);
-
-            if (routeId && markerForTrip && markerForTrip.line !== routeId) return;
-
-            if (!markerForTrip && activeIds.length === 0) return;
-
-            const cleanStop = stopId.replace('0:', '');
-            const stopData  = tripStops[cleanStop]
-                           || tripStops[`0:${cleanStop}`]
-                           || tripStops[stopId];
-            if (!stopData) return;
+            const stopData = tripStops[cleanStop]
+                          || tripStops[`0:${cleanStop}`]
+                          || tripStops[stopId];
+            if (!stopData) continue;
 
             const timeStr = stopData.d || stopData.a;
-            if (!timeStr) return;
+            if (!timeStr) continue;
+
+            const rtMarker = rtMarkerByTrip[tripId] || null;
+            if (routeId && rtMarker && rtMarker.line !== routeId) continue;
 
             const parts = timeStr.split(':').map(Number);
             const d = new Date();
-            let arrivalSecs = new Date(
+            let theoreticalSecs = new Date(
                 d.getFullYear(), d.getMonth(), d.getDate(),
                 parts[0], parts[1], parts[2] || 0
             ).getTime() / 1000;
-            if (arrivalSecs < now - 3600) arrivalSecs += 86400;
-            if (arrivalSecs < now - 60)   return;
+            if (theoreticalSecs < now - 3600) theoreticalSecs += 86400;
 
-            const dedupKey = `${tripId}|${Math.round(arrivalSecs / 60)}`;
-            if (seenKeys.has(dedupKey)) return;
-            seenKeys.add(dedupKey);
+            let finalSecs  = theoreticalSecs;
+            let isRealtime = false;
+            const rtTime   = rtTimeByTripStop[tripId]?.[cleanStop];
+            if (rtTime !== null && rtTime !== undefined) {
+                finalSecs  = rtTime;
+                isRealtime = true;
+            }
+
+            if (finalSecs < now - 60) continue;
+
+            const dedupRt = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
+            const dedupSt = `st|${tripId}|${Math.round(finalSecs / 60)}`;
+            if (seenKeys.has(dedupRt) || seenKeys.has(dedupSt)) continue;
+            seenKeys.add(dedupSt);
 
             results.push({
-                time:         arrivalSecs,
-                tripId,
-                vehicleLabel: markerForTrip?.vehicleData?.vehicle?.label
-                           || markerForTrip?.vehicleData?.vehicle?.id
-                           || null,
-                marker:       markerForTrip || null,
-                destination:  markerForTrip?.destination || 'Destination inconnue',
-                realtime:     false
+                time: finalSecs, tripId,
+                vehicleLabel: rtMarker?.vehicleData?.vehicle?.label
+                           || rtMarker?.vehicleData?.vehicle?.id || null,
+                marker: rtMarker,
+                destination: rtMarker?.destination || 'Destination inconnue',
+                realtime: isRealtime
             });
-        });
+        }
     }
 
-    return results.sort((a, b) => a.time - b.time).slice(0, 5);
+    const sorted = results.sort((a, b) => a.time - b.time);
+    return sorted
+        .filter((item, i, arr) => i === 0 || (item.time - arr[i - 1].time) > 90)
+        .slice(0, 8);
 }
 
 function processRealtimeDataForFavorite(message, routeId, stopId) {
