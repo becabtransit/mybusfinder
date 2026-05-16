@@ -8821,7 +8821,7 @@ async function fetchVehiclePositions() {
                         const stopIndexInFiltered = filteredStops.indexOf(stop);
                         const corresLines = stopIndexInFiltered < 3 ? getCorrespondencesForStop(stop.stopId, line) : [];
                         const corresHTML = corresLines.length > 0
-                            ? `<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:4px;">
+                            ? `<div style="display:flex; gap:4px; flex-wrap:wrap;">
                                 ${corresLines.map(rid => {
                                     const col = lineColors[rid] || '#444';
                                     const tc  = getTextColor(col);
@@ -8831,19 +8831,14 @@ async function fetchVehiclePositions() {
                                         class="ripple-container"
                                         onclick="event.stopPropagation(); openStopFromPopup('${safeStopId}', '${safeStopName}')"
                                         style="background:${col}; color:${tc};
-                                            padding:2px 7px; border-radius:6px;
-                                            font-size:9px; font-weight:700;
+                                            padding: 4px 10px 2px; border-radius:6px;
+                                            font-size:10px; font-weight:700;
                                             cursor:pointer; display:inline-flex;
                                             align-items:center; gap:3px;
                                             transition:transform 0.15s ease;"
                                         onmouseenter="this.style.transform='scale(1.08)'"
                                         onmouseleave="this.style.transform='scale(1)'"
                                     >
-                                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="2.5"
-                                            stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="9 18 15 12 9 6"/>
-                                        </svg>
                                         ${ln}
                                     </span>`;
                                 }).join('')}
