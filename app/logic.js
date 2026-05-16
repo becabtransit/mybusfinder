@@ -9262,8 +9262,20 @@ async function fetchVehiclePositions() {
                                 </div>
                             </div>
 
-                            <div class="stops-section" style="color: ${textColor};">
-                                <div class="stops-header" id="popup-header-${id}">${stopsHeaderText}</div>
+                            <div class="stops-section" style="color: ${textColor}; position: relative;">
+                                <div class="stops-header" id="popup-header-${id}"
+                                    style="
+                                        position: sticky;
+                                        top: 0;
+                                        z-index: 10;
+                                        backdrop-filter: blur(12px);
+                                        -webkit-backdrop-filter: blur(12px);
+                                        background: linear-gradient(to bottom, ${backgroundColor}cc 60%, transparent 100%);
+                                        padding-bottom: 6px;
+                                        margin-bottom: 2px;
+                                    ">
+                                    ${stopsHeaderText}
+                                </div>
                                 <ul>
                                     <div id="popup-stops-${id}" class="nextStopsContent next-stops-content">
                                         ${nextStopsHTML}
