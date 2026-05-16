@@ -12388,6 +12388,53 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
             list.appendChild(card);
 
+            _computeStopPassages(fav.stopIds).then(passages => {
+                const timesContainer = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
+                if (!timesContainer) return;
+                timesContainer.innerHTML = '';
+
+                const allTimes = Object.values(passages)
+                    .flatMap(group => group.times.map(t => ({ ...t, routeId: group.routeId, dest: group.dest })))
+                    .sort((a, b) => a.time - b.time)
+                    .slice(0, 5);
+
+                if (!allTimes.length) {
+                    timesContainer.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+                    return;
+                }
+
+                const now = Date.now() / 1000;
+                allTimes.forEach(arrival => {
+                    const diffMin = Math.round((arrival.time - now) / 60);
+                    const label = diffMin <= 1 ? t('imminent') : `${diffMin} ${t('min')}`;
+                    const color = lineColors[arrival.routeId] || '#444';
+                    const tc = getTextColor(color);
+                    const lname = lineName[arrival.routeId] || arrival.routeId;
+
+                    const pill = document.createElement('span');
+                    pill.style.cssText = `
+                        display:inline-flex; align-items:center; gap:4px;
+                        font-size:12px; font-weight:600; padding:3px 9px;
+                        border-radius:20px; background:${color}; color:${tc};
+                        white-space:nowrap; cursor:${arrival.marker ? 'pointer' : 'default'};
+                    `;
+                    pill.textContent = `${lname} · ${label}`;
+
+                    if (arrival.marker) {
+                        pill.addEventListener('click', e => {
+                            e.stopPropagation();
+                            map.setView(arrival.marker.getLatLng(), 15);
+                            arrival.marker.openPopup();
+                            BottomSheet.collapse();
+                        });
+                    }
+                    timesContainer.appendChild(pill);
+                });
+            }).catch(() => {
+                const tc = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
+                if (tc) tc.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+            });
+
             async function _computeStopPassages(stopIdArr) {
                 const now = Date.now() / 1000;
                 const byLine = {};
@@ -12548,6 +12595,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
                 return byLine;
             }
+
         });
     }
 
