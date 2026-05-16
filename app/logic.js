@@ -12243,57 +12243,121 @@ function getFavoriteSchedules() {
 }
 
 function _animateBsHeight(targetHeight, durationMs = 380) {
-    const sheet = document.getElementById('bottom-sheet');
-    if (!sheet) return;
+  const sheet = document.getElementById('bottom-sheet');
+  if (!sheet) return;
 
-    const current = sheet.getBoundingClientRect().height;
-    const start   = performance.now();
+  if (sheet._heightRaf) {
+    cancelAnimationFrame(sheet._heightRaf);
+    sheet._heightRaf = null;
+  }
+  if (sheet._overflowTimeout) {
+    clearTimeout(sheet._overflowTimeout);
+    sheet._overflowTimeout = null;
+  }
 
-    const ease = t => t < 0.5
-        ? 4 * t * t * t
-        : 1 - Math.pow(-2 * t + 2, 2) / 2; 
+  const current = parseFloat(sheet.style.height) || sheet.getBoundingClientRect().height;
+  if (Math.abs(targetHeight - current) < 1) return;
 
-    function frame(now) {
-        const elapsed  = now - start;
-        const progress = Math.min(elapsed / durationMs, 1);
-        const eased    = ease(progress);
-        const h        = current + (targetHeight - current) * eased;
+  const start = performance.now();
 
-        sheet.style.height = `${h}px`;
+  function cubicBezier(p1x, p1y, p2x, p2y) {
+    const NEWTON_ITERATIONS = 8;
+    const NEWTON_MIN_SLOPE = 0.001;
+    const SUBDIVISION_PRECISION = 1e-7;
+    const SUBDIVISION_MAX_ITER = 10;
 
-        if (progress < 1) {
-            requestAnimationFrame(frame);
-        } else {
-            sheet.style.height = '';
-        }
+    function A(a1, a2) { return 1 - 3 * a2 + 3 * a1; }
+    function B(a1, a2) { return 3 * a2 - 6 * a1; }
+    function C(a1)     { return 3 * a1; }
+
+    function calcBezier(t, a1, a2) {
+      return ((A(a1, a2) * t + B(a1, a2)) * t + C(a1)) * t;
+    }
+    function getSlope(t, a1, a2) {
+      return 3 * A(a1, a2) * t * t + 2 * B(a1, a2) * t + C(a1);
     }
 
-    requestAnimationFrame(frame);
+    function binarySubdivide(x, a, b) {
+      let t, i = 0, cx;
+      do {
+        t = a + (b - a) / 2;
+        cx = calcBezier(t, p1x, p2x) - x;
+        if (cx > 0) b = t; else a = t;
+      } while (Math.abs(cx) > SUBDIVISION_PRECISION && ++i < SUBDIVISION_MAX_ITER);
+      return t;
+    }
+
+    function newtonRaphson(x, t) {
+      for (let i = 0; i < NEWTON_ITERATIONS; i++) {
+        const slope = getSlope(t, p1x, p2x);
+        if (Math.abs(slope) < NEWTON_MIN_SLOPE) return t;
+        t -= (calcBezier(t, p1x, p2x) - x) / slope;
+      }
+      return t;
+    }
+
+    return function(x) {
+      if (x === 0 || x === 1) return x;
+      let t = x;
+      const slope = getSlope(t, p1x, p2x);
+      t = slope >= NEWTON_MIN_SLOPE
+        ? newtonRaphson(x, t)
+        : binarySubdivide(x, 0, 1);
+      return calcBezier(t, p1y, p2y);
+    };
+  }
+
+  const ease = cubicBezier(0.25, 1.5, 0.5, 1);
+
+  function frame(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / durationMs, 1);
+    const eased = ease(progress);
+    const h = current + (targetHeight - current) * eased;
+    sheet.style.height = `${h}px`;
+
+    if (progress < 1) {
+      sheet._heightRaf = requestAnimationFrame(frame);
+    } else {
+      sheet.style.height = `${targetHeight}px`;
+      sheet._heightRaf = null;
+    }
+  }
+
+  sheet._heightRaf = requestAnimationFrame(frame);
 }
 
+
 function _withBsHeightAnimation(fn, threshold = 12) {
-    const sheet   = document.getElementById('bottom-sheet');
-    const content = document.getElementById('bs-content');
-    if (!sheet || !content) { fn(); return; }
+  const sheet = document.getElementById('bottom-sheet');
+  const content = document.getElementById('bs-content');
 
-    const before = sheet.getBoundingClientRect().height;
-
+  if (!sheet || !content) {
     fn();
+    return;
+  }
 
+  const before = parseFloat(sheet.style.height) || sheet.getBoundingClientRect().height;
+
+  fn();
+
+  requestAnimationFrame(() => {
     const natural = content.scrollHeight + 60;
-    const after   = Math.min(natural, window.innerHeight * 0.88);
+    const after = Math.min(natural, window.innerHeight * 0.88);
 
     if (Math.abs(after - before) < threshold) return;
 
-    sheet.style.height   = `${before}px`;
+    sheet.style.height = `${before}px`;
     sheet.style.overflow = 'hidden';
 
     requestAnimationFrame(() => {
-        _animateBsHeight(after);
-        setTimeout(() => {
-            sheet.style.overflow = '';
-        }, 400);
+      _animateBsHeight(after);
+      sheet._overflowTimeout = setTimeout(() => {
+        sheet.style.overflow = '';
+        sheet._overflowTimeout = null;
+      }, 420);
     });
+  });
 }
 
 function _refreshBottomSheetFavorites(withAnimation = false) {
