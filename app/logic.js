@@ -264,7 +264,7 @@
         }, 1000);
     });
 
-    VERSION_NAME = '3.6.0.4';
+    VERSION_NAME = '3.6.0.5';
 
     document.addEventListener('gesturestart', function (e) {
     e.preventDefault();
@@ -8819,7 +8819,7 @@ async function fetchVehiclePositions() {
                         const safeStopName = stopName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
                         const stopIndexInFiltered = filteredStops.indexOf(stop);
-                        const corresLines = stopIndexInFiltered < 3 ? getCorrespondencesForStop(stop.stopId, line) : [];
+                        const corresLines = stopIndexInFiltered < 1 ? getCorrespondencesForStop(stop.stopId, line) : [];
                         const corresHTML = corresLines.length > 0
                             ? `<div style="display:flex; gap:4px; flex-wrap:wrap;">
                                 ${corresLines.map(rid => {
@@ -8831,7 +8831,7 @@ async function fetchVehiclePositions() {
                                         class="ripple-container"
                                         onclick="event.stopPropagation(); openStopFromPopup('${safeStopId}', '${safeStopName}')"
                                         style="background:${col}; color:${tc};
-                                            padding: 4px 10px 2px; border-radius:6px;
+                                            padding: 4px 13px 2px; border-radius:6px;
                                             font-size:10px; font-weight:700;
                                             cursor:pointer; display:inline-flex;
                                             align-items:center; gap:3px;
