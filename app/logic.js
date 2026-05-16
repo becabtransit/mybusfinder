@@ -3697,16 +3697,7 @@ const AnimationManager = {
         return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     },
     
-    animateMarker(marker, newPosition) {
-        const SPEED_PX_PER_MS = 0.08; 
-        const MIN_DURATION = 400;
-        const MAX_DURATION = 2000;
-
-        const startLatLng = marker.getLatLng();
-        const endLatLng = L.latLng(newPosition[0], newPosition[1]);
-        const distance = startLatLng.distanceTo(endLatLng); 
-
-        const duration = Math.min(MAX_DURATION, Math.max(MIN_DURATION, distance * SPEED_PX_PER_MS));
+    animateMarker(marker, newPosition, duration = 8000) {
         const markerId = marker.id;
         
         // Annuler l'animation existante
@@ -3714,6 +3705,11 @@ const AnimationManager = {
             cancelAnimationFrame(this.activeAnimations.get(markerId).frameId);
         }
         
+        const startLatLng = marker.getLatLng();
+        const endLatLng = L.latLng(newPosition[0], newPosition[1]);
+        
+        // Si distance trop courte, pas d'animation
+        const distance = startLatLng.distanceTo(endLatLng);
         if (distance < 5) {
             marker.setLatLng(endLatLng);
             return;
