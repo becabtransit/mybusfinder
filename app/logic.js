@@ -12381,86 +12381,60 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
             list.appendChild(card);
 
-            _computeStopPassages(fav.stopIds).then(byLine => {
+            _computeStopPassages(fav.stopIds).then(passages => {
                 const timesEl = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
                 if (!timesEl) return;
 
-                const now = Date.now() / 1000;
-
-                const rssIcon = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;opacity:.7"><path d="M4 4a16 16 0 0 1 16 16"/><path d="M4 11a9 9 0 0 1 9 9"/><circle cx="5" cy="19" r="1"/></svg>`;
-
-                const arrivals = [];
-                Object.values(byLine).forEach(group => {
-                    group.times.forEach(t2 => {
-                        arrivals.push({
-                            ...t2,
-                            destination: group.dest,
-                            routeId: group.routeId,
+                const allTimes = [];
+                Object.values(passages).forEach(group => {
+                    if (group.routeId !== 'Inconnu') {
+                        group.times.forEach(t2 => {
+                            allTimes.push({ ...t2, routeId: group.routeId, dest: group.dest });
                         });
-                    });
+                    }
                 });
+                allTimes.sort((a, b) => a.time - b.time);
 
-                if (!arrivals.length) {
-                    timesEl.innerHTML = `<div style="padding:10px 14px 12px;font-size:12px;color:rgba(255,255,255,.3);font-style:italic;">${t('nodepartures')}</div>`;
+                if (!allTimes.length) {
+                    timesEl.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
                     return;
                 }
 
-                const byDest = {};
-                arrivals.forEach(a => {
-                    const key = a.destination || 'Destination inconnue';
-                    if (!byDest[key]) byDest[key] = [];
-                    byDest[key].push(a);
+                const now = Date.now() / 1000;
+                const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4a16 16 0 0 1 16 16"/>
+                    <path d="M4 11a9 9 0 0 1 9 9"/>
+                    <circle cx="5" cy="19" r="1"/>
+                </svg>`;
+
+                timesEl.innerHTML = '';
+                allTimes.slice(0, 5).forEach(item => {
+                    const color     = lineColors[item.routeId] || '#444';
+                    const textColor = getTextColor(color);
+                    const lname     = lineName[item.routeId] || item.routeId;
+                    const diffMin   = Math.round((item.time - now) / 60);
+                    const label     = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
+                    const isNow     = diffMin <= 0;
+
+                    const pill = document.createElement('span');
+                    pill.style.cssText = `
+                        display: inline-flex; align-items: center; gap: 4px;
+                        font-size: 12px; font-weight: ${item.realtime ? '600' : '400'};
+                        font-style: ${item.realtime ? 'normal' : 'italic'};
+                        padding: 3px 8px; border-radius: 20px; white-space: nowrap;
+                        border: 1px solid rgba(255,255,255,0.15);
+                        background: ${color};
+                        color: ${textColor};
+                        opacity: ${item.realtime ? '1' : '0.7'};`;
+
+                    pill.innerHTML = item.realtime ? rssIcon : '';
+                    const span = document.createElement('span');
+                    const destText = item.dest && item.dest !== 'Destination inconnue' ? ` > ${item.dest}` : '';
+                    span.textContent = `${lname} · ${label}${destText}`;
+                    pill.appendChild(span);
+                    timesEl.appendChild(pill);
                 });
-
-                const groups = Object.entries(byDest)
-                    .sort(([, a], [, b]) => (a[0]?.time ?? Infinity) - (b[0]?.time ?? Infinity));
-
-                timesEl.innerHTML = groups.map(([dest, times], gi) => {
-                    const border    = gi > 0 ? 'border-top:0.5px solid rgba(255,255,255,.07);' : '';
-                    const routeId   = times[0]?.routeId || '';
-                    const lineColor = lineColors[routeId] || '#444';
-                    const textColor = getTextColor(lineColor);
-
-                    const pills = times.map(t2 => {
-                        const diffMin = Math.round((t2.time - now) / 60);
-                        const label   = diffMin <= 1 ? t('imminent') : `${diffMin} min`;
-                        const veh     = t2.vehicleLabel
-                            ? ` <span style="opacity:.5;font-size:10px;font-weight:400">· ${String(t2.vehicleLabel).replace(/[A-Z]+:/g, '').padStart(3, '0')}</span>`
-                            : '';
-                        const isNow   = diffMin <= 1 && t2.realtime;
-                        const pillBg  = isNow ? lineColor   : t2.realtime ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.05)';
-                        const pillClr = isNow ? textColor   : t2.realtime ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.38)';
-                        const rtIcon  = t2.realtime ? rssIcon : '';
-                        return `<span style="font-size:12px;font-weight:${t2.realtime ? '600' : '400'};font-style:${t2.realtime ? 'normal' : 'italic'};padding:4px 9px;border-radius:20px;border:0.5px solid ${isNow ? 'transparent' : 'rgba(255,255,255,.15)'};background:${pillBg};color:${pillClr};white-space:nowrap;display:inline-flex;align-items:center;gap:3px;" ${t2.marker ? `data-trip="${t2.tripId}"` : ''}>${rtIcon}${label}${veh}</span>`;
-                    }).join('');
-
-                    return `
-                        <div style="padding:8px 14px 10px;${border}">
-                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-                                <span style="font-size:12px;color:rgba(255,255,255,.65);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${dest}</span>
-                            </div>
-                            <div style="display:flex;flex-wrap:wrap;gap:5px;">${pills}</div>
-                        </div>`;
-                }).join('');
-
-                timesEl.querySelectorAll('[data-trip]').forEach(pill => {
-                    pill.style.cursor = 'pointer';
-                    pill.addEventListener('click', e => {
-                        e.stopPropagation();
-                        const marker = [...markerPool.active.values()]
-                            .find(m => m.vehicleData?.trip?.tripId === pill.dataset.trip);
-                        if (!marker) return;
-                        safeVibrate?.([30, 20, 30], true);
-                        soundsUX?.('MBF_Menu_VehicleSelect');
-                        map.setView(marker.getLatLng(), 15);
-                        marker.openPopup();
-                        BottomSheet.collapse();
-                    });
-                });
-            }).catch(() => {
-                const timesEl = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
-                if (timesEl) timesEl.innerHTML = `<div style="padding:10px 14px 12px;font-size:12px;color:rgba(255,255,255,.3);font-style:italic;">${t('nodepartures')}</div>`;
             });
 
             async function _computeStopPassages(stopIdArr) {
