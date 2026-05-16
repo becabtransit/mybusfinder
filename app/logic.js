@@ -8672,7 +8672,15 @@ async function fetchVehiclePositions() {
                     stopsHeaderText = `
                         <div class="stops-header-widget">
                             <div class="stops-icons-row">
+                                <span class="stops-icon-badge" style="max-width:none; gap:6px; padding:5px 12px; pointer-events:none;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                                    </svg>
+                                    <span class="stops-badge-label" style="opacity:1; max-width:160px;">${(vehicle?.vehicle?.label || vehicle?.vehicle?.id || t("unknownparc")).toString().padStart(3,'0').replace("TCAR:Vehicle::","").replace(":LOC","").replace("RLA","").replace("SUM","").replace("TCA","")}</span>
+                                </span>
                                 ${vehicleOptionsBadges}
+                            </div>
+                            <div class="stops-icons-row">
                                 ${terminusBadgeHTML}
                                 ${statusBadge}
                             </div>
@@ -8695,8 +8703,16 @@ async function fetchVehiclePositions() {
                     if (filteredStops.length === 1 && minutes === 0) {
                         stopsHeaderText = `
                             <div class="stops-header-widget">
+                            <div class="stops-icons-row">
+                                <span class="stops-icon-badge" style="max-width:none; gap:6px; padding:5px 12px; pointer-events:none;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                                    </svg>
+                                    <span class="stops-badge-label" style="opacity:1; max-width:160px;">${(vehicle?.vehicle?.label || vehicle?.vehicle?.id || t("unknownparc")).toString().padStart(3,'0').replace("TCAR:Vehicle::","").replace(":LOC","").replace("RLA","").replace("SUM","").replace("TCA","")}</span>
+                                </span>
+                                ${vehicleOptionsBadges}
+                            </div>
                                 <div class="stops-icons-row">
-                                    ${vehicleOptionsBadges}
                                     ${terminusBadgeHTML}
                                     ${delayBadgeHTML}
                                     <span class="stops-icon-badge">
@@ -8712,7 +8728,15 @@ async function fetchVehiclePositions() {
                         stopsHeaderText = `
                             <div class="stops-header-widget">
                                 <div class="stops-icons-row">
+                                    <span class="stops-icon-badge" style="max-width:none; gap:6px; padding:5px 12px; pointer-events:none;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                                        </svg>
+                                        <span class="stops-badge-label" style="opacity:1; max-width:160px;">${(vehicle?.vehicle?.label || vehicle?.vehicle?.id || t("unknownparc")).toString().padStart(3,'0').replace("TCAR:Vehicle::","").replace(":LOC","").replace("RLA","").replace("SUM","").replace("TCA","")}</span>
+                                    </span>
                                     ${vehicleOptionsBadges}
+                                </div>
+                                <div class="stops-icons-row">
                                     ${terminusBadgeHTML}
                                     ${delayBadgeHTML}
                                     <span class="stops-icon-badge">
@@ -8728,7 +8752,15 @@ async function fetchVehiclePositions() {
                         stopsHeaderText = `
                             <div class="stops-header-widget">
                                 <div class="stops-icons-row">
+                                    <span class="stops-icon-badge" style="max-width:none; gap:6px; padding:5px 12px; pointer-events:none;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                                        </svg>
+                                        <span class="stops-badge-label" style="opacity:1; max-width:160px;">${(vehicle?.vehicle?.label || vehicle?.vehicle?.id || t("unknownparc")).toString().padStart(3,'0').replace("TCAR:Vehicle::","").replace(":LOC","").replace("RLA","").replace("SUM","").replace("TCA","")}</span>
+                                    </span>
                                     ${vehicleOptionsBadges}
+                                </div>
+                                <div class="stops-icons-row">
                                     ${terminusBadgeHTML}
                                     ${delayBadgeHTML}
                                     <span class="stops-icon-badge">
@@ -8744,7 +8776,15 @@ async function fetchVehiclePositions() {
                         stopsHeaderText = `
                             <div class="stops-header-widget">
                                 <div class="stops-icons-row">
+                                    <span class="stops-icon-badge" style="max-width:none; gap:6px; padding:5px 12px; pointer-events:none;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                                        </svg>
+                                        <span class="stops-badge-label" style="opacity:1; max-width:160px;">${(vehicle?.vehicle?.label || vehicle?.vehicle?.id || t("unknownparc")).toString().padStart(3,'0').replace("TCAR:Vehicle::","").replace(":LOC","").replace("RLA","").replace("SUM","").replace("TCA","")}</span>
+                                    </span>
                                     ${vehicleOptionsBadges}
+                                </div>
+                                <div class="stops-icons-row">
                                     ${terminusBadgeHTML}
                                     ${delayBadgeHTML}
                                     <span class="stops-icon-badge">
