@@ -12388,6 +12388,70 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
             list.appendChild(card);
 
+            (async () => {
+                try {
+                    const timesContainer = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
+                    if (!timesContainer) return;
+
+                    const passages = await _computeStopPassages(fav.stopIds);
+                    
+                    if (!passages || Object.keys(passages).length === 0) {
+                        timesContainer.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+                        return;
+                    }
+
+                    timesContainer.innerHTML = '';
+                    const now = Date.now() / 1000;
+
+                    const allTimes = [];
+                    Object.values(passages).forEach(group => {
+                        (group.times || []).forEach(t => {
+                            allTimes.push({ ...t, line: group.routeId, dest: group.dest });
+                        });
+                    });
+                    allTimes.sort((a, b) => a.time - b.time);
+                    allTimes.slice(0, 5).forEach(arrival => {
+                        const diffMin = Math.round((arrival.time - now) / 60);
+                        const label = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
+                        const isRT = arrival.realtime === true;
+
+                        const pill = document.createElement('span');
+                        pill.style.cssText = `
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            font-size: 12px;
+                            font-weight: ${isRT ? '600' : '400'};
+                            padding: 3px 9px;
+                            border-radius: 20px;
+                            white-space: nowrap;
+                            border: 1px solid rgba(255,255,255,0.18);
+                            background: ${isRT ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.05)'};
+                            color: ${isRT ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.38)'};
+                        `;
+                        
+                        if (isRT) {
+                            pill.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="flex-shrink:0;" aria-label="Temps réel">
+                                <g><path d="M4 4a16 16 0 0 1 16 16"/><path d="M4 11a9 9 0 0 1 9 9"/></g>
+                                <circle cx="5" cy="19" r="1"/></svg>`;
+                        }
+                        
+                        const labelEl = document.createElement('span');
+                        labelEl.textContent = `${arrival.line} - ${label}`;
+                        pill.appendChild(labelEl);
+                        timesContainer.appendChild(pill);
+                    });
+                } catch (e) {
+                    console.warn('Erreur affichage horaires favoris:', e);
+                    const timesContainer = document.getElementById(`bs-stopfav-times-${fav.stopIds[0]}`);
+                    if (timesContainer) {
+                        timesContainer.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+                    }
+                }
+            })();
+
             async function _computeStopPassages(stopIdArr) {
                 const now = Date.now() / 1000;
                 const byLine = {};
