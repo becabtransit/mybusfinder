@@ -3562,6 +3562,12 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
             lastActiveMarkerId = markerId;
             lastActiveColor = color;
         }
+
+        const vehicleId = marker.id;
+        const badges = getVehicleOptionsBadges(vehicleId);
+        if (badges) {
+            _showVehicleOptionsInBottomSheet(vehicleId, badges, lineColors[route_id] || '#000000');
+        }
     });
 
     marker.on('popupclose', async function(e) {
@@ -3569,6 +3575,8 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         safeVibrate([50]);
         soundsUX('MBF_VehicleClose');
         restoreFilterState();
+
+        _hideVehicleOptionsFromBottomSheet();
         
         if (menubtm) {
             try {
@@ -9178,17 +9186,11 @@ async function fetchVehiclePositions() {
                                     <p class="vehicle-direction" id="popup-direction-${id}">➜ ${lastStopName}</p>
                                     <div>
                                         <div class="vehicle-brand-container">${vehicleBrandHtml}</div>
-                                        <div class="vehicle-options-container">
-                                            <div class="options-scroll-area">
-                                                <div class="options custom-scrollbar">
-                                                    <span class="parc-badge">
-                                                        <svg class="parc-icon" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
-                                                        <span class="parc-number">${(vehicle?.vehicle?.label?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || vehicle?.vehicle?.id?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || t("unknownparc")).toString().padStart(3, '0')}</span>
-                                                        <span class="parc-number-hidden">${(vehicle?.vehicle?.label?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || vehicle?.vehicle?.id?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || t("unknownparc"))}</span>
-                                                    </span>
-                                                    ${vehicleOptionsBadges}
-                                                </div>
-                                            </div>
+                                        <div style="margin-top: 6px;">
+                                            <span class="parc-badge">
+                                                <svg class="parc-icon" width="17" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M10 2.00879C7.52043 2.04466 6.11466 2.22859 5.17157 3.17167C4 4.34324 4 6.22886 4 10.0001V12.0001C4 15.7713 4 17.657 5.17157 18.8285C6.34315 20.0001 8.22876 20.0001 12 20.0001C15.7712 20.0001 17.6569 20.0001 18.8284 18.8285C20 17.657 20 15.7713 20 12.0001V10.0001C20 6.22886 20 4.34324 18.8284 3.17167C17.8853 2.22859 16.4796 2.04466 14 2.00879" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> <path d="M20 13H16M4 13H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M15.5 16H17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M7 16H8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M6 19.5V21C6 21.5523 6.44772 22 7 22H8.5C9.05228 22 9.5 21.5523 9.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M18 19.5V21C18 21.5523 17.5523 22 17 22H15.5C14.9477 22 14.5 21.5523 14.5 21V20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M20 9H21C21.5523 9 22 9.44772 22 10V11C22 11.3148 21.8518 11.6111 21.6 11.8L20 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4 9H3C2.44772 9 2 9.44772 2 10V11C2 11.3148 2.14819 11.6111 2.4 11.8L4 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path> <path d="M4.5 5H8.25M19.5 5H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path> </g></svg>
+                                                <span class="parc-number">${(vehicle?.vehicle?.label?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || vehicle?.vehicle?.id?.toString().padStart(3, '0').replace("TCAR:Vehicle::", "").replace(":LOC", "").replace("RLA", "Régie Lignes d'Azur - ").replace("SUM", "SNT SUMA - ").replace("TCA", "Transdev Côte d'Azur - ") || t("unknownparc")).toString().padStart(3, '0')}</span>
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -12296,6 +12298,130 @@ function _withBsHeightAnimation(fn, threshold = 12) {
     });
 }
 
+async function _fetchLineFavTimes(fav, idx, lineColor, textColorVal) {
+    const timesEl = document.getElementById(`bs-linefav-times-${idx}`);
+    if (!timesEl) return;
+
+    const stopIds = fav.stopIds || [];
+    const routeIds = [fav.routeId];
+    if (fav.nightRouteId) routeIds.push(fav.nightRouteId);
+
+    // Aussi chercher dynamiquement la variante nuit au cas où elle aurait changé
+    const nightVariant = _findNightVariant(fav.routeId);
+    if (nightVariant && !routeIds.includes(nightVariant)) routeIds.push(nightVariant);
+
+    const now = Date.now() / 1000;
+    const results = [];
+    const seenKeys = new Set();
+
+    for (const routeId of routeIds) {
+        const isNight = _isNightLine(lineName[routeId] || routeId);
+
+        Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
+            const nextStops = tripData.nextStops || [];
+            const cleanStops = stopIds.map(id => id.replace('0:', '').trim());
+            const match = nextStops.find(s => cleanStops.includes(s.stopId.replace('0:', '').trim()));
+            if (!match) return;
+
+            const marker = [...markerPool.active.values()]
+                .find(m => m.vehicleData?.trip?.tripId === tripId);
+            if (marker?.line !== routeId) return;
+
+            const stopTime = match.departureTime || match.arrivalTime;
+            if (!stopTime) return;
+            const secs = _parseStopTime(stopTime);
+            if (!secs || secs < now - 30) return;
+
+            const key = `rt|${tripId}|${Math.round(secs / 60)}`;
+            if (seenKeys.has(key)) return;
+            seenKeys.add(key);
+
+            results.push({
+                time: secs,
+                realtime: true,
+                isNight,
+                routeId,
+                vehicleLabel: marker?.vehicleData?.vehicle?.label
+                           || marker?.vehicleData?.vehicle?.id || null,
+                marker
+            });
+        });
+    }
+
+    results.sort((a, b) => a.time - b.time);
+
+    if (!results.length) {
+        timesEl.innerHTML = `<span class="bs-fav-no-data">${t("nodepartures")}</span>`;
+        return;
+    }
+
+    const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 4a16 16 0 0 1 16 16"/>
+        <path d="M4 11a9 9 0 0 1 9 9"/>
+        <circle cx="5" cy="19" r="1"/>
+    </svg>`;
+
+    const moonIcon = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>`;
+
+    timesEl.innerHTML = '';
+    results.slice(0, 5).forEach(item => {
+        const diffMin = Math.round((item.time - now) / 60);
+        const label = diffMin <= 1 ? t('imminent') : `${diffMin} ${t('min')}`;
+
+        const pill = document.createElement('span');
+        pill.style.cssText = `
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 20px;
+            white-space: nowrap;
+            border: 1px solid ${item.isNight ? 'rgba(130,100,255,0.4)' : 'rgba(255,255,255,0.18)'};
+            background: ${item.isNight ? 'rgba(80,50,200,0.25)' : 'rgba(255,255,255,0.14)'};
+            color: rgba(255,255,255,0.9);
+            cursor: ${item.marker ? 'pointer' : 'default'};
+            transition: transform 0.15s ease;
+        `;
+
+        pill.innerHTML = rssIcon;
+        const labelEl = document.createElement('span');
+        labelEl.textContent = label;
+        pill.appendChild(labelEl);
+
+        if (item.isNight) {
+            const moon = document.createElement('span');
+            moon.innerHTML = moonIcon;
+            moon.style.cssText = 'opacity:0.85; display:inline-flex; align-items:center;';
+            pill.appendChild(moon);
+        }
+
+        if (item.marker) {
+            pill.addEventListener('click', e => {
+                e.stopPropagation();
+                safeVibrate?.([30, 20, 30], true);
+                soundsUX?.('MBF_Menu_VehicleSelect');
+                map.setView(item.marker.getLatLng(), 15);
+                item.marker.openPopup();
+                BottomSheet.collapse();
+            });
+            pill.addEventListener('pointerenter', () => pill.style.transform = 'scale(1.05)');
+            pill.addEventListener('pointerleave', () => pill.style.transform = 'scale(1)');
+        }
+
+        timesEl.appendChild(pill);
+    });
+}
+
+function _isNightLine(lineNameStr) {
+    return /^N\d+/.test(lineNameStr);
+}
+
 function _refreshBottomSheetFavorites(withAnimation = false) {
     if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') return;
     const doRefresh = () => {
@@ -12676,6 +12802,80 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                 .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor, favorite))
                 .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
         });
+
+        const lineFavs = _getLineFavoritesForStops();
+        if (lineFavs.length) {
+            lineFavs.slice(0, 6).forEach((fav, idx) => {
+                const routeId = fav.routeId;
+                const stopIds = fav.stopIds || [];
+                const stopName = fav.stopName || '';
+                const lineColor = lineColors[routeId] || '#444';
+                const textColorVal = getTextColor(lineColor);
+                const lineLbl = lineName[routeId] || routeId;
+
+                const card = document.createElement('div');
+                card.className = 'bs-fav-card ripple-container';
+
+                card.innerHTML = `
+                    <div class="bs-fav-card-header" style="background:${lineColor};">
+                        <div class="bs-fav-beam bs-fav-beam1"></div>
+                        <div class="bs-fav-beam bs-fav-beam2"></div>
+                        <div class="bs-fav-line-badge" style="color:${textColorVal}; width:100%; justify-content:space-between;">
+                            <span style="display:flex;align-items:center;gap:5px;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
+                                            V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
+                                            20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
+                                            17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
+                                            18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                                </svg>
+                                ${t('line')} ${lineLbl}
+                            </span>
+                            <span style="font-size:10px;opacity:0.7;font-weight:400;">${stopName}</span>
+                        </div>
+                    </div>
+                    <div class="bs-fav-card-body">
+                        <div class="bs-fav-stop-row">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round"
+                                style="flex-shrink:0;opacity:.55;">
+                                <circle cx="12" cy="10" r="3"/>
+                                <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+                            </svg>
+                            <span class="bs-fav-stop-name">${stopName}</span>
+                        </div>
+                        <div class="bs-fav-times" id="bs-linefav-times-${idx}">
+                            <div class="bs-fav-loading">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round"
+                                    style="opacity:.5">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                <span>Chargement…</span>
+                            </div>
+                        </div>
+                    </div>`;
+
+                card.addEventListener('click', () => {
+                    safeVibrate?.([30], true);
+                    soundsUX?.('MBF_Popup');
+                    const cluster = window._stopClusters?.find(
+                        c => c.stopIds.some(id => stopIds.includes(id))
+                    );
+                    if (cluster) map?.setView([cluster.lat, cluster.lon], 17);
+                    openStopInBottomSheet(stopIds, stopName);
+                });
+
+                list.appendChild(card);
+
+                _fetchLineFavTimes(fav, idx, lineColor, textColorVal);
+            });
+        }
     }
     };
 
@@ -12835,6 +13035,64 @@ window.openStopFromPopup = function(stopId, stopName) {
     mapInstance.closePopup();
     openStopInBottomSheet(ids, name);
 };
+
+function _getLineFavoritesForStops() {
+    const key = `favoriteLineStops_${window.ACTIVE_NETWORK || 'palmbus'}`;
+    try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+}
+
+function _saveLineFavoritesForStops(favs) {
+    const key = `favoriteLineStops_${window.ACTIVE_NETWORK || 'palmbus'}`;
+    localStorage.setItem(key, JSON.stringify(favs));
+}
+
+function _isLineFavoriteForStop(routeId, stopIdArr) {
+    const favs = _getLineFavoritesForStops();
+    return favs.some(f => f.routeId === routeId && f.stopIds.some(id => stopIdArr.includes(id)));
+}
+
+function _toggleLineFavoriteForStop(routeId, stopIdArr, stopName, btn, textColor) {
+    const favs = _getLineFavoritesForStops();
+    const idx = favs.findIndex(f => f.routeId === routeId && f.stopIds.some(id => stopIdArr.includes(id)));
+
+    if (idx !== -1) {
+        favs.splice(idx, 1);
+        btn.textContent = '☆';
+        btn.style.background = 'rgba(255,255,255,0.15)';
+        soundsUX?.('MBF_SettingOff');
+    } else {
+        const nightRouteId = _findNightVariant(routeId);
+        favs.push({
+            routeId,
+            nightRouteId: nightRouteId || null,
+            stopIds: stopIdArr,
+            stopName,
+            addedAt: Date.now()
+        });
+        btn.textContent = '★';
+        btn.style.background = 'rgba(255,215,0,0.25)';
+        btn.style.transform = 'scale(1.3)';
+        setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
+        soundsUX?.('MBF_SettingOn');
+    }
+
+    _saveLineFavoritesForStops(favs);
+    safeVibrate?.([30], true);
+    _refreshBottomSheetFavorites(true);
+}
+
+function _findNightVariant(routeId) {
+    const lineLbl = lineName[routeId] || routeId;
+    const nightName = 'N' + lineLbl;
+    const nightEntry = Object.entries(lineName).find(([rid, name]) => name === nightName);
+    if (nightEntry) return nightEntry[0];
+
+    const nightById = Object.keys(lineColors).find(rid => {
+        const n = lineName[rid] || rid;
+        return /^N\d+/.test(n) && (n === nightName || rid === 'N' + routeId);
+    });
+    return nightById || null;
+}
 
 async function _computeStopPassages(stopIdArr) {
     const now = Date.now() / 1000;
@@ -13101,23 +13359,56 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh =
             overflow: hidden;
             background: ${color};
         `;
+        const stopFavKey = `${routeId}|||${stopIdArr.join(',')}`;
+        const isFavLine = _isLineFavoriteForStop(routeId, stopIdArr);
+
         header.innerHTML = `
             <div class="bs-fav-beam bs-fav-beam1"></div>
             <div class="bs-fav-beam bs-fav-beam2"></div>
-            <div style="display:flex; align-items:center; gap:8px; position:relative; z-index:1;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                    stroke="${textColor}" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
-                             V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
-                             20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
-                             17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
-                             18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                </svg>
-                <span style="font-size:16px; font-weight:700; color:${textColor};">
-                    ${t('line')} ${lineLbl}
-                </span>
+            <div style="display:flex; align-items:center; gap:8px; position:relative; z-index:1; justify-content:space-between; width:100%;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                        stroke="${textColor}" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
+                                V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
+                                20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
+                                17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
+                                18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                    </svg>
+                    <span style="font-size:16px; font-weight:700; color:${textColor};">
+                        ${t('line')} ${lineLbl}
+                    </span>
+                </div>
+                <button class="bs-line-fav-btn"
+                    data-route-id="${routeId}"
+                    data-stop-ids="${stopIdArr.join(',')}"
+                    data-stop-name="${stopView?.dataset?.stopName || ''}"
+                    style="background: ${isFavLine ? 'rgba(255,215,0,0.25)' : 'rgba(255,255,255,0.15)'};
+                        border: none; border-radius: 8px;
+                        width: 28px; height: 28px;
+                        display:flex; align-items:center; justify-content:center;
+                        cursor: pointer; color: ${textColor};
+                        font-size: 16px; line-height:1;
+                        transition: transform 0.2s ease, background 0.2s ease;
+                        position: relative; z-index:2;">
+                    ${isFavLine ? '★' : '☆'}
+                </button>
             </div>`;
+
+        setTimeout(() => {
+            card.querySelectorAll('.bs-line-fav-btn').forEach(btn => {
+                btn.addEventListener('pointerdown', e => e.stopPropagation());
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const rid = btn.dataset.routeId;
+                    const sids = btn.dataset.stopIds.split(',');
+                    const sname = btn.dataset.stopName;
+                    _toggleLineFavoriteForStop(rid, sids, sname, btn, textColor);
+                });
+            });
+        }, 0);
+
         card.appendChild(header);
 
         destinations.forEach((entry, destIdx) => {
@@ -13264,6 +13555,58 @@ function _restoreBottomSheetTitle() {
     });
 
     setTimeout(() => _refreshBottomSheetFavorites(true), 400);
+}
+
+function _showVehicleOptionsInBottomSheet(vehicleId, badgesHTML, lineColor) {
+    if (BottomSheet.expanded) return; // ne pas ouvrir la dynasheet si elle est fermee
+
+    let strip = document.getElementById('bs-vehicle-options-strip');
+    if (!strip) {
+        strip = document.createElement('div');
+        strip.id = 'bs-vehicle-options-strip';
+        strip.style.cssText = `
+            position: fixed;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            z-index: 9997;
+            background: ${lineColor}cc;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 20px;
+            padding: 8px 14px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            max-width: 90vw;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+            border: 1px solid rgba(255,255,255,0.2);
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.25,1.5,0.5,1);
+            font-family: 'League Spartan', sans-serif;
+            color: ${getTextColor(lineColor)};
+        `;
+        document.body.appendChild(strip);
+    }
+
+    strip.style.background = `${lineColor}cc`;
+    strip.style.color = getTextColor(lineColor);
+    strip.innerHTML = badgesHTML || '';
+
+    requestAnimationFrame(() => {
+        strip.style.opacity = '1';
+        strip.style.transform = 'translateX(-50%) translateY(0)';
+    });
+}
+
+function _hideVehicleOptionsFromBottomSheet() {
+    const strip = document.getElementById('bs-vehicle-options-strip');
+    if (!strip) return;
+    strip.style.opacity = '0';
+    strip.style.transform = 'translateX(-50%) translateY(20px)';
+    setTimeout(() => strip.remove(), 350);
 }
 
 
