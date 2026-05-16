@@ -228,29 +228,13 @@ function createOptimizedCore($extractDir, $routesFile, $stopsFile, $outputFile) 
     if (empty($calendarById)) {
         $calendarById = new stdClass();
     }
-
-    $tripRouteMap = [];
-    $tripsFile = $extractDir . '/trips.txt';
-    if (file_exists($tripsFile)) {
-        $fh = fopen($tripsFile, 'r');
-        $headers = fgetcsv($fh);
-        $tripIdIdx  = array_search('trip_id',  $headers);
-        $routeIdIdx = array_search('route_id', $headers);
-        while (($row = fgetcsv($fh)) !== false) {
-            $tripId  = $row[$tripIdIdx]  ?? '';
-            $routeId = $row[$routeIdIdx] ?? '';
-            if ($tripId && $routeId) $tripRouteMap[$tripId] = $routeId;
-        }
-        fclose($fh);
-    }
     
     $core = [
-        'routes'       => $routesExpanded,
-        'stops'        => $stopsExpanded,
-        'calendar'     => $calendarById,
-        'calendarDates'=> $calendarDatesByDate,
-        'tripRouteMap' => $tripRouteMap,
-        'generated'    => time()
+        'routes' => $routesExpanded,
+        'stops' => $stopsExpanded,
+        'calendar' => $calendarById,
+        'calendarDates' => $calendarDatesByDate,
+        'generated' => time()
     ];
 
     $json = json_encode($core);
@@ -669,28 +653,6 @@ if (isset($_GET['action'])) {
                     file_put_contents($routeCacheFile, $json);
                     echo $json;
                 }
-                break;
-
-            case 'trip_index':
-                if (!file_exists($tripIndexFile)) {
-                    if (!file_exists($extractDir . '/trips.txt')) {
-                        $zip = new ZipArchive();
-                        if ($zip->open($zipCacheFile) === TRUE) {
-                            $zip->extractTo($extractDir, 'trips.txt');
-                            $zip->close();
-                        }
-                    }
-                    buildTripIndex($extractDir, $tripIndexFile);
-                }
-                if (!file_exists($tripIndexFile)) {
-                    http_response_code(500);
-                    echo json_encode(['error' => 'trip_index introuvable']);
-                    exit;
-                }
-                header("Content-Type: application/json");
-                $raw = file_get_contents($tripIndexFile);
-                header("Content-Encoding: gzip");
-                echo gzencode($raw, 1);
                 break;
                 
             default:
