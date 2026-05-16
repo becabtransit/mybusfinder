@@ -10947,10 +10947,10 @@ let worker;
 let fetchInProgress = false;
 
 const FetchManager = {
-    baseInterval: 4000,
-    currentInterval: 4000,
-    minInterval: 4000,
-    maxInterval: 30000,
+    baseInterval: 8000,
+    currentInterval: 8000,
+    minInterval: 8000,
+    maxInterval: 8000,
     consecutiveErrors: 0,
     consecutiveSuccess: 0,
     
