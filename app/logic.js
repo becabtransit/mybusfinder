@@ -8093,7 +8093,6 @@ function toggleVehicleOptions(vehicleId) {
         optionsEl.style.marginTop = '6px';
         optionsEl.dataset.open    = 'true';
         if (badgeEl) {
-            badgeEl.style.background = 'rgba(255,255,255,0.22)';
             badgeEl.style.transform  = 'scale(1.06)';
             setTimeout(() => {
                 if (badgeEl) badgeEl.style.transform = 'scale(1)';
@@ -9242,8 +9241,7 @@ async function fetchVehiclePositions() {
                                         <div class="vehicle-brand-container">${vehicleBrandHtml}</div>
                                         <div class="vehicle-options-container">
                                             <div class="options-scroll-area">
-                                                <div class="options custom-scrollbar" 
-                                                    id="vehicle-options-${id}"
+                                                <div id="vehicle-options-${id}"
                                                     style="
                                                         max-height: 0;
                                                         overflow: hidden;
@@ -9253,7 +9251,9 @@ async function fetchVehiclePositions() {
                                                                     margin-top 0.3s ease;
                                                         margin-top: 0;
                                                     ">
-                                                    ${vehicleOptionsBadges}
+                                                    <div class="options custom-scrollbar">
+                                                        ${vehicleOptionsBadges}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
