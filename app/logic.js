@@ -11074,34 +11074,27 @@ async function fetchTripUpdates() {
 
 function processTripsSync(data) {
     const updates = {};
-    
     if (!data.entity) return updates;
-    
     data.entity.forEach(entity => {
         if (entity.tripUpdate) {
-            const tripId = entity.tripUpdate.trip.tripId;
+            const tu = entity.tripUpdate;
+            const tripId = tu.trip.tripId;
             const stopUpdates = [];
-            
-            if (entity.tripUpdate.stopTimeUpdate) {
-                entity.tripUpdate.stopTimeUpdate.forEach(stopUpdate => {
+            if (tu.stopTimeUpdate) {
+                tu.stopTimeUpdate.forEach(stopUpdate => {
                     const stopId = stopUpdate.stopId || '';
                     const arrivalDelay = stopUpdate.arrival ? stopUpdate.arrival.delay : 0;
                     const departureDelay = stopUpdate.departure ? stopUpdate.departure.delay : 0;
-                    
-                    stopUpdates.push({
-                        stopId: stopId,
-                        arrivalDelay: arrivalDelay,
-                        departureDelay: departureDelay
-                    });
+                    stopUpdates.push({ stopId, arrivalDelay, departureDelay });
                 });
             }
-            
             updates[tripId] = {
-                stopUpdates: stopUpdates
+                stopUpdates,
+                routeId: tu.trip.routeId || null,
+                directionId: tu.trip.directionId ?? null 
             };
         }
     });
-    
     return updates;
 }
 
@@ -12459,68 +12452,40 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
     if (favorites.length) {
         favorites.slice(0, 6).forEach((favorite, idx) => {
-            const routeId   = favorite.routeId   || '';
-            const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
-            const destName  = favorite.destinationName || favorite.destinationId || '';
+            const routeId   = favorite.routeId || '';
+            const stopName  = favorite.stopName || favorite.stopId || 'Arrêt';
             const lineName_ = favorite.routeName || lineName[routeId] || routeId;
             const lineColor = lineColors[routeId] || '#444';
             const textColor = getTextColor(lineColor);
 
             const card = document.createElement('div');
-            card.className     = 'bs-fav-card ripple-container';
+            card.className = 'bs-card ripple-container';
             card.style.cssText = `animation-delay:${idx * 55}ms`;
 
             card.innerHTML = `
-                <div class="bs-fav-card-header" style="background:${lineColor};">
+                <div style="background:${lineColor};padding:11px 14px 10px;display:flex;align-items:center;gap:8px;position:relative;overflow:hidden;">
                     <div class="bs-fav-beam bs-fav-beam1"></div>
                     <div class="bs-fav-beam bs-fav-beam2"></div>
-                    <div class="bs-fav-line-badge" style="color:${textColor};">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
-                                     V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
-                                     20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
-                                     17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
-                                     18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                        </svg>
-                        <span>Ligne ${lineName_}</span>
-                    </div>
-                    <p class="bs-fav-dest" style="color:${textColor};">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2.5"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                        ${destName}
-                    </p>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;position:relative;z-index:1;">
+                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239 20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315 17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046 18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                    </svg>
+                    <span style="font-size:15px;font-weight:600;color:${textColor};position:relative;z-index:1;flex:1;">
+                        ${t('line')} ${lineName_}
+                    </span>
                 </div>
-                <div class="bs-fav-card-body">
-                    <div class="bs-fav-stop-row">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round"
-                             style="flex-shrink:0;opacity:.55;">
-                            <circle cx="12" cy="10" r="3"/>
-                            <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
-                        </svg>
-                        <span class="bs-fav-stop-name">${stopName}</span>
-                    </div>
-                    <div class="bs-fav-times" id="bs-fav-times-${idx}">
-                        <div class="bs-fav-loading">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                                 stroke="currentColor" stroke-width="2"
-                                 stroke-linecap="round" stroke-linejoin="round"
-                                 style="opacity:.5">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polyline points="12 6 12 12 16 14"/>
-                            </svg>
-                            <span>Chargement…</span>
-                        </div>
+                <div style="padding:6px 14px 4px;display:flex;align-items:center;gap:5px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.35);">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/></svg>
+                    ${stopName}
+                </div>
+                <div id="bs-fav-body-${idx}">
+                    <div style="padding:10px 14px 12px;font-size:12px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:6px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        Chargement…
                     </div>
                 </div>`;
 
-            card.addEventListener('click', () => {
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('[data-trip]')) return;
                 safeVibrate?.([30], true);
                 soundsUX('MBF_Menu_LineSelect');
                 BottomSheet.collapse();
@@ -12530,8 +12495,71 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
             list.appendChild(card);
 
             fetchRealtimeDataForFavorite(favorite)
-                .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor, favorite))
-                .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
+                .then(arrivals => {
+                    const body = document.getElementById(`bs-fav-body-${idx}`);
+                    if (!body) return;
+
+                    const now = Date.now() / 1000;
+                    const rssIcon = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;opacity:.7"><path d="M4 4a16 16 0 0 1 16 16"/><path d="M4 11a9 9 0 0 1 9 9"/><circle cx="5" cy="19" r="1"/></svg>`;
+
+                    if (!arrivals || arrivals.length === 0) {
+                        body.innerHTML = `<div style="padding:10px 14px 12px;font-size:12px;color:rgba(255,255,255,.3);font-style:italic;">${t('nodepartures')}</div>`;
+                        return;
+                    }
+
+                    const byDest = {};
+                    arrivals.forEach(a => {
+                        const key = a.destination || 'Destination inconnue';
+                        if (!byDest[key]) byDest[key] = [];
+                        byDest[key].push(a);
+                    });
+
+                    const groups = Object.entries(byDest)
+                        .sort(([,a],[,b]) => (a[0]?.time ?? Infinity) - (b[0]?.time ?? Infinity));
+
+                    body.innerHTML = groups.map(([ dest, times ], gi) => {
+                        const border = gi > 0 ? 'border-top:0.5px solid rgba(255,255,255,.07);' : '';
+                        const pills = times.map(t2 => {
+                            const diffMin = Math.round((t2.time - now) / 60);
+                            const label = diffMin <= 1 ? t('imminent') : `${diffMin} min`;
+                            const veh = t2.vehicleLabel
+                                ? ` <span style="opacity:.5;font-size:10px;font-weight:400">· ${String(t2.vehicleLabel).replace(/[A-Z]+:/g,'').padStart(3,'0')}</span>`
+                                : '';
+                            const isNow = diffMin <= 1 && t2.realtime;
+                            const pillBg = isNow ? lineColor : t2.realtime ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.05)';
+                            const pillColor = isNow ? textColor : t2.realtime ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.38)';
+                            const rtIcon = t2.realtime ? rssIcon : '';
+                            return `<span style="font-size:12px;font-weight:${t2.realtime?'600':'400'};font-style:${t2.realtime?'normal':'italic'};padding:4px 9px;border-radius:20px;border:0.5px solid ${isNow?'transparent':'rgba(255,255,255,.15)'};background:${pillBg};color:${pillColor};white-space:nowrap;display:inline-flex;align-items:center;gap:3px;" ${t2.marker ? `data-trip="${t2.tripId}"` : ''}>${rtIcon}${label}${veh}</span>`;
+                        }).join('');
+                        return `
+                            <div style="padding:8px 14px 10px;${border}">
+                                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                                    <span style="font-size:12px;color:rgba(255,255,255,.65);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${dest}</span>
+                                </div>
+                                <div style="display:flex;flex-wrap:wrap;gap:5px;">${pills}</div>
+                            </div>`;
+                    }).join('');
+
+                    body.querySelectorAll('[data-trip]').forEach(pill => {
+                        pill.style.cursor = 'pointer';
+                        pill.addEventListener('click', e => {
+                            e.stopPropagation();
+                            const marker = [...markerPool.active.values()]
+                                .find(m => m.vehicleData?.trip?.tripId === pill.dataset.trip);
+                            if (!marker) return;
+                            safeVibrate?.([30, 20, 30], true);
+                            soundsUX('MBF_Menu_VehicleSelect');
+                            map.setView(marker.getLatLng(), 15);
+                            marker.openPopup();
+                            BottomSheet.collapse();
+                        });
+                    });
+                })
+                .catch(() => {
+                    const body = document.getElementById(`bs-fav-body-${idx}`);
+                    if (body) body.innerHTML = `<div style="padding:10px 14px 12px;font-size:12px;color:rgba(255,255,255,.3);font-style:italic;">${t('nodepartures')}</div>`;
+                });
         });
     }
     };
@@ -12703,23 +12731,36 @@ async function _computeStopPassages(stopIdArr) {
         return cleanStops.includes(sid.replace('0:', '').trim());
     }
 
+    function resolveRouteId(tripId) {
+        if (tripUpdates[tripId]?.routeId) return tripUpdates[tripId].routeId;
+        const marker = [...markerPool.active.values()]
+            .find(m => m.vehicleData?.trip?.tripId === tripId);
+        if (marker?.line && marker.line !== 'Inconnu') return marker.line;
+        const trm = window._gtfsCalendarCache?.tripRouteMap;
+        if (trm?.[tripId]) return trm[tripId];
+        return null;
+    }
+
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
         const match = nextStops.find(s => matchStop(s.stopId));
         if (!match) return;
 
+        const routeId = resolveRouteId(tripId);
+        if (!routeId) return; 
+
         const marker = [...markerPool.active.values()]
             .find(m => m.vehicleData?.trip?.tripId === tripId);
-
-        const routeId = marker?.line || 'Inconnu';
-        const dest    = marker?.destination || 'Destination inconnue';
+        const dest = marker?.destination || tripData.lastStopId
+            ? (stopNameMap[tripData.lastStopId] || tripData.lastStopId || 'Destination inconnue')
+            : 'Destination inconnue';
         const vehicleLabel = marker?.vehicleData?.vehicle?.label
             || marker?.vehicleData?.vehicle?.id || null;
 
         const stopTime = match.departureTime || match.arrivalTime;
         if (!stopTime) return;
 
-        let arrivalSecs = _parseStopTime(stopTime);
+        const arrivalSecs = _parseStopTime(stopTime);
         if (arrivalSecs === null || arrivalSecs < now - 30) return;
 
         const dedupKey = `rt|${tripId}|${Math.round(arrivalSecs / 60)}`;
@@ -12745,9 +12786,8 @@ async function _computeStopPassages(stopIdArr) {
                 { cache: 'no-store' }
             );
             if (r.ok) {
-                const json = await r.json();
-                window.staticStopTimes = json;
-                window.stopTimesReady  = true;
+                window.staticStopTimes = await r.json();
+                window.stopTimesReady = true;
             }
         } catch (e) {
             console.warn('Chargement stop_times échoué:', e);
@@ -12756,7 +12796,8 @@ async function _computeStopPassages(stopIdArr) {
 
     if (window.staticStopTimes && Object.keys(window.staticStopTimes).length > 0) {
         const { activeIds, tripServiceMap } = await _getActiveServiceIdsToday();
-        const rtTripIds = new Set(Object.keys(tripUpdates));
+
+        const tripRouteMap = window._gtfsCalendarCache?.tripRouteMap || {};
 
         const rtByTrip = {};
         Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
@@ -12785,6 +12826,11 @@ async function _computeStopPassages(stopIdArr) {
             const timeStr = stopData.d || stopData.a;
             if (!timeStr) continue;
 
+            const routeId = resolveRouteId(tripId)
+                || tripRouteMap[tripId]
+                || null;
+            if (!routeId) continue; 
+
             const parts = timeStr.split(':').map(Number);
             const d = new Date();
             let theoreticalSecs = new Date(
@@ -12801,31 +12847,25 @@ async function _computeStopPassages(stopIdArr) {
 
             if (rtByTrip[tripId]?.[matchedStopId]) {
                 const rtTime = _parseStopTime(rtByTrip[tripId][matchedStopId]);
-                if (rtTime !== null) {
-                    finalSecs = rtTime;
-                    isRealtime = true;
-                }
-                const rtMarkerObj = [...markerPool.active.values()]
-                    .find(m => m.vehicleData?.trip?.tripId === tripId);
-                if (rtMarkerObj) {
-                    rtMarker = rtMarkerObj;
-                    rtVehicleLabel = rtMarkerObj.vehicleData?.vehicle?.label
-                        || rtMarkerObj.vehicleData?.vehicle?.id || null;
-                }
+                if (rtTime !== null) { finalSecs = rtTime; isRealtime = true; }
+                rtMarker = [...markerPool.active.values()]
+                    .find(m => m.vehicleData?.trip?.tripId === tripId) || null;
+                rtVehicleLabel = rtMarker?.vehicleData?.vehicle?.label
+                    || rtMarker?.vehicleData?.vehicle?.id || null;
             }
 
             if (finalSecs < now - 30) continue;
 
             const dedupKey = `st|${tripId}|${Math.round(finalSecs / 60)}`;
-            if (seenKeys.has(dedupKey)) continue;
             const rtDedupKey = `rt|${tripId}|${Math.round(finalSecs / 60)}`;
-            if (seenKeys.has(rtDedupKey)) continue;
+            if (seenKeys.has(dedupKey) || seenKeys.has(rtDedupKey)) continue;
             seenKeys.add(dedupKey);
 
-            const marker = rtMarker || [...markerPool.active.values()]
-                .find(m => m.vehicleData?.trip?.tripId === tripId);
-            const routeId = marker?.line || _guessRouteFromTrip(tripId);
-            const dest    = marker?.destination || 'Destination inconnue';
+            const dest = rtMarker?.destination
+                || (tripData => tripData?.lastStopId
+                    ? (stopNameMap[tripData.lastStopId] || tripData.lastStopId)
+                    : null)(tripUpdates[tripId])
+                || 'Destination inconnue';
 
             const key = `${routeId}|||${dest}`;
             if (!byLine[key]) byLine[key] = { routeId, dest, times: [] };
@@ -12841,11 +12881,9 @@ async function _computeStopPassages(stopIdArr) {
 
     Object.values(byLine).forEach(group => {
         group.times.sort((a, b) => a.time - b.time);
-        group.times = group.times.filter((t, i, arr) => {
-            if (i === 0) return true;
-            return (t.time - arr[i - 1].time) > 90;
-        });
-        group.times = group.times.slice(0, 8);
+        group.times = group.times.filter((t, i, arr) =>
+            i === 0 || (t.time - arr[i - 1].time) > 90
+        );
     });
 
     return byLine;
@@ -13245,8 +13283,16 @@ async function _getActiveServiceIdsToday() {
             window._gtfsCalendarCache = {
                 calendar: d.calendar || {},
                 calendarDates: d.calendarDates || {},
-                tripServiceMap
+                tripServiceMap,
+                tripRouteMap: d.tripRouteMap || {} 
             };
+
+            if (!Object.keys(window._gtfsCalendarCache.tripRouteMap).length) {
+                fetch(netPath('proxy-cors/proxy_gtfs.php?action=trip_index'))
+                    .then(r => r.json())
+                    .then(map => { window._gtfsCalendarCache.tripRouteMap = map; })
+                    .catch(e => console.warn('trip_index non disponible:', e));
+            }
         }
 
         const { calendar, calendarDates, tripServiceMap } = window._gtfsCalendarCache;
