@@ -3547,6 +3547,8 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
         localStorage.setItem('mbf_vehicles_consulted', (consulted + 1).toString());
         soundsUX('MBF_VehicleOpen');
         saveAndFilterSingleLine(route_id);
+        const id = this.id;
+
 
         _showVehicleOptionsInBottomSheet(id, vehicleOptionsBadges, vehicleBrandHtml, line, lastStopName);
 
