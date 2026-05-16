@@ -9262,35 +9262,13 @@ async function fetchVehiclePositions() {
                                 </div>
                             </div>
 
-                            <div class="stops-section" style="color: ${textColor}; display: flex; flex-direction: column;">
-                                <div id="popup-header-${id}" style="flex-shrink: 0; position: relative; z-index: 2;">
-                                    ${stopsHeaderText}
-                                </div>
-                                <div style="position: relative;">
-                                    <div style="
-                                        position: absolute;
-                                        top: 0; left: 0; right: 0;
-                                        height: 28px;
-                                        z-index: 2;
-                                        pointer-events: none;
-                                        backdrop-filter: blur(8px);
-                                        -webkit-backdrop-filter: blur(8px);
-                                        mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
-                                        -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
-                                    "></div>
-                                    <div style="
-                                        overflow-y: auto;
-                                        max-height: 160px;
-                                        scrollbar-width: none;
-                                        -ms-overflow-style: none;
-                                        position: relative;
-                                        z-index: 1;
-                                    ">
-                                        <div id="popup-stops-${id}" class="nextStopsContent next-stops-content">
-                                            ${nextStopsHTML}
-                                        </div>
+                            <div class="stops-section" style="color: ${textColor};">
+                                <div class="stops-header" id="popup-header-${id}">${stopsHeaderText}</div>
+                                <ul>
+                                    <div id="popup-stops-${id}" class="nextStopsContent next-stops-content">
+                                        ${nextStopsHTML}
                                     </div>
-                                </div>
+                                </ul>
                             </div>
                     `;
 
