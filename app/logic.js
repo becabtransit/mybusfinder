@@ -3694,10 +3694,10 @@ const AnimationManager = {
     activeAnimations: new Map(),
     
     easeInOutQuad(t) {
-        return t;
+        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     },
     
-    animateMarker(marker, newPosition, duration = 8000) {
+    animateMarker(marker, newPosition, duration = 1000) {
         const markerId = marker.id;
         
         // Annuler l'animation existante
@@ -10947,10 +10947,10 @@ let worker;
 let fetchInProgress = false;
 
 const FetchManager = {
-    baseInterval: 8000,
-    currentInterval: 8000,
-    minInterval: 8000,
-    maxInterval: 8000,
+    baseInterval: 4000,
+    currentInterval: 4000,
+    minInterval: 4000,
+    maxInterval: 30000,
     consecutiveErrors: 0,
     consecutiveSuccess: 0,
     
