@@ -264,6 +264,8 @@ function processTripUpdates(data) {
             
             tripUpdates[tripInfo.tripId] = {
                 tripInfo,
+                routeId: tripInfo.routeId || null,
+                directionId: tripInfo.directionId ?? null,
                 stopUpdates: processedStops,
                 lastStopId,
                 nextStops,
