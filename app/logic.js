@@ -8567,6 +8567,13 @@ async function fetchVehiclePositions() {
                 let currentStopIndex = nextStops.findIndex(stop => stop.stopId.replace("0:", "") === stopId.replace("0:", ""));
                 const now = Math.floor(Date.now() / 1000);
 
+                let pastStops = [];
+                if (currentStopIndex > 0) {
+                    pastStops = nextStops.slice(0, currentStopIndex).filter(stop =>
+                        stop.delay === null || stop.delay >= -300
+                    );
+                }
+
                 let filteredStops = [];
                 if (currentStopIndex !== -1) {
                     filteredStops = nextStops.slice(currentStopIndex).filter(stop => {
