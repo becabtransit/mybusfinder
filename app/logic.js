@@ -12246,10 +12246,6 @@ function _animateBsHeight(targetHeight, durationMs = 380) {
   const sheet = document.getElementById('bottom-sheet');
   if (!sheet) return;
 
-  if (sheet._heightRaf) {
-    cancelAnimationFrame(sheet._heightRaf);
-    sheet._heightRaf = null;
-  }
   if (sheet._overflowTimeout) {
     clearTimeout(sheet._overflowTimeout);
     sheet._overflowTimeout = null;
