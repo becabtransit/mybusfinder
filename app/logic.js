@@ -8958,52 +8958,6 @@ async function fetchVehiclePositions() {
                 const backgroundColor = lineColors[line] || '#000000';
                 const textColor = getTextColorForBackground(backgroundColor);
 
-                const nextService = _getNextServiceForVehicle(tripId, id);
-                const _nextSvcTextC = TextColorUtils.getOptimal(backgroundColor);
-
-                let nextServiceHTML = '';
-                if (window.stopTimesReady) {
-                    if (!nextService) {
-                        nextServiceHTML = `
-                        <div style="margin-top:6px;padding:7px 10px;background:rgba(0,0,0,0.12);
-                            border-radius:10px;font-size:11px;opacity:0.6;
-                            display:flex;align-items:center;gap:6px;color:${_nextSvcTextC};">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                                <polyline points="9 22 9 12 15 12 15 22"/>
-                            </svg>
-                            ${t("retourdepot")}
-                        </div>`;
-                    } else {
-                        const _nxtLineTextC = TextColorUtils.getOptimal(nextService.color);
-                        nextServiceHTML = `
-                        <div style="margin-top:6px;padding:7px 10px;background:rgba(0,0,0,0.12);
-                            border-radius:10px;font-size:11px;
-                            display:flex;align-items:center;gap:7px;
-                            color:${_nextSvcTextC};flex-wrap:nowrap;overflow:hidden;">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" style="flex-shrink:0;opacity:0.6;">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polyline points="12 6 12 12 16 14"/>
-                            </svg>
-                            <span style="opacity:0.65;white-space:nowrap;flex-shrink:0;">${t("nextservice")}</span>
-                            <span style="background:${nextService.color};color:${_nxtLineTextC};
-                                padding:1px 7px;border-radius:6px;font-weight:700;
-                                font-size:11px;white-space:nowrap;flex-shrink:0;">
-                                ${nextService.lineName}
-                            </span>
-                            <span style="opacity:0.8;white-space:nowrap;overflow:hidden;
-                                text-overflow:ellipsis;flex:1;">➜ ${nextService.terminus}</span>
-                            <span style="font-weight:600;white-space:nowrap;flex-shrink:0;margin-left:auto;">
-                                ${nextService.departure}
-                            </span>
-                        </div>`;
-                    }
-                }
-
                 let arrivalTime = 'Inconnu';
                 if (scheduledArrival) {
                     const arrivalDate = new Date(scheduledArrival * 1000);
@@ -9128,104 +9082,11 @@ async function fetchVehiclePositions() {
                     }
                 }
 
-                function _getNextServiceForVehicle(currentTripId) {
-                    if (!currentTripId || currentTripId === 'Inconnu') return null;
-
-                    const tripData = tripUpdates[currentTripId];
-                    if (!tripData) return null;
-
-                    const stops = tripData.nextStops || [];
-                    if (!stops.length) return null;
-
-                    const now = Date.now() / 1000;
-
-                    let lastFutureSecs = 0;
-                    let lastFutureStop = null;
-
-                    stops.forEach(stop => {
-                        const t = _parseStopTime(stop.departureTime || stop.arrivalTime);
-                        if (t !== null && t > now && t > lastFutureSecs) {
-                            lastFutureSecs = t;
-                            lastFutureStop = stop;
-                        }
-                    });
-
-                    if (!lastFutureStop || !lastFutureSecs) return null;
-
-                    const minsLeft = (lastFutureSecs - now) / 60;
-                    if (minsLeft > 30) return null; // Pas encore proche de la fin
-
-                    const lastStopId = lastFutureStop.stopId?.replace('0:', '').trim();
-                    const lastStopName = stopNameMap[lastStopId] || '';
-
-                    let bestCandidate = null;
-                    let bestStartSecs = Infinity;
-
-                    for (const [tripId, data] of Object.entries(tripUpdates)) {
-                        if (tripId === currentTripId) continue;
-
-                        const candidateStops = data.nextStops || [];
-                        if (!candidateStops.length) continue;
-
-                        let firstFutureSecs = Infinity;
-                        let firstFutureStop = null;
-                        candidateStops.forEach(stop => {
-                            const t = _parseStopTime(stop.departureTime || stop.arrivalTime);
-                            if (t !== null && t > now && t < firstFutureSecs) {
-                                firstFutureSecs = t;
-                                firstFutureStop = stop;
-                            }
-                        });
-
-                        if (firstFutureSecs === Infinity || !firstFutureStop) continue;
-
-                        const gap = firstFutureSecs - lastFutureSecs;
-                        if (gap < -300 || gap > 5400) continue;
-                        if (firstFutureSecs < bestStartSecs) {
-                            bestStartSecs = firstFutureSecs;
-
-                            let candidateLastSecs = 0;
-                            let candidateLastStop = null;
-                            candidateStops.forEach(stop => {
-                                const t = _parseStopTime(stop.departureTime || stop.arrivalTime);
-                                if (t !== null && t > now && t > candidateLastSecs) {
-                                    candidateLastSecs = t;
-                                    candidateLastStop = stop;
-                                }
-                            });
-
-                            const candidateLastStopId = candidateLastStop?.stopId?.replace('0:', '').trim();
-                            const terminus = stopNameMap[candidateLastStopId] || '';
-
-                            const candidateMarker = [...markerPool.active.values()]
-                                .find(m => m.vehicleData?.trip?.tripId === tripId);
-                            const routeId  = candidateMarker?.line || _guessRouteFromTrip(tripId);
-
-                            const depD = new Date(firstFutureSecs * 1000);
-                            const depStr = `${String(depD.getHours()).padStart(2,'0')}:${String(depD.getMinutes()).padStart(2,'0')}`;
-
-                            bestCandidate = {
-                                tripId,
-                                routeId,
-                                lineName:  lineName[routeId] || routeId,
-                                color:     lineColors[routeId] || '#444',
-                                departure: depStr,
-                                terminus,
-                                startSecs: firstFutureSecs,
-                                isConfirmed: true
-                            };
-                        }
-                    }
-
-                    return bestCandidate;
-                }
-
-                function generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id, nextServiceHTML) {
+                function generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
                     const cacheKey = `${id}-${line}-${nextStopsHTML.substring(0, 80)}`;
                     if (contentCache.get(cacheKey)) {
                         return contentCache.get(cacheKey);
                     }
-                    nextServiceHTML = nextServiceHTML || '';
                     const popupContent = `
                         <div class="popup-container" data-vehicle-id="${id}" style="box-shadow: 0px 0px 20px 0px ${backgroundColor}9c; background-color: ${backgroundColor}9c; color: ${textColor};">
                             
@@ -9276,7 +9137,6 @@ async function fetchVehiclePositions() {
                                         ${nextStopsHTML}
                                     </div>
                                 </ul>
-                                ${nextServiceHTML}
                             </div>
                     `;
 
@@ -9353,11 +9213,11 @@ async function fetchVehiclePositions() {
                     return updated;
                 }
 
-                function updatePopupContent(marker, vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id, nextServiceHTML) {
+                function updatePopupContent(marker, vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id) {
                     const popup = marker.getPopup();
                     if (!popup) return false;
                     
-                    const newContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id, nextServiceHTML);
+                    const newContent = generatePopupContent(vehicle, line, lastStopName, nextStopsHTML, vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText, backgroundColor, textColor, id);
                     
                     // màj si le contenu a changé
                     if (popup.getContent() !== newContent) {
@@ -9478,7 +9338,7 @@ async function fetchVehiclePositions() {
                         const newContent = generatePopupContent(
                             vehicle, line, lastStopName, nextStopsHTML,
                             vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText,
-                            backgroundColor, textColor, id, nextServiceHTML
+                            backgroundColor, textColor, id
                         );
                         const popup = marker.getPopup();
                         if (popup) {
@@ -9532,7 +9392,7 @@ async function fetchVehiclePositions() {
                             const popupContent = generatePopupContent(
                                 vehicle, line, lastStopName, nextStopsHTML,
                                 vehicleOptionsBadges, vehicleBrandHtml, stopsHeaderText,
-                                backgroundColor, textColor, id, nextServiceHTML
+                                backgroundColor, textColor, id
                             );
                             popup.setContent(popupContent);
                             popup.update();
