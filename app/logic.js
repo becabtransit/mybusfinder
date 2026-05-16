@@ -13304,6 +13304,7 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh =
         `;
 
         const isFavLine = _isLineFavoriteForStop(routeId);
+        const lname = lineName[routeId] || routeId;
         const header = document.createElement('div');
         header.style.cssText = `
             position: relative;
