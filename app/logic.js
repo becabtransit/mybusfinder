@@ -13992,6 +13992,8 @@ async function fetchRealtimeDataForFavorite(favorite) {
             tripServiceMap = cal.tripServiceMap;
         } catch(e) {}
 
+        const tripRouteMap = window._gtfsCalendarCache?.tripRouteMap || {};
+
         for (const [tripId, tripStops] of Object.entries(window.staticStopTimes)) {
             if (activeIds.length > 0) {
                 const serviceId = tripServiceMap[tripId];
@@ -13999,16 +14001,20 @@ async function fetchRealtimeDataForFavorite(favorite) {
             }
 
             const stopData = tripStops[cleanStop]
-                          || tripStops[`0:${cleanStop}`]
-                          || tripStops[stopId];
+                        || tripStops[`0:${cleanStop}`]
+                        || tripStops[stopId];
             if (!stopData) continue;
 
             const timeStr = stopData.d || stopData.a;
             if (!timeStr) continue;
 
             const rtMarker = rtMarkerByTrip[tripId] || null;
-            if (routeId && rtMarker && rtMarker.line !== routeId) continue;
+            const resolvedRouteId = rtMarker?.line
+                || tripUpdates[tripId]?.routeId
+                || tripRouteMap[tripId]
+                || null;
 
+            if (routeId && resolvedRouteId && resolvedRouteId !== routeId) continue;
             const parts = timeStr.split(':').map(Number);
             const d = new Date();
             let theoreticalSecs = new Date(
@@ -14019,10 +14025,16 @@ async function fetchRealtimeDataForFavorite(favorite) {
 
             let finalSecs  = theoreticalSecs;
             let isRealtime = false;
-            const rtTime   = rtTimeByTripStop[tripId]?.[cleanStop];
+            let rtVehicleLabel = null;
+
+            const rtTime = rtTimeByTripStop[tripId]?.[cleanStop];
             if (rtTime !== null && rtTime !== undefined) {
                 finalSecs  = rtTime;
                 isRealtime = true;
+            }
+            if (rtMarker) {
+                rtVehicleLabel = rtMarker.vehicleData?.vehicle?.label
+                            || rtMarker.vehicleData?.vehicle?.id || null;
             }
 
             if (finalSecs < now - 60) continue;
@@ -14032,15 +14044,17 @@ async function fetchRealtimeDataForFavorite(favorite) {
             if (seenKeys.has(dedupRt) || seenKeys.has(dedupSt)) continue;
             seenKeys.add(dedupSt);
 
+            const dest = rtMarker?.destination
+                || (tripUpdates[tripId]?.lastStopId
+                    ? stopNameMap[tripUpdates[tripId].lastStopId]
+                    : null)
+                || 'Destination inconnue';
+
             results.push({
                 time: finalSecs, tripId,
                 vehicleLabel: rtVehicleLabel,
                 marker: rtMarker,
-                destination: rtMarker?.destination 
-                    || (tripUpdates[tripId]?.lastStopId 
-                        ? stopNameMap[tripUpdates[tripId].lastStopId] 
-                        : null)
-                    || 'Destination inconnue',
+                destination: dest,
                 realtime: isRealtime
             });
         }
