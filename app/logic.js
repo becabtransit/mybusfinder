@@ -12743,27 +12743,21 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
             placeholder.textContent = '⏳';
             list.appendChild(placeholder);
 
-            fetchRealtimeDataForFavorite(favorite).then(arrivals => {
+            _computeStopPassages(favorite.stopId ? [favorite.stopId] : []).then(passages => {
                 const ph = document.getElementById(`bs-fav-card-placeholder-${idx}`);
                 if (!ph) return;
 
-                const byDest = new Map();
-                arrivals.forEach(arrival => {
-                    const dest = arrival.destination && arrival.destination !== 'Destination inconnue'
-                        ? arrival.destination : '—';
-                    if (!byDest.has(dest)) byDest.set(dest, []);
-                    byDest.get(dest).push({
-                        time:         arrival.time,
-                        realtime:     arrival.realtime,
-                        vehicleLabel: arrival.vehicleLabel,
-                        marker:       arrival.marker,
-                        delay:        null,
-                        dest
-                    });
+                const filtered = {};
+                Object.entries(passages).forEach(([key, group]) => {
+                    if (group.routeId === routeId || !routeId) {
+                        filtered[key] = group;
+                    }
                 });
 
-                const destinations = [];
-                byDest.forEach((times, dest) => destinations.push({ dest, times }));
+                const destinations = Object.values(filtered)
+                    .filter(g => g.times.length > 0)
+                    .map(g => ({ dest: g.dest, times: g.times }))
+                    .sort((a, b) => (a.times[0]?.time ?? Infinity) - (b.times[0]?.time ?? Infinity));
 
                 if (!destinations.length) {
                     ph.textContent = t("nodepartures");
