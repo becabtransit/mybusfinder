@@ -14039,13 +14039,27 @@ async function fetchRealtimeDataForFavorite(favorite) {
     const now       = Date.now() / 1000;
     const results   = [];
     const seenKeys  = new Set();
-    const cleanStop = stopId.replace('0:', '').trim();
+
+    let stopIdArr = [stopId];
+    if (favorite.addedFromStop && window._stopClusters) {
+        const cleanTarget = stopId.replace('0:', '').trim();
+        const cluster = window._stopClusters.find(c =>
+            c.stopIds.some(id => id.replace('0:', '').trim() === cleanTarget)
+        );
+        if (cluster) stopIdArr = cluster.stopIds;
+    }
+
+    const cleanStops = stopIdArr.map(id => id.replace('0:', '').trim());
+
+    function matchStop(sid) {
+        return cleanStops.includes(sid.replace('0:', '').trim());
+    }
+
+    const cleanStop = cleanStops[0]; // pour la compat avec le code static stop times
 
     Object.entries(tripUpdates).forEach(([tripId, tripData]) => {
         const nextStops = tripData.nextStops || [];
-        const stopMatch = nextStops.find(s =>
-            s.stopId.replace('0:', '').trim() === cleanStop
-        );
+        const stopMatch = nextStops.find(s => matchStop(s.stopId));
         if (!stopMatch) return;
 
         const marker = [...markerPool.active.values()]
@@ -14072,9 +14086,10 @@ async function fetchRealtimeDataForFavorite(favorite) {
             vehicleLabel: marker?.vehicleData?.vehicle?.label
                     || marker?.vehicleData?.vehicle?.id || null,
             marker: marker || null,
-            destination: marker?.destination || tripData.lastStopId 
-                ? (stopNameMap[tripData.lastStopId] || tripData.lastStopId || 'Destination inconnue')
-                : 'Destination inconnue',
+            destination: marker?.destination || 
+                (tripData.lastStopId 
+                    ? (stopNameMap[tripData.lastStopId] || tripData.lastStopId)
+                    : 'Destination inconnue'),
             realtime: true
         });
     });
@@ -14114,9 +14129,12 @@ async function fetchRealtimeDataForFavorite(favorite) {
                 if (!serviceId || !activeIds.includes(serviceId)) continue;
             }
 
-            const stopData = tripStops[cleanStop]
-                        || tripStops[`0:${cleanStop}`]
-                        || tripStops[stopId];
+            let stopData = null;
+            let matchedCleanId = null;
+            for (const cid of cleanStops) {
+                stopData = tripStops[cid] || tripStops[`0:${cid}`];
+                if (stopData) { matchedCleanId = cid; break; }
+            }
             if (!stopData) continue;
 
             const timeStr = stopData.d || stopData.a;
@@ -14129,6 +14147,7 @@ async function fetchRealtimeDataForFavorite(favorite) {
                 || null;
 
             if (routeId && resolvedRouteId && resolvedRouteId !== routeId) continue;
+
             const parts = timeStr.split(':').map(Number);
             const d = new Date();
             let theoreticalSecs = new Date(
@@ -14141,7 +14160,7 @@ async function fetchRealtimeDataForFavorite(favorite) {
             let isRealtime = false;
             let rtVehicleLabel = null;
 
-            const rtTime = rtTimeByTripStop[tripId]?.[cleanStop];
+            const rtTime = rtTimeByTripStop[tripId]?.[matchedCleanId];
             if (rtTime !== null && rtTime !== undefined) {
                 finalSecs  = rtTime;
                 isRealtime = true;
@@ -14176,12 +14195,6 @@ async function fetchRealtimeDataForFavorite(favorite) {
 
     const nightRouteId = _isNightLine(routeId) ? null : _getNightCounterpart(routeId);
     if (nightRouteId) {
-        const nightFavorite = {
-            ...favorite,
-            routeId: nightRouteId,
-            stopId:  favorite.stopId, 
-        };
-
         const nightArrivals = await _fetchNightArrivalsForStop(nightRouteId, cleanStop, now);
         nightArrivals.forEach(a => {
             results.push({ ...a, fromNightLine: true, routeId: nightRouteId });
