@@ -13508,37 +13508,45 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
 
     const byDest = new Map();
     arrivals.forEach(arrival => {
-        const dest = arrival.destination || 'Destination inconnue';
+        const dest = arrival.destination && arrival.destination !== 'Destination inconnue'
+            ? arrival.destination
+            : '—';
         if (!byDest.has(dest)) byDest.set(dest, []);
         byDest.get(dest).push(arrival);
     });
 
+    const isFirst = { value: true };
+
     byDest.forEach((destArrivals, dest) => {
-        if (byDest.size > 1 && dest !== 'Destination inconnue') {
-            const destLabel = document.createElement('div');
-            destLabel.style.cssText = `
-                font-size: 10px;
-                color: rgba(255,255,255,0.45);
-                margin-top: 6px;
-                margin-bottom: 3px;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-            `;
-            destLabel.innerHTML = `
-                <svg width="9" height="9" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                </svg>
-                ${dest}`;
-            container.appendChild(destLabel);
-        }
+        const destBlock = document.createElement('div');
+        destBlock.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: ${lineColor};
+            color: ${textColor};
+            padding: 5px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: ${isFirst.value ? '0' : '8px'};
+            margin-bottom: 5px;
+        `;
+        destBlock.innerHTML = `
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+            </svg>
+            <span>${dest}</span>
+        `;
+        container.appendChild(destBlock);
+        isFirst.value = false;
 
         const pillsRow = document.createElement('div');
-        pillsRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:5px; align-items:center;';
+        pillsRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:5px; align-items:center; padding: 0 2px;';
 
-        destArrivals.slice(0, 3).forEach(arrival => {
+        destArrivals.slice(0, 4).forEach(arrival => {
             const diffMin = Math.round((arrival.time - now) / 60);
             const label   = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
             const isNow   = diffMin <= 0;
@@ -13567,6 +13575,7 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
                 pill.style.background = lineColor;
                 pill.style.color      = textColor;
                 pill.style.fontWeight = '700';
+                pill.style.border     = `1px solid ${textColor}40`;
             } else if (isRT) {
                 pill.style.background = 'rgba(255,255,255,0.14)';
                 pill.style.color      = 'rgba(255,255,255,0.9)';
@@ -13578,6 +13587,7 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
             }
 
             if (isRT) pill.innerHTML = rssIcon;
+
             const labelEl = document.createElement('span');
             labelEl.textContent = numLabel ? `${label} · ${numLabel}` : label;
             pill.appendChild(labelEl);
@@ -13747,9 +13757,11 @@ async function fetchRealtimeDataForFavorite(favorite) {
         results.push({
             time: arrivalSecs, tripId,
             vehicleLabel: marker?.vehicleData?.vehicle?.label
-                       || marker?.vehicleData?.vehicle?.id || null,
+                    || marker?.vehicleData?.vehicle?.id || null,
             marker: marker || null,
-            destination: marker?.destination || 'Destination inconnue',
+            destination: marker?.destination || tripData.lastStopId 
+                ? (stopNameMap[tripData.lastStopId] || tripData.lastStopId || 'Destination inconnue')
+                : 'Destination inconnue',
             realtime: true
         });
     });
@@ -13823,10 +13835,13 @@ async function fetchRealtimeDataForFavorite(favorite) {
 
             results.push({
                 time: finalSecs, tripId,
-                vehicleLabel: rtMarker?.vehicleData?.vehicle?.label
-                           || rtMarker?.vehicleData?.vehicle?.id || null,
+                vehicleLabel: rtVehicleLabel,
                 marker: rtMarker,
-                destination: rtMarker?.destination || 'Destination inconnue',
+                destination: rtMarker?.destination 
+                    || (tripUpdates[tripId]?.lastStopId 
+                        ? stopNameMap[tripUpdates[tripId].lastStopId] 
+                        : null)
+                    || 'Destination inconnue',
                 realtime: isRealtime
             });
         }
