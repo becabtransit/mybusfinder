@@ -8352,7 +8352,7 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    gap: 6px;
+                    gap: 10px;
                     font-family: 'League Spartan', sans-serif;
                     cursor: pointer;
                     padding: 0 4px;
