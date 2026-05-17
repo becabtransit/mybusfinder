@@ -12717,80 +12717,142 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
     if (favorites.length) {
         favorites.slice(0, 6).forEach((favorite, idx) => {
-            const routeId   = favorite.routeId   || '';
-            const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
-            const destName  = favorite.destinationName || favorite.destinationId || '';
-            const lineName_ = favorite.routeName || lineName[routeId] || routeId;
-            const lineColor = lineColors[routeId] || '#444';
-            const textColor = getTextColor(lineColor);
+        const routeId   = favorite.routeId   || '';
+        const stopName  = favorite.stopName  || favorite.stopId  || 'Arrêt';
+        const destName  = favorite.destinationName || favorite.destinationId || '';
+        const lineName_ = favorite.routeName || lineName[routeId] || routeId;
+        const lineColor = lineColors[routeId] || '#444';
+        const textColor = getTextColor(lineColor);
 
-            const card = document.createElement('div');
-            card.className     = 'bs-fav-card ripple-container';
-            card.style.cssText = `animation-delay:${idx * 55}ms`;
+        if (favorite.addedFromStop || !favorite.destinationId) {
+            const placeholder = document.createElement('div');
+            placeholder.id = `bs-fav-card-placeholder-${idx}`;
+            placeholder.style.cssText = `
+                border-radius: 18px;
+                overflow: hidden;
+                background: rgba(255,255,255,0.07);
+                border: 1px solid rgba(255,255,255,0.12);
+                margin-bottom: 10px;
+                min-height: 60px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: rgba(255,255,255,0.3);
+                font-size: 13px;
+            `;
+            placeholder.textContent = '⏳';
+            list.appendChild(placeholder);
 
-            card.innerHTML = `
-                <div class="bs-fav-card-header" style="background:${lineColor};">
-                    <div class="bs-fav-beam bs-fav-beam1"></div>
-                    <div class="bs-fav-beam bs-fav-beam2"></div>
-                    <div class="bs-fav-line-badge" style="color:${textColor};">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
-                                     V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
-                                     20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
-                                     17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
-                                     18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
-                        </svg>
-                        <span>${t('line')} ${lineName_}</span>
-                    </div>
-                    <p class="bs-fav-dest" style="color:${textColor};">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2.5"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                        ${destName}
-                    </p>
-                </div>
-                <div class="bs-fav-card-body">
-                    <div class="bs-fav-stop-row">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round"
-                             style="flex-shrink:0;opacity:.55;">
-                            <circle cx="12" cy="10" r="3"/>
-                            <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
-                        </svg>
-                        <span class="bs-fav-stop-name">${stopName}</span>
-                    </div>
-                    <div class="bs-fav-times" id="bs-fav-times-${idx}">
-                        <div class="bs-fav-loading">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                                 stroke="currentColor" stroke-width="2"
-                                 stroke-linecap="round" stroke-linejoin="round"
-                                 style="opacity:.5">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polyline points="12 6 12 12 16 14"/>
-                            </svg>
-                            <span>Chargement…</span>
-                        </div>
-                    </div>
-                </div>`;
+            fetchRealtimeDataForFavorite(favorite).then(arrivals => {
+                const ph = document.getElementById(`bs-fav-card-placeholder-${idx}`);
+                if (!ph) return;
 
-            card.addEventListener('click', () => {
-                safeVibrate?.([30], true);
-                soundsUX('MBF_Menu_LineSelect');
-                BottomSheet.collapse();
-                openFavoriteSchedule(favorite);
+                const byDest = new Map();
+                arrivals.forEach(arrival => {
+                    const dest = arrival.destination && arrival.destination !== 'Destination inconnue'
+                        ? arrival.destination : '—';
+                    if (!byDest.has(dest)) byDest.set(dest, []);
+                    byDest.get(dest).push({
+                        time:         arrival.time,
+                        realtime:     arrival.realtime,
+                        vehicleLabel: arrival.vehicleLabel,
+                        marker:       arrival.marker,
+                        delay:        null,
+                        dest
+                    });
+                });
+
+                const destinations = [];
+                byDest.forEach((times, dest) => destinations.push({ dest, times }));
+
+                if (!destinations.length) {
+                    ph.textContent = t("nodepartures");
+                    return;
+                }
+
+                const stopIdArr = favorite.stopId ? [favorite.stopId] : [];
+                const card = _renderRoutePassageCard(
+                    routeId, destinations, stopIdArr, stopName, true, idx
+                );
+                const favBtn = card.querySelector('.bs-stop-line-fav-btn');
+                if (favBtn) favBtn.style.display = 'none';
+
+                ph.replaceWith(card);
+            }).catch(() => {
+                const ph = document.getElementById(`bs-fav-card-placeholder-${idx}`);
+                if (ph) ph.textContent = t("nodepartures");
             });
 
-            list.appendChild(card);
+            return; 
+        }
 
-            fetchRealtimeDataForFavorite(favorite)
-                .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor, favorite))
-                .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
+        const card = document.createElement('div');
+        card.className     = 'bs-fav-card ripple-container';
+        card.style.cssText = `animation-delay:${idx * 55}ms`;
+
+        card.innerHTML = `
+            <div class="bs-fav-card-header" style="background:${lineColor};">
+                <div class="bs-fav-beam bs-fav-beam1"></div>
+                <div class="bs-fav-beam bs-fav-beam2"></div>
+                <div class="bs-fav-line-badge" style="color:${textColor};">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8 14V15M16 14V15M5 11H19M6 18V19.5C6 19.7761 6.22386 20 6.5 20
+                                V20C6.77614 20 7 19.7761 7 19.5V18M17 18V19.5C17 19.7761 17.2239
+                                20 17.5 20V20C17.7761 20 18 19.7761 18 19.5V18M19 6V6C19 4.34315
+                                17.6569 3 16 3H8C6.34315 3 5 4.34315 5 6V6M19 6V16C19 17.1046
+                                18.1046 18 17 18H7C5.89543 18 5 17.1046 5 16V6M19 6H5"/>
+                    </svg>
+                    <span>${t('line')} ${lineName_}</span>
+                </div>
+                <p class="bs-fav-dest" style="color:${textColor};">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                    ${destName}
+                </p>
+            </div>
+            <div class="bs-fav-card-body">
+                <div class="bs-fav-stop-row">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round"
+                        style="flex-shrink:0;opacity:.55;">
+                        <circle cx="12" cy="10" r="3"/>
+                        <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+                    </svg>
+                    <span class="bs-fav-stop-name">${stopName}</span>
+                </div>
+                <div class="bs-fav-times" id="bs-fav-times-${idx}">
+                    <div class="bs-fav-loading">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round"
+                            style="opacity:.5">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <span>Chargement…</span>
+                    </div>
+                </div>
+            </div>`;
+
+        card.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            soundsUX('MBF_Menu_LineSelect');
+            BottomSheet.collapse();
+            openFavoriteSchedule(favorite);
         });
+
+        list.appendChild(card);
+
+        fetchRealtimeDataForFavorite(favorite)
+            .then(arrivals => _displayFavTimes(idx, arrivals, lineColor, textColor, favorite))
+            .catch(()       => _displayFavTimes(idx, [],       lineColor, textColor, favorite));
+    });
     }
     };
 
@@ -13677,8 +13739,8 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
         return;
     }
 
-    container.innerHTML = '';
     const now = Date.now() / 1000;
+    container.innerHTML = '';
 
     const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -13686,39 +13748,6 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
         <path d="M4 11a9 9 0 0 1 9 9"/>
         <circle cx="5" cy="19" r="1"/>
     </svg>`;
-
-    if (favorite.addedFromStop || !favorite.destinationId) {
-        const byDest = new Map();
-        arrivals.forEach(arrival => {
-            const dest = arrival.destination && arrival.destination !== 'Destination inconnue'
-                ? arrival.destination : '—';
-            if (!byDest.has(dest)) byDest.set(dest, []);
-            byDest.get(dest).push({
-                time:         arrival.time,
-                realtime:     arrival.realtime,
-                vehicleLabel: arrival.vehicleLabel,
-                marker:       arrival.marker,
-                delay:        null,
-                dest
-            });
-        });
-
-        const destinations = [];
-        byDest.forEach((times, dest) => destinations.push({ dest, times }));
-
-        const routeId   = favorite.routeId  || '';
-        const stopIdArr = favorite.stopId   ? [favorite.stopId] : [];
-        const stopName  = favorite.stopName || '';
-
-        const card = _renderRoutePassageCard(
-            routeId, destinations, stopIdArr, stopName, true, 0
-        );
-        const favBtn = card.querySelector('.bs-stop-line-fav-btn');
-        if (favBtn) favBtn.style.display = 'none';
-
-        container.appendChild(card);
-        return;
-    }
 
     arrivals.slice(0, 5).forEach(arrival => {
         const diffMin  = Math.round((arrival.time - now) / 60);
