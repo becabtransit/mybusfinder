@@ -1270,79 +1270,60 @@ async function initMap() {
     });
 
     function createVehicleIcon(route_id, bearing, vehicleLabel) {
-        const color = lineColors[route_id] || '#000000';
-        const lighterColor = adjustBrightness(color, 30);
-        const darkerColor  = adjustBrightness(color, -20);
-
         const model = vehicleLabel ? getVehicleModel(String(vehicleLabel)) : null;
-        const hasThumbnail = model && model.thumbnail;
 
-        if (hasThumbnail) {
-            const rotation = (bearing - 90 + 360) % 360;
-
-            const size = 48;
-
-            return L.divIcon({
-                className: 'vehicle-thumbnail-icon',
-                iconSize:   [size, size],
-                iconAnchor: [size / 2, size / 2],
-                html: `
-                    <div class="vt-wrapper" style="
-                        width:${size}px; height:${size}px;
-                        transform: rotate(${rotation}deg);
-                        transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
-                        will-change: transform;
-                        position: relative;
-                    ">
-                        <img
-                            src="${model.thumbnail}"
-                            alt=""
-                            draggable="false"
-                            onerror="this.closest('.vt-wrapper').classList.add('vt-no-img')"
-                            style="
-                                width: 100%;
-                                height: 100%;
-                                object-fit: contain;
-                                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
-                                pointer-events: none;
-                                user-select: none;
-                            "
-                        />
-                        <div style="
-                            position: absolute;
-                            bottom: -4px; right: -4px;
-                            background: ${color};
-                            color: ${getTextColor(color)};
-                            font-family: 'League Spartan', sans-serif;
-                            font-size: 9px; font-weight: 700;
-                            padding: 1px 5px;
-                            border-radius: 6px;
-                            transform: rotate(${-rotation}deg);
-                            transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
-                            pointer-events: none;
-                            white-space: nowrap;
-                            line-height: 1.4;
-                            border: 1.5px solid rgba(255,255,255,0.6);
-                        ">${lineName[route_id] || route_id}</div>
-                    </div>
-                    <style>
-                        .vt-no-img img { display: none; }
-                        .vt-no-img::after {
-                            content: '';
-                            display: block;
-                            width: 12px; height: 12px;
-                            background: ${color};
-                            border: 2px solid white;
-                            border-radius: 50%;
-                            margin: auto;
-                            margin-top: calc(50% - 6px);
-                        }
-                    </style>
-                `
-            });
+        if (!model || !model.thumbnail) {
+            return createCachedIcon(route_id, bearing);
         }
 
-        return createCachedIcon(route_id, bearing);
+        const color    = lineColors[route_id] || '#000000';
+        const rotation = (bearing + 90 + 360) % 360;
+        const size     = 48;
+
+        return L.divIcon({
+            className:  'vehicle-thumbnail-icon',
+            iconSize:   [size, size],
+            iconAnchor: [size / 2, size / 2],
+            html: `
+                <div class="vt-wrapper" style="
+                    width:${size}px; height:${size}px;
+                    transform: rotate(${rotation}deg);
+                    transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+                    will-change: transform;
+                    position: relative;
+                ">
+                    <img
+                        src="${model.thumbnail}"
+                        alt=""
+                        draggable="false"
+                        style="
+                            width: 100%;
+                            height: 100%;
+                            object-fit: contain;
+                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
+                            pointer-events: none;
+                            user-select: none;
+                        "
+                    />
+                    <div style="
+                        position: absolute;
+                        bottom: -4px; right: -4px;
+                        background: ${color};
+                        color: ${getTextColor(color)};
+                        font-family: 'League Spartan', sans-serif;
+                        font-size: 9px; font-weight: 700;
+                        padding: 1px 5px;
+                        border-radius: 6px;
+                        transform: rotate(${-rotation}deg);
+                        transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+                        pointer-events: none;
+                        white-space: nowrap;
+                        line-height: 1.4;
+                        border: 1.5px solid rgba(255,255,255,0.6);
+                    ">${lineName[route_id] || route_id}</div>
+                </div>
+            `
+        });
     }
 
     function updateVehicleIconsForZoom() {
@@ -9591,18 +9572,15 @@ async function fetchVehiclePositions() {
                 
                 if (marker._icon) {
                     const zoom = mapInstance.getZoom();
+                    const wrapper = marker._icon.querySelector('.vt-wrapper');
 
-                    if (zoom >= 14) {
-                        const wrapper = marker._icon.querySelector('.vt-wrapper');
-                        if (wrapper) {
-                            const rotation = (bearing - 90 + 360) % 360;
-                            wrapper.style.transform = `rotate(${rotation}deg)`;
+                    if (zoom >= 15 && wrapper) {
+                        const rotation = (bearing + 90 + 360) % 360;
+                        wrapper.style.transform = `rotate(${rotation}deg)`;
 
-                            const badge = wrapper.querySelector('div[style*="bottom"]');
-                            if (badge) {
-                                badge.style.transform = `rotate(${-rotation}deg)`;
-                            }
-                        }
+                        const badge = wrapper.querySelector('div[style*="bottom"]');
+                        if (badge) badge.style.transform = `rotate(${-rotation}deg)`;
+
                     } else {
                         const arrowElement = marker._icon.querySelector('.marker-arrow');
                         if (arrowElement) {
@@ -9610,7 +9588,7 @@ async function fetchVehiclePositions() {
                         }
                     }
                 }
-                
+
                 if (selectedLine && marker.line !== selectedLine) {
                     if (map.hasLayer(marker)) {
                         map.removeLayer(marker);
