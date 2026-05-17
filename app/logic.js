@@ -12743,7 +12743,6 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                 background: rgba(255,255,255,0.07);
                 border: 1px solid rgba(255,255,255,0.12);
                 margin-bottom: 10px;
-                animation: bsFadeUp 0.45s cubic-bezier(0.25,1.5,0.5,1) ${idx * 55}ms both;
             `;
 
             const color     = lineColors[routeId] || '#444';
@@ -12791,6 +12790,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                 </div>
                 <button class="bs-stop-line-fav-btn"
                     style="
+                        visibility: hidden;
                         background: ${isFavLine ? 'rgba(255,215,0,0.3)' : 'rgba(255,255,255,0.18)'};
                         border: none; border-radius: 10px;
                         width: 32px; height: 32px;
