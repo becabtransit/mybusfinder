@@ -1269,7 +1269,102 @@ async function initMap() {
         );
     });
 
-    
+    function createVehicleIcon(route_id, bearing, vehicleLabel) {
+        const color = lineColors[route_id] || '#000000';
+        const lighterColor = adjustBrightness(color, 30);
+        const darkerColor  = adjustBrightness(color, -20);
+
+        const model = vehicleLabel ? getVehicleModel(String(vehicleLabel)) : null;
+        const hasThumbnail = model && model.thumbnail;
+
+        if (hasThumbnail) {
+            const rotation = (bearing - 90 + 360) % 360;
+
+            const size = 48;
+
+            return L.divIcon({
+                className: 'vehicle-thumbnail-icon',
+                iconSize:   [size, size],
+                iconAnchor: [size / 2, size / 2],
+                html: `
+                    <div class="vt-wrapper" style="
+                        width:${size}px; height:${size}px;
+                        transform: rotate(${rotation}deg);
+                        transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+                        will-change: transform;
+                        position: relative;
+                    ">
+                        <img
+                            src="${model.thumbnail}"
+                            alt=""
+                            draggable="false"
+                            onerror="this.closest('.vt-wrapper').classList.add('vt-no-img')"
+                            style="
+                                width: 100%;
+                                height: 100%;
+                                object-fit: contain;
+                                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
+                                pointer-events: none;
+                                user-select: none;
+                            "
+                        />
+                        <div style="
+                            position: absolute;
+                            bottom: -4px; right: -4px;
+                            background: ${color};
+                            color: ${getTextColor(color)};
+                            font-family: 'League Spartan', sans-serif;
+                            font-size: 9px; font-weight: 700;
+                            padding: 1px 5px;
+                            border-radius: 6px;
+                            transform: rotate(${-rotation}deg);
+                            transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+                            pointer-events: none;
+                            white-space: nowrap;
+                            line-height: 1.4;
+                            border: 1.5px solid rgba(255,255,255,0.6);
+                        ">${lineName[route_id] || route_id}</div>
+                    </div>
+                    <style>
+                        .vt-no-img img { display: none; }
+                        .vt-no-img::after {
+                            content: '';
+                            display: block;
+                            width: 12px; height: 12px;
+                            background: ${color};
+                            border: 2px solid white;
+                            border-radius: 50%;
+                            margin: auto;
+                            margin-top: calc(50% - 6px);
+                        }
+                    </style>
+                `
+            });
+        }
+
+        return createCachedIcon(route_id, bearing);
+    }
+
+    function updateVehicleIconsForZoom() {
+        const zoom = mapInstance.getZoom();
+        const showThumbnail = zoom >= 14;
+
+        markerPool.active.forEach((marker, id) => {
+            const vehicleLabel = marker.vehicleData?.vehicle?.label
+                            || marker.vehicleData?.vehicle?.id || '';
+            const bearing = marker.vehicleData?.position?.bearing || 0;
+            const route_id = marker.line;
+
+            const newIcon = showThumbnail
+                ? createVehicleIcon(route_id, bearing, vehicleLabel)
+                : createCachedIcon(route_id, bearing);
+
+            marker.setIcon(newIcon);
+        });
+    }
+
+    // Écoute les changements de zoom (debounced)
+    mapInstance.on('zoomend', debounce(updateVehicleIconsForZoom, 80));
 
 
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
@@ -3656,106 +3751,6 @@ function clearMarkerCache() {
     markerCache.styles.clear();
 }
 
-/**
- * Crée un divIcon avec la thumbnail du véhicule orientée selon le bearing,
- * ou l'icône classique si pas de thumbnail disponible.
- */
-function createVehicleIcon(route_id, bearing, vehicleLabel) {
-    const color = lineColors[route_id] || '#000000';
-    const lighterColor = adjustBrightness(color, 30);
-    const darkerColor  = adjustBrightness(color, -20);
-
-    const model = vehicleLabel ? getVehicleModel(String(vehicleLabel)) : null;
-    const hasThumbnail = model && model.thumbnail;
-
-    if (hasThumbnail) {
-        const rotation = (bearing - 90 + 360) % 360;
-
-        const size = 48;
-
-        return L.divIcon({
-            className: 'vehicle-thumbnail-icon',
-            iconSize:   [size, size],
-            iconAnchor: [size / 2, size / 2],
-            html: `
-                <div class="vt-wrapper" style="
-                    width:${size}px; height:${size}px;
-                    transform: rotate(${rotation}deg);
-                    transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
-                    will-change: transform;
-                    position: relative;
-                ">
-                    <img
-                        src="${model.thumbnail}"
-                        alt=""
-                        draggable="false"
-                        onerror="this.closest('.vt-wrapper').classList.add('vt-no-img')"
-                        style="
-                            width: 100%;
-                            height: 100%;
-                            object-fit: contain;
-                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
-                            pointer-events: none;
-                            user-select: none;
-                        "
-                    />
-                    <div style="
-                        position: absolute;
-                        bottom: -4px; right: -4px;
-                        background: ${color};
-                        color: ${getTextColor(color)};
-                        font-family: 'League Spartan', sans-serif;
-                        font-size: 9px; font-weight: 700;
-                        padding: 1px 5px;
-                        border-radius: 6px;
-                        transform: rotate(${-rotation}deg);
-                        transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
-                        pointer-events: none;
-                        white-space: nowrap;
-                        line-height: 1.4;
-                        border: 1.5px solid rgba(255,255,255,0.6);
-                    ">${lineName[route_id] || route_id}</div>
-                </div>
-                <style>
-                    .vt-no-img img { display: none; }
-                    .vt-no-img::after {
-                        content: '';
-                        display: block;
-                        width: 12px; height: 12px;
-                        background: ${color};
-                        border: 2px solid white;
-                        border-radius: 50%;
-                        margin: auto;
-                        margin-top: calc(50% - 6px);
-                    }
-                </style>
-            `
-        });
-    }
-
-    return createCachedIcon(route_id, bearing);
-}
-
-function updateVehicleIconsForZoom() {
-    const zoom = mapInstance.getZoom();
-    const showThumbnail = zoom >= 14;
-
-    markerPool.active.forEach((marker, id) => {
-        const vehicleLabel = marker.vehicleData?.vehicle?.label
-                          || marker.vehicleData?.vehicle?.id || '';
-        const bearing = marker.vehicleData?.position?.bearing || 0;
-        const route_id = marker.line;
-
-        const newIcon = showThumbnail
-            ? createVehicleIcon(route_id, bearing, vehicleLabel)
-            : createCachedIcon(route_id, bearing);
-
-        marker.setIcon(newIcon);
-    });
-}
-
-// Écoute les changements de zoom (debounced)
-mapInstance.on('zoomend', debounce(updateVehicleIconsForZoom, 80));
 
 function shouldRenderMarker(marker) {
     const zoom = map.getZoom();
