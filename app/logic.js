@@ -13500,98 +13500,119 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
     container.innerHTML = '';
 
     const rssIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        style="flex-shrink:0;" aria-label="Temps réel">
-        <g>
-            <path d="M4 4a16 16 0 0 1 16 16"/>
-            <path d="M4 11a9 9 0 0 1 9 9"/>
-        </g>
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 4a16 16 0 0 1 16 16"/>
+        <path d="M4 11a9 9 0 0 1 9 9"/>
         <circle cx="5" cy="19" r="1"/>
     </svg>`;
 
-    const routeId = favorite.routeId || '';
-    const nightRouteId = _isNightLine(routeId) ? null : _getNightCounterpart(routeId);
+    const byDest = new Map();
+    arrivals.forEach(arrival => {
+        const dest = arrival.destination || 'Destination inconnue';
+        if (!byDest.has(dest)) byDest.set(dest, []);
+        byDest.get(dest).push(arrival);
+    });
 
-    arrivals.slice(0, 5).forEach(arrival => {
-        const diffMin = Math.round((arrival.time - Date.now() / 1000) / 60);
-        const label = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
-        const isNow  = diffMin <= 0;
-        const isRT   = arrival.realtime === true || arrival.label;
-
-        const isNightPassage = arrival.fromNightLine === true
-            || (arrival.routeId && _isNightLine(arrival.routeId));
-
-        const pill = document.createElement('span');
-        pill.style.cssText = `
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 12px;
-            font-weight: ${isRT ? '600' : '400'};
-            padding: 3px 9px;
-            border-radius: 20px;
-            white-space: nowrap;
-            border: 1px solid rgba(255,255,255,0.18);
-            cursor: ${isRT && arrival.marker ? 'pointer' : 'default'};
-            transition: background 0.15s ease, transform 0.15s ease;
-        `;
-
-        if (isNow && isRT) {
-            pill.style.background = lineColor;
-            pill.style.color      = textColor;
-            pill.style.fontWeight = '700';
-        } else if (isRT) {
-            pill.style.background = 'rgba(255,255,255,0.14)';
-            pill.style.color      = 'rgba(255,255,255,0.9)';
-        } else {
-            pill.style.background  = 'rgba(255,255,255,0.05)';
-            pill.style.color       = 'rgba(255,255,255,0.38)';
-            pill.style.borderColor = 'rgba(255,255,255,0.07)';
-            pill.style.fontStyle   = 'italic';
-        }
-
-        if (isRT) pill.innerHTML = rssIcon;
-
-        const labelEl = document.createElement('span');
-        const labelNum = arrival.vehicleLabel
-            ? String(arrival.vehicleLabel).padStart(3,'0').replace(/[A-Z]+:/g,'')
-            : null;
-        labelEl.textContent = labelNum ? `${label} · ${labelNum}` : label;
-        pill.appendChild(labelEl);
-
-        if (isNightPassage) {
-            const moonSpan = document.createElement('span');
-            moonSpan.textContent = '🌙';
-            moonSpan.style.cssText = `
+    byDest.forEach((destArrivals, dest) => {
+        if (byDest.size > 1 && dest !== 'Destination inconnue') {
+            const destLabel = document.createElement('div');
+            destLabel.style.cssText = `
                 font-size: 10px;
-                line-height: 1;
-                flex-shrink: 0;
+                color: rgba(255,255,255,0.45);
+                margin-top: 6px;
+                margin-bottom: 3px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
             `;
-            moonSpan.title = `${t('line')} ${lineName[arrival.routeId] || arrival.routeId || ''}`;
-            pill.appendChild(moonSpan);
+            destLabel.innerHTML = `
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+                ${dest}`;
+            container.appendChild(destLabel);
         }
 
-        if (isRT && arrival.marker) {
-            const marker = arrival.marker;
-            pill.addEventListener('click', (e) => {
-                e.stopPropagation();
-                safeVibrate?.([30, 20, 30], true);
-                soundsUX('MBF_Menu_VehicleSelect');
-                map.setView(marker.getLatLng(), 15);
-                marker.openPopup();
-                BottomSheet.collapse();
-            });
-            pill.addEventListener('pointerenter', () => {
-                pill.style.transform = 'scale(1.05)';
-                pill.style.background = isNow ? lineColor : 'rgba(255,255,255,0.22)';
-            });
-            pill.addEventListener('pointerleave', () => {
-                pill.style.transform = 'scale(1)';
-                pill.style.background = isNow ? lineColor : 'rgba(255,255,255,0.14)';
-            });
-        }
+        const pillsRow = document.createElement('div');
+        pillsRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:5px; align-items:center;';
 
-        container.appendChild(pill);
+        destArrivals.slice(0, 3).forEach(arrival => {
+            const diffMin = Math.round((arrival.time - now) / 60);
+            const label   = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
+            const isNow   = diffMin <= 0;
+            const isRT    = arrival.realtime === true;
+            const numLabel = arrival.vehicleLabel
+                ? String(arrival.vehicleLabel).padStart(3, '0').replace(/[A-Z]+:/g, '')
+                : null;
+
+            const pill = document.createElement('span');
+            pill.style.cssText = `
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font-size: 12px;
+                font-weight: ${isRT ? '600' : '400'};
+                font-style: ${isRT ? 'normal' : 'italic'};
+                padding: 3px 9px;
+                border-radius: 20px;
+                white-space: nowrap;
+                border: 1px solid rgba(255,255,255,0.18);
+                cursor: ${isRT && arrival.marker ? 'pointer' : 'default'};
+                transition: background 0.15s ease, transform 0.15s ease;
+            `;
+
+            if (isNow && isRT) {
+                pill.style.background = lineColor;
+                pill.style.color      = textColor;
+                pill.style.fontWeight = '700';
+            } else if (isRT) {
+                pill.style.background = 'rgba(255,255,255,0.14)';
+                pill.style.color      = 'rgba(255,255,255,0.9)';
+            } else {
+                pill.style.background  = 'rgba(255,255,255,0.05)';
+                pill.style.color       = 'rgba(255,255,255,0.38)';
+                pill.style.borderColor = 'rgba(255,255,255,0.07)';
+                pill.style.fontStyle   = 'italic';
+            }
+
+            if (isRT) pill.innerHTML = rssIcon;
+            const labelEl = document.createElement('span');
+            labelEl.textContent = numLabel ? `${label} · ${numLabel}` : label;
+            pill.appendChild(labelEl);
+
+            if (arrival.fromNightLine) {
+                const moon = document.createElement('span');
+                moon.textContent = '🌙';
+                moon.style.fontSize = '10px';
+                pill.appendChild(moon);
+            }
+
+            if (isRT && arrival.marker) {
+                const marker = arrival.marker;
+                pill.addEventListener('click', e => {
+                    e.stopPropagation();
+                    safeVibrate?.([30, 20, 30], true);
+                    soundsUX('MBF_Menu_VehicleSelect');
+                    map.setView(marker.getLatLng(), 15);
+                    marker.openPopup();
+                    BottomSheet.collapse();
+                });
+                pill.addEventListener('pointerenter', () => {
+                    pill.style.transform = 'scale(1.05)';
+                    pill.style.background = isNow ? lineColor : 'rgba(255,255,255,0.22)';
+                });
+                pill.addEventListener('pointerleave', () => {
+                    pill.style.transform = 'scale(1)';
+                    pill.style.background = isNow ? lineColor : 'rgba(255,255,255,0.14)';
+                });
+            }
+
+            pillsRow.appendChild(pill);
+        });
+
+        container.appendChild(pillsRow);
     });
 }
 
