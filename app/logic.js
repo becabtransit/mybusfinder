@@ -8352,22 +8352,25 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    gap: 4px;
                     font-family: 'League Spartan', sans-serif;
-                    background: linear-gradient(135deg, ${color}f0, ${color}d0);
-                    backdrop-filter: blur(12px);
-                    -webkit-backdrop-filter: blur(12px);
-                    border-radius: 16px;
-                    padding: 8px 12px 7px;
-                    box-shadow: 0 4px 16px -2px ${color}80;
                     cursor: pointer;
-                    border: 1px solid ${color}60;
-                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                    min-width: 90px;
-                    max-width: 130px;
-                    text-align: center;
+                    width: 120px;
                 ">
-                    <div style="display:flex; align-items:center; gap:5px; justify-content:center;">
+                    <div style="
+                        display: flex;
+                        align-items: center;
+                        gap: 5px;
+                        background: linear-gradient(135deg, ${color}f0, ${color}d0);
+                        backdrop-filter: blur(12px);
+                        -webkit-backdrop-filter: blur(12px);
+                        border-radius: 10px 10px 0 0;
+                        padding: 4px 8px;
+                        border: 1px solid ${color}60;
+                        border-bottom: none;
+                        width: 100%;
+                        box-sizing: border-box;
+                        justify-content: center;
+                    ">
                         <div style="
                             background: rgba(255,255,255,0.2);
                             border-radius: 6px;
@@ -8378,42 +8381,58 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                             line-height: 1.4;
                             white-space: nowrap;
                         ">${lineName[marker.line] || marker.line}</div>
+                        <div style="
+                            background: rgba(0,0,0,0.25);
+                            border-radius: 5px;
+                            padding: 1px 5px;
+                            font-size: 10px;
+                            font-weight: 600;
+                            color: ${textColor};
+                            opacity: 0.9;
+                            white-space: nowrap;
+                        ">${vehicleLabel}</div>
                     </div>
+
                     <img
                         src="${model.thumbnail}"
                         alt=""
                         draggable="false"
                         style="
-                            width: 64px;
-                            height: 48px;
+                            width: 80px;
+                            height: 56px;
                             object-fit: contain;
-                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+                            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
                             pointer-events: none;
                             user-select: none;
                             transform: rotate(${rotation}deg);
                             transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+                            position: relative;
+                            z-index: 1;
                         "
                     />
+
                     <div style="
-                        font-size: 10px;
-                        color: ${textColor};
-                        opacity: 0.85;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        white-space: nowrap;
-                        max-width: 110px;
-                        font-weight: 400;
-                    ">➜ ${marker.destination || t("unknowndestination")}</div>
-                    <div style="
-                        background: rgba(0,0,0,0.25);
-                        border-radius: 5px;
-                        padding: 1px 6px;
-                        font-size: 10px;
-                        font-weight: 600;
-                        color: ${textColor};
-                        opacity: 0.9;
-                        white-space: nowrap;
-                    ">${vehicleLabel}</div>
+                        background: linear-gradient(135deg, ${color}f0, ${color}d0);
+                        backdrop-filter: blur(12px);
+                        -webkit-backdrop-filter: blur(12px);
+                        border-radius: 0 0 10px 10px;
+                        padding: 4px 8px;
+                        border: 1px solid ${color}60;
+                        border-top: none;
+                        width: 100%;
+                        box-sizing: border-box;
+                        text-align: center;
+                    ">
+                        <div style="
+                            font-size: 10px;
+                            color: ${textColor};
+                            opacity: 0.85;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                            font-weight: 400;
+                        ">➜ ${marker.destination || t("unknowndestination")}</div>
+                    </div>
                 </div>
             ` : `
                 <div class="minimal-popup minimal-popup-appear" style="
