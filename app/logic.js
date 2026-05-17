@@ -13597,7 +13597,7 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
 
 function openFavoriteSchedule(favorite) {
     if (!favorite?.routeId || !favorite?.stopId) return;
-    BSNav.showSchedule(favorite.routeId, favorite.stopId, favorite.destinationId);
+    BSNav.openFavorite(favorite);
 }
 
 async function _getActiveServiceIdsToday() {
@@ -14143,716 +14143,896 @@ window.softSwitchNetwork = softSwitchNetwork;
 })();
 
 
-// ============================================================
-//  BS SCHEDULE NAVIGATOR
-//  Mini schedule.html intégré dans la bottom sheet
-// ============================================================
+// ══════════════════════════════════════════════════════════════════
+//  BSNav — Liquid Glass Schedule Navigator
+//  Intégré dans la bottom sheet, avec calendrier correct,
+//  transitions spring, et favoris persistants
+// ══════════════════════════════════════════════════════════════════
 
 const BSNav = (() => {
 
-    // ── État interne ──────────────────────────────────────────
+    // ── État ───────────────────────────────────────────────────────
     const st = {
-        view: 'lines',      // 'lines' | 'destinations' | 'stops' | 'schedule'
-        routeId: null,
-        destinationId: null,
-        stopId: null,
-        routeData: {},      // { trips, stopTimes } chargés à la demande
+        history:      [],       // pile de navigation
+        view:         null,     // 'lines'|'destinations'|'stops'|'schedule'
+        routeId:      null,
+        destinationId:null,
+        stopId:       null,
+        tab:          'schedule',
+        routeData:    {},       // { trips, stopTimes } par routeId
         loadedRoutes: new Set(),
-        tab: 'schedule',    // 'schedule' | 'realtime'
+        calendarData: null,     // chargé une fois
     };
 
-    // ── Helpers ───────────────────────────────────────────────
-    function netPath(rel) { return window.netPath ? window.netPath(rel) : `networks/${window.ACTIVE_NETWORK}/${rel}`; }
-
-    function getFromLocalStorage() {
-        try { return JSON.parse(localStorage.getItem(`favoriteSchedules_${window.ACTIVE_NETWORK}`) || '[]'); } catch { return []; }
+    // ── Helpers ────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+    function netUrl(action, extra='') {
+        const base = window.netPath
+            ? window.netPath('proxy-cors/proxy_gtfs.php')
+            : `networks/${window.ACTIVE_NETWORK}/proxy-cors/proxy_gtfs.php`;
+        return `${new URL(base, location.href).href}?action=${action}${extra}`;
     }
-    function saveToLocalStorage(favs) {
-        localStorage.setItem(`favoriteSchedules_${window.ACTIVE_NETWORK}`, JSON.stringify(favs));
-    }
-
-    // ── Chargement GTFS pour une ligne ───────────────────────
-    async function ensureRouteLoaded(routeId) {
-        if (st.loadedRoutes.has(routeId)) return;
-
-        const baseUrl = new URL(netPath('proxy-cors/proxy_gtfs.php'), window.location.href).href;
-        const r = await fetch(`${baseUrl}?action=route&route_id=${encodeURIComponent(routeId)}`);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = await r.json();
-        if (!data.trips || !data.stopTimes) throw new Error('Données invalides');
-
-        st.routeData[routeId] = data;
-        st.loadedRoutes.add(routeId);
+    function favKey() { return `favoriteSchedules_${window.ACTIVE_NETWORK||'palmbus'}`; }
+    function getFavs() { try { return JSON.parse(localStorage.getItem(favKey())||'[]'); } catch { return []; } }
+    function saveFavs(f) { localStorage.setItem(favKey(), JSON.stringify(f)); }
+    function isFav() {
+        return getFavs().some(f=>f.routeId===st.routeId&&f.stopId===st.stopId&&f.destinationId===st.destinationId);
     }
 
-    // ── Données calendrier (réutilise le cache global si dispo) ──
-    function computeDateMeta(dateStr) {
-        const gtfsDate = dateStr.replace(/-/g, '');
-        const safe = new Date(dateStr + 'T12:00:00');
-        return { gtfsDate, dow: safe.getDay() };
+    // ── Chargement calendrier ──────────────────────────────────────
+    async function ensureCalendar() {
+        // Réutilise le cache global de logic.js s'il existe déjà
+        if (window._gtfsCalendarCache) {
+            st.calendarData = window._gtfsCalendarCache;
+            return;
+        }
+        if (st.calendarData) return;
+        try {
+            const r = await fetch(netUrl('core'));
+            if (!r.ok) return;
+            const d = await r.json();
+            st.calendarData = {
+                calendar:      d.calendar      || {},
+                calendarDates: d.calendarDates || {},
+            };
+            // Partage avec logic.js
+            if (!window._gtfsCalendarCache) {
+                window._gtfsCalendarCache = {
+                    ...st.calendarData,
+                    tripRouteMap: d.tripRouteMap || {},
+                    tripServiceMap: {}
+                };
+            }
+        } catch(e) {
+            console.warn('BSNav: calendrier non chargé', e);
+        }
     }
 
-    function getActiveServiceIds(dow, gtfsDate) {
-        // Tente d'abord le cache de schedule.html s'il est chargé en iframe
-        // Sinon recharge depuis le cache global window._gtfsCalendarCache
-        const cal = window._gtfsCalendarCache;
-        if (!cal) return [];
+    // ── Calcul des service_ids actifs pour une date GTFS ──────────
+    function getActiveServiceIds(dateStr) {
+        const cal = st.calendarData || window._gtfsCalendarCache;
+        if (!cal) return null; // null = pas filtrer (fallback tout afficher)
 
+        const gtfsDate = dateStr.replace(/-/g,'');
+        const dow = new Date(dateStr+'T12:00:00').getDay();
         const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
         const dayName = days[dow];
-        let ids = [];
 
-        for (const [id, c] of Object.entries(cal.calendar || {})) {
+        let ids = [];
+        for (const [id, c] of Object.entries(cal.calendar||{})) {
             if (gtfsDate >= c.start_date && gtfsDate <= c.end_date &&
-                String(c[dayName]).trim() === '1') ids.push(id);
+                String(c[dayName]).trim() === '1') {
+                ids.push(id);
+            }
         }
-        const ex = (cal.calendarDates || {})[gtfsDate];
+        const ex = (cal.calendarDates||{})[gtfsDate];
         if (ex) {
-            (ex.added || []).forEach(id => { if (!ids.includes(id)) ids.push(id); });
-            ids = ids.filter(id => !(ex.removed || []).includes(id));
+            (ex.added  ||[]).forEach(id => { if (!ids.includes(id)) ids.push(id); });
+            ids = ids.filter(id => !(ex.removed||[]).includes(id));
         }
         return ids;
     }
 
-    // ── Destinations pour une ligne ───────────────────────────
+    // ── Chargement trips+stopTimes pour une ligne ──────────────────
+    async function ensureRouteLoaded(routeId) {
+        if (st.loadedRoutes.has(routeId)) return;
+        const r = await fetch(netUrl('route', `&route_id=${encodeURIComponent(routeId)}`));
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        if (!data.trips || !data.stopTimes) throw new Error('Données invalides');
+        st.routeData[routeId] = data;
+        st.loadedRoutes.add(routeId);
+
+        // Enrichir le tripServiceMap global si possible
+        if (window._gtfsCalendarCache) {
+            data.trips.forEach(t => {
+                if (t.trip_id && t.service_id)
+                    window._gtfsCalendarCache.tripServiceMap[t.trip_id] = t.service_id;
+            });
+        }
+    }
+
+    // ── Destinations pour une ligne ────────────────────────────────
     function getDestinations(routeId) {
-        const { trips, stopTimes } = st.routeData[routeId] || {};
-        if (!trips || !stopTimes) return [];
+        const { trips, stopTimes } = st.routeData[routeId]||{};
+        if (!trips||!stopTimes) return [];
         const dest = new Map();
         trips.forEach(trip => {
             const ts = stopTimes[trip.trip_id];
             if (!ts?.length) return;
-            const last = ts[ts.length - 1];
+            const last = ts[ts.length-1];
             if (!dest.has(last.stop_id)) {
-                const name = stopNameMap[last.stop_id] || last.stop_id;
-                dest.set(last.stop_id, { id: last.stop_id, name });
+                dest.set(last.stop_id, {
+                    id: last.stop_id,
+                    name: stopNameMap[last.stop_id]||last.stop_id
+                });
             }
         });
         return [...dest.values()];
     }
 
-    // ── Arrêts pour une destination ───────────────────────────
+    // ── Arrêts pour une destination ────────────────────────────────
     function getStopsForDestination(routeId, destinationId) {
-        const { trips, stopTimes } = st.routeData[routeId] || {};
-        if (!trips || !stopTimes) return [];
+        const { trips, stopTimes } = st.routeData[routeId]||{};
+        if (!trips||!stopTimes) return [];
         const stopsMap = new Map();
         const orderMap = new Map();
         trips.forEach(trip => {
             const ts = stopTimes[trip.trip_id];
             if (!ts) return;
-            const di = ts.findIndex(s => s.stop_id === destinationId);
-            if (di <= 0) return;
-            ts.slice(0, di).forEach((s, idx) => {
-                const name = stopNameMap[s.stop_id] || s.stop_id;
+            const di = ts.findIndex(s=>s.stop_id===destinationId);
+            if (di<=0) return;
+            ts.slice(0,di).forEach((s,idx)=>{
                 if (!stopsMap.has(s.stop_id)) {
-                    stopsMap.set(s.stop_id, { id: s.stop_id, name });
+                    stopsMap.set(s.stop_id, {
+                        id: s.stop_id,
+                        name: stopNameMap[s.stop_id]||s.stop_id
+                    });
                     orderMap.set(s.stop_id, idx);
                 }
             });
         });
-        return [...stopsMap.values()].sort((a, b) => (orderMap.get(a.id) || 0) - (orderMap.get(b.id) || 0));
+        return [...stopsMap.values()].sort((a,b)=>(orderMap.get(a.id)||0)-(orderMap.get(b.id)||0));
     }
 
-    // ── Calcul des horaires pour une date ─────────────────────
+    // ── Calcul des horaires ────────────────────────────────────────
     function computeSchedule(routeId, stopId, destinationId, dateStr) {
-        const { trips, stopTimes } = st.routeData[routeId] || {};
-        if (!trips || !stopTimes) return [];
+        const { trips, stopTimes } = st.routeData[routeId]||{};
+        if (!trips||!stopTimes) return [];
 
-        const { gtfsDate, dow } = computeDateMeta(dateStr);
-        const activeIds = getActiveServiceIds(dow, gtfsDate);
+        const activeIds = getActiveServiceIds(dateStr); // null ou tableau
 
         const schedule = [];
-        const validTrips = trips.filter(t => !activeIds.length || activeIds.includes(t.service_id));
+        trips.forEach(trip => {
+            // Filtre par service_id si calendrier disponible
+            if (activeIds !== null && !activeIds.includes(trip.service_id)) return;
 
-        validTrips.forEach(trip => {
             const ts = stopTimes[trip.trip_id];
             if (!ts?.length) return;
-            const si = ts.findIndex(s => s.stop_id === stopId);
-            const di = ts.findIndex(s => s.stop_id === destinationId);
-            if (si === -1 || di === -1 || si >= di) return;
-            const at = ts[si].arrival_time;
+            const si = ts.findIndex(s=>s.stop_id===stopId);
+            const di = ts.findIndex(s=>s.stop_id===destinationId);
+            if (si===-1||di===-1||si>=di) return;
+            const at = ts[si].arrival_time||ts[si].departure_time;
             if (!at) return;
-            const [h, m] = at.split(':').map(Number);
-            if (!isNaN(h)) schedule.push({ h, m });
+            const parts = at.split(':');
+            const h = parseInt(parts[0],10);
+            const m = parseInt(parts[1],10);
+            if (!isNaN(h)&&!isNaN(m)) schedule.push({h,m});
         });
 
-        schedule.sort((a, b) => (a.h * 60 + a.m) - (b.h * 60 + b.m));
-        return schedule;
+        schedule.sort((a,b)=>(a.h*60+a.m)-(b.h*60+b.m));
+        // Dédoublonnage (même minute)
+        return schedule.filter((s,i,arr)=>
+            i===0 || (s.h*60+s.m) !== (arr[i-1].h*60+arr[i-1].m)
+        );
     }
 
-    // ── Rendu breadcrumb ──────────────────────────────────────
-    function renderBreadcrumb(items, containerId) {
-        const el = document.getElementById(containerId);
-        if (!el) return;
-        el.innerHTML = '';
-        items.forEach((item, i) => {
-            if (i > 0) {
-                const sep = document.createElement('span');
-                sep.className = 'bs-nav-crumb-sep';
-                sep.innerHTML = ' › ';
-                el.appendChild(sep);
-            }
-            const btn = document.createElement('button');
-            btn.className = 'bs-nav-crumb' + (item.current ? ' current' : '');
-            btn.textContent = item.label;
-            if (!item.current && item.action) btn.addEventListener('click', item.action);
-            el.appendChild(btn);
+    // ── Topbar helpers ─────────────────────────────────────────────
+    function setTitle(title, sub='') {
+        const tEl = $('bs-nav-title');
+        const sEl = $('bs-nav-subtitle');
+        if (!tEl) return;
+        // Micro-animation du titre
+        tEl.style.opacity='0'; tEl.style.transform='translateY(-6px)';
+        setTimeout(()=>{ tEl.textContent=title; tEl.style.opacity=''; tEl.style.transform=''; },150);
+        if (sEl) {
+            sEl.textContent = sub;
+            sEl.classList.toggle('visible', !!sub);
+        }
+    }
+    function showBack(show) {
+        const b = $('bs-nav-back');
+        if (b) b.classList.toggle('hidden', !show);
+    }
+    function showFavBtn(show) {
+        const b = $('bs-nav-fav-btn');
+        if (b) b.style.display = show ? 'flex' : 'none';
+    }
+    function updateFavBtnState() {
+        const b = $('bs-nav-fav-btn');
+        if (!b) return;
+        const fav = isFav();
+        b.classList.toggle('is-fav', fav);
+    }
+
+    // ── Transition de page ─────────────────────────────────────────
+    function transitionPage(direction='right', renderFn) {
+        const vp = $('bs-nav-page');
+        if (!vp) { renderFn(); return; }
+
+        // Fade out rapide
+        vp.style.opacity='0';
+        vp.style.transform = direction==='right'
+            ? 'translateX(-20px)' : 'translateX(20px)';
+        vp.style.filter='blur(4px)';
+        vp.style.transition='opacity 0.15s ease, transform 0.15s ease, filter 0.15s ease';
+
+        setTimeout(()=>{
+            renderFn();
+            vp.style.transition='none';
+            vp.style.opacity='0';
+            vp.style.transform = direction==='right'
+                ? 'translateX(28px)' : 'translateX(-28px)';
+            vp.style.filter='blur(8px)';
+
+            // Force reflow
+            vp.offsetHeight;
+
+            vp.style.transition =
+                'opacity 0.38s cubic-bezier(0.25,1.5,0.5,1),' +
+                'transform 0.38s cubic-bezier(0.25,1.5,0.5,1),' +
+                'filter 0.3s ease';
+            vp.style.opacity='1';
+            vp.style.transform='translateX(0)';
+            vp.style.filter='blur(0)';
+        }, 160);
+    }
+
+    // ── Build search field ─────────────────────────────────────────
+    function buildSearch(placeholder, onInput) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bs-lg-search-wrap';
+        wrap.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input class="bs-lg-search" type="search"
+                   placeholder="${placeholder}" autocomplete="off">
+            <button class="bs-lg-search-clear" aria-label="Effacer">✕</button>`;
+        const inp = wrap.querySelector('input');
+        const clr = wrap.querySelector('.bs-lg-search-clear');
+        inp.addEventListener('input', ()=>{
+            clr.classList.toggle('visible', inp.value.length>0);
+            onInput(inp.value);
         });
+        clr.addEventListener('click', ()=>{
+            inp.value=''; clr.classList.remove('visible');
+            onInput(''); inp.focus();
+        });
+        return wrap;
     }
 
-    // ── VUE : liste des lignes ────────────────────────────────
-    function showLines() {
-        st.view = 'lines';
-        st.routeId = null; st.destinationId = null; st.stopId = null;
-
-        // Masquer la vue horaires si visible
-        const sv = document.getElementById('bs-schedule-view');
-        if (sv) sv.style.display = 'none';
-
-        const nav = document.getElementById('bs-nav');
-        if (!nav) return;
-        nav.style.display = 'block';
-
-        renderBreadcrumb([{ label: t('lines') || 'Lignes', current: true }], 'bs-nav-breadcrumb');
-
-        const content = document.getElementById('bs-nav-content');
-        content.innerHTML = `
-            <input class="bs-nav-search" id="bs-nav-line-search"
-                   placeholder="${t('search_line') || 'Rechercher une ligne…'}" autocomplete="off">
-            <div id="bs-nav-lines-list"></div>`;
-
-        const search = document.getElementById('bs-nav-line-search');
-        search?.addEventListener('input', () => renderLinesList(search.value));
-        renderLinesList('');
+    // ── Section header ─────────────────────────────────────────────
+    function sectionHeader(text) {
+        const d = document.createElement('div');
+        d.className = 'bs-lg-section-header';
+        d.textContent = text;
+        return d;
     }
 
-    function renderLinesList(q) {
-        const list = document.getElementById('bs-nav-lines-list');
-        if (!list) return;
+    // ══════════════════════════════════════════════════════════════
+    //  VUES
+    // ══════════════════════════════════════════════════════════════
+
+    // ── VUE : Lignes ───────────────────────────────────────────────
+    function renderLines(q='') {
+        const page = $('bs-nav-page');
+        if (!page) return;
+        page.innerHTML = '';
+
+        // Search
+        const search = buildSearch(
+            t('search_line')||'Rechercher une ligne…',
+            v => renderLineItems(page, v)
+        );
+        page.appendChild(search);
+        page.appendChild(sectionHeader(t('all_lines')||'Toutes les lignes'));
+
+        renderLineItems(page, q);
+    }
+
+    function renderLineItems(page, q='') {
+        // Retire les anciens items
+        page.querySelectorAll('.bs-lg-items-container').forEach(e=>e.remove());
+        const container = document.createElement('div');
+        container.className = 'bs-lg-items-container';
+
         const all = Object.entries(lineColors);
         const filtered = q
-            ? all.filter(([id]) => (lineName[id] || id).toLowerCase().includes(q.toLowerCase()))
+            ? all.filter(([id])=>(lineName[id]||id).toLowerCase().includes(q.toLowerCase()))
             : all;
 
-        list.innerHTML = '';
-        if (!filtered.length) {
-            list.innerHTML = `<div style="opacity:0.5;text-align:center;padding:20px;font-size:13px;">${t('no_results') || 'Aucun résultat'}</div>`;
-            return;
-        }
-
-        // Trier comme dans le menu principal
-        const sorted = [...filtered].sort((a, b) => {
-            const na = parseInt(lineName[a[0]] || a[0]);
-            const nb = parseInt(lineName[b[0]] || b[0]);
-            if (!isNaN(na) && !isNaN(nb)) return na - nb;
-            return (lineName[a[0]] || a[0]).localeCompare(lineName[b[0]] || b[0]);
+        // Trier numériquement puis alpha
+        filtered.sort(([aId],[bId])=>{
+            const an=parseInt(lineName[aId]||aId,10);
+            const bn=parseInt(lineName[bId]||bId,10);
+            if(!isNaN(an)&&!isNaN(bn)) return an-bn;
+            return (lineName[aId]||aId).localeCompare(lineName[bId]||bId);
         });
 
-        sorted.forEach(([routeId, color], i) => {
-            const tc = getTextColor(color);
-            const name = lineName[routeId] || routeId;
-            const item = document.createElement('div');
-            item.className = 'bs-nav-line-item';
-            item.style.animationDelay = `${i * 30}ms`;
-            item.innerHTML = `
-                <div class="bs-nav-badge" style="background:${color};color:${tc};">${name}</div>
-                <div class="bs-nav-item-text">
-                    <div class="bs-nav-item-name">${t('line') || 'Ligne'} ${name}</div>
+        if (!filtered.length) {
+            container.innerHTML=`<div class="bs-lg-no-results">Aucune ligne trouvée 🔍</div>`;
+            page.appendChild(container); return;
+        }
+
+        filtered.forEach(([routeId,color])=>{
+            const tc  = getTextColor(color);
+            const name= lineName[routeId]||routeId;
+            const el  = document.createElement('div');
+            el.className='bs-lg-item';
+            el.innerHTML=`
+                <div class="bs-lg-item-badge" style="background:${color};color:${tc};">${name}</div>
+                <div class="bs-lg-item-body">
+                    <div class="bs-lg-item-title">${t('line')||'Ligne'} ${name}</div>
                 </div>
-                <svg class="bs-nav-chevron" width="14" height="14" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2"
+                <svg class="bs-lg-chevron" width="14" height="14" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2.5"
                      stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 18 15 12 9 6"/>
                 </svg>`;
-            item.addEventListener('click', () => showDestinations(routeId));
-            list.appendChild(item);
+            el.addEventListener('click',()=>showDestinations(routeId));
+            container.appendChild(el);
         });
+        page.appendChild(container);
     }
 
-    // ── VUE : destinations ────────────────────────────────────
-    async function showDestinations(routeId) {
-        st.view = 'destinations';
-        st.routeId = routeId;
+    function showLines() {
+        st.view='lines'; st.routeId=null; st.destinationId=null; st.stopId=null;
+        st.history=[];
+        $('bs-nav-tabs').style.display='none';
+        $('bs-nav-datewrap').style.display='none';
+        showFavBtn(false);
+        showBack(false);
+        setTitle(t('schedule')||'Horaires');
+        transitionPage('left', ()=>renderLines());
+    }
 
-        const content = document.getElementById('bs-nav-content');
-        const color = lineColors[routeId] || '#007AFF';
-        const name  = lineName[routeId]  || routeId;
+    // ── VUE : Destinations ─────────────────────────────────────────
+    async function showDestinations(routeId, dir='right') {
+        st.history.push({view:'lines'});
+        st.view='destinations'; st.routeId=routeId;
+        $('bs-nav-tabs').style.display='none';
+        $('bs-nav-datewrap').style.display='none';
+        showFavBtn(false);
+        showBack(true);
 
-        renderBreadcrumb([
-            { label: t('lines') || 'Lignes', action: showLines },
-            { label: `${t('line') || 'Ligne'} ${name}`, current: true }
-        ], 'bs-nav-breadcrumb');
+        const name=lineName[routeId]||routeId;
+        const color=lineColors[routeId]||'#007AFF';
+        setTitle(`${t('line')||'Ligne'} ${name}`, 'Choisissez une direction');
 
-        content.innerHTML = `
-            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;
-                        padding:20px 0;opacity:0.6;">
-                <div class="bs-spinner"></div>
-                <div style="font-size:12px;">Chargement…</div>
-            </div>`;
+        transitionPage(dir, ()=>{
+            const page=$('bs-nav-page');
+            page.innerHTML=`<div class="bs-lg-loader"><div class="bs-lg-spinner"></div>Chargement…</div>`;
+        });
 
         try {
-            await ensureRouteLoaded(routeId);
+            await Promise.all([ensureRouteLoaded(routeId), ensureCalendar()]);
         } catch(e) {
-            content.innerHTML = `<div style="opacity:0.6;padding:16px;text-align:center;font-size:13px;">
-                Erreur : ${e.message}</div>`;
+            $('bs-nav-page').innerHTML=`
+                <div class="bs-lg-empty">
+                    <div class="bs-lg-empty-icon">⚠️</div>
+                    <div class="bs-lg-empty-title">Erreur de chargement</div>
+                    <div class="bs-lg-empty-sub">${e.message}</div>
+                </div>`;
             return;
         }
 
-        const dests = getDestinations(routeId);
-        content.innerHTML = '';
-
-        if (!dests.length) {
-            content.innerHTML = `<div style="opacity:0.5;text-align:center;padding:20px;font-size:13px;">Aucune destination</div>`;
-            return;
-        }
-
-        dests.forEach((dest, i) => {
-            const item = document.createElement('div');
-            item.className = 'bs-nav-line-item';
-            item.style.animationDelay = `${i * 40}ms`;
-            item.innerHTML = `
-                <div style="width:36px;height:36px;border-radius:10px;background:${color}22;
-                            display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                         stroke="${color}" stroke-width="2.5"
+        const dests=getDestinations(routeId);
+        transitionPage('right',()=>{
+            const page=$('bs-nav-page');
+            page.innerHTML='';
+            page.appendChild(sectionHeader('Direction'));
+            if (!dests.length) {
+                page.innerHTML+='<div class="bs-lg-no-results">Aucune destination</div>';
+                return;
+            }
+            dests.forEach(dest=>{
+                const el=document.createElement('div');
+                el.className='bs-lg-item';
+                el.innerHTML=`
+                    <div class="bs-lg-dest-icon"
+                         style="background:${color}22;color:${color};">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                             stroke="${color}" stroke-width="2.5"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </div>
+                    <div class="bs-lg-item-body">
+                        <div class="bs-lg-item-title">➜ ${dest.name}</div>
+                    </div>
+                    <svg class="bs-lg-chevron" width="14" height="14" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2.5"
                          stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="9 18 15 12 9 6"/>
-                    </svg>
-                </div>
-                <div class="bs-nav-item-text">
-                    <div style="font-size:15px;font-weight:700;">➜ ${dest.name}</div>
-                </div>
-                <svg class="bs-nav-chevron" width="14" height="14" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                </svg>`;
-            item.addEventListener('click', () => showStops(routeId, dest.id));
-            content.appendChild(item);
+                    </svg>`;
+                el.addEventListener('click',()=>showStops(routeId,dest.id));
+                page.appendChild(el);
+            });
         });
     }
 
-    // ── VUE : arrêts ──────────────────────────────────────────
-    function showStops(routeId, destinationId) {
-        st.view = 'stops';
-        st.destinationId = destinationId;
+    // ── VUE : Arrêts ───────────────────────────────────────────────
+    function showStops(routeId, destinationId, dir='right') {
+        st.history.push({view:'destinations',routeId});
+        st.view='stops'; st.destinationId=destinationId;
+        $('bs-nav-tabs').style.display='none';
+        $('bs-nav-datewrap').style.display='none';
+        showFavBtn(false);
+        showBack(true);
 
-        const color  = lineColors[routeId] || '#007AFF';
-        const lname  = lineName[routeId]   || routeId;
-        const dname  = stopNameMap[destinationId] || destinationId;
-        const content = document.getElementById('bs-nav-content');
+        const lname=lineName[routeId]||routeId;
+        const dname=stopNameMap[destinationId]||destinationId;
+        setTitle(dname, `${t('line')||'Ligne'} ${lname}`);
 
-        renderBreadcrumb([
-            { label: t('lines') || 'Lignes', action: showLines },
-            { label: `${t('line') || 'Ligne'} ${lname}`, action: () => showDestinations(routeId) },
-            { label: dname, current: true }
-        ], 'bs-nav-breadcrumb');
+        const stops=getStopsForDestination(routeId,destinationId);
 
-        const stops = getStopsForDestination(routeId, destinationId);
-        content.innerHTML = `
-            <input class="bs-nav-search" id="bs-nav-stop-search"
-                   placeholder="${t('search_stop') || 'Rechercher un arrêt…'}" autocomplete="off">
-            <div id="bs-nav-stops-list"></div>`;
-
-        const search = document.getElementById('bs-nav-stop-search');
-        search?.addEventListener('input', () => renderStopsList(stops, routeId, destinationId, search.value));
-        renderStopsList(stops, routeId, destinationId, '');
+        transitionPage(dir,()=>{
+            const page=$('bs-nav-page');
+            page.innerHTML='';
+            const search=buildSearch(
+                t('search_stop')||'Rechercher un arrêt…',
+                v=>renderStopItems(page,stops,routeId,destinationId,v)
+            );
+            page.appendChild(search);
+            page.appendChild(sectionHeader(`${stops.length} arrêt${stops.length>1?'s':''}`));
+            renderStopItems(page,stops,routeId,destinationId,'');
+        });
     }
 
-    function renderStopsList(stops, routeId, destinationId, q) {
-        const list = document.getElementById('bs-nav-stops-list');
-        if (!list) return;
-        const filtered = q
-            ? stops.filter(s => s.name.toLowerCase().includes(q.toLowerCase()))
+    function renderStopItems(page,stops,routeId,destinationId,q='') {
+        page.querySelectorAll('.bs-lg-items-container').forEach(e=>e.remove());
+        const container=document.createElement('div');
+        container.className='bs-lg-items-container';
+        const filtered=q
+            ? stops.filter(s=>s.name.toLowerCase().includes(q.toLowerCase()))
             : stops;
-
-        list.innerHTML = '';
         if (!filtered.length) {
-            list.innerHTML = `<div style="opacity:0.5;text-align:center;padding:16px;font-size:13px;">Aucun arrêt</div>`;
-            return;
+            container.innerHTML='<div class="bs-lg-no-results">Aucun arrêt 🔍</div>';
+            page.appendChild(container); return;
         }
-
-        filtered.forEach((stop, i) => {
-            const item = document.createElement('div');
-            item.className = 'bs-nav-line-item';
-            item.style.animationDelay = `${i * 30}ms`;
-            item.innerHTML = `
-                <div style="width:10px;height:10px;border-radius:50%;background:#fff;
-                            border:2.5px solid rgba(255,255,255,0.5);flex-shrink:0;"></div>
-                <div class="bs-nav-item-text">
-                    <div style="font-size:14px;font-weight:700;">${stop.name}</div>
+        filtered.forEach(stop=>{
+            const el=document.createElement('div');
+            el.className='bs-lg-item';
+            el.innerHTML=`
+                <div class="bs-lg-stop-dot"></div>
+                <div class="bs-lg-item-body">
+                    <div class="bs-lg-item-title">${stop.name}</div>
                 </div>
-                <svg class="bs-nav-chevron" width="14" height="14" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2"
+                <svg class="bs-lg-chevron" width="14" height="14" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="2.5"
                      stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 18 15 12 9 6"/>
                 </svg>`;
-            item.addEventListener('click', () => showSchedule(routeId, stop.id, destinationId));
-            list.appendChild(item);
+            el.addEventListener('click',()=>showSchedule(routeId,stop.id,destinationId));
+            container.appendChild(el);
         });
+        page.appendChild(container);
     }
 
-    // ── VUE : horaires ────────────────────────────────────────
-    function showSchedule(routeId, stopId, destinationId) {
-        st.view = 'schedule';
-        st.routeId = routeId;
-        st.stopId  = stopId;
-        st.destinationId = destinationId;
+    // ── VUE : Horaires ─────────────────────────────────────────────
+    function showSchedule(routeId, stopId, destinationId, dir='right') {
+        st.history.push({view:'stops',routeId,destinationId});
+        st.view='schedule';
+        st.routeId=routeId; st.stopId=stopId; st.destinationId=destinationId;
 
-        // Masquer le nav, afficher la vue horaires
-        const nav = document.getElementById('bs-nav');
-        const sv  = document.getElementById('bs-schedule-view');
-        if (nav) nav.style.display = 'none';
-        if (!sv)  return;
-        sv.style.display = 'block';
+        $('bs-nav-tabs').style.display='flex';
+        $('bs-nav-datewrap').style.display='block';
+        showBack(true);
+        showFavBtn(true);
+        updateFavBtnState();
 
-        const lname = lineName[routeId]       || routeId;
-        const sname = stopNameMap[stopId]     || stopId;
-        const dname = stopNameMap[destinationId] || destinationId;
-        const color = lineColors[routeId]     || '#007AFF';
-        const tc    = getTextColor(color);
+        const lname=lineName[routeId]||routeId;
+        const sname=stopNameMap[stopId]||stopId;
+        const dname=stopNameMap[destinationId]||destinationId;
+        setTitle(sname, `${t('line')||'Ligne'} ${lname} › ${dname}`);
 
-        // Breadcrumb dans la vue horaires
-        renderBreadcrumb([
-            { label: t('lines') || 'Lignes', action: () => {
-                sv.style.display = 'none';
-                showLines();
-            }},
-            { label: `${t('line') || 'Ligne'} ${lname}`, action: () => {
-                sv.style.display = 'none';
-                showDestinations(routeId);
-            }},
-            { label: sname, current: true }
-        ], 'bs-schedule-breadcrumb');
+        // Init date si besoin
+        const dp=$('bs-nav-date');
+        if (dp&&!dp.value) dp.value=new Date().toISOString().split('T')[0];
 
-        // Header avec badge ligne + destination
-        const header = document.createElement('div');
-        header.style.cssText = `display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;`;
-        header.innerHTML = `
-            <span style="background:${color};color:${tc};padding:4px 12px;border-radius:9px;
-                         font-weight:800;font-size:16px;">
-                ${t('line') || 'Ligne'} ${lname}
-            </span>
-            <span style="font-size:14px;opacity:0.75;">➜ ${dname}</span>`;
+        // Reset tabs
+        setTabUI('schedule');
 
-        // Bouton favori
-        const favBtn = createFavButton(routeId, stopId, destinationId, sname, dname, lname, color, tc);
-
-        const content = document.getElementById('bs-schedule-content');
-        content.innerHTML = '';
-        content.appendChild(header);
-        content.appendChild(favBtn);
-
-        // Date picker
-        const today = new Date().toISOString().split('T')[0];
-        const dp = document.getElementById('bs-date-picker');
-        if (dp) {
-            dp.value = today;
-            dp.onchange = () => renderScheduleContent(routeId, stopId, destinationId, dp.value);
-        }
-
-        // Tab par défaut
-        bsSetTab('schedule');
-        renderScheduleContent(routeId, stopId, destinationId, today);
-
-        if (BottomSheet && !BottomSheet.expanded) BottomSheet.expand();
-        if (typeof safeVibrate === 'function') safeVibrate([20]);
+        transitionPage(dir,()=>renderScheduleContent());
+        if (!BottomSheet.expanded) BottomSheet.expand();
     }
 
-    // ── Bouton favori schedule ────────────────────────────────
-    function createFavButton(routeId, stopId, destinationId, stopName, destName, routeName, color, tc) {
-        const btn = document.createElement('button');
-        btn.className = 'bs-fav-schedule-btn';
+    // ── Rendu horaires ─────────────────────────────────────────────
+    function renderScheduleContent() {
+        const page=$('bs-nav-page');
+        if (!page) return;
+        page.innerHTML='';
 
-        const isFav = () => {
-            const favs = getFromLocalStorage();
-            return favs.some(f => f.routeId === routeId && f.stopId === stopId && f.destinationId === destinationId);
-        };
-
-        const render = () => {
-            const fav = isFav();
-            btn.classList.toggle('active', fav);
-            btn.innerHTML = `${fav ? '★' : '☆'} ${fav
-                ? (t('remove_favorite') || 'Retirer des favoris')
-                : (t('add_favorite')    || 'Ajouter aux favoris')}`;
-        };
-
-        btn.addEventListener('click', () => {
-            const favs = getFromLocalStorage();
-            const idx  = favs.findIndex(f =>
-                f.routeId === routeId && f.stopId === stopId && f.destinationId === destinationId);
-            if (idx !== -1) {
-                favs.splice(idx, 1);
-            } else {
-                favs.unshift({
-                    routeId, stopId, destinationId,
-                    routeName, routeColor: color.replace('#', ''),
-                    routeTextColor: tc.replace('#', ''),
-                    stopName, destinationName: destName,
-                    updatedAt: Date.now()
-                });
-            }
-            saveToLocalStorage(favs);
-            render();
-            _refreshBottomSheetFavorites(true);
-            if (window.parent && window.parent !== window)
-                window.parent.postMessage({ action: 'favoriteChanged' }, '*');
-            safeVibrate?.([30], true);
-        });
-
-        render();
-        return btn;
-    }
-
-    // ── Rendu contenu horaires ────────────────────────────────
-    function renderScheduleContent(routeId, stopId, destinationId, dateStr) {
-        const content = document.getElementById('bs-schedule-content');
-        // On conserve le header (2 premiers enfants) et on retire le reste
-        while (content.children.length > 2) content.removeChild(content.lastChild);
-
-        const schedule = computeSchedule(routeId, stopId, destinationId, dateStr);
+        const dateStr=$('bs-nav-date')?.value||new Date().toISOString().split('T')[0];
+        const schedule=computeSchedule(st.routeId,st.stopId,st.destinationId,dateStr);
+        const now=new Date();
+        const isToday=dateStr===now.toISOString().split('T')[0];
+        const nowMin=now.getHours()*60+now.getMinutes();
 
         if (!schedule.length) {
-            const empty = document.createElement('div');
-            empty.style.cssText = 'opacity:0.55;text-align:center;padding:24px 0;font-size:14px;';
-            empty.textContent = t('nodepartures') || 'Aucun horaire disponible';
-            content.appendChild(empty);
+            // Vérifier si le problème est le calendrier ou vraiment pas d'horaire
+            const { trips } = st.routeData[st.routeId]||{};
+            const allTrips = trips?.length||0;
+            const activeIds = getActiveServiceIds(dateStr);
+            const activeTrips = activeIds
+                ? trips?.filter(t=>activeIds.includes(t.service_id)).length||0
+                : allTrips;
+
+            page.innerHTML='';
+            const empty=document.createElement('div');
+            empty.className='bs-lg-empty';
+            if (activeIds && activeIds.length===0) {
+                empty.innerHTML=`
+                    <div class="bs-lg-empty-icon">📅</div>
+                    <div class="bs-lg-empty-title">Pas de service</div>
+                    <div class="bs-lg-empty-sub">Aucun service actif pour cette date.<br>Essayez un autre jour.</div>`;
+            } else {
+                empty.innerHTML=`
+                    <div class="bs-lg-empty-icon">🚌</div>
+                    <div class="bs-lg-empty-title">Aucun horaire</div>
+                    <div class="bs-lg-empty-sub">Pas de passage à cet arrêt dans cette direction.</div>`;
+            }
+            page.appendChild(empty);
             return;
         }
 
-        const now    = new Date();
-        const today  = now.toISOString().split('T')[0];
-        const isToday = dateStr === today;
-        const nowMin  = now.getHours() * 60 + now.getMinutes();
-
-        // Prochain bus
-        const nextIdx = isToday ? schedule.findIndex(s => s.h * 60 + s.m > nowMin) : -1;
-
-        if (nextIdx !== -1) {
-            const next = schedule[nextIdx];
-            const inMin = next.h * 60 + next.m - nowMin;
-            const dh = String(next.h >= 24 ? next.h - 24 : next.h).padStart(2, '0');
-            const dm = String(next.m).padStart(2, '0');
-            const banner = document.createElement('div');
-            banner.className = 'bs-next-banner';
-            banner.innerHTML = `
-                <div class="bs-next-icon">🚌</div>
+        // Prochain passage
+        const nextIdx=isToday ? schedule.findIndex(s=>s.h*60+s.m>nowMin) : -1;
+        if (nextIdx!==-1) {
+            const next=schedule[nextIdx];
+            const inMin=next.h*60+next.m-nowMin;
+            const dh=String(next.h>=24?next.h-24:next.h).padStart(2,'0');
+            const dm=String(next.m).padStart(2,'0');
+            const banner=document.createElement('div');
+            banner.className='bs-lg-next-banner';
+            banner.innerHTML=`
+                <div class="bs-lg-next-pulse">🚌</div>
                 <div>
-                    <div class="bs-next-label">Prochain</div>
-                    <div class="bs-next-time">${dh}h${dm}</div>
-                    <div class="bs-next-sub">dans ${inMin} min</div>
+                    <div class="bs-lg-next-label">Prochain départ</div>
+                    <div class="bs-lg-next-time">${dh}h${dm}</div>
+                    <div class="bs-lg-next-sub">dans ${inMin} min</div>
                 </div>`;
-            content.appendChild(banner);
+            page.appendChild(banner);
         }
 
-        // Groupement par heure
-        const byHour = {};
-        schedule.forEach(({ h, m }) => {
-            const dh = h >= 24 ? h - 24 : h;
-            if (!byHour[dh]) byHour[dh] = [];
-            byHour[dh].push({ m, h });
+        // Groupement par heure affichée (h>=24 → h-24)
+        const byHour={};
+        schedule.forEach(({h,m})=>{
+            const dh=h>=24?h-24:h;
+            if (!byHour[dh]) byHour[dh]={displayH:dh,slots:[]};
+            byHour[dh].slots.push({m,h});
         });
 
-        let dividerDone = false;
-        Object.keys(byHour).sort((a, b) => +a - +b).forEach(hour => {
-            const hasFuture = isToday && byHour[hour].some(s => s.h * 60 + s.m > nowMin);
-            if (isToday && !dividerDone && hasFuture) {
-                const div = document.createElement('div');
-                div.className = 'bs-sched-divider';
-                div.textContent = 'À venir';
-                content.appendChild(div);
-                dividerDone = true;
-            }
-
-            const group = document.createElement('div');
-            const hourEl = document.createElement('div');
-            hourEl.className = 'bs-sched-hour';
-            hourEl.textContent = `${hour}h`;
-            group.appendChild(hourEl);
-
-            const timesEl = document.createElement('div');
-            timesEl.className = 'bs-sched-times';
-
-            const unique = [...new Map(byHour[hour].map(s => [s.m, s])).values()]
-                .sort((a, b) => a.m - b.m);
-
-            unique.forEach(({ m, h }) => {
-                const el = document.createElement('div');
-                el.className = 'bs-sched-time';
-                el.textContent = String(m).padStart(2, '0');
-                const depMin = h * 60 + m;
-                if (isToday) {
-                    if (depMin < nowMin) el.classList.add('is-past');
-                    else if (nextIdx !== -1 && depMin === schedule[nextIdx].h * 60 + schedule[nextIdx].m)
-                        el.classList.add('is-next');
+        let dividerDone=false;
+        Object.values(byHour)
+            .sort((a,b)=>a.displayH-b.displayH)
+            .forEach(({displayH,slots})=>{
+                const hasFuture=isToday&&slots.some(s=>s.h*60+s.m>nowMin);
+                if (isToday&&!dividerDone&&hasFuture) {
+                    const div=document.createElement('div');
+                    div.className='bs-lg-divider';
+                    div.textContent='À venir';
+                    page.appendChild(div);
+                    dividerDone=true;
                 }
-                timesEl.appendChild(el);
-            });
 
-            group.appendChild(timesEl);
-            content.appendChild(group);
-        });
+                const group=document.createElement('div');
+                group.className='bs-lg-hour-group';
+
+                const labelEl=document.createElement('div');
+                labelEl.className='bs-lg-hour-label';
+                labelEl.innerHTML=`<span class="bs-lg-hour-num">${displayH}</span>h`;
+                group.appendChild(labelEl);
+
+                const timesEl=document.createElement('div');
+                timesEl.className='bs-lg-times';
+
+                slots.sort((a,b)=>a.m-b.m).forEach(({m,h},i)=>{
+                    const el=document.createElement('div');
+                    el.className='bs-lg-time';
+                    el.style.animationDelay=`${i*0.03}s`;
+                    el.textContent=String(m).padStart(2,'0');
+                    const depMin=h*60+m;
+                    if (isToday) {
+                        if (depMin<nowMin) el.classList.add('is-past');
+                        else if (nextIdx!==-1&&depMin===schedule[nextIdx].h*60+schedule[nextIdx].m)
+                            el.classList.add('is-next');
+                    }
+                    timesEl.appendChild(el);
+                });
+
+                group.appendChild(timesEl);
+                page.appendChild(group);
+            });
     }
 
-    // ── Temps réel ────────────────────────────────────────────
-    async function renderRealtimeContent() {
-        const content = document.getElementById('bs-schedule-content');
-        while (content.children.length > 2) content.removeChild(content.lastChild);
+    // ── Rendu temps réel ───────────────────────────────────────────
+    function renderRealtimeContent() {
+        const page=$('bs-nav-page');
+        if (!page) return;
+        page.innerHTML=`<div class="bs-lg-loader"><div class="bs-lg-spinner"></div>Chargement…</div>`;
 
-        const loadingEl = document.createElement('div');
-        loadingEl.style.cssText = 'display:flex;align-items:center;gap:8px;opacity:0.6;padding:16px 0;';
-        loadingEl.innerHTML = '<div class="bs-spinner" style="width:20px;height:20px;border-width:2px;"></div> <span style="font-size:13px;">Chargement…</span>';
-        content.appendChild(loadingEl);
+        setTimeout(()=>{
+            if (!page) return;
+            const now=Date.now()/1000;
+            const routeId=st.routeId;
+            const cleanStop=(st.stopId||'').replace('0:','').trim();
+            const arrivals=[];
+            const seenKeys=new Set();
 
-        try {
-            // Réutilise les tripUpdates déjà présents dans logic.js
-            const now = Date.now() / 1000;
-            const routeId     = st.routeId;
-            const stopId      = st.stopId;
-            const cleanStop   = stopId.replace('0:', '').trim();
-            const arrivals    = [];
-            const seenKeys    = new Set();
-
-            Object.entries(tripUpdates || {}).forEach(([tripId, tripData]) => {
-                const marker = [...(markerPool?.active?.values() || [])]
-                    .find(m => m.vehicleData?.trip?.tripId === tripId && m.line === routeId);
+            Object.entries(tripUpdates||{}).forEach(([tripId,tripData])=>{
+                const marker=[...(markerPool?.active?.values()||[])]
+                    .find(m=>m.vehicleData?.trip?.tripId===tripId&&m.line===routeId);
                 if (!marker) return;
-
-                const nextStops = tripData.nextStops || [];
-                const match = nextStops.find(s => s.stopId.replace('0:', '').trim() === cleanStop);
+                const nextStops=tripData.nextStops||[];
+                const match=nextStops.find(s=>s.stopId.replace('0:','').trim()===cleanStop);
                 if (!match) return;
-
-                const t2 = match.departureTime || match.arrivalTime;
+                const t2=match.departureTime||match.arrivalTime;
                 if (!t2) return;
-
                 let secs;
-                if (typeof t2 === 'string' && t2.includes(':')) {
-                    const parts = t2.split(':').map(Number);
-                    const d = new Date();
-                    secs = new Date(d.getFullYear(), d.getMonth(), d.getDate(),
-                                   parts[0], parts[1], parts[2] || 0).getTime() / 1000;
-                    if (secs < now - 3600) secs += 86400;
-                } else if (typeof t2 === 'number' && t2 > 86400) {
-                    secs = t2;
-                } else return;
-
-                if (secs < now - 30) return;
-                const key = `${tripId}|${Math.round(secs / 60)}`;
+                if (typeof t2==='string'&&t2.includes(':')) {
+                    const parts=t2.split(':').map(Number);
+                    const d=new Date();
+                    secs=new Date(d.getFullYear(),d.getMonth(),d.getDate(),parts[0],parts[1],parts[2]||0).getTime()/1000;
+                    if (secs<now-3600) secs+=86400;
+                } else if (typeof t2==='number'&&t2>86400) { secs=t2; }
+                else return;
+                if (secs<now-30) return;
+                const key=`${tripId}|${Math.round(secs/60)}`;
                 if (seenKeys.has(key)) return;
                 seenKeys.add(key);
-
                 arrivals.push({
                     time: secs,
-                    label: marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || '',
-                    dest: marker.destination || '',
+                    label: marker.vehicleData?.vehicle?.label||marker.vehicleData?.vehicle?.id||'',
+                    dest: marker.destination||'',
                     marker
                 });
             });
 
-            arrivals.sort((a, b) => a.time - b.time);
-
-            loadingEl.remove();
+            arrivals.sort((a,b)=>a.time-b.time);
+            page.innerHTML='';
 
             if (!arrivals.length) {
-                const empty = document.createElement('div');
-                empty.style.cssText = 'opacity:0.55;text-align:center;padding:24px 0;font-size:14px;';
-                empty.textContent = t('nodepartures') || 'Aucun passage en temps réel';
-                content.appendChild(empty);
-                return;
+                const e=document.createElement('div'); e.className='bs-lg-empty';
+                e.innerHTML=`
+                    <div class="bs-lg-empty-icon">📡</div>
+                    <div class="bs-lg-empty-title">Aucun passage</div>
+                    <div class="bs-lg-empty-sub">Aucun bus localisé à cet arrêt en ce moment.</div>`;
+                page.appendChild(e); return;
             }
 
-            const liveTag = document.createElement('div');
-            liveTag.className = 'rt-live-badge';
-            liveTag.innerHTML = '<div class="rt-live-dot"></div> En direct';
-            content.appendChild(liveTag);
+            const badge=document.createElement('div');
+            badge.className='bs-lg-rt-badge';
+            badge.innerHTML=`<div class="bs-lg-rt-dot"></div> En direct`;
+            page.appendChild(badge);
 
-            arrivals.slice(0, 6).forEach(arr => {
-                const d = new Date(arr.time * 1000);
-                const inMin = Math.round((arr.time - now) / 60);
-                const color = lineColors[st.routeId] || '#007AFF';
-                const tc    = getTextColor(color);
-
-                const item = document.createElement('div');
-                item.className = 'realtime-item';
-                item.innerHTML = `
+            arrivals.slice(0,6).forEach(({time,label,dest,marker},i)=>{
+                const d=new Date(time*1000);
+                const inMin=Math.round((time-now)/60);
+                const isNow=inMin<=2;
+                const el=document.createElement('div');
+                el.className='bs-lg-rt-item';
+                el.style.animationDelay=`${i*0.06}s`;
+                el.innerHTML=`
                     <div style="flex:1;min-width:0;">
-                        <div style="font-size:12px;opacity:0.55;font-weight:600;margin-bottom:2px;">
-                            ${arr.label ? `Bus ${arr.label}` : ''}
-                        </div>
+                        ${label?`<div style="font-size:11px;opacity:0.5;font-weight:600;margin-bottom:3px;">Bus ${String(label).replace(/[A-Z]+:+/g,'').padStart(3,'0')}</div>`:''}
                         <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                            ➜ ${arr.dest}
+                            ➜ ${dest||'—'}
                         </div>
                     </div>
-                    <div style="text-align:right;flex-shrink:0;">
-                        <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;color:${inMin <= 2 ? '#34C759' : '#007AFF'};">
+                    <div>
+                        <div class="bs-lg-rt-time" style="color:${isNow?'var(--lg-green)':'#007AFF'};">
                             ${String(d.getHours()).padStart(2,'0')}h${String(d.getMinutes()).padStart(2,'0')}
                         </div>
-                        <div style="font-size:12px;font-weight:700;color:${inMin <= 2 ? '#34C759' : 'rgba(255,255,255,0.6)'};">
-                            ${inMin <= 1 ? 'Imminent' : `${inMin} min`}
+                        <div class="bs-lg-rt-in" style="color:${isNow?'var(--lg-green)':'rgba(255,255,255,0.5)'};">
+                            ${inMin<=1?'Imminent':`${inMin} min`}
                         </div>
                     </div>`;
-
-                if (arr.marker) {
-                    item.style.cursor = 'pointer';
-                    item.addEventListener('click', () => {
-                        map.setView(arr.marker.getLatLng(), 15);
-                        arr.marker.openPopup();
+                if (marker) {
+                    el.style.cursor='pointer';
+                    el.addEventListener('click',()=>{
+                        map.setView(marker.getLatLng(),15);
+                        marker.openPopup();
                         BottomSheet.collapse();
                     });
                 }
-                content.appendChild(item);
+                page.appendChild(el);
             });
-        } catch(e) {
-            loadingEl.remove();
-            const err = document.createElement('div');
-            err.style.cssText = 'opacity:0.5;text-align:center;padding:16px;font-size:13px;';
-            err.textContent = 'Données temps réel indisponibles';
-            content.appendChild(err);
-        }
+        }, 300);
     }
 
-    // ── Sélection onglet ──────────────────────────────────────
-    window.bsSetTab = function(tab) {
-        st.tab = tab;
-        const btnS  = document.getElementById('bs-tab-schedule');
-        const btnR  = document.getElementById('bs-tab-realtime');
-        const dp    = document.getElementById('bs-date-picker');
+    // ── Tab ────────────────────────────────────────────────────────
+    function setTabUI(tab) {
+        st.tab=tab;
+        const dp=$('bs-nav-datewrap');
+        $('bs-tab-sched')?.classList.toggle('active',tab==='schedule');
+        $('bs-tab-rt'   )?.classList.toggle('active',tab==='realtime');
+        if (dp) dp.style.display=tab==='schedule'?'block':'none';
+    }
 
-        if (btnS) Object.assign(btnS.style, {
-            background: tab === 'schedule' ? 'rgba(255,255,255,0.18)' : 'transparent',
-            color:      tab === 'schedule' ? '#fff'                  : 'rgba(255,255,255,0.6)'
-        });
-        if (btnR) Object.assign(btnR.style, {
-            background: tab === 'realtime' ? 'rgba(255,255,255,0.18)' : 'transparent',
-            color:      tab === 'realtime' ? '#fff'                   : 'rgba(255,255,255,0.6)'
-        });
-        if (dp) dp.style.display = tab === 'schedule' ? 'block' : 'none';
-
-        if (tab === 'realtime') {
-            renderRealtimeContent();
-        } else {
-            const dp2 = document.getElementById('bs-date-picker');
-            const dateStr = dp2?.value || new Date().toISOString().split('T')[0];
-            renderScheduleContent(st.routeId, st.stopId, st.destinationId, dateStr);
-        }
+    window.BSNav = {
+        open() {
+            const shell=$('bs-nav-shell');
+            if (!shell) return;
+            // NE PAS masquer les favoris — juste ouvrir en dessous
+            shell.style.display='block';
+            showLines();
+            if (!BottomSheet.expanded) BottomSheet.expand();
+        },
+        goBack() {
+            if (!st.history.length) {
+                // Fermer le navigator
+                const shell=$('bs-nav-shell');
+                if (shell) {
+                    shell.style.animation='lgFadeSlideOut 0.3s ease both';
+                    setTimeout(()=>{ shell.style.display='none'; shell.style.animation=''; },300);
+                }
+                $('bs-nav-tabs').style.display='none';
+                $('bs-nav-datewrap').style.display='none';
+                showFavBtn(false);
+                return;
+            }
+            const prev=st.history.pop();
+            switch(prev.view) {
+                case 'lines':
+                    st.view='lines';
+                    st.routeId=null; st.destinationId=null; st.stopId=null;
+                    $('bs-nav-tabs').style.display='none';
+                    $('bs-nav-datewrap').style.display='none';
+                    showFavBtn(false);
+                    showBack(false);
+                    setTitle(t('schedule')||'Horaires');
+                    transitionPage('left',()=>renderLines());
+                    break;
+                case 'destinations':
+                    showDestinations(prev.routeId,'left');
+                    st.history.pop(); // annule le push de showDestinations
+                    break;
+                case 'stops':
+                    showStops(prev.routeId,prev.destinationId,'left');
+                    st.history.pop();
+                    break;
+            }
+        },
+        setTab(tab) {
+            setTabUI(tab);
+            if (tab==='realtime') renderRealtimeContent();
+            else renderScheduleContent();
+        },
+        onDateChange(dateStr) {
+            if (st.view==='schedule') renderScheduleContent();
+        },
+        toggleFav() {
+            const btn=$('bs-nav-fav-btn');
+            const favs=getFavs();
+            const idx=favs.findIndex(f=>
+                f.routeId===st.routeId&&f.stopId===st.stopId&&f.destinationId===st.destinationId);
+            if (idx!==-1) {
+                favs.splice(idx,1);
+            } else {
+                const color=lineColors[st.routeId]||'#007AFF';
+                const tc=getTextColor(color);
+                favs.unshift({
+                    routeId: st.routeId,
+                    routeName: lineName[st.routeId]||st.routeId,
+                    routeColor: color.replace('#',''),
+                    routeTextColor: tc.replace('#',''),
+                    stopId: st.stopId,
+                    stopName: stopNameMap[st.stopId]||st.stopId,
+                    destinationId: st.destinationId,
+                    destinationName: stopNameMap[st.destinationId]||st.destinationId,
+                    updatedAt: Date.now()
+                });
+            }
+            saveFavs(favs);
+            updateFavBtnState();
+            if (btn) { btn.classList.add('pop'); setTimeout(()=>btn.classList.remove('pop'),500); }
+            // Refresh favoris SANS toucher au navigator
+            _refreshBottomSheetFavorites(true);
+            if (window.parent&&window.parent!==window)
+                window.parent.postMessage({action:'favoriteChanged'},  '*');
+            safeVibrate?.([30],true);
+        },
+        // Appelé depuis openFavoriteSchedule
+        openFavorite(fav) {
+            if (!fav?.routeId||!fav?.stopId) return;
+            const shell=$('bs-nav-shell');
+            if (shell) shell.style.display='block';
+            ensureRouteLoaded(fav.routeId)
+                .then(()=>ensureCalendar())
+                .then(()=>showSchedule(fav.routeId,fav.stopId,fav.destinationId))
+                .catch(e=>console.error('BSNav.openFavorite:',e));
+            if (!BottomSheet.expanded) BottomSheet.expand();
+        },
     };
 
-    function open() {
-        // S'assurer que le stop-view est fermé
-        const stopView = document.getElementById('bs-stop-view');
-        if (stopView) stopView.style.display = 'none';
-        document.getElementById('bottom-sheet').dataset.stopView = 'false';
+    // Raccourcis internes
+    function showDestinations(rid,dir) { return BSNav.showDestinations?.(rid,dir)||_showDestinations(rid,dir); }
+    function showStops(rid,did,dir)   { return _showStops(rid,did,dir); }
+    function showSchedule(rid,sid,did,dir) { return _showSchedule(rid,sid,did,dir); }
 
-        _restoreBottomSheetTitle();
+    // Alias internes pour éviter la confusion avec les fonctions window
+    const _showDestinations = async (rid,dir='right')=>{
+        st.history.push({view:'lines'});
+        st.view='destinations'; st.routeId=rid;
+        $('bs-nav-tabs').style.display='none';
+        $('bs-nav-datewrap').style.display='none';
+        showFavBtn(false); showBack(true);
+        const name=lineName[rid]||rid;
+        const color=lineColors[rid]||'#007AFF';
+        setTitle(`${t('line')||'Ligne'} ${name}`,'Choisissez une direction');
+        transitionPage(dir,()=>{ $('bs-nav-page').innerHTML=`<div class="bs-lg-loader"><div class="bs-lg-spinner"></div>Chargement…</div>`; });
+        try {
+            await Promise.all([ensureRouteLoaded(rid),ensureCalendar()]);
+        } catch(e) {
+            $('bs-nav-page').innerHTML=`<div class="bs-lg-empty"><div class="bs-lg-empty-icon">⚠️</div><div class="bs-lg-empty-title">Erreur</div><div class="bs-lg-empty-sub">${e.message}</div></div>`;
+            return;
+        }
+        const dests=getDestinations(rid);
+        transitionPage('right',()=>{
+            const page=$('bs-nav-page'); page.innerHTML='';
+            page.appendChild(sectionHeader('Direction'));
+            if (!dests.length){page.innerHTML+='<div class="bs-lg-no-results">Aucune destination</div>';return;}
+            dests.forEach(dest=>{
+                const el=document.createElement('div'); el.className='bs-lg-item';
+                el.innerHTML=`
+                    <div class="bs-lg-dest-icon" style="background:${color}22;color:${color};">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="bs-lg-item-body"><div class="bs-lg-item-title">➜ ${dest.name}</div></div>
+                    <svg class="bs-lg-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+                el.addEventListener('click',()=>_showStops(rid,dest.id));
+                page.appendChild(el);
+            });
+        });
+    };
 
-        // Masquer favoris + search le temps de la navigation
-        // (pas nécessaire, le nav s'affiche en dessous)
-        showLines();
-        BottomSheet.expand();
-    }
+    const _showStops=(rid,did,dir='right')=>{
+        st.history.push({view:'destinations',routeId:rid});
+        st.view='stops'; st.destinationId=did;
+        $('bs-nav-tabs').style.display='none'; $('bs-nav-datewrap').style.display='none';
+        showFavBtn(false); showBack(true);
+        const lname=lineName[rid]||rid;
+        const dname=stopNameMap[did]||did;
+        setTitle(dname,`${t('line')||'Ligne'} ${lname}`);
+        const stops=getStopsForDestination(rid,did);
+        transitionPage(dir,()=>{
+            const page=$('bs-nav-page'); page.innerHTML='';
+            const search=buildSearch(t('search_stop')||'Rechercher un arrêt…',v=>renderStopItems(page,stops,rid,did,v));
+            page.appendChild(search);
+            page.appendChild(sectionHeader(`${stops.length} arrêt${stops.length>1?'s':''}`));
+            renderStopItems(page,stops,rid,did,'');
+        });
+    };
 
-    return { open, showLines, showDestinations, showStops, showSchedule };
+    const _showSchedule=(rid,sid,did,dir='right')=>{
+        st.history.push({view:'stops',routeId:rid,destinationId:did});
+        st.view='schedule'; st.routeId=rid; st.stopId=sid; st.destinationId=did;
+        $('bs-nav-tabs').style.display='flex'; $('bs-nav-datewrap').style.display='block';
+        showBack(true); showFavBtn(true); updateFavBtnState();
+        const lname=lineName[rid]||rid;
+        const sname=stopNameMap[sid]||sid;
+        const dname=stopNameMap[did]||did;
+        setTitle(sname,`${t('line')||'Ligne'} ${lname} › ${dname}`);
+        const dp=$('bs-nav-date');
+        if (dp&&!dp.value) dp.value=new Date().toISOString().split('T')[0];
+        setTabUI('schedule');
+        transitionPage(dir,()=>renderScheduleContent());
+        if (!BottomSheet.expanded) BottomSheet.expand();
+    };
+
+    return BSNav;
 })();
-
-// Expose globalement pour les boutons inline
-window.BSNav = BSNav;
