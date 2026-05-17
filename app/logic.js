@@ -12743,21 +12743,27 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
             placeholder.textContent = '⏳';
             list.appendChild(placeholder);
 
-            _computeStopPassages(favorite.stopId ? [favorite.stopId] : []).then(passages => {
+            fetchRealtimeDataForFavorite(favorite).then(arrivals => {
                 const ph = document.getElementById(`bs-fav-card-placeholder-${idx}`);
                 if (!ph) return;
 
-                const filtered = {};
-                Object.entries(passages).forEach(([key, group]) => {
-                    if (group.routeId === routeId || !routeId) {
-                        filtered[key] = group;
-                    }
+                const byDest = new Map();
+                arrivals.forEach(arrival => {
+                    const dest = arrival.destination && arrival.destination !== 'Destination inconnue'
+                        ? arrival.destination : '—';
+                    if (!byDest.has(dest)) byDest.set(dest, []);
+                    byDest.get(dest).push({
+                        time:         arrival.time,
+                        realtime:     arrival.realtime,
+                        vehicleLabel: arrival.vehicleLabel,
+                        marker:       arrival.marker,
+                        delay:        null,
+                        dest
+                    });
                 });
 
-                const destinations = Object.values(filtered)
-                    .filter(g => g.times.length > 0)
-                    .map(g => ({ dest: g.dest, times: g.times }))
-                    .sort((a, b) => (a.times[0]?.time ?? Infinity) - (b.times[0]?.time ?? Infinity));
+                const destinations = [];
+                byDest.forEach((times, dest) => destinations.push({ dest, times }));
 
                 if (!destinations.length) {
                     ph.textContent = t("nodepartures");
@@ -13742,6 +13748,120 @@ function _displayFavTimes(idx, arrivals, lineColor, textColor, favorite) {
         <path d="M4 11a9 9 0 0 1 9 9"/>
         <circle cx="5" cy="19" r="1"/>
     </svg>`;
+
+    if (favorite && favorite.addedFromStop) {
+        const byDest = new Map();
+        arrivals.forEach(arrival => {
+            const dest = (arrival.destination && arrival.destination !== 'Destination inconnue')
+                ? arrival.destination : '—';
+            if (!byDest.has(dest)) byDest.set(dest, []);
+            byDest.get(dest).push(arrival);
+        });
+
+        byDest.forEach((destArrivals, dest) => {
+            const destLabel = document.createElement('div');
+            destLabel.style.cssText = `
+                font-size: 11px;
+                color: rgba(255,255,255,0.55);
+                margin-bottom: 4px;
+                margin-top: 6px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            `;
+            destLabel.innerHTML = `
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+                ${dest}
+            `;
+            container.appendChild(destLabel);
+
+            const pillsRow = document.createElement('div');
+            pillsRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:5px; margin-bottom:2px;';
+
+            destArrivals.slice(0, 4).forEach(arrival => {
+                const diffMin  = Math.round((arrival.time - now) / 60);
+                const label    = diffMin <= 1 ? t("imminent") : `${diffMin} ${t("min")}`;
+                const isNow    = diffMin <= 0;
+                const isRT     = arrival.realtime === true;
+                const numLabel = arrival.vehicleLabel
+                    ? String(arrival.vehicleLabel).padStart(3, '0').replace(/[A-Z]+:/g, '')
+                    : null;
+
+                const pill = document.createElement('span');
+                pill.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 12px;
+                    font-weight: ${isRT ? '600' : '400'};
+                    font-style: ${isRT ? 'normal' : 'italic'};
+                    padding: 3px 9px;
+                    border-radius: 20px;
+                    white-space: nowrap;
+                    border: 1px solid rgba(255,255,255,0.18);
+                    cursor: ${isRT && arrival.marker ? 'pointer' : 'default'};
+                    transition: background 0.15s ease, transform 0.15s ease;
+                `;
+
+                if (isNow && isRT) {
+                    pill.style.background = lineColor;
+                    pill.style.color      = textColor;
+                    pill.style.fontWeight = '700';
+                } else if (isRT) {
+                    pill.style.background = 'rgba(255,255,255,0.14)';
+                    pill.style.color      = 'rgba(255,255,255,0.9)';
+                } else {
+                    pill.style.background  = 'rgba(255,255,255,0.05)';
+                    pill.style.color       = 'rgba(255,255,255,0.38)';
+                    pill.style.borderColor = 'rgba(255,255,255,0.07)';
+                    pill.style.fontStyle   = 'italic';
+                }
+
+                if (isRT) pill.innerHTML = rssIcon;
+
+                const labelEl = document.createElement('span');
+                labelEl.textContent = numLabel ? `${label} · ${numLabel}` : label;
+                pill.appendChild(labelEl);
+
+                if (arrival.fromNightLine) {
+                    const moon = document.createElement('span');
+                    moon.textContent = '🌙';
+                    moon.style.fontSize = '10px';
+                    pill.appendChild(moon);
+                }
+
+                if (isRT && arrival.marker) {
+                    const marker = arrival.marker;
+                    pill.addEventListener('click', e => {
+                        e.stopPropagation();
+                        safeVibrate?.([30, 20, 30], true);
+                        soundsUX('MBF_Menu_VehicleSelect');
+                        map.setView(marker.getLatLng(), 15);
+                        marker.openPopup();
+                        BottomSheet.collapse();
+                    });
+                    pill.addEventListener('pointerenter', () => {
+                        pill.style.transform = 'scale(1.05)';
+                        pill.style.background = isNow ? lineColor : 'rgba(255,255,255,0.22)';
+                    });
+                    pill.addEventListener('pointerleave', () => {
+                        pill.style.transform = 'scale(1)';
+                        pill.style.background = isNow ? lineColor : 'rgba(255,255,255,0.14)';
+                    });
+                }
+
+                pillsRow.appendChild(pill);
+            });
+
+            container.appendChild(pillsRow);
+        });
+
+        return;
+    }
 
     arrivals.slice(0, 5).forEach(arrival => {
         const diffMin  = Math.round((arrival.time - now) / 60);
