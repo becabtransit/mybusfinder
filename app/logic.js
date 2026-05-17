@@ -1269,85 +1269,6 @@ async function initMap() {
         );
     });
 
-    function createVehicleIcon(route_id, bearing, vehicleLabel) {
-        const model = vehicleLabel ? getVehicleModel(String(vehicleLabel)) : null;
-
-        if (!model || !model.thumbnail) {
-            return createCachedIcon(route_id, bearing);
-        }
-
-        const color    = lineColors[route_id] || '#000000';
-        const rotation = (bearing + 90 + 360) % 360;
-        const size     = 48;
-
-        return L.divIcon({
-            className:  'vehicle-thumbnail-icon',
-            iconSize:   [size, size],
-            iconAnchor: [size / 2, size / 2],
-            html: `
-                <div class="vt-wrapper" style="
-                    width:${size}px; height:${size}px;
-                    transform: rotate(${rotation}deg);
-                    transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
-                    will-change: transform;
-                    position: relative;
-                ">
-                    <img
-                        src="${model.thumbnail}"
-                        alt=""
-                        draggable="false"
-                        style="
-                            width: 100%;
-                            height: 100%;
-                            object-fit: contain;
-                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
-                            pointer-events: none;
-                            user-select: none;
-                        "
-                    />
-                    <div style="
-                        position: absolute;
-                        bottom: -4px; right: -4px;
-                        background: ${color};
-                        color: ${getTextColor(color)};
-                        font-family: 'League Spartan', sans-serif;
-                        font-size: 9px; font-weight: 700;
-                        padding: 1px 5px;
-                        border-radius: 6px;
-                        transform: rotate(${-rotation}deg);
-                        transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
-                        pointer-events: none;
-                        white-space: nowrap;
-                        line-height: 1.4;
-                        border: 1.5px solid rgba(255,255,255,0.6);
-                    ">${lineName[route_id] || route_id}</div>
-                </div>
-            `
-        });
-    }
-
-    function updateVehicleIconsForZoom() {
-        const zoom = mapInstance.getZoom();
-        const showThumbnail = zoom >= 14;
-
-        markerPool.active.forEach((marker, id) => {
-            const vehicleLabel = marker.vehicleData?.vehicle?.label
-                            || marker.vehicleData?.vehicle?.id || '';
-            const bearing = marker.vehicleData?.position?.bearing || 0;
-            const route_id = marker.line;
-
-            const newIcon = showThumbnail
-                ? createVehicleIcon(route_id, bearing, vehicleLabel)
-                : createCachedIcon(route_id, bearing);
-
-            marker.setIcon(newIcon);
-        });
-    }
-
-    // Écoute les changements de zoom (debounced)
-    mapInstance.on('zoomend', debounce(updateVehicleIconsForZoom, 80));
-
-
     const isStandardView = localStorage.getItem('isStandardView') === 'true';
     
     if (!isStandardView) {
@@ -8416,7 +8337,88 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
             const color = lineColors[marker.line] || '#000000';
             const textColor = TextColorUtils.getOptimal(color);
             
-            const minimalContent = `
+            const vehicleLabel = (marker.vehicleData?.vehicle?.label
+                || marker.vehicleData?.vehicle?.id || '').toString()
+                .replace('TCAR:Vehicle::', '').replace(':LOC', '')
+                .replace(/^(RLA|SUM|TCA)/, '').padStart(3, '0');
+
+            const model = getVehicleModel(vehicleLabel);
+            const hasThumbnail = model && model.thumbnail;
+            const rotation = ((marker.vehicleData?.position?.bearing || 0) + 90 + 360) % 360;
+
+            const minimalContent = hasThumbnail ? `
+                <div class="minimal-popup minimal-popup-appear" style="
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-family: 'League Spartan', sans-serif;
+                    background: linear-gradient(135deg, ${color}f0, ${color}d0);
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    border-radius: 14px;
+                    padding: 5px 10px 5px 5px;
+                    box-shadow: 0 4px 16px -2px ${color}80;
+                    cursor: pointer;
+                    border: 1px solid ${color}60;
+                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    white-space: nowrap;
+                ">
+                    <div style="
+                        width: 48px;
+                        height: 48px;
+                        flex-shrink: 0;
+                        position: relative;
+                    ">
+                        <img
+                            src="${model.thumbnail}"
+                            alt=""
+                            draggable="false"
+                            style="
+                                width: 100%;
+                                height: 100%;
+                                object-fit: contain;
+                                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+                                pointer-events: none;
+                                user-select: none;
+                                transform: rotate(${rotation}deg);
+                                transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+                            "
+                        />
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <div style="
+                                background: rgba(255,255,255,0.2);
+                                border-radius: 6px;
+                                padding: 2px 7px;
+                                font-weight: 700;
+                                font-size: 11px;
+                                color: ${textColor};
+                                line-height: 1.4;
+                            ">${lineName[marker.line] || marker.line}</div>
+                            <div style="
+                                background: rgba(0,0,0,0.25);
+                                border-radius: 5px;
+                                padding: 1px 5px;
+                                font-size: 10px;
+                                font-weight: 600;
+                                color: ${textColor};
+                                opacity: 0.9;
+                            ">${vehicleLabel}</div>
+                        </div>
+                        <div style="
+                            font-size: 10px;
+                            color: ${textColor};
+                            opacity: 0.8;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            max-width: 110px;
+                            font-weight: 400;
+                        ">➜ ${marker.destination || t("unknowndestination")}</div>
+                    </div>
+                </div>
+            ` : `
                 <div class="minimal-popup minimal-popup-appear" style="
                     position: relative;
                     font-family: 'League Spartan', sans-serif;
@@ -8433,9 +8435,6 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                     cursor: pointer;
                     border: 1px solid ${color}60;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                    -webkit-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                    transform: translateY(0);
-                    -webkit-transform: translateY(0) translateZ(0);
                 ">
                     <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
                         <div style="
@@ -8445,30 +8444,24 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                             font-weight: 600;
                             font-size: 10px;
                             line-height: 1.2;
-                        ">
-                            ${lineName[marker.line] || t("unknownline")}
-                        </div>
+                        ">${lineName[marker.line] || t("unknownline")}</div>
                         <div style="
                             background: rgba(0,0,0,0.3);
                             border-radius: 4px;
                             padding: 1px 4px;
                             font-size: 9px;
                             font-weight: 500;
-                        ">
-                            ${((marker.vehicleData && (marker.vehicleData.vehicle.label || marker.vehicleData.vehicle.id)) || (marker.vehicle && (marker.vehicle.label || marker.vehicle.id)) || t("unknownparc")).toString().padStart(3, '0')}
-                        </div>
+                        ">${vehicleLabel}</div>
                     </div>
                     <div style="
-                        font-size: 9px; 
-                        opacity: 0.85; 
+                        font-size: 9px;
+                        opacity: 0.85;
                         margin-top: 2px;
                         overflow: hidden;
                         text-overflow: ellipsis;
                         white-space: nowrap;
                         font-weight: 400;
-                    ">
-                        ➜ ${marker.destination || t("unknowndestination")}
-                    </div>
+                    ">➜ ${marker.destination || t("unknowndestination")}</div>
                 </div>
             `;
 
@@ -9520,6 +9513,14 @@ async function fetchVehiclePositions() {
                 if (marker.minimalPopup) {
                     createOrUpdateMinimalTooltip(id, true);
                     animateTooltip(marker.minimalPopup, L.latLng(latitude, longitude));
+                }
+
+                if (marker.minimalPopup && marker.minimalPopup._container) {
+                    const thumbImg = marker.minimalPopup._container.querySelector('img');
+                    if (thumbImg) {
+                        const newRotation = (bearing + 90 + 360) % 360;
+                        thumbImg.style.transform = `rotate(${newRotation}deg)`;
+                    }
                 }
                 
                 const hasChanges = (
