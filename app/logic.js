@@ -13174,8 +13174,8 @@ function _toggleLineFavoriteFromStop(routeId, stopIdArr, stopName, btn, textColo
             routeName:       lineName[routeId] || routeId,
             stopId:          bestStop || stopId,
             stopName,
-            destinationId:   dest,
-            destinationName: dest,
+            destinationId:   '',
+            destinationName: '',
             addedAt:         Date.now(),
             addedFromStop:   true
         });
@@ -13708,9 +13708,10 @@ async function fetchRealtimeDataForFavorite(favorite) {
             .find(m => m.vehicleData?.trip?.tripId === tripId);
 
         if (routeId && marker && marker.line !== routeId) return;
-        if (destId && marker?.destination) {
+        if (destId && marker?.destination && !favorite.addedFromStop) {
             const dest    = marker.destination.toLowerCase();
             const favDest = (favorite.destinationName || destId).toLowerCase();
+            if (!dest.includes(favDest) && !favDest.includes(dest)) return;
         }
 
         const stopTime = stopMatch.departureTime || stopMatch.arrivalTime;
