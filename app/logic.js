@@ -8272,7 +8272,7 @@ function updateMinimalPopupsGlobal() {
     MinimalPopupAnimationManager.schedule(() => {
         if (!window.mapInstance) return;
         const currentZoom = window.mapInstance.getZoom();
-        const showMinimal = currentZoom >= 15 && currentZoom < 20;
+        const showMinimal = currentZoom >= 17 && currentZoom < 20;
         if (!showMinimal) {
             markerPool.active.forEach((marker, id) => {
                 if (marker) createOrUpdateMinimalTooltip(id, false);
@@ -8352,7 +8352,7 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    gap: 14px;
+                    gap: 17px;
                     font-family: 'League Spartan', sans-serif;
                     cursor: pointer;
                     padding: 0 4px;
@@ -9464,7 +9464,7 @@ async function fetchVehiclePositions() {
                 function updateMinimalPopups() {
                     MinimalPopupAnimationManager.schedule(() => {
                         const currentZoom = map.getZoom();
-                        const showMinimal = currentZoom >= 15 && currentZoom < 20;
+                        const showMinimal = currentZoom >= 17 && currentZoom < 20;
                         
                         if (!showMinimal) {
                             markerPool.active.forEach((marker, id) => {
