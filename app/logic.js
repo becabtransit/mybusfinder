@@ -1175,6 +1175,25 @@ function soundsUX(soundFileName) {
     }
 }
 
+function smoothFlyTo(latlng, zoom = null, opts = {}) {
+    const m = window.mapInstance;
+    if (!m) return;
+
+    const targetZoom = zoom ?? m.getZoom();
+    const currentZoom = m.getZoom();
+    const dist = m.getCenter().distanceTo(L.latLng(latlng));
+
+    const duration = Math.min(2.5, Math.max(0.4, dist / 8000));
+
+    m.flyTo(latlng, targetZoom, {
+        animate: true,
+        duration: duration,
+        easeLinearity: opts.easeLinearity ?? 0.15,
+        noMoveStart: opts.noMoveStart ?? false,
+        ...opts
+    });
+}
+
 async function initMap() {
     const data = await getSetvar();
     let defaultCoords = [43.125463, 5.930077];
@@ -1408,7 +1427,7 @@ function onLocationFound(e) {
         locationMarker = L.marker(latlng, { icon: locationIcon, zIndexOffset: 1000 })
             .addTo(mapInstance);
 
-        mapInstance.setView(latlng, Math.max(mapInstance.getZoom(), 16));
+        smoothFlyTo(latlng, Math.max(mapInstance.getZoom(), 16), { easeLinearity: 0.1 });
     }
 }
 
@@ -1875,7 +1894,7 @@ function focusOnVehicle(vehicleId) {
         
         
         try {
-            smoothCenterMarker(marker);
+            smoothFlyTo(marker.getLatLng(), Math.max(mapInstance.getZoom(), 15));
             marker.openPopup();
             
             const markerIcon = marker._icon.querySelector('.marker-icon');
@@ -3532,10 +3551,7 @@ function updateMenuBtmColor(color, routeId) {
 function createColoredMarker(lat, lon, route_id, bearing = 0) {
     const generateUniqueId = () => `popup-style-${Math.random().toString(36).substr(2, 9)}`;
     
-    // Optimisation: S'assurer que le style d'animation existe
     ensurePulseStyle(route_id);
-    
-    // Optimisation: Utiliser l'icône en cache
     const icon = createCachedIcon(route_id, bearing);
     
     const marker = L.marker([lat, lon], { icon });
@@ -3590,7 +3606,6 @@ function createColoredMarker(lat, lon, route_id, bearing = 0) {
                                 
                                 menubtm.style.backgroundColor = `${window.colorbkg9c}`;
                                 
-                                // Optimisation: Supprimer tous les anciens styles en une fois
                                 document.querySelectorAll('.menu-color-style').forEach(style => style.remove());
                                 
                                 const styleSheet = document.createElement('style');
@@ -3640,6 +3655,107 @@ function clearMarkerCache() {
     });
     markerCache.styles.clear();
 }
+
+/**
+ * Crée un divIcon avec la thumbnail du véhicule orientée selon le bearing,
+ * ou l'icône classique si pas de thumbnail disponible.
+ */
+function createVehicleIcon(route_id, bearing, vehicleLabel) {
+    const color = lineColors[route_id] || '#000000';
+    const lighterColor = adjustBrightness(color, 30);
+    const darkerColor  = adjustBrightness(color, -20);
+
+    const model = vehicleLabel ? getVehicleModel(String(vehicleLabel)) : null;
+    const hasThumbnail = model && model.thumbnail;
+
+    if (hasThumbnail) {
+        const rotation = (bearing - 90 + 360) % 360;
+
+        const size = 48;
+
+        return L.divIcon({
+            className: 'vehicle-thumbnail-icon',
+            iconSize:   [size, size],
+            iconAnchor: [size / 2, size / 2],
+            html: `
+                <div class="vt-wrapper" style="
+                    width:${size}px; height:${size}px;
+                    transform: rotate(${rotation}deg);
+                    transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+                    will-change: transform;
+                    position: relative;
+                ">
+                    <img
+                        src="${model.thumbnail}"
+                        alt=""
+                        draggable="false"
+                        onerror="this.closest('.vt-wrapper').classList.add('vt-no-img')"
+                        style="
+                            width: 100%;
+                            height: 100%;
+                            object-fit: contain;
+                            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
+                            pointer-events: none;
+                            user-select: none;
+                        "
+                    />
+                    <div style="
+                        position: absolute;
+                        bottom: -4px; right: -4px;
+                        background: ${color};
+                        color: ${getTextColor(color)};
+                        font-family: 'League Spartan', sans-serif;
+                        font-size: 9px; font-weight: 700;
+                        padding: 1px 5px;
+                        border-radius: 6px;
+                        transform: rotate(${-rotation}deg);
+                        transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
+                        pointer-events: none;
+                        white-space: nowrap;
+                        line-height: 1.4;
+                        border: 1.5px solid rgba(255,255,255,0.6);
+                    ">${lineName[route_id] || route_id}</div>
+                </div>
+                <style>
+                    .vt-no-img img { display: none; }
+                    .vt-no-img::after {
+                        content: '';
+                        display: block;
+                        width: 12px; height: 12px;
+                        background: ${color};
+                        border: 2px solid white;
+                        border-radius: 50%;
+                        margin: auto;
+                        margin-top: calc(50% - 6px);
+                    }
+                </style>
+            `
+        });
+    }
+
+    return createCachedIcon(route_id, bearing);
+}
+
+function updateVehicleIconsForZoom() {
+    const zoom = mapInstance.getZoom();
+    const showThumbnail = zoom >= 14;
+
+    markerPool.active.forEach((marker, id) => {
+        const vehicleLabel = marker.vehicleData?.vehicle?.label
+                          || marker.vehicleData?.vehicle?.id || '';
+        const bearing = marker.vehicleData?.position?.bearing || 0;
+        const route_id = marker.line;
+
+        const newIcon = showThumbnail
+            ? createVehicleIcon(route_id, bearing, vehicleLabel)
+            : createCachedIcon(route_id, bearing);
+
+        marker.setIcon(newIcon);
+    });
+}
+
+// Écoute les changements de zoom (debounced)
+mapInstance.on('zoomend', debounce(updateVehicleIconsForZoom, 80));
 
 function shouldRenderMarker(marker) {
     const zoom = map.getZoom();
@@ -3930,17 +4046,16 @@ function filterByLine(lineId) {
 
 function zoomToSelectedLine(lineId) {
     const bounds = L.latLngBounds();
-
     geoJsonLines.forEach(layer => {
-        if (layer.feature.properties.route_id === lineId) {
+        if (layer.feature.properties.route_id === lineId)
             bounds.extend(layer.getBounds());
-        }
     });
-
     if (bounds.isValid()) {
-        map.fitBounds(bounds, {
-            padding: [10, 10], 
-            maxZoom: 17        
+        mapInstance.flyToBounds(bounds, {
+            padding: [40, 40],
+            maxZoom: 16,
+            duration: 1.2,
+            easeLinearity: 0.2
         });
     }
 }
@@ -6372,7 +6487,7 @@ const MenuManager = {
             event.stopPropagation();
             safeVibrate([50, 300, 50, 30, 50], true);
             soundsUX('MBF_Menu_VehicleSelect');
-            map.setView(bus.vehicle.getLatLng(), 15);
+            smoothFlyTo(bus.vehicle.getLatLng(), 15);
             bus.vehicle.openPopup();
             closeMenu();
             if (selectedLine) resetMapView();
@@ -9480,9 +9595,24 @@ async function fetchVehiclePositions() {
                 }
                 
                 if (marker._icon) {
-                    const arrowElement = marker._icon.querySelector('.marker-arrow');
-                    if (arrowElement) {
-                        arrowElement.style.transform = `rotate(${bearing - 90}deg)`;
+                    const zoom = mapInstance.getZoom();
+
+                    if (zoom >= 14) {
+                        const wrapper = marker._icon.querySelector('.vt-wrapper');
+                        if (wrapper) {
+                            const rotation = (bearing - 90 + 360) % 360;
+                            wrapper.style.transform = `rotate(${rotation}deg)`;
+
+                            const badge = wrapper.querySelector('div[style*="bottom"]');
+                            if (badge) {
+                                badge.style.transform = `rotate(${-rotation}deg)`;
+                            }
+                        }
+                    } else {
+                        const arrowElement = marker._icon.querySelector('.marker-arrow');
+                        if (arrowElement) {
+                            arrowElement.style.transform = `rotate(${bearing - 90}deg)`;
+                        }
                     }
                 }
                 
@@ -9967,6 +10097,7 @@ const menubottom1 = document.getElementById('menubtm');
         return;
     }
 }
+
 
 
 function updateActiveLines() {
@@ -12490,7 +12621,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
             card.addEventListener('click', () => {
                 safeVibrate?.([30], true);
                 soundsUX?.('MBF_Popup');
-                if (cluster) map?.setView([cluster.lat, cluster.lon], 17);
+                if (cluster) smoothFlyTo([cluster.lat, cluster.lon], 17, { easeLinearity: 0.12 });
                 openStopInBottomSheet(fav.stopIds, fav.stopName);
             });
 
@@ -12835,7 +12966,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                 const cluster = window._stopClusters?.find(c =>
                     c.stopIds.some(id => clusterStopIds.includes(id))
                 );
-                if (cluster) map?.setView([cluster.lat, cluster.lon], 17);
+                if (cluster) smoothFlyTo([cluster.lat, cluster.lon], 17, { easeLinearity: 0.12 });
                 openStopInBottomSheet(clusterStopIds, favorite.stopName || stopName);
             });
 
