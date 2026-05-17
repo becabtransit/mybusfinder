@@ -8352,44 +8352,34 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
+                    gap: 6px;
                     font-family: 'League Spartan', sans-serif;
                     cursor: pointer;
-                    width: 120px;
+                    padding: 0 4px;
                 ">
-                    <div style="
-                        display: flex;
-                        align-items: center;
-                        gap: 5px;
-                        background: linear-gradient(135deg, ${color}f0, ${color}d0);
-                        backdrop-filter: blur(12px);
-                        -webkit-backdrop-filter: blur(12px);
-                        border-radius: 10px 10px 0 0;
-                        padding: 4px 8px;
-                        border: 1px solid ${color}60;
-                        border-bottom: none;
-                        width: 100%;
-                        box-sizing: border-box;
-                        justify-content: center;
-                    ">
+                    <div style="display: flex; gap: 5px; align-items: center; justify-content: center;">
                         <div style="
-                            background: rgba(255,255,255,0.2);
-                            border-radius: 6px;
-                            padding: 2px 7px;
-                            font-weight: 700;
+                            background: linear-gradient(135deg, ${color}f0, ${color}d0);
+                            border: 1px solid ${color}60;
+                            border-radius: 20px;
+                            padding: 2px 9px;
                             font-size: 11px;
+                            font-weight: 700;
                             color: ${textColor};
-                            line-height: 1.4;
                             white-space: nowrap;
+                            backdrop-filter: blur(12px);
+                            -webkit-backdrop-filter: blur(12px);
                         ">${lineName[marker.line] || marker.line}</div>
                         <div style="
-                            background: rgba(0,0,0,0.25);
-                            border-radius: 5px;
-                            padding: 1px 5px;
+                            background: rgba(0,0,0,0.45);
+                            border-radius: 20px;
+                            padding: 2px 9px;
                             font-size: 10px;
                             font-weight: 600;
-                            color: ${textColor};
-                            opacity: 0.9;
+                            color: white;
                             white-space: nowrap;
+                            backdrop-filter: blur(12px);
+                            -webkit-backdrop-filter: blur(12px);
                         ">${vehicleLabel}</div>
                     </div>
 
@@ -8401,38 +8391,28 @@ function createOrUpdateMinimalTooltip(markerId, shouldShow = true) {
                             width: 80px;
                             height: 56px;
                             object-fit: contain;
-                            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
+                            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
                             pointer-events: none;
                             user-select: none;
                             transform: rotate(${rotation}deg);
                             transition: transform 0.6s cubic-bezier(0.4,0,0.2,1);
-                            position: relative;
-                            z-index: 1;
                         "
                     />
 
                     <div style="
                         background: linear-gradient(135deg, ${color}f0, ${color}d0);
+                        border: 1px solid ${color}60;
+                        border-radius: 20px;
+                        padding: 2px 10px;
+                        font-size: 10px;
+                        color: ${textColor};
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        max-width: 140px;
                         backdrop-filter: blur(12px);
                         -webkit-backdrop-filter: blur(12px);
-                        border-radius: 0 0 10px 10px;
-                        padding: 4px 8px;
-                        border: 1px solid ${color}60;
-                        border-top: none;
-                        width: 100%;
-                        box-sizing: border-box;
-                        text-align: center;
-                    ">
-                        <div style="
-                            font-size: 10px;
-                            color: ${textColor};
-                            opacity: 0.85;
-                            overflow: hidden;
-                            text-overflow: ellipsis;
-                            white-space: nowrap;
-                            font-weight: 400;
-                        ">➜ ${marker.destination || t("unknowndestination")}</div>
-                    </div>
+                    ">➜ ${marker.destination || t("unknowndestination")}</div>
                 </div>
             ` : `
                 <div class="minimal-popup minimal-popup-appear" style="
