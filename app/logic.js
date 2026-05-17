@@ -14149,7 +14149,7 @@ window.softSwitchNetwork = softSwitchNetwork;
 //  transitions spring, et favoris persistants
 // ══════════════════════════════════════════════════════════════════
 
-const BSNav = (() => {
+(() => {
 
     // ── État ───────────────────────────────────────────────────────
     const st = {
@@ -15034,5 +15034,4 @@ const BSNav = (() => {
         if (!BottomSheet.expanded) BottomSheet.expand();
     };
 
-    return BSNav;
 })();
