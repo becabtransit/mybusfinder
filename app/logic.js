@@ -13711,7 +13711,6 @@ async function fetchRealtimeDataForFavorite(favorite) {
         if (destId && marker?.destination) {
             const dest    = marker.destination.toLowerCase();
             const favDest = (favorite.destinationName || destId).toLowerCase();
-            if (!dest.includes(favDest) && !favDest.includes(dest)) return;
         }
 
         const stopTime = stopMatch.departureTime || stopMatch.arrivalTime;
