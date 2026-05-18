@@ -12826,7 +12826,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
             const color     = lineColors[routeId] || '#444';
             const textColor = getTextColor(color);
             const lineLbl   = lineName[routeId] || routeId;
-            const isFavLine = _isLineFavoriteForStop(routeId);
+            const isFavLine = _isLineFavoriteForStop(routeId, stopIdArr);
 
             const header = document.createElement('div');
             header.style.cssText = `
@@ -13466,13 +13466,23 @@ function _getLineFavoritesForStop() {
     try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
 }
 
-function _isLineFavoriteForStop(routeId) {
-    return _getLineFavoritesForStop().some(f => f.routeId === routeId);
+function _isLineFavoriteForStop(routeId, stopIdArr) {
+    return _getLineFavoritesForStop().some(f =>
+        f.routeId === routeId &&
+        f.stopId && stopIdArr.some(id =>
+            id.replace('0:','').trim() === (f.stopId || '').replace('0:','').trim()
+        )
+    );
 }
 
 function _toggleLineFavoriteFromStop(routeId, stopIdArr, stopName, btn, textColor) {
     const favs = _getLineFavoritesForStop();
-    const idx  = favs.findIndex(f => f.routeId === routeId);
+    const cleanStops = stopIdArr.map(id => id.replace('0:','').trim());
+    
+    const idx = favs.findIndex(f =>
+        f.routeId === routeId &&
+        f.stopId && cleanStops.includes((f.stopId || '').replace('0:','').trim())
+    );
 
     const marker = [...(markerPool?.active?.values() || [])]
         .find(m => m.line === routeId);
@@ -13599,7 +13609,7 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh =
             ${animationStyle}
         `;
 
-        const isFavLine = _isLineFavoriteForStop(routeId);
+        const isFavLine = _isLineFavoriteForStop(routeId, stopIdArr);
         const lname = lineName[routeId] || routeId;
         const header = document.createElement('div');
         header.style.cssText = `
@@ -13833,7 +13843,7 @@ function _renderRoutePassageCard(routeId, destinations, stopIdArr, stopName, isR
         ${animationStyle}
     `;
 
-    const isFavLine = _isLineFavoriteForStop(routeId);
+    const isFavLine = _isLineFavoriteForStop(routeId, stopIdArr);
 
     const header = document.createElement('div');
     header.style.cssText = `
