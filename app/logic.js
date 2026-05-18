@@ -628,6 +628,7 @@
     document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         const ParametresUrl = new URLSearchParams(window.location.search);
+
         if (ParametresUrl.get('redirectedfromlegacy') === 'true') {
             showFluentPopup({
                 title: t("hello"),
@@ -636,6 +637,10 @@
                     primary: t("understood"),
                     primaryAction: () => {
                         fluentPopupManager.close();
+
+                        const url = new URL(window.location);
+                        url.searchParams.delete('redirectedfromlegacy');
+                        window.history.replaceState({}, '', url);
                     }
                 }
             });
@@ -1015,34 +1020,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(registration => {
-        
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-            toastBottomRight.info('Préparation en cours.')
-            soundsUX('MBF_NotificationInfo');
-          if (!refreshing) {
-            refreshing = true;
-            window.location.reload();
-          }
-        });
-        
-        registration.update();
-        
-        // Vérifier les mises à jour du service worker toutes les 5 minutes
-        setInterval(() => {
-          registration.update();
-        }, 5 * 60 * 1000);
-      })
-      .catch(error => {
-        console.error('Erreur lors de l\'enregistrement du service Worker:', error);
-      });
-  });
-}
 
 let globalSettings = {};
 
