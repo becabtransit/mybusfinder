@@ -1198,7 +1198,9 @@ async function initMap() {
             zoomControl: false,
             zoomSnap: 0,
             zoomDelta: 0.25,
-            zoomAnimation: true
+            zoomAnimation: true,
+            minZoom: 6,
+            maxZoom: 19
         }).setView(
             savedPosition && savedPosition.center ? savedPosition.center : defaultCoords,
             savedPosition && savedPosition.zoom ? savedPosition.zoom : defaultZoom
@@ -3801,6 +3803,15 @@ async function loadGeoJsonLines() {
 }
 
 async function loadBusStopMarkers() {
+    if (window._stopMarkersLoaded) {
+        if (window._stopZoomHandler) map.off('zoomend', window._stopZoomHandler);
+        if (window._stopLayerGroup && map.hasLayer(window._stopLayerGroup)) {
+            map.removeLayer(window._stopLayerGroup);
+        }
+        window._stopLayerGroup = null;
+        window._stopZoomHandler = null;
+        window._stopMarkersLoaded = false;
+    }
     if (window._stopMarkersLoaded) return;
     window._stopMarkersLoaded = true;
 
@@ -3831,7 +3842,7 @@ async function loadBusStopMarkers() {
 
         if (!map.getPane('stopsPane')) {
             map.createPane('stopsPane');
-            map.getPane('stopsPane').style.zIndex = 4500000000000000000000000000000;
+            map.getPane('stopsPane').style.zIndex = 450;
         }
 
         const renderer = L.canvas({ padding: 0.5 });
@@ -5013,6 +5024,9 @@ function applyMapView() {
             map.removeLayer(layer);
         }
     });
+
+    window.mapInstance.setMinZoom(6);
+    window.mapInstance.setMaxZoom(19);
 
     if (!isStandardView) {
         fetch('https://tiles.openfreemap.org/styles/liberty')
@@ -11972,6 +11986,10 @@ const BottomSheet = (() => {
 
     function expand() {
         if (!sheetEl) return;
+        if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') {
+            _restoreBottomSheetTitle();
+            return;
+        }
         _refreshBottomSheetFavorites();
         isExpanded = true;
         sheetEl.classList.remove('bs-collapsed');
@@ -13814,7 +13832,10 @@ function _restoreBottomSheetTitle() {
         const list    = document.getElementById('bs-favorites-list');
     });
 
-    setTimeout(() => _refreshBottomSheetFavorites(true), 400);
+    setTimeout(() => {
+        _refreshBottomSheetFavorites(true);
+        if (!BottomSheet.expanded) BottomSheet.expand();
+    }, 400);
 }
 
 function _renderRoutePassageCard(routeId, destinations, stopIdArr, stopName, isRefresh = false, routeIdx = 0) {
@@ -14462,8 +14483,17 @@ async function fetchRealtimeDataForFavorite(favorite) {
         }
     }
 
-    const nightRouteId = _isNightLine(routeId) ? null : _getNightCounterpart(routeId);
-    if (nightRouteId) {
+        const nightRouteId = routeId && !_isNightLine(routeId) ? _getNightCounterpart(routeId) : null;
+        if (nightRouteId) {
+        if (favorite.addedFromStop && !routeId) {
+            const allNightRoutes = Object.keys(lineColors).filter(rid => _isNightLine(rid));
+            for (const nrid of allNightRoutes) {
+                const nightArrivals = await _fetchNightArrivalsForStop(nrid, cleanStop, now);
+                nightArrivals.forEach(a => {
+                    results.push({ ...a, fromNightLine: true, routeId: nrid });
+                });
+            }
+        }
         const nightArrivals = await _fetchNightArrivalsForStop(nightRouteId, cleanStop, now);
         nightArrivals.forEach(a => {
             results.push({ ...a, fromNightLine: true, routeId: nightRouteId });
