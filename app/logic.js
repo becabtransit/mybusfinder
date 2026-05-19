@@ -11987,7 +11987,6 @@ const BottomSheet = (() => {
     function expand() {
         if (!sheetEl) return;
         if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') {
-            _restoreBottomSheetTitle();
             return;
         }
         _refreshBottomSheetFavorites();
