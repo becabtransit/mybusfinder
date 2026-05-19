@@ -11986,9 +11986,6 @@ const BottomSheet = (() => {
 
     function expand() {
         if (!sheetEl) return;
-        if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') {
-            return;
-        }
         _refreshBottomSheetFavorites();
         isExpanded = true;
         sheetEl.classList.remove('bs-collapsed');
