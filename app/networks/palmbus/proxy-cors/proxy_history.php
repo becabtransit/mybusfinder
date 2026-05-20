@@ -1,47 +1,61 @@
 <?php
-header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 
-$HISTORY_DIR = __DIR__ . '/../history/';
-$MAX_AGE_HOURS = 4;
-
-if (!is_dir($HISTORY_DIR)) {
-    mkdir($HISTORY_DIR, 0755, true);
-}
+$HISTORY_DIR = dirname(__DIR__) . '/history/';
 
 $action = $_GET['action'] ?? 'list';
 
-if ($action === 'save') {
-    $raw = file_get_contents('php://input');
-    if (!$raw) { echo json_encode(['ok' => false]); exit; }
+if ($action === 'list') {
+    header('Content-Type: application/json');
 
-    $ts       = time();
-    $filename = $HISTORY_DIR . $ts . '.json';
-    file_put_contents($filename, $raw);
-
-    // supp les fichiers plusde 4h
-    $cutoff = $ts - ($MAX_AGE_HOURS * 3600);
-    foreach (glob($HISTORY_DIR . '*.json') as $f) {
-        $ft = (int) basename($f, '.json');
-        if ($ft < $cutoff) unlink($f);
+    if (!is_dir($HISTORY_DIR)) {
+        echo json_encode([]);
+        exit;
     }
 
-    echo json_encode(['ok' => true, 'ts' => $ts]);
-    exit;
-}
+    $files = glob($HISTORY_DIR . '*.pb');
 
-if ($action === 'list') {
-    $files = glob($HISTORY_DIR . '*.json');
-    $timestamps = array_map(fn($f) => (int) basename($f, '.json'), $files);
+    if ($files === false || count($files) === 0) {
+        echo json_encode([]);
+        exit;
+    }
+
+    $timestamps = array_map(fn($f) => (int) basename($f, '.pb'), $files);
     sort($timestamps);
-    echo json_encode($timestamps);
+
+    $decimated = [];
+    $lastKept  = 0;
+    foreach ($timestamps as $ts) {
+        if ($ts - $lastKept >= 30) {
+            $decimated[] = $ts;
+            $lastKept    = $ts;
+        }
+    }
+
+    echo json_encode($decimated);
     exit;
 }
 
 if ($action === 'get') {
-    $ts    = (int) ($_GET['ts'] ?? 0);
+    $ts = (int) ($_GET['ts'] ?? 0);
+
+    if ($ts === 0) {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'ts manquant']);
+        exit;
+    }
+
     $files = glob($HISTORY_DIR . '*.pb');
-    $best  = null;
+
+    if ($files === false || count($files) === 0) {
+        http_response_code(404);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'aucun snapshot']);
+        exit;
+    }
+
+    $best     = null;
     $bestDiff = PHP_INT_MAX;
 
     foreach ($files as $f) {
@@ -53,14 +67,33 @@ if ($action === 'get') {
         }
     }
 
-    if ($best && $bestDiff < 120) {
-        header('Content-Type: application/octet-stream');
-        echo file_get_contents($best);
-    } else {
+    if ($best === null || $bestDiff > 120) {
         http_response_code(404);
-        echo json_encode(['error' => 'snapshot introuvable']);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'snapshot introuvable', 'ts' => $ts, 'diff' => $bestDiff]);
+        exit;
     }
+
+    header('Content-Type: application/octet-stream');
+    header('Content-Length: ' . filesize($best));
+    readfile($best);
     exit;
 }
 
-echo json_encode(['error' => 'unknown action']);
+if ($action === 'debug') {
+    header('Content-Type: application/json');
+    $files = glob($HISTORY_DIR . '*.pb') ?: [];
+    echo json_encode([
+        'history_dir'  => $HISTORY_DIR,
+        'dir_exists'   => is_dir($HISTORY_DIR),
+        'file_count'   => count($files),
+        'first_3'      => array_slice($files, 0, 3),
+        'last_3'       => array_slice($files, -3),
+        'php_cwd'      => getcwd(),
+        'script_dir'   => __DIR__,
+    ]);
+    exit;
+}
+
+header('Content-Type: application/json');
+echo json_encode(['error' => 'action inconnue']);
