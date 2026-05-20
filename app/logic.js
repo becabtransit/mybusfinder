@@ -11385,6 +11385,314 @@ window.addEventListener('message', e => {
     }
 });
 
+// History Replay Panel
+const HistoryReplay = (() => {
+    let isActive      = false;
+    let timestamps    = [];
+    let currentIndex  = -1;
+    let sliderEl      = null;
+    let panelEl       = null;
+    let playInterval  = null;
+    let isPlaying     = false;
+
+    function _buildPanel() {
+        if (document.getElementById('history-replay-panel')) return;
+
+        const panel = document.createElement('div');
+        panel.id = 'history-replay-panel';
+        panel.style.cssText = `
+            position: fixed;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%) translateY(120%);
+            width: min(92vw, 420px);
+            background: rgba(10, 10, 20, 0.82);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 20px;
+            padding: 16px 18px 14px;
+            z-index: 99999;
+            font-family: 'League Spartan', sans-serif;
+            color: white;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.45);
+            transition: transform 0.45s cubic-bezier(0.25,1.5,0.5,1),
+                        opacity  0.35s ease;
+            opacity: 0;
+            user-select: none;
+        `;
+
+        panel.innerHTML = `
+            <div style="display:flex; align-items:center;
+                        justify-content:space-between; margin-bottom:12px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:18px;">⏪</span>
+                    <span style="font-size:15px; font-weight:600;">
+                        Replay — 4 dernières heures
+                    </span>
+                </div>
+                <button id="hr-close" style="
+                    background: rgba(255,255,255,0.12);
+                    border: none; border-radius: 8px;
+                    width: 28px; height: 28px;
+                    color: white; font-size: 14px;
+                    cursor: pointer; display: flex;
+                    align-items: center; justify-content: center;">✕</button>
+            </div>
+
+            <div id="hr-time-label" style="
+                font-size: 22px; font-weight: 700;
+                text-align: center; margin-bottom: 10px;
+                letter-spacing: -0.5px; min-height: 28px;">
+                —
+            </div>
+
+            <input id="hr-slider" type="range" min="0" max="0" value="0" step="1"
+                style="
+                    width: 100%; accent-color: var(--accent, #0a84ff);
+                    height: 6px; cursor: pointer; margin-bottom: 12px;">
+
+            <div style="display:flex; gap:8px; justify-content:center;">
+                <button id="hr-prev" class="hr-btn">⏮</button>
+                <button id="hr-play" class="hr-btn" style="min-width:80px;">▶ Play</button>
+                <button id="hr-next" class="hr-btn">⏭</button>
+                <button id="hr-live" class="hr-btn"
+                    style="background:rgba(255,59,48,0.25);
+                           border-color:rgba(255,59,48,0.5);">
+                    Live
+                </button>
+            </div>
+
+            <div id="hr-status" style="
+                font-size:11px; text-align:center;
+                margin-top:8px; opacity:0.45; min-height:14px;">
+                Chargement des snapshots…
+            </div>
+        `;
+
+        const style = document.createElement('style');
+        style.textContent = `
+            .hr-btn {
+                background: rgba(255,255,255,0.1);
+                border: 1px solid rgba(255,255,255,0.18);
+                border-radius: 10px;
+                color: white;
+                padding: 6px 14px;
+                font-family: 'League Spartan', sans-serif;
+                font-size: 14px;
+                cursor: pointer;
+                transition: background 0.15s ease, transform 0.12s ease;
+            }
+            .hr-btn:hover  { background: rgba(255,255,255,0.18); }
+            .hr-btn:active { transform: scale(0.94); }
+        `;
+        document.head.appendChild(style);
+        document.body.appendChild(panel);
+        panelEl = panel;
+        sliderEl = panel.querySelector('#hr-slider');
+
+        panel.querySelector('#hr-close').onclick = stop;
+        panel.querySelector('#hr-prev').onclick  = () => seek(currentIndex - 1);
+        panel.querySelector('#hr-next').onclick  = () => seek(currentIndex + 1);
+        panel.querySelector('#hr-live').onclick  = stop;
+        panel.querySelector('#hr-play').onclick  = togglePlay;
+
+        sliderEl.oninput = () => seek(parseInt(sliderEl.value, 10));
+    }
+
+    function _show() {
+        if (!panelEl) _buildPanel();
+        requestAnimationFrame(() => {
+            panelEl.style.opacity   = '1';
+            panelEl.style.transform = 'translateX(-50%) translateY(0)';
+        });
+    }
+
+    function _hide() {
+        if (!panelEl) return;
+        panelEl.style.opacity   = '0';
+        panelEl.style.transform = 'translateX(-50%) translateY(120%)';
+    }
+
+    function _setStatus(txt) {
+        const el = document.getElementById('hr-status');
+        if (el) el.textContent = txt;
+    }
+
+    function _setTimeLabel(ts) {
+        const el = document.getElementById('hr-time-label');
+        if (!el) return;
+        const d = new Date(ts * 1000);
+        el.textContent = d.toLocaleTimeString('fr-FR', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+    }
+
+    async function _loadTimestamps() {
+        try {
+            const r = await fetch(netPath('proxy-cors/proxy_history.php?action=list'),
+                { cache: 'no-store' });
+            timestamps = await r.json();
+            if (!Array.isArray(timestamps) || !timestamps.length) {
+                _setStatus('Aucun historique disponible pour le moment.');
+                return false;
+            }
+            sliderEl.max   = timestamps.length - 1;
+            sliderEl.value = timestamps.length - 1;
+            _setStatus(`${timestamps.length} snapshots — de ${
+                new Date(timestamps[0] * 1000).toLocaleTimeString('fr-FR',
+                    { hour: '2-digit', minute: '2-digit' })
+            } à ${
+                new Date(timestamps[timestamps.length - 1] * 1000)
+                    .toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+            }`);
+            return true;
+        } catch (e) {
+            _setStatus('Erreur chargement historique.');
+            return false;
+        }
+    }
+
+    async function _applySnapshot(ts) {
+        try {
+            const r    = await fetch(
+                netPath(`proxy-cors/proxy_history.php?action=get&ts=${ts}`),
+                { cache: 'no-store' }
+            );
+            const data = await r.json();
+
+            if (!Array.isArray(data)) return;
+
+            const seen = new Set();
+
+            data.forEach(pos => {
+                const id = String(pos.id || pos.vehicle_id || '');
+                if (!id) return;
+                seen.add(id);
+
+                const bearing = pos.bearing || 0;
+                const line    = pos.line || pos.route_id || 'Inconnu';
+                const dest    = pos.destination || pos.headsign || '';
+
+                if (markerPool.has(id)) {
+                    const m = markerPool.get(id);
+                    m.setLatLng([pos.lat, pos.lon]);
+                    markerPool.updateMarkerStyle(m, line, bearing);
+                } else {
+                    const m = markerPool.acquire(id, pos.lat, pos.lon, line, bearing);
+                    m.line        = line;
+                    m.destination = dest;
+                    m.vehicleData = { vehicle: { label: id }, trip: {}, position: pos };
+                    m.addTo(map);
+                }
+            });
+
+            markerPool.active.forEach((_, id) => {
+                if (!seen.has(id)) markerPool.release(id);
+            });
+
+            _setTimeLabel(ts);
+            _setStatus(`${data.length} véhicules à cet instant`);
+
+        } catch (e) {
+            _setStatus('Erreur chargement snapshot.');
+        }
+    }
+
+    function seek(index) {
+        if (!timestamps.length) return;
+        currentIndex = Math.max(0, Math.min(timestamps.length - 1, index));
+        sliderEl.value = currentIndex;
+        _applySnapshot(timestamps[currentIndex]);
+        safeVibrate?.([10]);
+    }
+
+    function togglePlay() {
+        const btn = document.getElementById('hr-play');
+        if (isPlaying) {
+            clearInterval(playInterval);
+            isPlaying = false;
+            if (btn) btn.textContent = '▶ Play';
+        } else {
+            isPlaying = true;
+            if (btn) btn.textContent = '⏸ Pause';
+            playInterval = setInterval(() => {
+                if (currentIndex >= timestamps.length - 1) {
+                    clearInterval(playInterval);
+                    isPlaying = false;
+                    if (btn) btn.textContent = '▶ Play';
+                    return;
+                }
+                seek(currentIndex + 1);
+            }, 800); 
+        }
+    }
+
+    async function start() {
+        if (isActive) return;
+        isActive = true;
+        soundsUX?.('MBF_Popup');
+        safeVibrate?.([30, 20, 30], true);
+
+        if (fetchTimerId) { clearTimeout(fetchTimerId); fetchTimerId = null; }
+
+        _buildPanel();
+        _show();
+
+        _showReplayBanner();
+
+        const ok = await _loadTimestamps();
+        if (ok) seek(0);
+    }
+
+    function stop() {
+        if (!isActive) return;
+        isActive  = false;
+        isPlaying = false;
+        clearInterval(playInterval);
+
+        _hide();
+        _hideReplayBanner();
+        soundsUX?.('MBF_SettingOff');
+        safeVibrate?.([20]);
+
+        setTimeout(() => {
+            fetchVehiclePositions().then(() => startFetchUpdates());
+        }, 300);
+    }
+
+    function _showReplayBanner() {
+        if (document.getElementById('replay-banner')) return;
+        const b = document.createElement('div');
+        b.id = 'replay-banner';
+        b.style.cssText = `
+            position: fixed;
+            top: 14px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,159,10,0.92);
+            color: #000;
+            font-family: 'League Spartan', sans-serif;
+            font-weight: 700;
+            font-size: 12px;
+            padding: 5px 16px;
+            border-radius: 20px;
+            z-index: 999998;
+            letter-spacing: 0.05em;
+            pointer-events: none;
+            box-shadow: 0 4px 16px rgba(255,159,10,0.4);
+        `;
+        b.textContent = '⏪ MODE REPLAY — pas de données en temps réel';
+        document.body.appendChild(b);
+    }
+
+    function _hideReplayBanner() {
+        document.getElementById('replay-banner')?.remove();
+    }
+
+    return { start, stop, seek, get isActive() { return isActive; } };
+})();
+
+window.HistoryReplay = HistoryReplay;
 
 async function main() {
     try {
