@@ -11555,48 +11555,54 @@ const HistoryReplay = (() => {
 
     async function _applySnapshot(ts) {
         try {
-            const r    = await fetch(
+            const r      = await fetch(
                 netPath(`proxy-cors/proxy_history.php?action=get&ts=${ts}`),
                 { cache: 'no-store' }
             );
-            const data = await r.json();
+            const buffer = await r.arrayBuffer();
+            const data   = await decodeProtobuf(buffer);
 
-            if (!Array.isArray(data)) return;
-
-            const seen = new Set();
-
-            data.forEach(pos => {
-                const id = String(pos.id || pos.vehicle_id || '');
-                if (!id) return;
-                seen.add(id);
-
-                const bearing = pos.bearing || 0;
-                const line    = pos.line || pos.route_id || 'Inconnu';
-                const dest    = pos.destination || pos.headsign || '';
-
-                if (markerPool.has(id)) {
-                    const m = markerPool.get(id);
-                    m.setLatLng([pos.lat, pos.lon]);
-                    markerPool.updateMarkerStyle(m, line, bearing);
-                } else {
-                    const m = markerPool.acquire(id, pos.lat, pos.lon, line, bearing);
-                    m.line        = line;
-                    m.destination = dest;
-                    m.vehicleData = { vehicle: { label: id }, trip: {}, position: pos };
-                    m.addTo(map);
-                }
-            });
-
-            markerPool.active.forEach((_, id) => {
-                if (!seen.has(id)) markerPool.release(id);
-            });
+            _applyVehicleData(data);
 
             _setTimeLabel(ts);
-            _setStatus(`${data.length} véhicules à cet instant`);
-
+            _setStatus(`${data.entity?.length ?? 0} véhicules à cet instant`);
         } catch (e) {
             _setStatus('Erreur chargement snapshot.');
         }
+    }
+
+    function _applyVehicleData(data) {
+        const activeVehicleIds = new Set();
+
+        data.entity?.forEach(entity => {
+            const vehicle = entity.vehicle;
+            if (!vehicle) return;
+
+            const id      = vehicle.vehicle.label || vehicle.vehicle.id || entity.id;
+            const lat     = vehicle.position.latitude;
+            const lon     = vehicle.position.longitude;
+            const bearing = vehicle.position.bearing || 0;
+            const line    = vehicle.trip?.routeId || 'Inconnu';
+
+            if (isNaN(lat) || isNaN(lon)) return;
+            activeVehicleIds.add(id);
+
+            if (markerPool.has(id)) {
+                const m = markerPool.get(id);
+                m.setLatLng([lat, lon]);
+                markerPool.updateMarkerStyle(m, line, bearing);
+            } else {
+                const m = markerPool.acquire(id, lat, lon, line, bearing);
+                m.line        = line;
+                m.destination = '';
+                m.vehicleData = vehicle;
+                m.addTo(map);
+            }
+        });
+
+        markerPool.active.forEach((_, id) => {
+            if (!activeVehicleIds.has(id)) markerPool.release(id);
+        });
     }
 
     function seek(index) {
