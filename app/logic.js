@@ -2000,6 +2000,113 @@ function focusOnVehicle(vehicleId) {
     }
 }
 
+// Fonction pour afficher la popup des trips du véhicule
+async function showVehicleTripsPopup(vehicleId, vehicleLabel) {
+    try {
+        const network = window.ACTIVE_NETWORK || 'palmbus';
+        const response = await fetch(`./networks/proxy-cors/vehicle-trips.php?network=${encodeURIComponent(network)}&vehicleId=${encodeURIComponent(vehicleId)}`);
+        
+        if (!response.ok) {
+            showFluentPopup({
+                title: 'Erreur',
+                message: 'Impossible de charger les trajets du véhicule',
+                buttons: {
+                    primary: t('understood'),
+                    primaryAction: () => fluentPopupManager.close()
+                }
+            });
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success || !data.trips || data.trips.length === 0) {
+            showFluentPopup({
+                title: 'Aucun trajet',
+                message: 'Aucun trajet trouvé pour ce véhicule aujourd\'hui',
+                buttons: {
+                    primary: t('understood'),
+                    primaryAction: () => fluentPopupManager.close()
+                }
+            });
+            return;
+        }
+        
+        // Construire le contenu HTML des trips
+        let tripsHTML = `<div style="max-height: 400px; overflow-y: auto; padding: 10px;">`;
+        tripsHTML += `<h3 style="margin: 0 0 10px 0; font-size: 16px;">Trajets - ${vehicleLabel}</h3>`;
+        
+        data.trips.forEach(trip => {
+            const bgColor = trip.routeColor ? '#' + trip.routeColor : '#CCCCCC';
+            const textColor = getContrastColor('#' + trip.routeColor) || '#000000';
+            const dayName = new Date().toLocaleDateString('fr-FR', { weekday: 'long' }).charAt(0).toUpperCase() + 
+                           new Date().toLocaleDateString('fr-FR', { weekday: 'long' }).slice(1);
+            
+            tripsHTML += `
+                <div style="
+                    margin: 8px 0;
+                    padding: 10px;
+                    background-color: ${bgColor}33;
+                    border-left: 4px solid ${bgColor};
+                    border-radius: 4px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                ">
+                    <div>
+                        <div style="font-weight: 600; font-size: 14px; color: ${textColor};">Ligne ${trip.routeName}</div>
+                        <div style="font-size: 12px; color: rgba(0,0,0,0.6); margin-top: 2px;">${trip.headsign || 'Direction'}</div>
+                        <div style="font-size: 11px; color: rgba(0,0,0,0.5); margin-top: 2px;">${dayName}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-weight: 600; font-size: 13px; color: rgba(0,0,0,0.8);">
+                            ${trip.startTime.substring(0, 5)} - ${trip.endTime.substring(0, 5)}
+                        </div>
+                        <div style="font-size: 11px; color: rgba(0,0,0,0.5); margin-top: 2px;">${trip.stopCount} arrêts</div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        tripsHTML += `</div>`;
+        
+        showFluentPopup({
+            title: `Trajets de ${vehicleLabel}`,
+            message: tripsHTML,
+            buttons: {
+                primary: t('understood'),
+                primaryAction: () => fluentPopupManager.close()
+            }
+        });
+        
+    } catch (error) {
+        console.error('Erreur lors du chargement des trips:', error);
+        showFluentPopup({
+            title: 'Erreur',
+            message: 'Une erreur est survenue lors du chargement des trajets',
+            buttons: {
+                primary: t('understood'),
+                primaryAction: () => fluentPopupManager.close()
+            }
+        });
+    }
+}
+
+// Fonction utilitaire pour déterminer la couleur du texte en fonction de la couleur de fond
+function getContrastColor(hexColor) {
+    if (!hexColor) return '#000000';
+    
+    // Convertir hex en RGB
+    const r = parseInt(hexColor.slice(1, 3), 16);
+    const g = parseInt(hexColor.slice(3, 5), 16);
+    const b = parseInt(hexColor.slice(5, 7), 16);
+    
+    // Calculer la luminance
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
+}
+
 window.addEventListener('message', function(event) {
     try {        
         if (event.data && event.data.type === 'vehicleSelected') {
@@ -8821,6 +8928,29 @@ async function fetchVehiclePositions() {
                     
                     return diff <= 60 ? "imminent" : `${Math.ceil(diff / 60)} min`;
                 }
+
+                // Fonction pour obtenir l'heure de départ du premier arrêt du trip
+                function getServiceStartTime(tripId, tripStops) {
+                    if (!tripStops || Object.keys(tripStops).length === 0) return null;
+                    
+                    let earliestTime = null;
+                    let earliestTimeStr = null;
+                    
+                    for (const [sid, times] of Object.entries(tripStops)) {
+                        const timeStr = times.d || times.a; // Priorité au départ, sinon arrivée
+                        if (!timeStr) continue;
+                        
+                        const parts = timeStr.split(':').map(Number);
+                        const secs = parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
+                        
+                        if (earliestTime === null || secs < earliestTime) {
+                            earliestTime = secs;
+                            earliestTimeStr = timeStr;
+                        }
+                    }
+                    
+                    return earliestTimeStr; // Retourne HH:MM:SS du premier arrêt
+                }
                 
                 const firstStop = filteredStops.length > 0 ? filteredStops[0] : null;
                 const delayMinutes = (firstStop?.computedDelay != null && window.stopTimesReady)
@@ -8886,6 +9016,14 @@ async function fetchVehiclePositions() {
                         <span class="stops-badge-label">${status}</span>
                     </span>` : "";
 
+                // Obtenir l'heure de service du véhicule (départ du premier arrêt)
+                const serviceStartTime = getServiceStartTime(tripId, window.staticStopTimes && window.staticStopTimes[tripId] ? window.staticStopTimes[tripId] : {});
+                const serviceBadgeHTML = serviceStartTime ? `
+                    <span class="stops-icon-badge">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H11V6H13V2Z"/><path d="M20.3919 9.50755L17.8995 12.9721"/><path d="M13 13.9999V17.9999"/><circle cx="12" cy="13" r="9" fill="none"/></svg>
+                        <span class="stops-badge-label">En service depuis ${serviceStartTime.substring(0, 5)}</span>
+                    </span>` : "";
+
                 const terminusWait = getTerminusInfo(tripId, stopId, window.staticStopTimes);
                 const terminusBadgeHTML = terminusWait ? `
                     <span class="stops-icon-badge">
@@ -8910,7 +9048,7 @@ async function fetchVehiclePositions() {
                         <div class="stops-header-widget">
                             <div class="stops-icons-row">
                                 ${parcBadgeHTML}
-                                ${terminusBadgeHTML}
+                                ${serviceBadgeHTML}
                                 ${statusBadge}
                             </div>
                         </div>`;
@@ -8935,7 +9073,7 @@ async function fetchVehiclePositions() {
                             <div class="stops-header-widget">
                                 <div class="stops-icons-row">
                                     ${parcBadgeHTML}
-                                    ${terminusBadgeHTML}
+                                    ${serviceBadgeHTML}
                                     ${delayBadgeHTML}
                                     <span class="stops-icon-badge">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -8951,7 +9089,7 @@ async function fetchVehiclePositions() {
                             <div class="stops-header-widget">
                                 <div class="stops-icons-row">
                                     ${parcBadgeHTML}
-                                    ${terminusBadgeHTML}
+                                    ${serviceBadgeHTML}
                                     ${delayBadgeHTML}
                                     <span class="stops-icon-badge">
                                         ${iconClock}
@@ -8967,7 +9105,7 @@ async function fetchVehiclePositions() {
                             <div class="stops-header-widget">
                                 <div class="stops-icons-row">
                                     ${parcBadgeHTML}
-                                    ${terminusBadgeHTML}
+                                    ${serviceBadgeHTML}
                                     ${delayBadgeHTML}
                                     <span class="stops-icon-badge">
                                         ${iconClock}
@@ -8983,7 +9121,7 @@ async function fetchVehiclePositions() {
                             <div class="stops-header-widget">
                                 <div class="stops-icons-row">
                                     ${parcBadgeHTML}
-                                    ${terminusBadgeHTML}
+                                    ${serviceBadgeHTML}
                                     ${delayBadgeHTML}
                                     <span class="stops-icon-badge">
                                         ${iconClock}
@@ -9699,6 +9837,34 @@ async function fetchVehiclePositions() {
                             );
                             popup.setContent(popupContent);
                             popup.update();
+                            
+                            // Ajouter le gestionnaire long-press après la génération du contenu
+                            setTimeout(() => {
+                                const popupContainer = document.querySelector(`[data-vehicle-id="${capturedId}"]`);
+                                if (popupContainer) {
+                                    let pressTimer;
+                                    let isLongPress = false;
+                                    
+                                    const startPress = () => {
+                                        isLongPress = false;
+                                        pressTimer = setTimeout(() => {
+                                            isLongPress = true;
+                                            showVehicleTripsPopup(capturedVehicle.vehicle.id, capturedVehicle.vehicle.label || capturedVehicle.vehicle.id);
+                                        }, 500);
+                                    };
+                                    
+                                    const endPress = () => {
+                                        clearTimeout(pressTimer);
+                                    };
+                                    
+                                    popupContainer.addEventListener('mousedown', startPress);
+                                    popupContainer.addEventListener('mouseleave', endPress);
+                                    popupContainer.addEventListener('mouseup', endPress);
+                                    popupContainer.addEventListener('touchstart', startPress);
+                                    popupContainer.addEventListener('touchend', endPress);
+                                    popupContainer.addEventListener('touchcancel', endPress);
+                                }
+                            }, 10);
                         });
                     }
 
@@ -12584,27 +12750,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
     if (!favorites.length && !stopFavs.length) {
         section.style.display = 'block';
-        list.innerHTML = `
-            <div class="bs-fav-empty bs-news-empty">
-                <p class="bs-news-title">${t("discoverdsheet")}</p>
-                <div class="bs-news-grid">
-                    <div class="bs-news-card">
-                        <img class="bs-news-image" src="src/dsheet/favorites.png" alt="Favorites Schedules - MyBusFinder">
-                        <p class="bs-news-item-title">${t("favorites_caption")}</p>
-                        <p class="bs-news-caption">${t("favorites_description")}</p>
-                    </div>
-                    <div class="bs-news-card">
-                        <img class="bs-news-image" src="src/dsheet/selectedstop.png" alt="Selected Stop - MyBusFinder">
-                        <p class="bs-news-item-title">${t("selectedstop_caption")}</p>
-                        <p class="bs-news-caption">${t("selectedstop_description")}</p>
-                    </div>
-                    <div class="bs-news-card">
-                        <img class="bs-news-image" src="src/dsheet/searchstop.png" alt="Search Stop - MyBusFinder">
-                        <p class="bs-news-item-title">${t("searchstop_caption")}</p>
-                        <p class="bs-news-caption">${t("searchstop_description")}</p>
-                    </div>
-                </div>
-            </div>`;
+        list.innerHTML = ``;
         return;
     }
 
