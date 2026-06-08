@@ -554,10 +554,14 @@
             async loadBuses() {
                 let networkId;
                 try {
-                    const __activeNet = localStorage.getItem('activeNetwork') || 'palmbus';
-                    const res = await fetch(`networks/${__activeNet}/setvar/settings/BusTrackerAPI/networkId.txt`);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    networkId = (await res.text()).trim().replace(/\s+/g, '');
+                    if (window.ACTIVE_BUS_TRACKER_ID) {
+                        networkId = String(window.ACTIVE_BUS_TRACKER_ID).trim();
+                    } else {
+                        const __activeNet = localStorage.getItem('activeNetwork') || 'palmbus';
+                        const res = await fetch(`networks/${__activeNet}/setvar/settings/BusTrackerAPI/networkId.txt`);
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        networkId = (await res.text()).trim().replace(/\s+/g, '');
+                    }
                 } catch (err) {
                     throw new Error(`Impossible de lire networkId.txt : ${err.message}`);
                 }

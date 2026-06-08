@@ -2,10 +2,11 @@
         // ============================================================
         //  Multi-network bootstrap MBF3X+
         // ------------------------------------------------------------
-        //  All per-network assets (settings, proxy-cors, thumbnails,
-        //  logos) live in `networks/{id}/`. The active network id is
-        //  persisted in localStorage under "activeNetwork" and may be
-        //  overridden via the ?network= URL query parameter.
+        //  All per-network assets (settings, thumbnails, logos) live in
+        //  `networks/{id}/`. Shared proxy endpoints live in
+        //  `networks/proxy-cors/proxy.php`.
+        //  The active network id is persisted in localStorage under
+        //  "activeNetwork" and may be overridden via ?network=.
         // ============================================================
         (function bootstrapActiveNetwork() {
             try {
@@ -29,6 +30,21 @@
             return `${window.NETWORK_BASE}/${rel.replace(/^\.?\//, '')}`;
         };
 
+        window.getNetworkProxyPath = function getNetworkProxyPath(type, params = {}) {
+            const network = encodeURIComponent(window.ACTIVE_NETWORK || 'palmbus');
+            const search = new URLSearchParams({ network, type });
+            for (const [key, value] of Object.entries(params || {})) {
+                if (value != null) {
+                    search.set(key, String(value));
+                }
+            }
+            return `networks/proxy-cors/proxy.php?${search.toString()}`;
+        };
+
+        window.getNetworkProxyUrl = function getNetworkProxyUrl(type, params = {}) {
+            return new URL(window.getNetworkProxyPath(type, params), window.location.href).href;
+        };
+
         if (!window.requestIdleCallback) {
             window.requestIdleCallback = function(callback, options) {
                 const start = Date.now();
@@ -47,6 +63,40 @@
             };
         }
 
+// Charger l'index centralisé des réseaux et exposer les settings actifs
+requestIdleCallback(() => {
+    fetch('./networks-index.json', { cache: 'no-cache' })
+        .then(r => r.json())
+        .then(index => {
+            window.NETWORKS_INDEX = index;
+            const defaultNet = index && index.default ? index.default : 'palmbus';
+            window.ACTIVE_NETWORK = localStorage.getItem('activeNetwork') || defaultNet;
+            window.NETWORK_BASE = `networks/${window.ACTIVE_NETWORK}`;
+
+            const flat = (index.groups || []).flatMap(g => (g.networks || []));
+            const entry = flat.find(n => n.id === window.ACTIVE_NETWORK) || {};
+
+            window.ACTIVE_NETWORK_LABEL = entry.name || window.ACTIVE_NETWORK;
+            window.ACTIVE_NETWORK_NAME  = entry.id || window.ACTIVE_NETWORK;
+            window.ACTIVE_NETWORK_SETTINGS = entry.settings || {};
+
+            const s = window.ACTIVE_NETWORK_SETTINGS || {};
+            const theme = s.theme || {};
+            const map = s.map || {};
+            const busTracker = s.busTrackerId || s.BusTrackerAPI || s['BusTrackerAPI/networkId'] || null;
+            window.ACTIVE_MAIN_COLOR     = s.colorbkg || s.maincolor || theme.maincolor || s['theme/maincolor'] || null;
+            window.ACTIVE_MAP_CENTER     = s.view || map.defaultzoom || s['map/defaultzoom'] || null;
+            window.ACTIVE_BUS_TRACKER_ID = busTracker ? String(busTracker).trim() : null;
+            window.ACTIVE_LINK_BOUTIQUE  = s.boutique || s.linkboutique || null;
+            window.ACTIVE_GTFS_GEOJSON   = s.gtfs_geojson || (s.gtfs && s.gtfs.linkgeojson) || s['gtfs/linkgeojson'] || null;
+            window.ACTIVE_DB_NETWORK_ID  = s.dbNetworkId || s.database_networkId || (s.database && s.database.networkId) || s.database || null;
+
+            if (window.ACTIVE_MAIN_COLOR) {
+                try { document.documentElement.style.setProperty('--mbf-main-color', window.ACTIVE_MAIN_COLOR); } catch (e) {}
+            }
+        })
+        .catch(() => {});
+});
 
         document.addEventListener('DOMContentLoaded', () => {
             window.isMenuShowed = localStorage.getItem('nepasafficheraccueil') !== 'true';
@@ -1025,6 +1075,25 @@ let globalSettings = {};
 
 async function getSetvar() {
     try {
+        const indexSettings = window.ACTIVE_NETWORK_SETTINGS || {};
+        const activeSettings = {
+            colorbkg: indexSettings.colorbkg || indexSettings.maincolor || (indexSettings.theme && indexSettings.theme.maincolor) || indexSettings['theme/maincolor'] || '',
+            view: indexSettings.view || (indexSettings.map && indexSettings.map.defaultzoom) || indexSettings['map/defaultzoom'] || '',
+            nomdureseau: indexSettings.nomdureseau || indexSettings.networkname || indexSettings['networkname'] || '',
+            boutique: indexSettings.boutique || indexSettings.linkboutique || indexSettings['linkboutique'] || ''
+        };
+
+        if (Object.values(activeSettings).some(value => value)) {
+            const boutiqueCheckPromise = checkBoutiqueAvailability(activeSettings.boutique);
+            globalSettings = activeSettings;
+
+            boutiqueCheckPromise.catch(() => {
+                window.boutiqueAvailable = false;
+            });
+
+            return activeSettings;
+        }
+
         const fileConfigs = [
             { key: 'colorbkg',    path: netPath('setvar/settings/theme/maincolor.txt') },
             { key: 'view',        path: netPath('setvar/settings/map/defaultzoom.txt') },
@@ -2139,7 +2208,7 @@ async function calculateSHA256(data) {
 
 async function getFileHash() {
     try {
-        const response = await fetch(netPath('proxy-cors/proxy_gtfs.php'), {
+        const response = await fetch(window.getNetworkProxyPath('gtfs'), {
             method: 'GET',
             headers: {
                 'X-Content-Only-Header': 'true'
@@ -2239,7 +2308,7 @@ async function extractGTFSFiles() {
         loadingtext.textContent = 'Chargement des données dyna en cours - async... 😊';
         soundsUX('MBF_Popup');
 
-        const response = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=extracted'));
+        const response = await fetch(window.getNetworkProxyPath('gtfs', { action: 'extracted' }));
         if (!response.ok) {
             throw new Error(`Échec téléchargement ${response.status} ${response.statusText}`);
         }
@@ -2881,7 +2950,7 @@ async function loadGTFSDataOptimized() {
         soundsUX('MBF_Popup');
 
         console.log('Vérification des endpoints...');
-        const infoResponse = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=info'), {
+        const infoResponse = await fetch(window.getNetworkProxyPath('gtfs', { action: 'info' }), {
             cache: 'no-store'
         });
         
@@ -2904,7 +2973,7 @@ async function loadGTFSDataOptimized() {
         setTimeout(() => ProgressOverlay.setLabel(t('loadingroutes')), 100);
 
         console.log('Chargement des lignes...');
-        const routesResponse = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=routes'), {
+        const routesResponse = await fetch(window.getNetworkProxyPath('gtfs', { action: 'routes' }), {
             cache: 'no-store',
             headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
         });
@@ -2934,7 +3003,7 @@ async function loadGTFSDataOptimized() {
         setTimeout(() => ProgressOverlay.setLabel(t('loadingstops')), 150);
 
         console.log('Chargement des stops...');
-        const stopsResponse = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'), {
+        const stopsResponse = await fetch(window.getNetworkProxyPath('gtfs', { action: 'stops' }), {
             cache: 'no-store',
             headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
         });
@@ -3023,7 +3092,7 @@ async function loadGTFSDataOptimized() {
 
 async function getServerCacheInfo() {
     try {
-        const response = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=info'));
+        const response = await fetch(window.getNetworkProxyPath('gtfs', { action: 'info' }));
         const info = await response.json();
         
         console.log('📊 Info cache serveur:', {
@@ -3092,7 +3161,7 @@ async function checkGTFSUpdate() {
         }
         
         try {
-            const response = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=extracted'), {
+            const response = await fetch(window.getNetworkProxyPath('gtfs', { action: 'extracted' }), {
                 method: 'HEAD'
             });
             
@@ -3760,7 +3829,7 @@ let gtfsInitialized = false;
 
 async function loadGeoJsonLines() {
     try {
-        const response = await fetch(netPath('proxy-cors/proxy_geojson.php'));
+        const response = await fetch(window.getNetworkProxyPath('geojson'));
         const geoJsonData = await response.json();
 
         currentZoomLevel = map.getZoom();
@@ -3816,7 +3885,7 @@ async function loadBusStopMarkers() {
     window._stopMarkersLoaded = true;
 
     try {
-        const response = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=stops'));
+        const response = await fetch(window.getNetworkProxyPath('gtfs', { action: 'stops' }));
         if (!response.ok) return;
         const stopsData = await response.json();
 
@@ -8573,7 +8642,7 @@ async function fetchVehiclePositions() {
     window.noVehiclesPopupShown = window.noVehiclesPopupShown || false;
 
     try {
-        const response = await fetch(netPath('proxy-cors/proxy_vehpos.php'));
+        const response = await fetch(window.getNetworkProxyPath('vehpos'));
         const buffer = await response.arrayBuffer();
         const data = await decodeProtobuf(buffer);
 
@@ -8590,7 +8659,7 @@ async function fetchVehiclePositions() {
         if (missingTripIds.length > 0 && !window.stopTimesLoading) {
             window.stopTimesLoading = true;
 
-            const baseUrl = new URL(netPath('proxy-cors/proxy_gtfs.php'), window.location.href).href;
+            const baseUrl = new URL(window.getNetworkProxyPath('gtfs'), window.location.href).href;
 
             try {
                 const r = await fetch(`${baseUrl}?action=stop_times_by_trips`, {
@@ -11195,7 +11264,7 @@ async function fetchTripUpdates() {
             timeoutId = setTimeout(() => controller.abort(), 8000); // 8s pour Safari
         }
         
-        const response = await fetch(netPath('proxy-cors/proxy_tripupdate.php'), fetchOptions);
+        const response = await fetch(window.getNetworkProxyPath('tripupdate'), fetchOptions);
         
         if (timeoutId) clearTimeout(timeoutId);
         
@@ -12693,7 +12762,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                     window._stopTimesLoadAttempted = true;
                     try {
                         const r = await fetch(
-                            new URL(netPath('proxy-cors/proxy_gtfs.php?action=stop_times'), window.location.href).href,
+                            new URL(window.getNetworkProxyPath('gtfs', { action: 'stop_times' }), window.location.href).href,
                             { cache: 'no-store' }
                         );
                         if (r.ok) {
@@ -13347,7 +13416,7 @@ async function _computeStopPassages(stopIdArr) {
         window._stopTimesLoadAttempted = true;
         try {
             const r = await fetch(
-                new URL(netPath('proxy-cors/proxy_gtfs.php?action=stop_times'), window.location.href).href,
+                new URL(window.getNetworkProxyPath('gtfs', { action: 'stop_times' }), window.location.href).href,
                 { cache: 'no-store' }
             );
             if (r.ok) {
@@ -14246,7 +14315,7 @@ async function _getActiveServiceIdsToday() {
         const dayName = days[dayOfWeek];
 
         if (!window._gtfsCalendarCache) {
-            const r = await fetch(netPath('proxy-cors/proxy_gtfs.php?action=core'));
+            const r = await fetch(window.getNetworkProxyPath('gtfs', { action: 'core' }));
             if (!r.ok) return { activeIds: [], tripServiceMap: {} };
             const d = await r.json();
             
@@ -14269,7 +14338,7 @@ async function _getActiveServiceIdsToday() {
             };
 
             if (!Object.keys(window._gtfsCalendarCache.tripRouteMap).length) {
-                fetch(netPath('proxy-cors/proxy_gtfs.php?action=trip_index'))
+                fetch(window.getNetworkProxyPath('gtfs', { action: 'trip_index' }))
                     .then(r => r.json())
                     .then(map => { window._gtfsCalendarCache.tripRouteMap = map; })
                     .catch(e => console.warn('trip_index non disponible:', e));

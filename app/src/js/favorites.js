@@ -126,7 +126,7 @@ function displayFavorites() {
 async function fetchRealtimeDataForStop(routeId, stopId, container) {
     try {
         const __activeNet = (typeof window !== 'undefined' && window.ACTIVE_NETWORK) || localStorage.getItem('activeNetwork') || 'palmbus';
-        const response = await fetch(`networks/${__activeNet}/proxy-cors/proxy_tripupdate.php`);
+        const response = await fetch(`networks/proxy-cors/proxy.php?network=${encodeURIComponent(__activeNet)}&type=tripupdate`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
