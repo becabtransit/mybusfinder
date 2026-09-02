@@ -230,8 +230,8 @@
     <section class="mbf-step is-active" data-step="0">
     <img src="src/iphone-screen-welcome.png" alt="MBF Screenshot Welcome" style="width: 100%; height: auto; margin-bottom: 24px;">
       <div class="mbf-hero">
-        <h1>Bienvenue sur My Bus Finder</h1>
-        <p>My Bus Finder redéfinit la façon dont vous naviguez avec les transports en commun. Plus simple, plus rapide, plus efficace.</p>
+        <h1>Le bus arrive à quelle heure ?</h1>
+        <p>Cette question, vous ne la poserez même plus. My Bus Finder redéfinit la façon dont vous naviguez avec les transports en commun. Plus simple, plus rapide, plus efficace.</p>
       </div>
     </section>
   `;
@@ -263,9 +263,6 @@
 
         <p>
             My Bus Finder est édité par :
-        </p>
-
-        <p>
             <strong>Becab Development</strong><br>
             Mohamed el Bechir ABIDI<br>
             Entrepreneur individuel / Auto-entrepreneur<br>
@@ -278,7 +275,7 @@
 
         <p>
             Le service est hébergé et exploité techniquement par
-            <strong>BecabDev Solutions Web</strong>, activité ou entité technique
+            <strong>BecabDev Solutions Web</strong>, localisé au siège social de l'entreprise, activité / entité technique
             rattachée à Becab Development.
         </p>
 
@@ -294,7 +291,7 @@
             <li>les arrêts ;</li>
             <li>les horaires théoriques ou estimés ;</li>
             <li>les prochains passages ;</li>
-            <li>la position de certains véhicules en temps réel ;</li>
+            <li>la position des véhicules en temps réel ;</li>
             <li>les destinations des véhicules ;</li>
             <li>les informations relatives aux perturbations ou au trafic ;</li>
             <li>des informations techniques ou historiques concernant certains véhicules.</li>
@@ -308,10 +305,13 @@
         <h3>3. Sources des données de transport</h3>
 
         <p>
-            My Bus Finder utilise notamment des données de transport aux formats
+            My Bus Finder utilise notamment des données de transport de développement aux formats
             <strong>GTFS</strong> et <strong>GTFS Realtime (GTFS-RT)</strong>, ainsi que
             d'autres données ou services mis à disposition par des opérateurs de transport,
             autorités organisatrices, fournisseurs de données ou sources publiques.
+            My Bus Finder utilise des formats de données propriétaires (appelés « <strong>MBF Setvars</strong> ») 
+            pour certaines fonctionnalités, notamment pour les informations des véhicules, les 
+            paramètres personnels ainsi que pour les fonctionnalités liées à l'expérience utilisateur.
         </p>
 
         <p>

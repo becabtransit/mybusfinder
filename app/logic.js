@@ -6645,7 +6645,11 @@ const MenuManager = {
                 nextStopInfo = firstStopName;
             }
             
-            if (filteredStops.length > 1) {
+            const serviceSince = formatServiceSince(marker.id);
+                if (serviceSince) {
+                    terminusInfo = serviceSince;
+                } 
+                else if (filteredStops.length > 1) {
                 const lastStop = filteredStops[filteredStops.length - 1];
                 const timeLeft = lastStop.delay;
                 const timeLeftText = timeLeft !== null 
@@ -9668,7 +9672,7 @@ async function fetchVehiclePositions() {
         }
 });
 
-
+trackVehicleService(Array.from(activeVehicleIds));
 
 const activeIds = Array.from(markerPool.active.keys());
 activeIds.forEach(id => {
@@ -9692,6 +9696,32 @@ if (activeVehicleIds.size === 0) {
     }
 } else {
     window.noVehiclesPopupShown = false;
+}
+
+window.vehicleServiceSince = window.vehicleServiceSince || {};
+
+async function trackVehicleService(ids) {
+    if (!ids || ids.length === 0) return;
+    try {
+        const res = await fetch(netPath('proxy-cors/track_vehicle.php'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        if (!res.ok) return;
+        Object.assign(window.vehicleServiceSince, await res.json());
+    } catch (e) {
+        console.warn('Erreur suivi service véhicules:', e);
+    }
+}
+
+function formatServiceSince(vehicleId) {
+    const ts = window.vehicleServiceSince?.[vehicleId];
+    if (!ts) return null;
+    const d = new Date(ts * 1000);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${t("inservicesince")} ${hh}:${mm}.`;
 }
 
 let isMenuVisible = true;
