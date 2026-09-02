@@ -828,14 +828,8 @@
     els.overlay.querySelector("#mbf-btn-donate").addEventListener("click", function () {
       window.open("https://buymeacoffee.com/mybusfinder", "_blank", "noopener");
     });
-    document.addEventListener("keydown", onKeydown);
   }
 
-  function onKeydown(e) {
-    if (e.key === "Escape" && els.overlay && els.overlay.classList.contains("mbf-is-open")) {
-      close();
-    }
-  }
 
   function setStepInstant(index) {
     els.steps.forEach(function (step, i) {
