@@ -6653,7 +6653,7 @@ const MenuManager = {
                 terminusInfo = formattedServiceSince ? `${arrivalText} - ${formattedServiceSince}` : arrivalText;
             } else {
                 const directionText = `${t("indirectionof")} ${marker.destination}.`;
-                terminusInfo = formattedServiceSince ? `${formattedServiceSince} - ${directionText}` : directionText;
+                terminusInfo = formattedServiceSince ? `${formattedServiceSince}` : directionText;
             }
             
         }
