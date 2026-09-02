@@ -8569,6 +8569,32 @@ function getStopPlatform(stopId) {
     return null;
 }
 
+window.vehicleServiceSince = window.vehicleServiceSince || {};
+
+async function trackVehicleService(ids) {
+    if (!ids || ids.length === 0) return;
+    try {
+        const res = await fetch(netPath('proxy-cors/track_vehicule.php'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        if (!res.ok) return;
+        Object.assign(window.vehicleServiceSince, await res.json());
+    } catch (e) {
+        console.warn('Erreur suivi service véhicules:', e);
+    }
+}
+
+function formatServiceSince(vehicleId) {
+    const ts = window.vehicleServiceSince?.[vehicleId];
+    if (!ts) return null;
+    const d = new Date(ts * 1000);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${t("inservicesince")} ${hh}:${mm}.`;
+}
+
 async function fetchVehiclePositions() {
     if (!gtfsInitialized) {
         return;
@@ -9693,33 +9719,8 @@ if (activeVehicleIds.size === 0) {
     window.noVehiclesPopupShown = false;
 }
 
-window.vehicleServiceSince = window.vehicleServiceSince || {};
-
-async function trackVehicleService(ids) {
-    if (!ids || ids.length === 0) return;
-    try {
-        const res = await fetch(netPath('proxy-cors/track_vehicule.php'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids })
-        });
-        if (!res.ok) return;
-        Object.assign(window.vehicleServiceSince, await res.json());
-    } catch (e) {
-        console.warn('Erreur suivi service véhicules:', e);
-    }
-}
-
 trackVehicleService(Array.from(activeVehicleIds));
 
-function formatServiceSince(vehicleId) {
-    const ts = window.vehicleServiceSince?.[vehicleId];
-    if (!ts) return null;
-    const d = new Date(ts * 1000);
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${t("inservicesince")} ${hh}:${mm}.`;
-}
 
 let isMenuVisible = true;
 
