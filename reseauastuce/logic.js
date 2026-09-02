@@ -1008,6 +1008,25 @@ let globalSettings = {};
 
 async function getSetvar() {
     try {
+        const indexSettings = window.ACTIVE_NETWORK_SETTINGS || {};
+        const activeSettings = {
+            colorbkg: indexSettings.colorbkg || indexSettings.maincolor || (indexSettings.theme && indexSettings.theme.maincolor) || indexSettings['theme/maincolor'] || '',
+            view: indexSettings.view || (indexSettings.map && indexSettings.map.defaultzoom) || indexSettings['map/defaultzoom'] || '',
+            nomdureseau: indexSettings.nomdureseau || indexSettings.networkname || indexSettings['networkname'] || '',
+            boutique: indexSettings.boutique || indexSettings.linkboutique || indexSettings['linkboutique'] || ''
+        };
+
+        if (Object.values(activeSettings).some(value => value)) {
+            const boutiqueCheckPromise = checkBoutiqueAvailability(activeSettings.boutique);
+            globalSettings = activeSettings;
+
+            boutiqueCheckPromise.catch(() => {
+                window.boutiqueAvailable = false;
+            });
+
+            return activeSettings;
+        }
+
         const fileConfigs = [
             { key: 'colorbkg', path: 'setvar/settings/theme/maincolor.txt' },
             { key: 'view', path: 'setvar/settings/map/defaultzoom.txt' },
