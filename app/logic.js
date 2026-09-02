@@ -2055,10 +2055,10 @@ function hideLoadingScreen() {
             }
         }, 3000);
 
-        if (localStorage.getItem('termsconds') !== 'true') {
+        if (localStorage.getItem(`termsconds${window.BUILD_VERSION}`) !== 'true') {
             MyBusFinderWelcome.open();
             if (MyBusFinderWelcome.close) {
-                localStorage.setItem('termsconds', 'true');
+                localStorage.setItem(`termsconds${window.BUILD_VERSION}`, 'true');
             }
         }
 
