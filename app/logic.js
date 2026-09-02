@@ -6250,11 +6250,10 @@ const MenuManager = {
             .padStart(3, '0');
 
         const lastLineName = marker.line && marker.line !== 'Inconnu' ? (lineName[marker.line] || marker.line) : t('unknown_line');
-        const serviceEndTs = window.vehicleServiceEnd?.[marker.id]
-            ?? marker.vehicleData?.lastUpdated
-            ?? marker.rawData?.lastUpdated
-            ?? marker.rawData?.timestamp;
-        const serviceEndText = this._formatOutOfServiceTimestamp(serviceEndTs);
+        const serviceEndTs = window.vehicleServiceEnd?.[marker.id];
+        const serviceEndText = Number.isFinite(Number(serviceEndTs))
+            ? this._formatOutOfServiceTimestamp(serviceEndTs)
+            : t('unknownarrival');
 
         const busItem = document.createElement('div');
         busItem.className = 'bus-item ripple-container menu-item';
@@ -6377,9 +6376,9 @@ const MenuManager = {
 
         const outOfServiceVehicles = Array.from(markerPool.active.values())
             .filter(marker => {
-                const currentStatus = marker.vehicleData?.currentStatus ?? marker.rawData?.currentStatus;
-                const hasNoStops = !marker.rawData?.nextStops || marker.rawData.nextStops.length === 0;
-                return currentStatus === 0 || hasNoStops;
+                const currentStatus = Number(marker.vehicleData?.currentStatus ?? marker.rawData?.currentStatus ?? -1);
+                const hasRecordedEndTs = Number.isFinite(Number(window.vehicleServiceEnd?.[marker.id]));
+                return currentStatus === 0 && hasRecordedEndTs;
             })
             .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
