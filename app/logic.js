@@ -2057,7 +2057,9 @@ function hideLoadingScreen() {
 
         if (localStorage.getItem('termsconds') !== 'true') {
             MyBusFinderWelcome.open();
-            localStorage.setItem('termsconds', 'true');
+            if (MyBusFinderWelcome.close) {
+                localStorage.setItem('termsconds', 'true');
+            }
         }
 
         if (localStorage.getItem('nepasafficheraccueil') === 'true') {

@@ -45,7 +45,7 @@
       align-items: center;
       justify-content: center;
       padding: 0;
-      background-color: #c8c0bd;
+      background-color: #000000d4;
       opacity: 0;
       transition: opacity ${TRANSITION_MS}ms ease;
       font-family: "Outfit", sans-serif;
@@ -107,24 +107,6 @@
     }
     #${OVERLAY_ID} .mbf-header-icon svg { width: 100%; height: 100%; }
     #${OVERLAY_ID} .mbf-header-title { font-weight: 700; font-size: 1.0625rem; transition: opacity 0.15s ease; }
-
-    #${OVERLAY_ID} .mbf-close {
-      margin-left: auto;
-      width: 36px;
-      height: 36px;
-      border: 0;
-      background: transparent;
-      border-radius: 8px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #2d232e;
-      transition: background-color 0.15s ease;
-    }
-    #${OVERLAY_ID} .mbf-close:hover,
-    #${OVERLAY_ID} .mbf-close:focus-visible { background-color: #dfdad7; }
-    #${OVERLAY_ID} .mbf-close svg { width: 20px; height: 20px; }
 
     #${OVERLAY_ID} .mbf-body {
       padding: 8px 28px 32px;
@@ -230,7 +212,6 @@
     #${OVERLAY_ID} .mbf-btn-coffee:focus-visible { background-color: #e6c700; }
 
     #${OVERLAY_ID} .mbf-btn:focus-visible,
-    #${OVERLAY_ID} .mbf-close:focus-visible { outline: 2px solid #750550; outline-offset: 2px; }
 
     @media (min-width: 640px) {
       #${OVERLAY_ID} { padding: 24px; }
@@ -247,8 +228,8 @@
 
   var stepWelcome = `
     <section class="mbf-step is-active" data-step="0">
+    <img src="src/iphone-screen-welcome.png" alt="MBF Screenshot Welcome" style="width: 100%; height: auto; margin-bottom: 24px;">
       <div class="mbf-hero">
-        <img src="src/iphone-screen-welcome.png" alt="MBF Screenshot Welcome" style="max-width: 280px; width: 100%; height: auto; margin-bottom: 24px;">
         <h1>Bienvenue sur My Bus Finder</h1>
         <p>My Bus Finder redéfinit la façon dont vous naviguez avec les transports en commun. Plus simple, plus rapide, plus efficace.</p>
       </div>
