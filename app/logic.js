@@ -6637,7 +6637,8 @@ const MenuManager = {
             }
 
             const serviceSinceTs = window.vehicleServiceSince?.[marker.id];
-            const elapsedMin = serviceSinceTs ? (Date.now() / 1000 - serviceSinceTs) / 60 : null;
+            const numericTs = Number(serviceSinceTs);
+            const elapsedMin = Number.isFinite(numericTs) ? (Date.now() / 1000 - numericTs) / 60 : null;
             const shouldShowServiceSince = elapsedMin !== null && elapsedMin >= 0 && elapsedMin < 10;
             const formattedServiceSince = shouldShowServiceSince ? formatServiceSince(marker.id) : null;
 
@@ -6647,10 +6648,11 @@ const MenuManager = {
                 const timeLeftText = timeLeft !== null 
                     ? timeLeft <= 0 ? t("imminent") : `${Math.ceil(timeLeft / 60)} min`
                     : '';
-                const arrivalText = `${t("arrival")} ${timeLeftText !== t("imminent") ? t("in") + ' ' + timeLeftText : t("imminent")}`;
+                const arrivalText = `${t("arrivalat")} ${marker.destination} ${timeLeftText !== t("imminent") ? t("in") + ' ' + timeLeftText : t("imminent")}`;
                 terminusInfo = formattedServiceSince ? `${arrivalText} - ${formattedServiceSince}` : arrivalText;
             } else {
-                terminusInfo = formattedServiceSince || `${formattedServiceSince} - ${t("indirectionof")} ${marker.destination}.`;
+                const destinationText = `${t("indirectionof")} ${marker.destination}.`;
+                terminusInfo = formattedServiceSince || destinationText;
             }
             
         }
@@ -8585,8 +8587,8 @@ async function trackVehicleService(ids) {
 }
 
 function formatServiceSince(vehicleId) {
-    const ts = window.vehicleServiceSince?.[vehicleId];
-    if (!ts) return null;
+    const ts = Number(window.vehicleServiceSince?.[vehicleId]);
+    if (!Number.isFinite(ts)) return null;
     const d = new Date(ts * 1000);
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
