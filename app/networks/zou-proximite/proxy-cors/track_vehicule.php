@@ -42,6 +42,10 @@ if (!empty($input['statuses']) && is_array($input['statuses'])) {
     }
 }
 
+$ensureVehicle = $pdo->prepare("INSERT INTO vehicle_service (vehicle_id, service_date, first_seen, last_seen, last_out_of_service)
+    VALUES (:id, :date, :now, :now, NULL)
+    ON CONFLICT(vehicle_id) DO NOTHING");
+
 $upsert = $pdo->prepare("INSERT INTO vehicle_service (vehicle_id, service_date, first_seen, last_seen, last_out_of_service)
     VALUES (:id, :date, :now, :now, NULL)
     ON CONFLICT(vehicle_id) DO UPDATE SET
@@ -51,6 +55,7 @@ $upsert = $pdo->prepare("INSERT INTO vehicle_service (vehicle_id, service_date, 
 
 $markOutOfService = $pdo->prepare("UPDATE vehicle_service
     SET last_out_of_service = COALESCE(last_out_of_service, :now),
+        service_date = :date,
         last_seen = :now
     WHERE vehicle_id = :id");
 
@@ -69,10 +74,12 @@ foreach ($input['ids'] as $id) {
     $status = array_key_exists($id, $statuses) ? $statuses[$id] : 2;
     $isInService = $status !== 0 && $status !== '0';
 
+    $ensureVehicle->execute([':id' => $id, ':date' => $today, ':now' => $now]);
+
     if ($isInService) {
         $upsert->execute([':id' => $id, ':date' => $today, ':now' => $now]);
     } else {
-        $markOutOfService->execute([':id' => $id, ':now' => $now]);
+        $markOutOfService->execute([':id' => $id, ':date' => $today, ':now' => $now]);
     }
 
     $select->execute([':id' => $id]);
