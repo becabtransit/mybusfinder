@@ -6637,23 +6637,20 @@ const MenuManager = {
             }
 
             const serviceSinceTs = window.vehicleServiceSince?.[marker.id];
-            if (serviceSinceTs) {
-                const elapsedMin = (Date.now() / 1000 - serviceSinceTs) / 60;
-                if (elapsedMin >= 0 && elapsedMin < 10) {
-                    const formatted = formatServiceSince(marker.id);
-                    if (formatted) terminusInfo = formatted;
-                }
-            }
-            
+            const elapsedMin = serviceSinceTs ? (Date.now() / 1000 - serviceSinceTs) / 60 : null;
+            const shouldShowServiceSince = elapsedMin !== null && elapsedMin >= 0 && elapsedMin < 10;
+            const formattedServiceSince = shouldShowServiceSince ? formatServiceSince(marker.id) : null;
+
             if (filteredStops.length > 1) {
                 const lastStop = filteredStops[filteredStops.length - 1];
                 const timeLeft = lastStop.delay;
                 const timeLeftText = timeLeft !== null 
                     ? timeLeft <= 0 ? t("imminent") : `${Math.ceil(timeLeft / 60)} min`
                     : '';
-                terminusInfo = `${t("arrivalat")} ${marker.destination} ${timeLeftText !== t("imminent") ? t("in") + ' ' + timeLeftText : t("imminent")} - ${serviceSinceTs}`;
+                const arrivalText = `${t("arrival")} ${timeLeftText !== t("imminent") ? t("in") + ' ' + timeLeftText : t("imminent")}`;
+                terminusInfo = formattedServiceSince ? `${arrivalText} - ${formattedServiceSince}` : arrivalText;
             } else {
-                terminusInfo = `${t("indirectionof")} ${marker.destination}.`;
+                terminusInfo = formattedServiceSince || `${formattedServiceSince} - ${t("indirectionof")} ${marker.destination}.`;
             }
             
         }
