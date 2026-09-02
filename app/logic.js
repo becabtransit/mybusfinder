@@ -5282,6 +5282,7 @@ function getTextColor(bgColor, options = {}) {
 const MenuManager = {
     container: null,
     sections: new Map(),
+    outOfServiceSection: null,
     busesByLineAndDestination: {},
     isInitialized: false,
     searchInput: null,
@@ -5340,6 +5341,7 @@ const MenuManager = {
         } else {
             this._updateStatistics();
             this._buildBusIndex();
+            this._renderOutOfServiceSection();
         }
     },
     
@@ -5918,6 +5920,7 @@ const MenuManager = {
         
         this.busesByLineAndDestination = busesByLineAndDestination;
         this._updateStatistics();
+        this._renderOutOfServiceSection();
         
         const idleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 50));
         idleCallback(() => {
@@ -6211,6 +6214,272 @@ const MenuManager = {
         
         lineSection.destinations.set(destination, destData);
         lineSection.destinationsContainer.appendChild(destinationSection);
+    },
+
+    _formatOutOfServiceTimestamp(ts) {
+        if (ts === undefined || ts === null || ts === '') return t('unknownarrival');
+
+        const value = Number(ts);
+        if (!Number.isFinite(value)) return t('unknownarrival');
+
+        const d = new Date(value * 1000);
+        const now = new Date();
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        const timeText = `${hh}:${mm}`;
+
+        const isSameDay = d.getFullYear() === now.getFullYear()
+            && d.getMonth() === now.getMonth()
+            && d.getDate() === now.getDate();
+
+        if (isSameDay) {
+            return timeText;
+        }
+
+        const dd = String(d.getDate()).padStart(2, '0');
+        const MM = String(d.getMonth() + 1).padStart(2, '0');
+        return `${dd}/${MM} ${timeText}`;
+    },
+
+    _createOutOfServiceBusItem(marker, textColor) {
+        const vehicleLabel = marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || marker.id || 'inconnu';
+        const displayLabel = vehicleLabel.toString()
+            .replace('TCAR:Vehicle::', '')
+            .replace(':LOC', '')
+            .replace(/^(RLA|SUM|TCA)/, '')
+            .padStart(3, '0');
+
+        const lastLineName = marker.line && marker.line !== 'Inconnu' ? (lineName[marker.line] || marker.line) : t('unknown_line');
+        const serviceEndTs = window.vehicleServiceEnd?.[marker.id]
+            ?? marker.vehicleData?.lastUpdated
+            ?? marker.rawData?.lastUpdated
+            ?? marker.rawData?.timestamp;
+        const serviceEndText = this._formatOutOfServiceTimestamp(serviceEndTs);
+
+        const busItem = document.createElement('div');
+        busItem.className = 'bus-item ripple-container menu-item';
+        busItem.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 7px 0px rgb(0 0 0 / 24%);
+            cursor: pointer;
+            font-family: League Spartan;
+            color: ${textColor};
+            padding: 5px 10px;
+            margin-bottom: 8px;
+            background-color: rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            position: relative;
+        `;
+
+        const backgroundContainer = document.createElement('div');
+        backgroundContainer.className = 'background-thumbnail';
+        backgroundContainer.style.cssText = `
+            position: absolute;
+            right: 8px;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            pointer-events: none;
+            opacity: 0.15;
+            z-index: 0;
+            scale: 1.7;
+        `;
+        backgroundContainer.innerHTML = getVehicleBrandHtmlLight(vehicleLabel);
+
+        const thumbnailImg = backgroundContainer.querySelector('.vehicle-thumbnaill');
+        if (thumbnailImg) {
+            thumbnailImg.style.height = '80%';
+            thumbnailImg.style.width = 'auto';
+            thumbnailImg.style.maxHeight = '40px';
+            thumbnailImg.style.objectFit = 'contain';
+        }
+
+        const frontContent = document.createElement('div');
+        frontContent.className = 'bus-front-content';
+        frontContent.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        `;
+
+        const busIdBox = document.createElement('div');
+        busIdBox.className = 'bus-id';
+        busIdBox.textContent = displayLabel;
+        busIdBox.style.cssText = `
+            padding: 5px 10px;
+            background-color: #00000017;
+            border-radius: 6px;
+            font-weight: bold;
+            color: ${textColor};
+            display: inline-block;
+            text-align: center;
+            min-width: 40px;
+        `;
+
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'bus-info-container';
+        contentContainer.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        `;
+
+        const mainText = document.createElement('div');
+        mainText.className = 'bus-main-text';
+        mainText.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1em;
+            font-weight: 500;
+            color: ${textColor};
+        `;
+        mainText.textContent = `${t('last_known_line')}: ${lastLineName}`;
+
+        const arrivalText = document.createElement('div');
+        arrivalText.className = 'bus-arrival-text';
+        arrivalText.textContent = `${t('service_end')}: ${serviceEndText}`;
+        arrivalText.style.cssText = `
+            font-size: 0.9em;
+            opacity: 0.8;
+            color: ${textColor};
+        `;
+
+        contentContainer.appendChild(mainText);
+        contentContainer.appendChild(arrivalText);
+        frontContent.appendChild(busIdBox);
+        frontContent.appendChild(contentContainer);
+        busItem.appendChild(backgroundContainer);
+        busItem.appendChild(frontContent);
+
+        busItem.onclick = (event) => {
+            event.stopPropagation();
+            safeVibrate([50, 300, 50, 30, 50], true);
+            soundsUX('MBF_Menu_VehicleSelect');
+            smoothFlyTo(marker.getLatLng(), 15);
+            marker.openPopup();
+            closeMenu();
+            if (selectedLine) resetMapView();
+        };
+
+        return busItem;
+    },
+
+    _renderOutOfServiceSection() {
+        if (!this.container) return;
+
+        const outOfServiceVehicles = Array.from(markerPool.active.values())
+            .filter(marker => {
+                const currentStatus = marker.vehicleData?.currentStatus ?? marker.rawData?.currentStatus;
+                const hasNoStops = !marker.rawData?.nextStops || marker.rawData.nextStops.length === 0;
+                return currentStatus === 0 || hasNoStops;
+            })
+            .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+        if (this.outOfServiceSection) {
+            this.outOfServiceSection.element.remove();
+            this.outOfServiceSection = null;
+        }
+
+        if (outOfServiceVehicles.length === 0) return;
+
+        const lineColor = '#404040';
+        const textColor = getTextColor(lineColor);
+        const section = document.createElement('div');
+        section.classList.add('linesection', 'ripple-container', 'out-of-service-section');
+        section.dataset.type = 'out-of-service';
+        section.style.cssText = `
+            background-color: ${lineColor}f0 !important;
+            margin-bottom: 10px;
+            margin-left: 10px;
+            margin-right: 10px;
+            padding: 10px;
+            border-radius: 16px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 0px 20px 3px rgba(0, 0, 0, 0.1);
+        `;
+
+        const beam1 = document.createElement('div');
+        beam1.classList.add('light-beam', 'beam1');
+        const beam2 = document.createElement('div');
+        beam2.classList.add('light-beam', 'beam2');
+        const beam3 = document.createElement('div');
+        beam3.classList.add('light-beam', 'beam3');
+        section.appendChild(beam1);
+        section.appendChild(beam2);
+        section.appendChild(beam3);
+
+        const title = document.createElement('div');
+        title.className = 'line-title';
+        title.textContent = t('out_of_service_title');
+        title.style.cssText = `
+            font-size: 23px;
+            font-weight: 500;
+            color: ${textColor};
+            padding-right: 30px;
+            padding-left: 10px;
+            position: relative;
+            z-index: 1;
+        `;
+
+        const container = document.createElement('div');
+        container.className = 'destinations-container';
+        container.style.cssText = `position: relative; z-index: 1;`;
+
+        const destinationSection = document.createElement('div');
+        destinationSection.className = 'destination-section';
+        destinationSection.style.cssText = `
+            margin-top: 5px;
+            padding-left: 10px;
+        `;
+
+        const destinationTitle = document.createElement('div');
+        destinationTitle.className = 'destination-title';
+        destinationTitle.textContent = `➜ ${t('out_of_service_title')}`;
+        destinationTitle.style.cssText = `
+            font-size: 19px;
+            font-weight: normal;
+            margin-bottom: 4px;
+            color: ${textColor};
+        `;
+
+        const busesContainer = document.createElement('div');
+        busesContainer.className = 'buses-container';
+
+        outOfServiceVehicles.forEach(marker => {
+            busesContainer.appendChild(this._createOutOfServiceBusItem(marker, textColor));
+        });
+
+        destinationSection.appendChild(destinationTitle);
+        destinationSection.appendChild(busesContainer);
+        container.appendChild(destinationSection);
+        section.appendChild(title);
+        section.appendChild(container);
+
+        section.onmouseover = () => {
+            section.style.transform = 'scale(0.99)';
+            section.style.opacity = '0.9';
+            section.style.boxShadow = '0 0px 20px 11px rgba(0, 0, 0, 0.1)';
+            section.style.backgroundColor = lineColor;
+        };
+        section.onmouseout = () => {
+            section.style.transform = 'scale(1)';
+            section.style.opacity = '1';
+            section.style.boxShadow = '0 0px 20px 3px rgba(0, 0, 0, 0.1)';
+            section.style.backgroundColor = lineColor;
+        };
+
+        this.outOfServiceSection = { element: section };
+        this.container.appendChild(section);
     },
     
     _createBusItem(bus, lineColor, textColor) {
@@ -8571,17 +8840,26 @@ function getStopPlatform(stopId) {
 }
 
 window.vehicleServiceSince = window.vehicleServiceSince || {};
+window.vehicleServiceEnd = window.vehicleServiceEnd || {};
 
-async function trackVehicleService(ids) {
+async function trackVehicleService(ids, statusMap = {}) {
     if (!ids || ids.length === 0) return;
     try {
+        const payload = {
+            ids,
+            statuses: statusMap
+        };
+
         const res = await fetch(netPath('proxy-cors/track_vehicule.php'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids })
+            body: JSON.stringify(payload)
         });
         if (!res.ok) return;
-        Object.assign(window.vehicleServiceSince, await res.json());
+
+        const json = await res.json();
+        if (json?.firstSeen) Object.assign(window.vehicleServiceSince, json.firstSeen);
+        if (json?.outOfService) Object.assign(window.vehicleServiceEnd, json.outOfService);
     } catch (e) {
         console.warn('Erreur suivi service véhicules:', e);
     }
@@ -8591,10 +8869,24 @@ function formatServiceSince(vehicleId) {
     const rawTs = window.vehicleServiceSince?.[vehicleId];
     const ts = rawTs !== undefined && rawTs !== null ? Number(rawTs) : null;
     if (!Number.isFinite(ts)) return null;
+
     const d = new Date(ts * 1000);
+    const now = new Date();
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${t("inservicesince")} ${hh}:${mm}.`;
+    const timeText = `${hh}:${mm}`;
+
+    const isSameDay = d.getFullYear() === now.getFullYear()
+        && d.getMonth() === now.getMonth()
+        && d.getDate() === now.getDate();
+
+    if (isSameDay) {
+        return `${t("inservicesince")} ${timeText}.`;
+    }
+
+    const dd = String(d.getDate()).padStart(2, '0');
+    const MM = String(d.getMonth() + 1).padStart(2, '0');
+    return `${t("inservicesince")} ${dd}/${MM} ${timeText}.`;
 }
 
 async function fetchVehiclePositions() {
@@ -8610,6 +8902,7 @@ async function fetchVehiclePositions() {
         const data = await decodeProtobuf(buffer);
 
         const activeVehicleIds = new Set();
+        const vehicleStatusMap = {};
 
         const activeTripIds = new Set();
         data.entity.forEach(entity => {
@@ -8651,6 +8944,7 @@ async function fetchVehiclePositions() {
                 const line = vehicle.trip && vehicle.trip.routeId ? vehicle.trip.routeId : 'Inconnu';
                 const directionId = vehicle.trip ? vehicle.trip.directionId : undefined;
                 activeVehicleIds.add(id);
+                vehicleStatusMap[id] = vehicle.currentStatus ?? 2;
 
                 const statusMap = {
                     0: t("notinservicemaj"), // ❌ Hors service commercial
@@ -9721,7 +10015,7 @@ if (activeVehicleIds.size === 0) {
     window.noVehiclesPopupShown = false;
 }
 
-trackVehicleService(Array.from(activeVehicleIds));
+trackVehicleService(Array.from(activeVehicleIds), vehicleStatusMap);
 
 
 let isMenuVisible = true;
