@@ -6635,18 +6635,7 @@ const MenuManager = {
             } else {
                 nextStopInfo = firstStopName;
             }
-            
-            if (filteredStops.length > 1) {
-                const lastStop = filteredStops[filteredStops.length - 1];
-                const timeLeft = lastStop.delay;
-                const timeLeftText = timeLeft !== null 
-                    ? timeLeft <= 0 ? t("imminent") : `${Math.ceil(timeLeft / 60)} min`
-                    : '';
-                terminusInfo = `${t("arrivalat")} ${marker.destination} ${timeLeftText !== t("imminent") ? t("in") + ' ' + timeLeftText : t("imminent")}.`;
-            } else {
-                terminusInfo = `${t("indirectionof")} ${marker.destination}.`;
-            }
-            
+
             const serviceSinceTs = window.vehicleServiceSince?.[marker.id];
             if (serviceSinceTs) {
                 const elapsedMin = (Date.now() / 1000 - serviceSinceTs) / 60;
@@ -6655,6 +6644,18 @@ const MenuManager = {
                     if (formatted) terminusInfo = formatted;
                 }
             }
+            
+            if (filteredStops.length > 1) {
+                const lastStop = filteredStops[filteredStops.length - 1];
+                const timeLeft = lastStop.delay;
+                const timeLeftText = timeLeft !== null 
+                    ? timeLeft <= 0 ? t("imminent") : `${Math.ceil(timeLeft / 60)} min`
+                    : '';
+                terminusInfo = `${t("arrivalat")} ${marker.destination} ${timeLeftText !== t("imminent") ? t("in") + ' ' + timeLeftText : t("imminent")} - ${serviceSinceTs}`;
+            } else {
+                terminusInfo = `${t("indirectionof")} ${marker.destination}.`;
+            }
+            
         }
         
         return { nextStopInfo, terminusInfo };
