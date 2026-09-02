@@ -13341,6 +13341,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                                 soundsUX('MBF_Menu_VehicleSelect');
                                 map.setView(marker.getLatLng(), 15);
                                 marker.openPopup();
+                                BottomSheet.collapse();
                             });
                             pill.addEventListener('pointerenter', () => {
                                 pill.style.transform = 'scale(1.05)';
@@ -14072,7 +14073,6 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh =
                         map.setView(t2.marker.getLatLng(), 15);
                         t2.marker.openPopup();
                         BottomSheet.collapse();
-                        _restoreBottomSheetTitle();
                     });
                     pill.addEventListener('pointerenter', () => pill.style.transform = 'scale(1.05)');
                     pill.addEventListener('pointerleave', () => pill.style.transform = 'scale(1)');
