@@ -914,6 +914,7 @@
     window.setTimeout(function () {
       if (els.overlay) els.overlay.style.display = "none";
     }, TRANSITION_MS);
+    window.localStorage.setItem(`termsconds${window.BUILD_VERSION}`, "true");
   }
 
   window.MyBusFinderWelcome = { open: open, close: close };
