@@ -731,6 +731,9 @@
             Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser le service et <a href="https://www.google.com">cliquez ici</a> pour accéder à un moteur de recherche pour quitter le service.
         </p>
 
+        <p> Map data from OSM contributors, licensed under ODbL.</p>
+        <p>© 2026 Becab Development. All rights reserved.</p>
+
         </div>
     </section>
     `;
