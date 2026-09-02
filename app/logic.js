@@ -6636,9 +6636,11 @@ const MenuManager = {
                 nextStopInfo = firstStopName;
             }
 
-            const serviceSinceTs = window.vehicleServiceSince?.[marker.id];
-            const numericTs = Number(serviceSinceTs);
-            const elapsedMin = Number.isFinite(numericTs) ? (Date.now() / 1000 - numericTs) / 60 : null;
+            const rawServiceSinceTs = window.vehicleServiceSince?.[marker.id];
+            const serviceSinceTs = rawServiceSinceTs !== undefined && rawServiceSinceTs !== null
+                ? Number(rawServiceSinceTs)
+                : null;
+            const elapsedMin = Number.isFinite(serviceSinceTs) ? (Date.now() / 1000 - serviceSinceTs) / 60 : null;
             const shouldShowServiceSince = elapsedMin !== null && elapsedMin >= 0 && elapsedMin < 10;
             const formattedServiceSince = shouldShowServiceSince ? formatServiceSince(marker.id) : null;
 
@@ -6648,11 +6650,11 @@ const MenuManager = {
                 const timeLeftText = timeLeft !== null 
                     ? timeLeft <= 0 ? t("imminent") : `${Math.ceil(timeLeft / 60)} min`
                     : '';
-                const arrivalText = `${t("arrivalat")} ${marker.destination} ${timeLeftText !== t("imminent") ? t("in") + ' ' + timeLeftText : t("imminent")}`;
+                const arrivalText = `${t("arrival")} ${timeLeftText !== t("imminent") ? t("in") + ' ' + timeLeftText : t("imminent")}`;
                 terminusInfo = formattedServiceSince ? `${arrivalText} - ${formattedServiceSince}` : arrivalText;
             } else {
-                const destinationText = `${t("indirectionof")} ${marker.destination}.`;
-                terminusInfo = formattedServiceSince || destinationText;
+                const directionText = `${t("indirectionof")} ${marker.destination}.`;
+                terminusInfo = formattedServiceSince ? `${formattedServiceSince} - ${directionText}` : directionText;
             }
             
         }
@@ -8587,7 +8589,8 @@ async function trackVehicleService(ids) {
 }
 
 function formatServiceSince(vehicleId) {
-    const ts = Number(window.vehicleServiceSince?.[vehicleId]);
+    const rawTs = window.vehicleServiceSince?.[vehicleId];
+    const ts = rawTs !== undefined && rawTs !== null ? Number(rawTs) : null;
     if (!Number.isFinite(ts)) return null;
     const d = new Date(ts * 1000);
     const hh = String(d.getHours()).padStart(2, '0');
