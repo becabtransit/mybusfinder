@@ -9672,7 +9672,6 @@ async function fetchVehiclePositions() {
         }
 });
 
-trackVehicleService(Array.from(activeVehicleIds));
 
 const activeIds = Array.from(markerPool.active.keys());
 activeIds.forEach(id => {
@@ -9714,6 +9713,8 @@ async function trackVehicleService(ids) {
         console.warn('Erreur suivi service véhicules:', e);
     }
 }
+
+trackVehicleService(Array.from(activeVehicleIds));
 
 function formatServiceSince(vehicleId) {
     const ts = window.vehicleServiceSince?.[vehicleId];
