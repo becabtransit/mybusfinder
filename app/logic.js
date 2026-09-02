@@ -9703,7 +9703,7 @@ window.vehicleServiceSince = window.vehicleServiceSince || {};
 async function trackVehicleService(ids) {
     if (!ids || ids.length === 0) return;
     try {
-        const res = await fetch(netPath('proxy-cors/track_vehicle.php'), {
+        const res = await fetch(netPath('proxy-cors/track_vehicule.php'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids })
