@@ -6622,13 +6622,6 @@ const MenuManager = {
             filteredStops = nextStops.filter(stop => stop.delay === null || stop.delay > 0);
         }
         
-        const statusMap = {
-            0: t("notinservice"),
-            1: t("dooropen"),
-            2: t("enservice")
-        };
-        const status = statusMap[currentStatus] || 'Inconnu';
-        
         let nextStopInfo = '';
         let terminusInfo = '';
         
@@ -6636,8 +6629,6 @@ const MenuManager = {
             nextStopInfo = t("unavailabletrip");
         } else {
             const firstStopName = stopNameMap[filteredStops[0].stopId] || filteredStops[0].stopId;
-            const firstStopDelay = filteredStops[0].delay || 0;
-            const minutes = Math.max(0, Math.ceil(firstStopDelay / 60));
             
             if (line === 'Inconnu') {
                 nextStopInfo = t("unknownline");
@@ -6645,11 +6636,7 @@ const MenuManager = {
                 nextStopInfo = firstStopName;
             }
             
-            const serviceSince = formatServiceSince(marker.id);
-                if (serviceSince) {
-                    terminusInfo = serviceSince;
-                } 
-                else if (filteredStops.length > 1) {
+            if (filteredStops.length > 1) {
                 const lastStop = filteredStops[filteredStops.length - 1];
                 const timeLeft = lastStop.delay;
                 const timeLeftText = timeLeft !== null 
@@ -6658,6 +6645,15 @@ const MenuManager = {
                 terminusInfo = `${t("arrivalat")} ${marker.destination} ${timeLeftText !== t("imminent") ? t("in") + ' ' + timeLeftText : t("imminent")}.`;
             } else {
                 terminusInfo = `${t("indirectionof")} ${marker.destination}.`;
+            }
+            
+            const serviceSinceTs = window.vehicleServiceSince?.[marker.id];
+            if (serviceSinceTs) {
+                const elapsedMin = (Date.now() / 1000 - serviceSinceTs) / 60;
+                if (elapsedMin >= 0 && elapsedMin < 10) {
+                    const formatted = formatServiceSince(marker.id);
+                    if (formatted) terminusInfo = formatted;
+                }
             }
         }
         
