@@ -874,11 +874,11 @@
             });
 
             FluentSettingsMenu.addSubmenu("about", "instagram", {
-                icon: "📸",
-                label: "Instagram",
-                description: "@becabdev",
+                icon: "☕",
+                label: "Buy Me a Coffee",
+                description: "Faites un don pour soutenir le développement de My Bus Finder",
                 onclick: function () {
-                    window.open('https://www.instagram.com/becabdev/', '_blank');
+                    window.open('https://www.buymeacoffee.com/mybusfinder', '_blank');
                 }
             });
 
@@ -12520,27 +12520,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
     if (!favorites.length && !stopFavs.length) {
         section.style.display = 'block';
-        list.innerHTML = `
-            <div class="bs-fav-empty bs-news-empty">
-                <p class="bs-news-title">${t("discoverdsheet")}</p>
-                <div class="bs-news-grid">
-                    <div class="bs-news-card">
-                        <img class="bs-news-image" src="src/dsheet/favorites.png" alt="Favorites Schedules - MyBusFinder">
-                        <p class="bs-news-item-title">${t("favorites_caption")}</p>
-                        <p class="bs-news-caption">${t("favorites_description")}</p>
-                    </div>
-                    <div class="bs-news-card">
-                        <img class="bs-news-image" src="src/dsheet/selectedstop.png" alt="Selected Stop - MyBusFinder">
-                        <p class="bs-news-item-title">${t("selectedstop_caption")}</p>
-                        <p class="bs-news-caption">${t("selectedstop_description")}</p>
-                    </div>
-                    <div class="bs-news-card">
-                        <img class="bs-news-image" src="src/dsheet/searchstop.png" alt="Search Stop - MyBusFinder">
-                        <p class="bs-news-item-title">${t("searchstop_caption")}</p>
-                        <p class="bs-news-caption">${t("searchstop_description")}</p>
-                    </div>
-                </div>
-            </div>`;
+        list.innerHTML = ``;
         return;
     }
 

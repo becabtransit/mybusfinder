@@ -248,6 +248,7 @@
   var stepWelcome = `
     <section class="mbf-step is-active" data-step="0">
       <div class="mbf-hero">
+        <img src="src/iphone-screen-welcome.png" alt="MBF Screenshot Welcome" style="max-width: 280px; width: 100%; height: auto; margin-bottom: 24px;">
         <h1>Bienvenue sur My Bus Finder</h1>
         <p>My Bus Finder redéfinit la façon dont vous naviguez avec les transports en commun. Plus simple, plus rapide, plus efficace.</p>
       </div>
@@ -784,12 +785,6 @@
         <div class="mbf-header">
           <span class="mbf-header-icon" id="mbf-header-icon">${HEADER_ICONS[0]}</span>
           <span class="mbf-header-title" id="mbf-header-title">Bienvenue</span>
-          <button class="mbf-close" id="mbf-btn-close" type="button" aria-label="Fermer">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <line x1="5" y1="5" x2="19" y2="19"></line>
-              <line x1="19" y1="5" x2="5" y2="19"></line>
-            </svg>
-          </button>
         </div>
 
         <div class="mbf-body" id="mbf-body">
@@ -849,7 +844,6 @@
       goToStep(2);
     });
     els.overlay.querySelector("#mbf-btn-skip").addEventListener("click", close);
-    els.overlay.querySelector("#mbf-btn-close").addEventListener("click", close);
     els.overlay.querySelector("#mbf-btn-donate").addEventListener("click", function () {
       window.open("https://buymeacoffee.com/mybusfinder", "_blank", "noopener");
     });
