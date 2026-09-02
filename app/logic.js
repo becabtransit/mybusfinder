@@ -1777,6 +1777,9 @@ function showLoadingScreen() {
     const loadingScreen = document.getElementById('loading-screen');
     loadingScreen.style.display = 'flex';
     loadingInterval = setInterval(() => {}, 0);
+    if (localStorage.getItem('termsconds') === 'true') {
+        MyBusFinderWelcome.open();
+    }
 }
 		
 
