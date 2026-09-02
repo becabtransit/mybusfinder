@@ -6640,8 +6640,7 @@ const MenuManager = {
             const serviceSinceTs = rawServiceSinceTs !== undefined && rawServiceSinceTs !== null
                 ? Number(rawServiceSinceTs)
                 : null;
-            const elapsedMin = Number.isFinite(serviceSinceTs) ? (Date.now() / 1000 - serviceSinceTs) / 60 : null;
-            const shouldShowServiceSince = elapsedMin !== null && elapsedMin >= 0 && elapsedMin < 10;
+            const shouldShowServiceSince = Number.isFinite(serviceSinceTs);
             const formattedServiceSince = shouldShowServiceSince ? formatServiceSince(marker.id) : null;
 
             if (filteredStops.length > 1) {
