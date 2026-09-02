@@ -11598,7 +11598,19 @@ function processTripsSync(data) {
 
 let fetchTimerId = null;
 
-function startFetchUpdates() {
+function cancelFetchTimer() {
+    if (fetchTimerId) {
+        clearTimeout(fetchTimerId);
+        fetchTimerId = null;
+    }
+}
+
+function getFetchDelay() {
+    const baseDelay = FetchManager.getInterval();
+    return document.visibilityState === 'visible' ? baseDelay : Math.max(baseDelay, 15000);
+}
+
+function startFetchUpdates({ forceRefresh = false } = {}) {
     if (fetchTimerId) return;
 
     async function scheduleFetch() {
@@ -11623,21 +11635,27 @@ function startFetchUpdates() {
         } catch (error) {
             console.warn('Erreur lors des mises à jour', error);
         } finally {
-            fetchTimerId = setTimeout(scheduleFetch, FetchManager.getInterval());
+            cancelFetchTimer();
+            fetchTimerId = setTimeout(scheduleFetch, getFetchDelay());
         }
     }
 
-    scheduleFetch();
+    if (forceRefresh) {
+        void scheduleFetch();
+        return;
+    }
+
+    fetchTimerId = setTimeout(scheduleFetch, getFetchDelay());
 }
 
 document.addEventListener('visibilitychange', () => {
+    cancelFetchTimer();
+
     if (document.visibilityState === 'visible') {
-        if (fetchTimerId) {
-            clearTimeout(fetchTimerId);
-            fetchTimerId = null;
-        }
-        FetchManager.reset(); 
-        startFetchUpdates();
+        FetchManager.reset();
+        startFetchUpdates({ forceRefresh: true });
+    } else {
+        startFetchUpdates({ forceRefresh: false });
     }
 });
 

@@ -242,7 +242,7 @@
         <div class="mbf-rtf">
 
         <h2>Bienvenue sur My Bus Finder !</h2>
-        <p>L'acceptation de cette présente constitue l'acceptation de la Politique de Confidentialité consultable <a href="Policonf.pdf" target="_blank">en cliquant ici</a>.</p>
+        <p>En continuant, vous acceptez la Politique de Confidentialité consultable <a href="Policonf.pdf" target="_blank">en cliquant ici</a>.</p>
 
         <h2>Conditions Générales d'Utilisation</h2>
 
@@ -257,6 +257,7 @@
         <p>
             Si vous n'acceptez pas ces conditions, nous vous invitons à ne pas utiliser
             le service.
+
         </p>
 
         <h3>1. Éditeur du service</h3>
@@ -277,6 +278,8 @@
             Le service est hébergé et exploité techniquement par
             <strong>BecabDev Solutions Web</strong>, localisé au siège social de l'entreprise, activité / entité technique
             rattachée à Becab Development.
+            L'appel des API My Bus Finder depuis un service externe vaut acceptation des présentes CGU.
+            Une mention "Powered by My Bus Finder" ou équivalent devra être affichée sur le service externe de manière visible, sauf accord écrit préalable de Becab Development.
         </p>
 
         <h3>2. Description du service</h3>
@@ -309,6 +312,9 @@
             <strong>GTFS</strong> et <strong>GTFS Realtime (GTFS-RT)</strong>, ainsi que
             d'autres données ou services mis à disposition par des opérateurs de transport,
             autorités organisatrices, fournisseurs de données ou sources publiques.
+        </p>
+
+        <p>
             My Bus Finder utilise des formats de données propriétaires (appelés « <strong>MBF Setvars</strong> ») 
             pour certaines fonctionnalités, notamment pour les informations des véhicules, les 
             paramètres personnels ainsi que pour les fonctionnalités liées à l'expérience utilisateur.
@@ -324,6 +330,7 @@
             L'affichage d'un réseau de transport, d'une marque, d'un nom ou d'un logo
             ne signifie pas nécessairement qu'il existe un partenariat, une affiliation
             ou une approbation officielle entre My Bus Finder et l'organisme concerné.
+            Toute association ou affiliation implicite est purement fortuite et ne saurait être interprétée comme une approbation officielle.
         </p>
 
         <h3>4. Fiabilité et caractère informatif des données</h3>
@@ -354,6 +361,7 @@
         <p>
             Une position affichée sur la carte ne garantit pas qu'un véhicule soit
             effectivement présent à cette position au moment de la consultation.
+            Il peut exister un décalage entre la position affichée et la position réelle du véhicule.
         </p>
 
         <p>
@@ -365,6 +373,8 @@
             Pour toute information importante concernant un déplacement, nous vous
             recommandons de consulter également les sources officielles du réseau de
             transport concerné.
+            My Bus Finder et Becab Development ne sauraient être tenus responsable pour tout litige ou préjudice résultant de l'utilisation des informations affichées par l'application.
+            Becab Development n'assure aucunement le service client des réseaux de transport et ne peut être tenu responsable de l'absence d'assistance ou d'information de la part des opérateurs de transport.
         </p>
 
         <h3>5. Responsabilité</h3>
@@ -429,7 +439,7 @@
 
         <p>
             My Bus Finder accorde une attention particulière à la protection de votre
-            vie privée et de vos données personnelles.
+            vie privée et de vos données personnelles. Votre vie privée est notre priorité, et nous nous engageons à respecter la réglementation applicable en matière de protection des données.
         </p>
 
         <p>
@@ -449,6 +459,10 @@
             Les modalités détaillées relatives aux données personnelles, aux finalités
             des traitements, aux destinataires, aux durées de conservation et à vos droits
             sont précisées dans la Politique de confidentialité de My Bus Finder.
+        </p>
+
+        <p>
+          <strong>Becab Development ne collecte pas de données personnelles sensibles, ne vend et ne vendra jamais vos informations à des tiers.</strong>
         </p>
 
         <h3>8. Cookies et technologies similaires</h3>
@@ -499,6 +513,8 @@
 
         <p>
             Ces services peuvent évoluer au fil du développement de My Bus Finder.
+            Nous accordons une importance particulière à la sélection de nos partenaires et fournisseurs tiers, en privilégiant ceux qui respectent la confidentialité des utilisateurs et la sécurité des données.
+            En majorité, ces services sont à source ouverte (open source) pour favoriser la transparence et la confiance dans l'utilisation de l'application.
         </p>
 
         <p>
@@ -555,17 +571,24 @@
             conforme à la finalité du service.
         </p>
 
-        <p>Il est notamment interdit de :</p>
+        <p>Il est formellement interdit de :</p>
 
         <ul>
             <li>perturber ou tenter de perturber le fonctionnement du service ;</li>
             <li>tenter d'accéder sans autorisation aux systèmes de l'application ;</li>
             <li>contourner les mesures techniques ou de sécurité ;</li>
             <li>effectuer une extraction massive ou abusive des données ;</li>
-            <li>utiliser des robots ou scripts susceptibles de surcharger le service ;</li>
+            <li>utiliser des robots ou scripts susceptibles de surcharger le service afin de nuire à son fonctionnement ;</li>
             <li>utiliser le service à des fins illégales ;</li>
+            <li>opérer à l'ingénierie inverse ou à la décompilation du code de la logique métier (back-end) ;</li>
             <li>porter atteinte aux droits de Becab Development ou de tiers.</li>
         </ul>
+
+        <p>
+            Becab Development se réserve le droit de suspendre ou d'interrompre l'accès
+            au service en cas d'utilisation abusive ou non conforme aux présentes CGU.
+            <strong>Des poursuites judiciaires pourront être engagées en cas de violation des droits de Becab Development ou de tiers.</strong>
+        </p>
 
         <h3>13. Propriété intellectuelle</h3>
 
@@ -701,10 +724,11 @@
         <p>
             En utilisant My Bus Finder, vous reconnaissez avoir pris connaissance des
             présentes Conditions Générales d'Utilisation et acceptez de les respecter.
+            Toute violation de ces conditions peut entraîner la suspension ou l'interruption de l'accès au service, ainsi que des poursuites judiciaires en dernier recours.
         </p>
 
         <p>
-            Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser le service.
+            Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser le service et <a href="https://www.google.com">cliquez ici</a> pour accéder à un moteur de recherche pour quitter le service.
         </p>
 
         </div>
@@ -720,7 +744,8 @@
         <p>My Bus Finder est un projet indépendant, développé par un étudiant en développement informatique sur mon temps libre pour vous aider à trouver votre bus ou votre tram, sans prise de tête.</p>
         <p>Derrière l'application, il y a du temps de développement, des serveurs et beaucoup d'envie de continuer à l'améliorer. Si vous utilisez My Bus Finder et que vous souhaitez donner un petit coup de pouce au projet, vous pouvez m'offrir un café. ❤️</p>
         <p>Votre soutien contribue directement à <strong>financer les serveurs et le développement</strong> de nouvelles fonctionnalités.</p>
-        <p><strong>Évidemment, rien n'est obligatoire :</strong> My Bus Finder restera gratuit et accessible à tous.</p>
+        <p><strong>Évidemment, rien n'est obligatoire :</strong> My Bus Finder restera gratuit et accessible à tous, mais votre soutien est grandement apprécié et permettra de garantir le fonctionnement de l'application sur le long terme. ❤️</p>
+        <p>Vous pourrez toujours le faire plus tard si vous le souhaitez, en cliquant sur le coeur dans le menu.</p>
         </div>
     </section>
     `;
