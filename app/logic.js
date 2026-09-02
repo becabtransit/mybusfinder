@@ -6340,11 +6340,11 @@ const MenuManager = {
             font-weight: 500;
             color: ${textColor};
         `;
-        mainText.textContent = `${t('last_known_line')}: ${lastLineName}`;
+        mainText.textContent = `${t('last_known_line')} : ${lastLineName}`;
 
         const arrivalText = document.createElement('div');
         arrivalText.className = 'bus-arrival-text';
-        arrivalText.textContent = `${t('service_end')}: ${serviceEndText}`;
+        arrivalText.textContent = `${t('service_end')} : ${serviceEndText}`;
         arrivalText.style.cssText = `
             font-size: 0.9em;
             opacity: 0.8;
