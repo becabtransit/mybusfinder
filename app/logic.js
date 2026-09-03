@@ -3670,16 +3670,14 @@ function destinationPoint(lat, lng, distanceMeters, bearingDeg) {
     return [lat2 * 180 / Math.PI, lng2 * 180 / Math.PI];
 }
 
-const NO_MOVEMENT_THRESHOLD = 6;        // m — en dessous jconsidere que la donnée n'a pas changé
-const SNAP_TOLERANCE = 50;              // m — tolerance pour accrocher un point à un tracé (recherche globale)
-const LOCK_STICKY_TOLERANCE = 70;       // m — tolerance pour rester sur le tracé déjà verrouillé
-const LOCK_BACKWARD_NOISE = 15;         // m — petit recul toléré comme bruit gps (ignoré)
-const BACKWARD_TELEPORT_THRESHOLD = 40; // m — au dela, pas d'animation en arrière on se replace directement
+const NO_MOVEMENT_THRESHOLD = 6;      // m (ligne droite) sous ce seuil, donnée considérée identique
+const SNAP_TOLERANCE = 50;            // m tolérance pour accrocher un point au tracé
+const BACKWARD_NOISE_LIMIT = 20;      // m (le long du tracé) recul ignoré comme bruit GPS
+const EXTRAPOLATION_SNAP_TOLERANCE = 15; // tolérance stricte pour démarrer l'extrapolation sur le tracé
+const MERGE_MS = 2000;                // ms durée du recalage doux au démarrage de l'extrapolation
 
 const AnimationManager = {
     activeAnimations: new Map(),
-
-    linear(t) { return t; },
 
     updateMarkerTarget(marker, newPosition, speed, routeId, directionId) {
         const markerId = marker.id;
@@ -3692,82 +3690,84 @@ const AnimationManager = {
         const lastReal = marker._lastRealLatLng;
         const realDistance = lastReal ? lastReal.distanceTo(newLatLng) : Infinity;
 
-        if (realDistance < NO_MOVEMENT_THRESHOLD) {
-            marker._speed = newSpeed; 
-            marker._lastRealLatLng = newLatLng;
+        marker._lastRealLatLng = newLatLng;
+        marker._speed = newSpeed;
 
-            if (!this.activeAnimations.has(markerId)) {
-                this._relock(marker, marker.getLatLng());
-                this._startExtrapolation(marker);
-            }
+        if (realDistance < NO_MOVEMENT_THRESHOLD) {
+            if (!this.activeAnimations.has(markerId)) this._maybeStartExtrapolation(marker);
             return;
         }
 
-        marker._lastRealLatLng = newLatLng;
-        marker._speed = newSpeed;
+        const startLatLng = marker.getLatLng();
+        const straightDistance = startLatLng.distanceTo(newLatLng);
+
+        const polylines = marker._routeId ? RouteShapeCache.getPolylines(marker._routeId, marker._directionId) : [];
+        let waypointResult = null;
+
+        if (polylines.length) {
+            const startSnap = projectPointOntoPolylines(startLatLng, polylines);
+            const endSnap = projectPointOntoPolylines(newLatLng, polylines);
+
+            if (startSnap && endSnap &&
+                startSnap.distToProj <= SNAP_TOLERANCE &&
+                endSnap.distToProj <= SNAP_TOLERANCE &&
+                startSnap.polyline === endSnap.polyline) {
+
+                const forwardDelta = endSnap.cumDist - startSnap.cumDist;
+
+               if (forwardDelta < 0 && forwardDelta > -BACKWARD_NOISE_LIMIT) {
+                    if (!this.activeAnimations.has(markerId)) this._maybeStartExtrapolation(marker);
+                    return;
+                }
+
+                if (Math.abs(forwardDelta) >= 2) {
+                    waypointResult = buildWaypointsFromSnap(startLatLng, newLatLng, startSnap, endSnap, forwardDelta);
+                }
+            }
+        }
+
         this.cancelAnimation(markerId);
 
-        const startLatLng = marker.getLatLng();
         const now = performance.now();
         const lastMove = marker._lastMoveTime || now;
         let duration = now - lastMove;
         duration = Math.max(2000, Math.min(duration, 20000));
         marker._lastMoveTime = now;
 
-        const straightDistance = startLatLng.distanceTo(newLatLng);
         if (straightDistance < 5) {
             marker.setLatLng(newLatLng);
-            this._relock(marker, newLatLng);
-            this._startExtrapolation(marker);
+            this._maybeStartExtrapolation(marker);
             return;
         }
 
-        const pathPlan = this._buildPathPlan(marker, startLatLng, newLatLng);
+        const onDone = () => this._maybeStartExtrapolation(marker);
 
-        if (pathPlan && (pathPlan.startDist - pathPlan.endDist) > BACKWARD_TELEPORT_THRESHOLD) {
-            const p = pointAtDistance(pathPlan.polyline, pathPlan.endDist);
-            marker.setLatLng([p.lat, p.lng]);
-            marker._pathPolyline = pathPlan.polyline;
-            marker._pathDist = pathPlan.endDist;
-            this._startExtrapolation(marker);
-            return;
+        if (waypointResult) {
+            this._runWaypointAnimation(marker, waypointResult.waypoints, duration, onDone);
+        } else {
+            this._runStraightAnimation(marker, startLatLng, newLatLng, duration, onDone);
         }
-
-        this._runAnimation(marker, startLatLng, newLatLng, pathPlan, duration);
     },
 
-    _runAnimation(marker, startLatLng, endLatLng, pathPlan, duration) {
+    _runWaypointAnimation(marker, waypoints, duration, onDone) {
         const markerId = marker.id;
+        const cum = computeWaypointCumDist(waypoints);
+        const total = cum[cum.length - 1];
         const startTime = performance.now();
 
         const animate = (time) => {
             const elapsed = time - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            const t = this.linear(progress);
-
-            let lat, lng;
-            if (pathPlan) {
-                const dist = pathPlan.startDist + (pathPlan.endDist - pathPlan.startDist) * t;
-                const p = pointAtDistance(pathPlan.polyline, dist);
-                lat = p.lat; lng = p.lng;
-            } else {
-                lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * t;
-                lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * t;
-            }
-            marker.setLatLng([lat, lng]);
+            const dist = total * progress;
+            const p = pointAlongWaypoints(waypoints, cum, dist);
+            marker.setLatLng([p.lat, p.lng]);
 
             if (progress < 1) {
                 const frameId = requestAnimationFrame(animate);
                 this.activeAnimations.set(markerId, { frameId, mode: 'animating' });
             } else {
                 this.activeAnimations.delete(markerId);
-                if (pathPlan) {
-                    marker._pathPolyline = pathPlan.polyline;
-                    marker._pathDist = pathPlan.endDist;
-                } else {
-                    this._relock(marker, endLatLng);
-                }
-                this._startExtrapolation(marker);
+                if (onDone) onDone();
             }
         };
 
@@ -3775,66 +3775,52 @@ const AnimationManager = {
         this.activeAnimations.set(markerId, { frameId, mode: 'animating' });
     },
 
-    _buildPathPlan(marker, startLatLng, endLatLng) {
-        const routeId = marker._routeId;
-        if (!routeId) return null;
+    _runStraightAnimation(marker, startLatLng, endLatLng, duration, onDone) {
+        const markerId = marker.id;
+        const startTime = performance.now();
 
-        if (marker._pathPolyline && typeof marker._pathDist === 'number') {
-            const snap = projectPointOntoSinglePolyline(endLatLng, marker._pathPolyline);
-            if (snap && snap.distToProj <= LOCK_STICKY_TOLERANCE) {
-                const startDist = marker._pathDist;
-                const delta = snap.cumDist - startDist;
+        const animate = (time) => {
+            const elapsed = time - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * progress;
+            const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * progress;
+            marker.setLatLng([lat, lng]);
 
-                if (delta >= -LOCK_BACKWARD_NOISE) {
-                    const endDist = delta < 0 ? startDist : snap.cumDist;
-                    return { polyline: marker._pathPolyline, startDist, endDist };
-                }
-                return { polyline: marker._pathPolyline, startDist, endDist: snap.cumDist };
+            if (progress < 1) {
+                const frameId = requestAnimationFrame(animate);
+                this.activeAnimations.set(markerId, { frameId, mode: 'animating' });
+            } else {
+                this.activeAnimations.delete(markerId);
+                if (onDone) onDone();
             }
-        }
+        };
 
-        const polylines = RouteShapeCache.getPolylines(routeId, marker._directionId);
-        if (!polylines.length) return null;
-
-        const startSnap = projectPointOntoPolylines(startLatLng, polylines);
-        const endSnap = projectPointOntoPolylines(endLatLng, polylines);
-        if (!startSnap || !endSnap) return null;
-        if (startSnap.distToProj > SNAP_TOLERANCE || endSnap.distToProj > SNAP_TOLERANCE) return null;
-        if (startSnap.polyline !== endSnap.polyline) return null;
-
-        const delta = endSnap.cumDist - startSnap.cumDist;
-        if (Math.abs(delta) < 2) return null;
-
-        return { polyline: startSnap.polyline, startDist: startSnap.cumDist, endDist: endSnap.cumDist };
+        const frameId = requestAnimationFrame(animate);
+        this.activeAnimations.set(markerId, { frameId, mode: 'animating' });
     },
 
-    _relock(marker, latlng) {
-        const routeId = marker._routeId;
-        marker._pathPolyline = null;
-        marker._pathDist = null;
-        if (!routeId) return;
-
-        const polylines = RouteShapeCache.getPolylines(routeId, marker._directionId);
-        if (!polylines.length) return;
-
-        const snap = projectPointOntoPolylines(latlng, polylines);
-        if (snap && snap.distToProj <= SNAP_TOLERANCE) {
-            marker._pathPolyline = snap.polyline;
-            marker._pathDist = snap.cumDist;
-        }
-    },
-
-    _startExtrapolation(marker) {
+    _maybeStartExtrapolation(marker) {
         const markerId = marker.id;
 
-        const hasPath = marker._pathPolyline && typeof marker._pathDist === 'number';
-        if (!hasPath) return;
+        if (!marker._speed || marker._speed < 0.3) return;
+        if (!marker._routeId) return;
 
-        const polyline = marker._pathPolyline;
-        let lastTime = performance.now();
-        let dist = marker._pathDist;
-        const extrapolationStart = lastTime;
+        const polylines = RouteShapeCache.getPolylines(marker._routeId, marker._directionId);
+        if (!polylines.length) return;
+
+        const current = marker.getLatLng();
+        const snap = projectPointOntoPolylines(current, polylines);
+        if (!snap || snap.distToProj > EXTRAPOLATION_SNAP_TOLERANCE) return;
+
+        const polyline = snap.polyline;
+        const baseDist = snap.cumDist;
+        const offsetLat = current.lat - snap.lat;
+        const offsetLng = current.lng - snap.lng;
+
         const maxExtrapolationMs = 25000;
+        const extrapolationStart = performance.now();
+        let lastTime = extrapolationStart;
+        let dist = baseDist;
 
         const step = (time) => {
             const elapsed = time - extrapolationStart;
@@ -3847,15 +3833,19 @@ const AnimationManager = {
             lastTime = time;
 
             const speed = marker._speed;
-            if (speed && speed >= 0.3) {
-                dist = Math.min(dist + speed * dt, polyline.totalLength);
-                const p = pointAtDistance(polyline, dist);
-                marker.setLatLng([p.lat, p.lng]);
-                marker._pathDist = dist;
-            } else {
+            if (!speed || speed < 0.3) {
                 this.activeAnimations.delete(markerId);
                 return;
             }
+
+            dist = Math.min(dist + speed * dt, polyline.totalLength);
+            const p = pointAtDistance(polyline, dist);
+
+            const mergeT = Math.max(0, 1 - elapsed / MERGE_MS);
+            const lat = p.lat + offsetLat * mergeT;
+            const lng = p.lng + offsetLng * mergeT;
+
+            marker.setLatLng([lat, lng]);
 
             if (dist >= polyline.totalLength) {
                 this.activeAnimations.delete(markerId);
@@ -3884,6 +3874,7 @@ const AnimationManager = {
         this.activeAnimations.clear();
     }
 };
+
 
 function animateMarker(marker, newPosition, speed = null, routeId = null, directionId = null) {
     AnimationManager.updateMarkerTarget(marker, newPosition, speed, routeId, directionId);
@@ -3982,6 +3973,61 @@ function pointAtDistance(polyline, distance) {
         }
     }
     return points[points.length - 1];
+}
+
+function buildWaypointsFromSnap(startLatLng, endLatLng, startSnap, endSnap, forwardDelta) {
+    const polyline = startSnap.polyline;
+    const points = polyline.points;
+    const cum = polyline.cum;
+    const waypoints = [{ lat: startLatLng.lat, lng: startLatLng.lng }];
+
+    if (forwardDelta > 0) {
+        for (let i = 0; i < points.length; i++) {
+            if (cum[i] > startSnap.cumDist + 1 && cum[i] < endSnap.cumDist - 1) {
+                waypoints.push(points[i]);
+            }
+        }
+    } else {
+        for (let i = points.length - 1; i >= 0; i--) {
+            if (cum[i] < startSnap.cumDist - 1 && cum[i] > endSnap.cumDist + 1) {
+                waypoints.push(points[i]);
+            }
+        }
+    }
+
+    waypoints.push({ lat: endLatLng.lat, lng: endLatLng.lng });
+    return { waypoints, polyline };
+}
+
+function computeWaypointCumDist(waypoints) {
+    const cum = [0];
+    for (let i = 1; i < waypoints.length; i++) {
+        const d = L.latLng(waypoints[i - 1]).distanceTo(L.latLng(waypoints[i]));
+        cum.push(cum[i - 1] + d);
+    }
+    return cum;
+}
+
+function pointAlongWaypoints(waypoints, cum, distance) {
+    const total = cum[cum.length - 1];
+    const d = Math.max(0, Math.min(distance, total));
+
+    for (let i = 1; i < cum.length; i++) {
+        if (d <= cum[i]) {
+            const segStart = cum[i - 1];
+            const segEnd = cum[i];
+            const segLen = segEnd - segStart;
+            const t = segLen > 0 ? (d - segStart) / segLen : 0;
+
+            const a = waypoints[i - 1];
+            const b = waypoints[i];
+            return {
+                lat: a.lat + (b.lat - a.lat) * t,
+                lng: a.lng + (b.lng - a.lng) * t
+            };
+        }
+    }
+    return waypoints[waypoints.length - 1];
 }
 
 const RouteShapeCache = {
