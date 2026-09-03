@@ -1987,6 +1987,7 @@ function hideLoadingScreen() {
     if (localStorage.getItem('buildversion') !== window.BUILD_VERSION) {
         setTimeout(() => {
         localStorage.setItem('termsconds', 'false');
+        localStorage.setItem('locateonstart', 'true');
         window.updating = true;
         disparaitrelelogo();
         const loadingtext = document.getElementById('loading-text');
