@@ -98,7 +98,7 @@ function decodeGtfsRtVehicles(string $raw): array
             $entityBytes = $reader->readBytes();
             $vehicle = decodeFeedEntity($entityBytes);
             if ($vehicle !== null && $vehicle['id'] !== '') {
-                $vehicles[$vehicle['id']] = $vehicle['status'];
+                $vehicles[$vehicle['id']] = $vehicle; 
             }
         } else {
             $reader->skip($wireType);
@@ -126,10 +126,13 @@ function decodeVehiclePosition(string $raw): array
     $reader = new ProtobufReader($raw);
     $id = '';
     $status = null;
+    $routeId = null;
 
     while (!$reader->eof()) {
         [$field, $wireType] = $reader->readTag();
-        if ($field === 8 && $wireType === 2) {
+        if ($field === 1 && $wireType === 2) {
+            $routeId = decodeTripDescriptorRouteId($reader->readBytes());
+        } elseif ($field === 8 && $wireType === 2) {
             $id = decodeVehicleDescriptorId($reader->readBytes());
         } elseif ($field === 5 && $wireType === 0) {
             $status = $reader->readVarint();
@@ -138,7 +141,7 @@ function decodeVehiclePosition(string $raw): array
         }
     }
 
-    return ['id' => $id, 'status' => $status];
+    return ['id' => $id, 'status' => $status, 'route' => $routeId];
 }
 
 function decodeVehicleDescriptorId(string $raw): string
@@ -152,6 +155,19 @@ function decodeVehicleDescriptorId(string $raw): string
         $reader->skip($wireType);
     }
     return '';
+}
+
+function decodeTripDescriptorRouteId(string $raw): ?string
+{
+    $reader = new ProtobufReader($raw);
+    while (!$reader->eof()) {
+        [$field, $wireType] = $reader->readTag();
+        if ($field === 5 && $wireType === 2) {
+            return $reader->readBytes();
+        }
+        $reader->skip($wireType);
+    }
+    return null;
 }
 
 $pdo = new PDO('sqlite:' . $dbFile);
@@ -177,17 +193,29 @@ if (!$hasOutOfService) {
     $pdo->exec("ALTER TABLE vehicle_service ADD COLUMN last_out_of_service INTEGER DEFAULT NULL");
 }
 
+$hasRouteId = false;
+foreach ($columns as $column) {
+    if (($column['name'] ?? '') === 'last_route_id') {
+        $hasRouteId = true;
+        break;
+    }
+}
+if (!$hasRouteId) {
+    $pdo->exec("ALTER TABLE vehicle_service ADD COLUMN last_route_id TEXT DEFAULT NULL");
+}
+
 $ensureVehicle = $pdo->prepare("INSERT INTO vehicle_service (vehicle_id, service_date, first_seen, last_seen, last_out_of_service)
     VALUES (:id, :date, :now, :now, NULL)
     ON CONFLICT(vehicle_id) DO NOTHING");
 
-$upsert = $pdo->prepare("INSERT INTO vehicle_service (vehicle_id, service_date, first_seen, last_seen, last_out_of_service)
-    VALUES (:id, :date, :now, :now, NULL)
+$upsert = $pdo->prepare("INSERT INTO vehicle_service (vehicle_id, service_date, first_seen, last_seen, last_out_of_service, last_route_id)
+    VALUES (:id, :date, :now, :now, NULL, :route)
     ON CONFLICT(vehicle_id) DO UPDATE SET
         first_seen = CASE WHEN service_date = :date THEN first_seen ELSE :now END,
         service_date = :date,
         last_seen = :now,
-        last_out_of_service = NULL"); // réapparu dans le flux -> de nouveau en service
+        last_out_of_service = NULL,
+        last_route_id = COALESCE(:route, last_route_id)"); 
 
 $markOutOfService = $pdo->prepare("UPDATE vehicle_service
     SET last_out_of_service = COALESCE(last_out_of_service, :now)
@@ -216,16 +244,19 @@ $now = time();
 
 $pdo->beginTransaction();
 
-foreach ($currentVehicles as $id => $status) {
+foreach ($currentVehicles as $id => $info) {
     $id = trim((string)$id);
     if ($id === '') continue;
 
+    $route = $info['route'] ?? null;
+
     $ensureVehicle->execute([':id' => $id, ':date' => $today, ':now' => $now]);
-    $upsert->execute([':id' => $id, ':date' => $today, ':now' => $now]);
+    $upsert->execute([':id' => $id, ':date' => $today, ':now' => $now, ':route' => $route]);
 }
 
 $activeIds = $selectActive->fetchAll(PDO::FETCH_COLUMN);
 $missingIds = array_diff($activeIds, array_keys($currentVehicles));
+
 
 foreach ($missingIds as $id) {
     $markOutOfService->execute([':id' => $id, ':now' => $now]);
