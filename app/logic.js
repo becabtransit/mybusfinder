@@ -3671,13 +3671,12 @@ function destinationPoint(lat, lng, distanceMeters, bearingDeg) {
 }
 
 const AnimationManager = {
-    activeAnimations: new Map(), 
+    activeAnimations: new Map(), // markerId -> { frameId, mode }
 
     linear(t) { return t; },
 
-    animateMarker(marker, newPosition, duration = 4000, speed = null, bearing = null) {
+    animateMarker(marker, newPosition, duration = 4000, speed = null, bearing = null, routeId = null) {
         const markerId = marker.id;
-
         this.cancelAnimation(markerId);
 
         const startLatLng = marker.getLatLng();
@@ -3685,14 +3684,16 @@ const AnimationManager = {
         const distance = startLatLng.distanceTo(endLatLng);
 
         marker._speed = (typeof speed === 'number' && !isNaN(speed) && speed >= 0) ? speed : null;
-        marker._bearing = (typeof bearing === 'number' && !isNaN(bearing)) ? bearing : null;
+        marker._routeId = routeId || marker.line || null;
 
         if (distance < 5) {
             marker.setLatLng(endLatLng);
-            this._startExtrapolation(marker, endLatLng);
+            this._resetPathState(marker, endLatLng);
+            this._startExtrapolation(marker);
             return;
         }
 
+        const pathPlan = this._buildPathPlan(marker, startLatLng, endLatLng);
         const startTime = performance.now();
 
         const animate = (time) => {
@@ -3700,8 +3701,15 @@ const AnimationManager = {
             const progress = Math.min(elapsed / duration, 1);
             const t = this.linear(progress);
 
-            const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * t;
-            const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * t;
+            let lat, lng;
+            if (pathPlan) {
+                const dist = pathPlan.startDist + (pathPlan.endDist - pathPlan.startDist) * t;
+                const p = pointAtDistance(pathPlan.polyline, dist);
+                lat = p.lat; lng = p.lng;
+            } else {
+                lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * t;
+                lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * t;
+            }
             marker.setLatLng([lat, lng]);
 
             if (progress < 1) {
@@ -3709,9 +3717,13 @@ const AnimationManager = {
                 this.activeAnimations.set(markerId, { frameId, mode: 'animating' });
             } else {
                 this.activeAnimations.delete(markerId);
-                // Le segment réel est terminé : on continue à "deviner" le mouvement
-                // jusqu'à la prochaine vraie position.
-                this._startExtrapolation(marker, endLatLng);
+                if (pathPlan) {
+                    marker._pathPolyline = pathPlan.polyline;
+                    marker._pathDist = pathPlan.endDist;
+                } else {
+                    this._resetPathState(marker, endLatLng);
+                }
+                this._startExtrapolation(marker);
             }
         };
 
@@ -3719,19 +3731,64 @@ const AnimationManager = {
         this.activeAnimations.set(markerId, { frameId, mode: 'animating' });
     },
 
-    _startExtrapolation(marker, fromLatLng) {
+    _buildPathPlan(marker, startLatLng, endLatLng) {
+        const routeId = marker._routeId;
+        if (!routeId) return null;
+
+        const polylines = RouteShapeCache.getPolylines(routeId);
+        if (!polylines.length) return null;
+
+        const startSnap = projectPointOntoPolylines(startLatLng, polylines);
+        const endSnap = projectPointOntoPolylines(endLatLng, polylines);
+        if (!startSnap || !endSnap) return null;
+
+        const SNAP_TOLERANCE = 60; 
+        if (startSnap.distToProj > SNAP_TOLERANCE || endSnap.distToProj > SNAP_TOLERANCE) return null;
+
+        if (startSnap.polyline !== endSnap.polyline) return null;
+
+        const forwardDelta = endSnap.cumDist - startSnap.cumDist;
+
+        if (Math.abs(forwardDelta) < 2) return null;
+
+        if (forwardDelta < -300) return null;
+
+        return {
+            polyline: startSnap.polyline,
+            startDist: startSnap.cumDist,
+            endDist: endSnap.cumDist
+        };
+    },
+
+    _resetPathState(marker, latlng) {
+        const routeId = marker._routeId;
+        marker._pathPolyline = null;
+        marker._pathDist = null;
+
+        if (!routeId) return;
+        const polylines = RouteShapeCache.getPolylines(routeId);
+        if (!polylines.length) return;
+
+        const snap = projectPointOntoPolylines(latlng, polylines);
+        if (snap && snap.distToProj <= 60) {
+            marker._pathPolyline = snap.polyline;
+            marker._pathDist = snap.cumDist;
+        }
+    },
+
+    _startExtrapolation(marker) {
         const markerId = marker.id;
 
-        if (!marker._speed || marker._speed < 0.3 || marker._bearing === null) {
-            return;
-        }
+        if (!marker._speed || marker._speed < 0.3) return;
 
-        const maxExtrapolationMs = 25000; 
+        const hasPath = marker._pathPolyline && typeof marker._pathDist === 'number';
+        if (!hasPath) return; 
+
+        const maxExtrapolationMs = 25000;
         const startTime = performance.now();
-        const originLat = fromLatLng.lat;
-        const originLng = fromLatLng.lng;
         const speed = marker._speed;
-        const bearing = marker._bearing;
+        const polyline = marker._pathPolyline;
+        const startDist = marker._pathDist;
 
         const step = (time) => {
             const elapsed = time - startTime;
@@ -3740,9 +3797,21 @@ const AnimationManager = {
                 return;
             }
 
-            const distance = speed * (elapsed / 1000);
-            const [lat, lng] = destinationPoint(originLat, originLng, distance, bearing);
-            marker.setLatLng([lat, lng]);
+            const traveled = speed * (elapsed / 1000);
+            let dist = startDist + traveled;
+
+            if (dist >= polyline.totalLength) {
+                dist = polyline.totalLength;
+                const p = pointAtDistance(polyline, dist);
+                marker.setLatLng([p.lat, p.lng]);
+                marker._pathDist = dist;
+                this.activeAnimations.delete(markerId);
+                return;
+            }
+
+            const p = pointAtDistance(polyline, dist);
+            marker.setLatLng([p.lat, p.lng]);
+            marker._pathDist = dist;
 
             const frameId = requestAnimationFrame(step);
             this.activeAnimations.set(markerId, { frameId, mode: 'extrapolating' });
@@ -3767,7 +3836,7 @@ const AnimationManager = {
     }
 };
 
-function animateMarker(marker, newPosition, speed = null, bearing = null) {
+function animateMarker(marker, newPosition, speed = null, bearing = null, routeId = null) {
     const now = performance.now();
     const last = marker._lastMoveTime || now;
 
@@ -3776,7 +3845,7 @@ function animateMarker(marker, newPosition, speed = null, bearing = null) {
 
     marker._lastMoveTime = now;
 
-    AnimationManager.animateMarker(marker, newPosition, duration, speed, bearing);
+    AnimationManager.animateMarker(marker, newPosition, duration, speed, bearing, routeId);
 }
 
 let busStopLayers = [];
@@ -3786,6 +3855,146 @@ let allBusLines = [];
 
 let gtfsInitialized = false;
 
+const EARTH_RADIUS = 6371000;
+
+function toXY(lat, lng, refLat) {
+    const x = (lng * Math.PI / 180) * Math.cos(refLat * Math.PI / 180) * EARTH_RADIUS;
+    const y = (lat * Math.PI / 180) * EARTH_RADIUS;
+    return { x, y };
+}
+
+function toLatLngFromXY(x, y, refLat) {
+    const lat = (y / EARTH_RADIUS) * 180 / Math.PI;
+    const lng = (x / (EARTH_RADIUS * Math.cos(refLat * Math.PI / 180))) * 180 / Math.PI;
+    return { lat, lng };
+}
+
+
+function closestPointOnSegmentMeters(p, a, b) {
+    const refLat = a.lat;
+    const P = toXY(p.lat, p.lng, refLat);
+    const A = toXY(a.lat, a.lng, refLat);
+    const B = toXY(b.lat, b.lng, refLat);
+
+    const ABx = B.x - A.x;
+    const ABy = B.y - A.y;
+    const APx = P.x - A.x;
+    const APy = P.y - A.y;
+
+    const lenSq = ABx * ABx + ABy * ABy;
+    let t = lenSq !== 0 ? (APx * ABx + APy * ABy) / lenSq : 0;
+    t = Math.max(0, Math.min(1, t));
+
+    const X = A.x + t * ABx;
+    const Y = A.y + t * ABy;
+    const result = toLatLngFromXY(X, Y, refLat);
+
+    return { lat: result.lat, lng: result.lng, t };
+}
+
+
+function projectPointOntoPolylines(latlng, polylines) {
+    let best = null;
+
+    polylines.forEach(pl => {
+        const pts = pl.points;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i];
+            const b = pts[i + 1];
+            const proj = closestPointOnSegmentMeters(latlng, a, b);
+            const distToProj = L.latLng(latlng.lat, latlng.lng)
+                .distanceTo(L.latLng(proj.lat, proj.lng));
+
+            if (!best || distToProj < best.distToProj) {
+                const cumDist = pl.cum[i] + proj.t * (pl.cum[i + 1] - pl.cum[i]);
+                best = {
+                    polyline: pl,
+                    segIndex: i,
+                    t: proj.t,
+                    lat: proj.lat,
+                    lng: proj.lng,
+                    cumDist,
+                    distToProj
+                };
+            }
+        }
+    });
+
+    return best;
+}
+
+function pointAtDistance(polyline, distance) {
+    const { points, cum, totalLength } = polyline;
+    const d = Math.max(0, Math.min(distance, totalLength));
+
+    for (let i = 1; i < cum.length; i++) {
+        if (d <= cum[i]) {
+            const segStart = cum[i - 1];
+            const segEnd = cum[i];
+            const segLen = segEnd - segStart;
+            const t = segLen > 0 ? (d - segStart) / segLen : 0;
+
+            const a = points[i - 1];
+            const b = points[i];
+            return {
+                lat: a.lat + (b.lat - a.lat) * t,
+                lng: a.lng + (b.lng - a.lng) * t
+            };
+        }
+    }
+    return points[points.length - 1];
+}
+
+const RouteShapeCache = {
+    cache: new Map(), 
+
+    build() {
+        this.cache.clear();
+
+        geoJsonLines.forEach(layer => {
+            const routeId = layer.feature?.properties?.route_id;
+            if (!routeId) return;
+
+            const rawLatLngs = layer.getLatLngs();
+            const polylinesPoints = this._flatten(rawLatLngs);
+
+            polylinesPoints.forEach(points => {
+                if (points.length < 2) return;
+
+                const cum = [0];
+                for (let i = 1; i < points.length; i++) {
+                    const d = L.latLng(points[i - 1]).distanceTo(L.latLng(points[i]));
+                    cum.push(cum[i - 1] + d);
+                }
+
+                const entry = {
+                    points,
+                    cum,
+                    totalLength: cum[cum.length - 1]
+                };
+
+                if (!this.cache.has(routeId)) this.cache.set(routeId, []);
+                this.cache.get(routeId).push(entry);
+            });
+        });
+    },
+
+    _flatten(latlngs) {
+        if (!Array.isArray(latlngs) || latlngs.length === 0) return [];
+        if (latlngs[0] instanceof L.LatLng) {
+            return [latlngs.map(ll => ({ lat: ll.lat, lng: ll.lng }))];
+        }
+        let result = [];
+        latlngs.forEach(sub => {
+            result = result.concat(this._flatten(sub));
+        });
+        return result;
+    },
+
+    getPolylines(routeId) {
+        return this.cache.get(routeId) || [];
+    }
+};
 
 async function loadGeoJsonLines() {
     try {
@@ -9836,7 +10045,7 @@ async function fetchVehiclePositions() {
 
             if (markerPool.has(id)) {
                 const marker = markerPool.get(id);
-                animateMarker(marker, [latitude, longitude], vehicle.position.speed, vehicle.position.bearing);
+                animateMarker(marker, [latitude, longitude], vehicle.position.speed, vehicle.position.bearing, line);
 
                 if (navVehicleId === id) {
                     const payload = { type: 'vehicleNavUpdate', lat: latitude, lon: longitude };
@@ -11770,6 +11979,7 @@ async function main() {
         ]);
 
         await loadGeoJsonLines();
+        RouteShapeCache.build();
         loadBusStopMarkers();
         startFetchUpdates();
         
