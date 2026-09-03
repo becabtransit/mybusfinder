@@ -3670,35 +3670,74 @@ function destinationPoint(lat, lng, distanceMeters, bearingDeg) {
     return [lat2 * 180 / Math.PI, lng2 * 180 / Math.PI];
 }
 
-const SNAP_TOLERANCE = 50;
-const LOCK_STICKY_TOLERANCE = 70;
-const LOCK_BACKWARD_TOLERANCE = 20;
+const NO_MOVEMENT_THRESHOLD = 6;        // m — en dessous, on considère que la donnée n'a pas changé
+const SNAP_TOLERANCE = 50;              // m — tolérance pour accrocher un point à un tracé (recherche globale)
+const LOCK_STICKY_TOLERANCE = 70;       // m — tolérance pour RESTER sur le tracé déjà verrouillé
+const LOCK_BACKWARD_NOISE = 15;         // m — petit recul toléré comme bruit GPS (ignoré)
+const BACKWARD_TELEPORT_THRESHOLD = 40; // m — au-delà, pas d'animation en arrière : on se replace directement
 
 const AnimationManager = {
     activeAnimations: new Map(),
 
     linear(t) { return t; },
 
-    animateMarker(marker, newPosition, duration = 4000, speed = null, routeId = null, directionId = null) {
+    updateMarkerTarget(marker, newPosition, speed, routeId, directionId) {
         const markerId = marker.id;
-        this.cancelAnimation(markerId);
+        const newLatLng = L.latLng(newPosition[0], newPosition[1]);
+        const newSpeed = (typeof speed === 'number' && !isNaN(speed) && speed >= 0) ? speed : null;
 
-        const startLatLng = marker.getLatLng();
-        const endLatLng = L.latLng(newPosition[0], newPosition[1]);
-        const distance = startLatLng.distanceTo(endLatLng);
-
-        marker._speed = (typeof speed === 'number' && !isNaN(speed) && speed >= 0) ? speed : null;
         marker._routeId = routeId || marker.line || null;
         marker._directionId = (directionId !== undefined && directionId !== null) ? String(directionId) : null;
 
-        if (distance < 5) {
-            marker.setLatLng(endLatLng);
-            this._relock(marker, endLatLng);
+        const lastReal = marker._lastRealLatLng;
+        const realDistance = lastReal ? lastReal.distanceTo(newLatLng) : Infinity;
+
+        if (realDistance < NO_MOVEMENT_THRESHOLD) {
+            marker._speed = newSpeed; 
+            marker._lastRealLatLng = newLatLng;
+
+            if (!this.activeAnimations.has(markerId)) {
+                this._relock(marker, marker.getLatLng());
+                this._startExtrapolation(marker);
+            }
+            return;
+        }
+
+        marker._lastRealLatLng = newLatLng;
+        marker._speed = newSpeed;
+        this.cancelAnimation(markerId);
+
+        const startLatLng = marker.getLatLng();
+        const now = performance.now();
+        const lastMove = marker._lastMoveTime || now;
+        let duration = now - lastMove;
+        duration = Math.max(2000, Math.min(duration, 20000));
+        marker._lastMoveTime = now;
+
+        const straightDistance = startLatLng.distanceTo(newLatLng);
+        if (straightDistance < 5) {
+            marker.setLatLng(newLatLng);
+            this._relock(marker, newLatLng);
             this._startExtrapolation(marker);
             return;
         }
 
-        const pathPlan = this._buildPathPlan(marker, startLatLng, endLatLng);
+        const pathPlan = this._buildPathPlan(marker, startLatLng, newLatLng);
+
+        if (pathPlan && (pathPlan.startDist - pathPlan.endDist) > BACKWARD_TELEPORT_THRESHOLD) {
+            const p = pointAtDistance(pathPlan.polyline, pathPlan.endDist);
+            marker.setLatLng([p.lat, p.lng]);
+            marker._pathPolyline = pathPlan.polyline;
+            marker._pathDist = pathPlan.endDist;
+            this._startExtrapolation(marker);
+            return;
+        }
+
+        this._runAnimation(marker, startLatLng, newLatLng, pathPlan, duration);
+    },
+
+    _runAnimation(marker, startLatLng, endLatLng, pathPlan, duration) {
+        const markerId = marker.id;
         const startTime = performance.now();
 
         const animate = (time) => {
@@ -3746,10 +3785,11 @@ const AnimationManager = {
                 const startDist = marker._pathDist;
                 const delta = snap.cumDist - startDist;
 
-                if (delta >= -LOCK_BACKWARD_TOLERANCE) {
+                if (delta >= -LOCK_BACKWARD_NOISE) {
                     const endDist = delta < 0 ? startDist : snap.cumDist;
                     return { polyline: marker._pathPolyline, startDist, endDist };
                 }
+                return { polyline: marker._pathPolyline, startDist, endDist: snap.cumDist };
             }
         }
 
@@ -3765,11 +3805,7 @@ const AnimationManager = {
         const delta = endSnap.cumDist - startSnap.cumDist;
         if (Math.abs(delta) < 2) return null;
 
-        return {
-            polyline: startSnap.polyline,
-            startDist: startSnap.cumDist,
-            endDist: endSnap.cumDist
-        };
+        return { polyline: startSnap.polyline, startDist: startSnap.cumDist, endDist: endSnap.cumDist };
     },
 
     _relock(marker, latlng) {
@@ -3790,39 +3826,41 @@ const AnimationManager = {
 
     _startExtrapolation(marker) {
         const markerId = marker.id;
-        if (!marker._speed || marker._speed < 0.3) return;
 
         const hasPath = marker._pathPolyline && typeof marker._pathDist === 'number';
-        if (!hasPath) return; 
+        if (!hasPath) return;
 
-        const maxExtrapolationMs = 25000;
-        const startTime = performance.now();
-        const speed = marker._speed;
         const polyline = marker._pathPolyline;
-        const startDist = marker._pathDist;
+        let lastTime = performance.now();
+        let dist = marker._pathDist;
+        const extrapolationStart = lastTime;
+        const maxExtrapolationMs = 25000;
 
         const step = (time) => {
-            const elapsed = time - startTime;
+            const elapsed = time - extrapolationStart;
             if (elapsed > maxExtrapolationMs) {
                 this.activeAnimations.delete(markerId);
                 return;
             }
 
-            const traveled = speed * (elapsed / 1000);
-            let dist = startDist + traveled;
+            const dt = (time - lastTime) / 1000;
+            lastTime = time;
 
-            if (dist >= polyline.totalLength) {
-                dist = polyline.totalLength;
+            const speed = marker._speed;
+            if (speed && speed >= 0.3) {
+                dist = Math.min(dist + speed * dt, polyline.totalLength);
                 const p = pointAtDistance(polyline, dist);
                 marker.setLatLng([p.lat, p.lng]);
                 marker._pathDist = dist;
+            } else {
                 this.activeAnimations.delete(markerId);
                 return;
             }
 
-            const p = pointAtDistance(polyline, dist);
-            marker.setLatLng([p.lat, p.lng]);
-            marker._pathDist = dist;
+            if (dist >= polyline.totalLength) {
+                this.activeAnimations.delete(markerId);
+                return;
+            }
 
             const frameId = requestAnimationFrame(step);
             this.activeAnimations.set(markerId, { frameId, mode: 'extrapolating' });
