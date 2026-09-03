@@ -11617,9 +11617,10 @@ function startFetchUpdates({ forceRefresh = false } = {}) {
             });
 
             await fetchVehiclePositions().catch(err => {
-                await fetchAllOutOfServiceVehicles().catch(() => {});
                 FetchManager.onError();
             });
+
+            await fetchAllOutOfServiceVehicles().catch(() => {});
 
             FetchManager.onSuccess();
 
