@@ -3886,15 +3886,7 @@ const AnimationManager = {
 };
 
 function animateMarker(marker, newPosition, speed = null, routeId = null, directionId = null) {
-    const now = performance.now();
-    const last = marker._lastMoveTime || now;
-
-    let duration = now - last;
-    duration = Math.max(2000, Math.min(duration, 20000));
-
-    marker._lastMoveTime = now;
-
-    AnimationManager.animateMarker(marker, newPosition, duration, speed, routeId, directionId);
+    AnimationManager.updateMarkerTarget(marker, newPosition, speed, routeId, directionId);
 }
 
 let busStopLayers = [];
@@ -10211,12 +10203,7 @@ async function fetchVehiclePositions() {
                 marker.destination = lastStopName;
                 marker._lastNextStopsHTML = nextStopsHTML;
 
-                marker._routeId = line;
-                marker._directionId = (directionId !== undefined && directionId !== null) ? String(directionId) : null;
-                marker._speed = (typeof vehicle.position.speed === 'number' && !isNaN(vehicle.position.speed))
-                    ? vehicle.position.speed : null;
-                AnimationManager._relock(marker, marker.getLatLng());
-                AnimationManager._startExtrapolation(marker);
+                animateMarker(marker, [latitude, longitude], vehicle.position.speed, line, directionId);
                 
                 if (!selectedLine || selectedLine === line) {
                     marker.addTo(map);
