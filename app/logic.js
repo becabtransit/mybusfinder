@@ -8805,18 +8805,16 @@ function getStopPlatform(stopId) {
 window.vehicleServiceSince = window.vehicleServiceSince || {};
 window.vehicleServiceEnd = window.vehicleServiceEnd || {};
 
-async function trackVehicleService(ids, statusMap = {}) {
+window.vehicleServiceSince = window.vehicleServiceSince || {};
+window.vehicleServiceEnd = window.vehicleServiceEnd || {};
+
+async function trackVehicleService(ids) {
     if (!ids || ids.length === 0) return;
     try {
-        const payload = {
-            ids,
-            statuses: statusMap
-        };
-
         const res = await fetch(netPath('proxy-cors/track_vehicule.php'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ ids })
         });
         if (!res.ok) return;
 
@@ -8824,7 +8822,7 @@ async function trackVehicleService(ids, statusMap = {}) {
         if (json?.firstSeen) Object.assign(window.vehicleServiceSince, json.firstSeen);
         if (json?.outOfService) Object.assign(window.vehicleServiceEnd, json.outOfService);
     } catch (e) {
-        console.warn('Erreur suivi service véhicules:', e);
+        console.warn('Erreur lecture service véhicules', e);
     }
 }
 
