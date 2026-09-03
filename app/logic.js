@@ -3670,11 +3670,11 @@ function destinationPoint(lat, lng, distanceMeters, bearingDeg) {
     return [lat2 * 180 / Math.PI, lng2 * 180 / Math.PI];
 }
 
-const NO_MOVEMENT_THRESHOLD = 6;        // m — en dessous, on considère que la donnée n'a pas changé
-const SNAP_TOLERANCE = 50;              // m — tolérance pour accrocher un point à un tracé (recherche globale)
-const LOCK_STICKY_TOLERANCE = 70;       // m — tolérance pour RESTER sur le tracé déjà verrouillé
-const LOCK_BACKWARD_NOISE = 15;         // m — petit recul toléré comme bruit GPS (ignoré)
-const BACKWARD_TELEPORT_THRESHOLD = 40; // m — au-delà, pas d'animation en arrière : on se replace directement
+const NO_MOVEMENT_THRESHOLD = 6;        // m — en dessous jconsidere que la donnée n'a pas changé
+const SNAP_TOLERANCE = 50;              // m — tolerance pour accrocher un point à un tracé (recherche globale)
+const LOCK_STICKY_TOLERANCE = 70;       // m — tolerance pour rester sur le tracé déjà verrouillé
+const LOCK_BACKWARD_NOISE = 15;         // m — petit recul toléré comme bruit gps (ignoré)
+const BACKWARD_TELEPORT_THRESHOLD = 40; // m — au dela, pas d'animation en arrière on se replace directement
 
 const AnimationManager = {
     activeAnimations: new Map(),
