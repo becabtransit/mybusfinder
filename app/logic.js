@@ -1568,6 +1568,7 @@ class MarkerPool {
         const marker = this.active.get(id);
         if (!marker) return;
 
+        AnimationManager.cancelAnimation(id);
         marker._popupGenerated = false;
         
         if (marker.isPopupOpen()) {
@@ -3651,62 +3652,113 @@ const additionalCSS = `
 }
 `;
 
+function destinationPoint(lat, lng, distanceMeters, bearingDeg) {
+    const R = 6371000; 
+    const brng = bearingDeg * Math.PI / 180;
+    const lat1 = lat * Math.PI / 180;
+    const lng1 = lng * Math.PI / 180;
+
+    const lat2 = Math.asin(
+        Math.sin(lat1) * Math.cos(distanceMeters / R) +
+        Math.cos(lat1) * Math.sin(distanceMeters / R) * Math.cos(brng)
+    );
+    const lng2 = lng1 + Math.atan2(
+        Math.sin(brng) * Math.sin(distanceMeters / R) * Math.cos(lat1),
+        Math.cos(distanceMeters / R) - Math.sin(lat1) * Math.sin(lat2)
+    );
+
+    return [lat2 * 180 / Math.PI, lng2 * 180 / Math.PI];
+}
+
 const AnimationManager = {
-    activeAnimations: new Map(),
-    
-    easeInOutQuad(t) {
-        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    },
-    
-    animateMarker(marker, newPosition, duration = 1000) {
+    activeAnimations: new Map(), 
+
+    linear(t) { return t; },
+
+    animateMarker(marker, newPosition, duration = 4000, speed = null, bearing = null) {
         const markerId = marker.id;
-        
-        // Annuler l'animation existante
-        if (this.activeAnimations.has(markerId)) {
-            cancelAnimationFrame(this.activeAnimations.get(markerId).frameId);
-        }
-        
+
+        this.cancelAnimation(markerId);
+
         const startLatLng = marker.getLatLng();
         const endLatLng = L.latLng(newPosition[0], newPosition[1]);
-        
-        // Si distance trop courte, pas d'animation
         const distance = startLatLng.distanceTo(endLatLng);
+
+        marker._speed = (typeof speed === 'number' && !isNaN(speed) && speed >= 0) ? speed : null;
+        marker._bearing = (typeof bearing === 'number' && !isNaN(bearing)) ? bearing : null;
+
         if (distance < 5) {
             marker.setLatLng(endLatLng);
+            this._startExtrapolation(marker, endLatLng);
             return;
         }
-        
+
         const startTime = performance.now();
-        
+
         const animate = (time) => {
             const elapsed = time - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            const easedProgress = this.easeInOutQuad(progress);
-            
-            const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * easedProgress;
-            const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * easedProgress;
-            
+            const t = this.linear(progress);
+
+            const lat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * t;
+            const lng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * t;
             marker.setLatLng([lat, lng]);
 
             if (progress < 1) {
                 const frameId = requestAnimationFrame(animate);
-                this.activeAnimations.set(markerId, { frameId });
+                this.activeAnimations.set(markerId, { frameId, mode: 'animating' });
             } else {
                 this.activeAnimations.delete(markerId);
+                // Le segment réel est terminé : on continue à "deviner" le mouvement
+                // jusqu'à la prochaine vraie position.
+                this._startExtrapolation(marker, endLatLng);
             }
         };
-        
+
         const frameId = requestAnimationFrame(animate);
-        this.activeAnimations.set(markerId, { frameId });
+        this.activeAnimations.set(markerId, { frameId, mode: 'animating' });
     },
-    
+
+    _startExtrapolation(marker, fromLatLng) {
+        const markerId = marker.id;
+
+        if (!marker._speed || marker._speed < 0.3 || marker._bearing === null) {
+            return;
+        }
+
+        const maxExtrapolationMs = 25000; 
+        const startTime = performance.now();
+        const originLat = fromLatLng.lat;
+        const originLng = fromLatLng.lng;
+        const speed = marker._speed;
+        const bearing = marker._bearing;
+
+        const step = (time) => {
+            const elapsed = time - startTime;
+            if (elapsed > maxExtrapolationMs) {
+                this.activeAnimations.delete(markerId);
+                return;
+            }
+
+            const distance = speed * (elapsed / 1000);
+            const [lat, lng] = destinationPoint(originLat, originLng, distance, bearing);
+            marker.setLatLng([lat, lng]);
+
+            const frameId = requestAnimationFrame(step);
+            this.activeAnimations.set(markerId, { frameId, mode: 'extrapolating' });
+        };
+
+        const frameId = requestAnimationFrame(step);
+        this.activeAnimations.set(markerId, { frameId, mode: 'extrapolating' });
+    },
+
     cancelAnimation(markerId) {
         if (this.activeAnimations.has(markerId)) {
             cancelAnimationFrame(this.activeAnimations.get(markerId).frameId);
             this.activeAnimations.delete(markerId);
         }
     },
-    
+
     cancelAll() {
         this.activeAnimations.forEach(({ frameId }) => {
             cancelAnimationFrame(frameId);
@@ -3715,8 +3767,16 @@ const AnimationManager = {
     }
 };
 
-function animateMarker(marker, newPosition) {
-    AnimationManager.animateMarker(marker, newPosition);
+function animateMarker(marker, newPosition, speed = null, bearing = null) {
+    const now = performance.now();
+    const last = marker._lastMoveTime || now;
+
+    let duration = now - last;
+    duration = Math.max(2000, Math.min(duration, 20000));
+
+    marker._lastMoveTime = now;
+
+    AnimationManager.animateMarker(marker, newPosition, duration, speed, bearing);
 }
 
 let busStopLayers = [];
@@ -9776,7 +9836,7 @@ async function fetchVehiclePositions() {
 
             if (markerPool.has(id)) {
                 const marker = markerPool.get(id);
-                animateMarker(marker, [latitude, longitude]);
+                animateMarker(marker, [latitude, longitude], vehicle.position.speed, vehicle.position.bearing);
 
                 if (navVehicleId === id) {
                     const payload = { type: 'vehicleNavUpdate', lat: latitude, lon: longitude };
