@@ -1446,6 +1446,10 @@ function _updateNearestStopWidget(latlng) {
     const result = _findNearestStopCluster(latlng);
     if (!result) return;
 
+    const isNewStop = !state.currentCluster ||
+        state.currentCluster.name !== result.cluster.name;
+    if (isNewStop) state.dismissed = false;
+
     state.currentCluster  = result.cluster;
     state.currentDistance = result.distance;
 
@@ -12919,20 +12923,41 @@ function _ensureNearestStopSection() {
         </div>
         <div id="bs-nearest-stop-wrapper" style="position:relative;">
             <div id="bs-nearest-stop-scroll" style="max-height:200px; overflow:hidden;
-                 transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1);">
+                 transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 15px;">
                 <div id="bs-nearest-stop-content"></div>
             </div>
-            <button id="bs-nearest-stop-toggle" style="display:none; width:100%; margin-top:8px;
-                    padding:8px; background:rgba(255,255,255,0.08); border:none; border-radius:12px;
-                    color:rgba(255,255,255,0.75); font-size:12px; font-weight:600; cursor:pointer;">
-                ${t('see_more') || 'Voir plus'}
+            <button id="bs-nearest-stop-toggle" style="display:none; width:100%; margin-top:-6px;
+                    padding:8px; background:rgba(255, 255, 255, 0); border:none; border-radius:12px;
+                    color:rgba(255,255,255,0.75); font-size:21px; font-weight:600; cursor:pointer;">
+                ˅
             </button>
         </div>
     `;
 
     favSection.parentNode.insertBefore(section, favSection);
     document.getElementById('bs-nearest-stop-toggle')
-        .addEventListener('click', _toggleNearestStopExpand);
+        .addEventListener('click', (e) => {
+            e.stopPropagation();
+            _toggleNearestStopExpand();
+        });
+
+    const header = document.getElementById('bs-nearest-stop-header');
+    header.addEventListener('click', () => {
+        const state = window._nearestStopState;
+        if (!state.currentCluster) return;
+
+        safeVibrate?.([30], true);
+        soundsUX('MBF_Popup');
+
+        const { cluster } = state;
+        smoothFlyTo([cluster.lat, cluster.lon], 17, { easeLinearity: 0.12 });
+        openStopInBottomSheet(cluster.stopIds, cluster.name);
+
+        state.dismissed = true;
+        _hideNearestStopWidget();
+    });
+    header.addEventListener('pointerenter', () => header.style.background = 'rgba(255,255,255,0.06)');
+    header.addEventListener('pointerleave', () => header.style.background = 'transparent');
 
     return section;
 }
@@ -12958,6 +12983,15 @@ function _toggleNearestStopExpand() {
 async function _renderNearestStopWidget() {
     const state = window._nearestStopState;
     if (!state.currentCluster) return;
+
+    const hasLineFavs = getFavoriteSchedules().length > 0;
+    const hasStopFavs = _getStopFavorites().length > 0;
+    if (hasLineFavs || hasStopFavs) {
+        _hideNearestStopWidget();
+        return;
+    }
+
+    if (state.dismissed) return;
 
     const section = _ensureNearestStopSection();
     if (!section) return;
