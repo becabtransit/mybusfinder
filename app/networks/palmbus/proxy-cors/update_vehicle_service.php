@@ -211,11 +211,14 @@ $ensureVehicle = $pdo->prepare("INSERT INTO vehicle_service (vehicle_id, service
 $upsert = $pdo->prepare("INSERT INTO vehicle_service (vehicle_id, service_date, first_seen, last_seen, last_out_of_service, last_route_id)
     VALUES (:id, :date, :now, :now, NULL, :route)
     ON CONFLICT(vehicle_id) DO UPDATE SET
-        first_seen = CASE WHEN service_date = :date THEN first_seen ELSE :now END,
+        first_seen = CASE
+            WHEN service_date = :date AND last_out_of_service IS NULL THEN first_seen
+            ELSE :now
+        END,
         service_date = :date,
         last_seen = :now,
         last_out_of_service = NULL,
-        last_route_id = COALESCE(:route, last_route_id)"); 
+        last_route_id = COALESCE(:route, last_route_id)");
 
 $markOutOfService = $pdo->prepare("UPDATE vehicle_service
     SET last_out_of_service = COALESCE(last_out_of_service, :now)

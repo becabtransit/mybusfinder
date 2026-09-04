@@ -6223,7 +6223,7 @@ const MenuManager = {
             : window.vehicleLastRoute?.[id];
         const lastLineName = lastRouteId ? (lineName[lastRouteId] || lastRouteId) : t('unknown_line');
         const serviceEndTs = window.vehicleServiceEnd?.[id];
-        const serviceEndText = Number.isFinite(Number(serviceEndTs))
+        const serviceEndText = (serviceEndTs !== null && serviceEndTs !== undefined && Number.isFinite(Number(serviceEndTs)))
             ? this._formatOutOfServiceTimestamp(serviceEndTs)
             : t('unknownarrival');
 
@@ -6347,19 +6347,24 @@ const MenuManager = {
         return busItem;
     },
 
-    _buildGhostVehicleEntry(id) {
-        return null; 
-    },
-
     _renderOutOfServiceSection() {
         if (!this.container) return;
 
         const outOfServiceIds = Object.keys(window.vehicleServiceEnd || {})
-            .filter(id => Number.isFinite(Number(window.vehicleServiceEnd[id])));
+            .filter(id => {
+                const v = window.vehicleServiceEnd[id];
+                if (v === null || v === undefined || !Number.isFinite(Number(v))) return false;
+                const ageHours = (Date.now() / 1000 - Number(v)) / 3600;
+                return ageHours < 90; 
+            });
 
         const outOfServiceVehicles = outOfServiceIds
-            .map(id => markerPool.active.get(id) || _buildGhostVehicleEntry(id))
-            .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+            .map(id => markerPool.active.get(id) || id) 
+            .sort((a, b) => {
+                const idA = typeof a === 'string' ? a : a.id;
+                const idB = typeof b === 'string' ? b : b.id;
+                return String(idA).localeCompare(String(idB));
+            });
 
         if (this.outOfServiceSection) {
             this.outOfServiceSection.element.remove();
