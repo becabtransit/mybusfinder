@@ -12941,24 +12941,6 @@ function _ensureNearestStopSection() {
             _toggleNearestStopExpand();
         });
 
-    const header = document.getElementById('bs-nearest-stop-header');
-    header.addEventListener('click', () => {
-        const state = window._nearestStopState;
-        if (!state.currentCluster) return;
-
-        safeVibrate?.([30], true);
-        soundsUX('MBF_Popup');
-
-        const { cluster } = state;
-        smoothFlyTo([cluster.lat, cluster.lon], 17, { easeLinearity: 0.12 });
-        openStopInBottomSheet(cluster.stopIds, cluster.name);
-
-        state.dismissed = true;
-        _hideNearestStopWidget();
-    });
-    header.addEventListener('pointerenter', () => header.style.background = 'rgba(255,255,255,0.06)');
-    header.addEventListener('pointerleave', () => header.style.background = 'transparent');
-
     return section;
 }
 
