@@ -12910,27 +12910,18 @@ function _ensureNearestStopSection() {
 
     section = document.createElement('div');
     section.id = 'bs-nearest-stop-section';
-    section.style.cssText = 'margin-bottom:14px; display:none;';
+    section.style.cssText = 'margin-right: 37px; margin-left: 37px; display:none;';
     section.innerHTML = `
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:0 2px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="10" r="3"/>
-                <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
-            </svg>
-            <span id="bs-nearest-stop-label" style="font-size:12px; text-transform:uppercase;
-                  letter-spacing:0.06em; color:rgba(255,255,255,0.55); font-weight:600;">
+            <span id="bs-nearest-stop-label" style="font-size:17px; color:rgba(255,255,255,0.55);">
                 ${t('nearest_stop') || 'Arrêt le plus proche'}
             </span>
         </div>
         <div id="bs-nearest-stop-wrapper" style="position:relative;">
-            <div id="bs-nearest-stop-scroll" style="max-height:300px; overflow:hidden;
+            <div id="bs-nearest-stop-scroll" style="max-height:200px; overflow:hidden;
                  transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1);">
                 <div id="bs-nearest-stop-content"></div>
             </div>
-            <div id="bs-nearest-stop-fade" style="position:absolute; bottom:0; left:0; right:0;
-                 height:40px; background:linear-gradient(to bottom, transparent, rgba(20,20,22,0.85));
-                 pointer-events:none; display:none; border-radius:0 0 18px 18px;"></div>
             <button id="bs-nearest-stop-toggle" style="display:none; width:100%; margin-top:8px;
                     padding:8px; background:rgba(255,255,255,0.08); border:none; border-radius:12px;
                     color:rgba(255,255,255,0.75); font-size:12px; font-weight:600; cursor:pointer;">
@@ -12950,7 +12941,6 @@ function _toggleNearestStopExpand() {
     _nearestStopExpanded = !_nearestStopExpanded;
     const scroll  = document.getElementById('bs-nearest-stop-scroll');
     const content = document.getElementById('bs-nearest-stop-content');
-    const fade    = document.getElementById('bs-nearest-stop-fade');
     const btn     = document.getElementById('bs-nearest-stop-toggle');
     if (!scroll || !content) return;
 
@@ -12958,12 +12948,10 @@ function _toggleNearestStopExpand() {
 
     if (_nearestStopExpanded) {
         scroll.style.maxHeight = content.scrollHeight + 'px';
-        fade.style.display = 'none';
-        btn.textContent = t('see_less') || 'Réduire';
+        btn.textContent = '˄';
     } else {
-        scroll.style.maxHeight = '300px';
-        fade.style.display = content.scrollHeight > 300 ? 'block' : 'none';
-        btn.textContent = t('see_more') || 'Voir plus';
+        scroll.style.maxHeight = '200px';
+        btn.textContent = '˅';
     }
 }
 
@@ -13002,19 +12990,16 @@ async function _renderNearestStopWidget() {
 
     requestAnimationFrame(() => {
         const scroll = document.getElementById('bs-nearest-stop-scroll');
-        const fade   = document.getElementById('bs-nearest-stop-fade');
         const btn    = document.getElementById('bs-nearest-stop-toggle');
-        if (!scroll || !fade || !btn) return;
+        if (!scroll || !btn) return;
 
-        const overflow = content.scrollHeight > 300;
+        const overflow = content.scrollHeight > 200;
         btn.style.display = overflow ? 'block' : 'none';
 
         if (_nearestStopExpanded) {
             scroll.style.maxHeight = content.scrollHeight + 'px';
-            fade.style.display = 'none';
         } else {
-            scroll.style.maxHeight = '300px';
-            fade.style.display = overflow ? 'block' : 'none';
+            scroll.style.maxHeight = '200px';
         }
     });
 }
