@@ -1354,6 +1354,25 @@ function stopLocating() {
         mapInstance.removeLayer(locationCircle);
         locationCircle = null;
     }
+    _hideNearestStopWidget();
+}
+
+window._nearestStopState = {
+    lastComputedLatLng: null,
+    currentCluster: null,
+    currentDistance: null,
+    updateThresholdMeters: 120 
+};
+let _nearestStopExpanded = false;
+
+function _findNearestStopCluster(latlng) {
+    if (!window._stopClusters || !window._stopClusters.length) return null;
+    let best = null, bestDist = Infinity;
+    for (const cluster of window._stopClusters) {
+        const d = latlng.distanceTo(L.latLng(cluster.lat, cluster.lon));
+        if (d < bestDist) { bestDist = d; best = cluster; }
+    }
+    return best ? { cluster: best, distance: bestDist } : null;
 }
 
 function onLocationFound(e) {
@@ -1405,6 +1424,32 @@ function onLocationFound(e) {
 
         smoothFlyTo(latlng, Math.max(mapInstance.getZoom(), 16), { easeLinearity: 0.1 });
     }
+
+    _updateNearestStopWidget(e.latlng);
+}
+
+function _updateNearestStopWidget(latlng) {
+    const state = window._nearestStopState;
+
+    if (state.lastComputedLatLng &&
+        latlng.distanceTo(state.lastComputedLatLng) < state.updateThresholdMeters &&
+        state.currentCluster) {
+        return;
+    }
+
+    if (!window._stopClusters || !window._stopClusters.length) {
+        setTimeout(() => _updateNearestStopWidget(latlng), 1500);
+        return;
+    }
+
+    state.lastComputedLatLng = latlng;
+    const result = _findNearestStopCluster(latlng);
+    if (!result) return;
+
+    state.currentCluster  = result.cluster;
+    state.currentDistance = result.distance;
+
+    _renderNearestStopWidget();
 }
 
 function onLocationError(e) {
@@ -11636,6 +11681,10 @@ function startFetchUpdates({ forceRefresh = false } = {}) {
                     _refreshBottomSheetFavorites();
                 }
             }
+
+            if (window._nearestStopState?.currentCluster) {
+                _renderNearestStopWidget();
+            }
         } catch (error) {
             console.warn('Erreur lors des mises à jour', error);
         } finally {
@@ -11963,6 +12012,7 @@ function _resetNetworkScopedState() {
     const _sv = document.getElementById('bs-stop-view');
     if (_sv) _sv.remove();
     _restoreBottomSheetTitle();
+    _hideNearestStopWidget();
 }
 
 function _stopAllTimers() {
@@ -12849,6 +12899,132 @@ function _getDayCounterpart(routeId) {
         lname.trim() === dayName
     );
     return found ? found[0] : null;
+}
+
+function _ensureNearestStopSection() {
+    let section = document.getElementById('bs-nearest-stop-section');
+    if (section) return section;
+
+    const favSection = document.getElementById('bs-favorites-section');
+    if (!favSection || !favSection.parentNode) return null;
+
+    section = document.createElement('div');
+    section.id = 'bs-nearest-stop-section';
+    section.style.cssText = 'margin-bottom:14px; display:none;';
+    section.innerHTML = `
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:0 2px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="10" r="3"/>
+                <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+            </svg>
+            <span id="bs-nearest-stop-label" style="font-size:12px; text-transform:uppercase;
+                  letter-spacing:0.06em; color:rgba(255,255,255,0.55); font-weight:600;">
+                ${t('nearest_stop') || 'Arrêt le plus proche'}
+            </span>
+        </div>
+        <div id="bs-nearest-stop-wrapper" style="position:relative;">
+            <div id="bs-nearest-stop-scroll" style="max-height:300px; overflow:hidden;
+                 transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1);">
+                <div id="bs-nearest-stop-content"></div>
+            </div>
+            <div id="bs-nearest-stop-fade" style="position:absolute; bottom:0; left:0; right:0;
+                 height:40px; background:linear-gradient(to bottom, transparent, rgba(20,20,22,0.85));
+                 pointer-events:none; display:none; border-radius:0 0 18px 18px;"></div>
+            <button id="bs-nearest-stop-toggle" style="display:none; width:100%; margin-top:8px;
+                    padding:8px; background:rgba(255,255,255,0.08); border:none; border-radius:12px;
+                    color:rgba(255,255,255,0.75); font-size:12px; font-weight:600; cursor:pointer;">
+                ${t('see_more') || 'Voir plus'}
+            </button>
+        </div>
+    `;
+
+    favSection.parentNode.insertBefore(section, favSection);
+    document.getElementById('bs-nearest-stop-toggle')
+        .addEventListener('click', _toggleNearestStopExpand);
+
+    return section;
+}
+
+function _toggleNearestStopExpand() {
+    _nearestStopExpanded = !_nearestStopExpanded;
+    const scroll  = document.getElementById('bs-nearest-stop-scroll');
+    const content = document.getElementById('bs-nearest-stop-content');
+    const fade    = document.getElementById('bs-nearest-stop-fade');
+    const btn     = document.getElementById('bs-nearest-stop-toggle');
+    if (!scroll || !content) return;
+
+    safeVibrate?.([20]);
+
+    if (_nearestStopExpanded) {
+        scroll.style.maxHeight = content.scrollHeight + 'px';
+        fade.style.display = 'none';
+        btn.textContent = t('see_less') || 'Réduire';
+    } else {
+        scroll.style.maxHeight = '300px';
+        fade.style.display = content.scrollHeight > 300 ? 'block' : 'none';
+        btn.textContent = t('see_more') || 'Voir plus';
+    }
+}
+
+async function _renderNearestStopWidget() {
+    const state = window._nearestStopState;
+    if (!state.currentCluster) return;
+
+    const section = _ensureNearestStopSection();
+    if (!section) return;
+    section.style.display = 'block';
+
+    const cluster = state.currentCluster;
+    const content = document.getElementById('bs-nearest-stop-content');
+    const labelEl = document.getElementById('bs-nearest-stop-label');
+    if (!content) return;
+
+    const distText = state.currentDistance < 1000
+        ? `${Math.round(state.currentDistance)} m`
+        : `${(state.currentDistance / 1000).toFixed(1)} km`;
+    if (labelEl) labelEl.textContent = `${cluster.name} · ${distText}`;
+
+    if (!content.dataset.loaded) {
+        content.innerHTML = `
+            <div class="bs-fav-loading" style="padding:10px 2px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <span>Chargement…</span>
+            </div>`;
+    }
+
+    const passages = await _computeStopPassages(cluster.stopIds);
+    _renderStopPassages(content, cluster.stopIds, cluster.name, passages, !!content.dataset.loaded);
+    content.dataset.loaded = 'true';
+
+    requestAnimationFrame(() => {
+        const scroll = document.getElementById('bs-nearest-stop-scroll');
+        const fade   = document.getElementById('bs-nearest-stop-fade');
+        const btn    = document.getElementById('bs-nearest-stop-toggle');
+        if (!scroll || !fade || !btn) return;
+
+        const overflow = content.scrollHeight > 300;
+        btn.style.display = overflow ? 'block' : 'none';
+
+        if (_nearestStopExpanded) {
+            scroll.style.maxHeight = content.scrollHeight + 'px';
+            fade.style.display = 'none';
+        } else {
+            scroll.style.maxHeight = '300px';
+            fade.style.display = overflow ? 'block' : 'none';
+        }
+    });
+}
+
+function _hideNearestStopWidget() {
+    const section = document.getElementById('bs-nearest-stop-section');
+    if (section) section.style.display = 'none';
+    window._nearestStopState.currentCluster = null;
+    window._nearestStopState.lastComputedLatLng = null;
+    _nearestStopExpanded = false;
 }
 
 function _refreshBottomSheetFavorites(withAnimation = false) {
