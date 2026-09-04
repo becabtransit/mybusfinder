@@ -264,7 +264,7 @@
         }, 1000);
     });
 
-    VERSION_NAME = '3.6.0.7';
+    VERSION_NAME = '3.7.0';
 
     document.addEventListener('gesturestart', function (e) {
     e.preventDefault();
@@ -1354,6 +1354,25 @@ function stopLocating() {
         mapInstance.removeLayer(locationCircle);
         locationCircle = null;
     }
+    _hideNearestStopWidget();
+}
+
+window._nearestStopState = {
+    lastComputedLatLng: null,
+    currentCluster: null,
+    currentDistance: null,
+    updateThresholdMeters: 120 
+};
+let _nearestStopExpanded = false;
+
+function _findNearestStopCluster(latlng) {
+    if (!window._stopClusters || !window._stopClusters.length) return null;
+    let best = null, bestDist = Infinity;
+    for (const cluster of window._stopClusters) {
+        const d = latlng.distanceTo(L.latLng(cluster.lat, cluster.lon));
+        if (d < bestDist) { bestDist = d; best = cluster; }
+    }
+    return best ? { cluster: best, distance: bestDist } : null;
 }
 
 function onLocationFound(e) {
@@ -1405,6 +1424,36 @@ function onLocationFound(e) {
 
         smoothFlyTo(latlng, Math.max(mapInstance.getZoom(), 16), { easeLinearity: 0.1 });
     }
+
+    _updateNearestStopWidget(e.latlng);
+}
+
+function _updateNearestStopWidget(latlng) {
+    const state = window._nearestStopState;
+
+    if (state.lastComputedLatLng &&
+        latlng.distanceTo(state.lastComputedLatLng) < state.updateThresholdMeters &&
+        state.currentCluster) {
+        return;
+    }
+
+    if (!window._stopClusters || !window._stopClusters.length) {
+        setTimeout(() => _updateNearestStopWidget(latlng), 1500);
+        return;
+    }
+
+    state.lastComputedLatLng = latlng;
+    const result = _findNearestStopCluster(latlng);
+    if (!result) return;
+
+    const isNewStop = !state.currentCluster ||
+        state.currentCluster.name !== result.cluster.name;
+    if (isNewStop) state.dismissed = false;
+
+    state.currentCluster  = result.cluster;
+    state.currentDistance = result.distance;
+
+    _renderNearestStopWidget();
 }
 
 function onLocationError(e) {
@@ -1987,6 +2036,7 @@ function hideLoadingScreen() {
     if (localStorage.getItem('buildversion') !== window.BUILD_VERSION) {
         setTimeout(() => {
         localStorage.setItem('termsconds', 'false');
+        localStorage.setItem('locateonstart', 'true');
         window.updating = true;
         disparaitrelelogo();
         const loadingtext = document.getElementById('loading-text');
@@ -6205,17 +6255,24 @@ const MenuManager = {
         return `${dd}/${MM} ${timeText}`;
     },
 
-    _createOutOfServiceBusItem(marker, textColor) {
-        const vehicleLabel = marker.vehicleData?.vehicle?.label || marker.vehicleData?.vehicle?.id || marker.id || 'inconnu';
+    _createOutOfServiceBusItem(markerOrId, textColor) {
+        const isGhost = !markerOrId || typeof markerOrId === 'string';
+        const id = isGhost ? markerOrId : markerOrId.id;
+        const marker = isGhost ? null : markerOrId;
+
+        const vehicleLabel = marker?.vehicleData?.vehicle?.label || marker?.vehicleData?.vehicle?.id || id || 'inconnu';
         const displayLabel = vehicleLabel.toString()
             .replace('TCAR:Vehicle::', '')
             .replace(':LOC', '')
             .replace(/^(RLA|SUM|TCA)/, '')
             .padStart(3, '0');
 
-        const lastLineName = marker.line && marker.line !== 'Inconnu' ? (lineName[marker.line] || marker.line) : t('unknown_line');
-        const serviceEndTs = window.vehicleServiceEnd?.[marker.id];
-        const serviceEndText = Number.isFinite(Number(serviceEndTs))
+        const lastRouteId = marker?.line && marker.line !== 'Inconnu'
+            ? marker.line
+            : window.vehicleLastRoute?.[id];
+        const lastLineName = lastRouteId ? (lineName[lastRouteId] || lastRouteId) : t('unknown_line');
+        const serviceEndTs = window.vehicleServiceEnd?.[id];
+        const serviceEndText = (serviceEndTs !== null && serviceEndTs !== undefined && Number.isFinite(Number(serviceEndTs)))
             ? this._formatOutOfServiceTimestamp(serviceEndTs)
             : t('unknownarrival');
 
@@ -6326,10 +6383,14 @@ const MenuManager = {
             event.stopPropagation();
             safeVibrate([50, 300, 50, 30, 50], true);
             soundsUX('MBF_Menu_VehicleSelect');
-            smoothFlyTo(marker.getLatLng(), 15);
-            marker.openPopup();
-            closeMenu();
-            if (selectedLine) resetMapView();
+            if (marker) {
+                smoothFlyTo(marker.getLatLng(), 15);
+                marker.openPopup();
+                closeMenu();
+                if (selectedLine) resetMapView();
+            } else {
+                toastBottomRight.info(t("unavailabletrip"));
+            }
         };
 
         return busItem;
@@ -6338,13 +6399,21 @@ const MenuManager = {
     _renderOutOfServiceSection() {
         if (!this.container) return;
 
-        const outOfServiceVehicles = Array.from(markerPool.active.values())
-            .filter(marker => {
-                const currentStatus = Number(marker.vehicleData?.currentStatus ?? marker.rawData?.currentStatus ?? -1);
-                const hasRecordedEndTs = Number.isFinite(Number(window.vehicleServiceEnd?.[marker.id]));
-                return currentStatus === 0 && hasRecordedEndTs;
-            })
-            .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+        const outOfServiceIds = Object.keys(window.vehicleServiceEnd || {})
+            .filter(id => {
+                const v = window.vehicleServiceEnd[id];
+                if (v === null || v === undefined || !Number.isFinite(Number(v))) return false;
+                const ageHours = (Date.now() / 1000 - Number(v)) / 3600;
+                return ageHours < 90; 
+            });
+
+        const outOfServiceVehicles = outOfServiceIds
+            .map(id => markerPool.active.get(id) || id) 
+            .sort((a, b) => {
+                const idA = typeof a === 'string' ? a : a.id;
+                const idB = typeof b === 'string' ? b : b.id;
+                return String(idA).localeCompare(String(idB));
+            });
 
         if (this.outOfServiceSection) {
             this.outOfServiceSection.element.remove();
@@ -8805,26 +8874,44 @@ function getStopPlatform(stopId) {
 window.vehicleServiceSince = window.vehicleServiceSince || {};
 window.vehicleServiceEnd = window.vehicleServiceEnd || {};
 
-async function trackVehicleService(ids, statusMap = {}) {
+window.vehicleServiceSince = window.vehicleServiceSince || {};
+window.vehicleServiceEnd = window.vehicleServiceEnd || {};
+
+window.vehicleLastRoute = window.vehicleLastRoute || {};
+
+async function trackVehicleService(ids) {
     if (!ids || ids.length === 0) return;
     try {
-        const payload = {
-            ids,
-            statuses: statusMap
-        };
-
         const res = await fetch(netPath('proxy-cors/track_vehicule.php'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ ids })
         });
         if (!res.ok) return;
 
         const json = await res.json();
         if (json?.firstSeen) Object.assign(window.vehicleServiceSince, json.firstSeen);
         if (json?.outOfService) Object.assign(window.vehicleServiceEnd, json.outOfService);
+        if (json?.lastRoute) Object.assign(window.vehicleLastRoute, json.lastRoute);
     } catch (e) {
-        console.warn('Erreur suivi service véhicules:', e);
+        console.warn('Erreur lecture service véhicules', e);
+    }
+}
+
+async function fetchAllOutOfServiceVehicles() {
+    try {
+        const res = await fetch(netPath('proxy-cors/track_vehicule.php'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}) 
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json?.firstSeen) Object.assign(window.vehicleServiceSince, json.firstSeen);
+        if (json?.outOfService) Object.assign(window.vehicleServiceEnd, json.outOfService);
+        if (json?.lastRoute) Object.assign(window.vehicleLastRoute, json.lastRoute);
+    } catch (e) {
+        console.warn('Erreur lecture véhicules hors service', e);
     }
 }
 
@@ -11587,6 +11674,8 @@ function startFetchUpdates({ forceRefresh = false } = {}) {
                 FetchManager.onError();
             });
 
+            await fetchAllOutOfServiceVehicles().catch(() => {});
+
             FetchManager.onSuccess();
 
             if (BottomSheet.expanded) {
@@ -11595,6 +11684,10 @@ function startFetchUpdates({ forceRefresh = false } = {}) {
                 } else {
                     _refreshBottomSheetFavorites();
                 }
+            }
+
+            if (window._nearestStopState?.currentCluster) {
+                _renderNearestStopWidget();
             }
         } catch (error) {
             console.warn('Erreur lors des mises à jour', error);
@@ -11923,6 +12016,7 @@ function _resetNetworkScopedState() {
     const _sv = document.getElementById('bs-stop-view');
     if (_sv) _sv.remove();
     _restoreBottomSheetTitle();
+    _hideNearestStopWidget();
 }
 
 function _stopAllTimers() {
@@ -12809,6 +12903,129 @@ function _getDayCounterpart(routeId) {
         lname.trim() === dayName
     );
     return found ? found[0] : null;
+}
+
+function _ensureNearestStopSection() {
+    let section = document.getElementById('bs-nearest-stop-section');
+    if (section) return section;
+
+    const favSection = document.getElementById('bs-favorites-section');
+    if (!favSection || !favSection.parentNode) return null;
+
+    section = document.createElement('div');
+    section.id = 'bs-nearest-stop-section';
+    section.style.cssText = 'margin-right: 37px; margin-left: 37px; display:none;';
+    section.innerHTML = `
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:0 2px;">
+            <span id="bs-nearest-stop-label" style="font-size:17px; color:rgba(255,255,255,0.55);">
+                ${t('nearest_stop') || 'Arrêt le plus proche'}
+            </span>
+        </div>
+        <div id="bs-nearest-stop-wrapper" style="position:relative;">
+            <div id="bs-nearest-stop-scroll" style="max-height:200px; overflow:hidden;
+                 transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 15px;">
+                <div id="bs-nearest-stop-content"></div>
+            </div>
+            <button id="bs-nearest-stop-toggle" style="display:none; width:100%; margin-top:-6px;
+                    padding:8px; background:rgba(255, 255, 255, 0); border:none; border-radius:12px;
+                    color:rgba(255,255,255,0.75); font-size:21px; font-weight:600; cursor:pointer;">
+                ˅
+            </button>
+        </div>
+    `;
+
+    favSection.parentNode.insertBefore(section, favSection);
+    document.getElementById('bs-nearest-stop-toggle')
+        .addEventListener('click', (e) => {
+            e.stopPropagation();
+            _toggleNearestStopExpand();
+        });
+
+    return section;
+}
+
+function _toggleNearestStopExpand() {
+    _nearestStopExpanded = !_nearestStopExpanded;
+    const scroll  = document.getElementById('bs-nearest-stop-scroll');
+    const content = document.getElementById('bs-nearest-stop-content');
+    const btn     = document.getElementById('bs-nearest-stop-toggle');
+    if (!scroll || !content) return;
+
+    safeVibrate?.([20]);
+
+    if (_nearestStopExpanded) {
+        scroll.style.maxHeight = content.scrollHeight + 'px';
+        btn.textContent = '˄';
+    } else {
+        scroll.style.maxHeight = '200px';
+        btn.textContent = '˅';
+    }
+}
+
+async function _renderNearestStopWidget() {
+    const state = window._nearestStopState;
+    if (!state.currentCluster) return;
+
+    const hasLineFavs = getFavoriteSchedules().length > 0;
+    const hasStopFavs = _getStopFavorites().length > 0;
+    if (hasLineFavs || hasStopFavs) {
+        _hideNearestStopWidget();
+        return;
+    }
+
+    if (state.dismissed) return;
+
+    const section = _ensureNearestStopSection();
+    if (!section) return;
+    section.style.display = 'block';
+
+    const cluster = state.currentCluster;
+    const content = document.getElementById('bs-nearest-stop-content');
+    const labelEl = document.getElementById('bs-nearest-stop-label');
+    if (!content) return;
+
+    const distText = state.currentDistance < 1000
+        ? `${Math.round(state.currentDistance)} m`
+        : `${(state.currentDistance / 1000).toFixed(1)} km`;
+    if (labelEl) labelEl.textContent = `${cluster.name} · ${distText}`;
+
+    if (!content.dataset.loaded) {
+        content.innerHTML = `
+            <div class="bs-fav-loading" style="padding:10px 2px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <span>Chargement…</span>
+            </div>`;
+    }
+
+    const passages = await _computeStopPassages(cluster.stopIds);
+    _renderStopPassages(content, cluster.stopIds, cluster.name, passages, !!content.dataset.loaded);
+    content.dataset.loaded = 'true';
+
+    requestAnimationFrame(() => {
+        const scroll = document.getElementById('bs-nearest-stop-scroll');
+        const btn    = document.getElementById('bs-nearest-stop-toggle');
+        if (!scroll || !btn) return;
+
+        const overflow = content.scrollHeight > 200;
+        btn.style.display = overflow ? 'block' : 'none';
+
+        if (_nearestStopExpanded) {
+            scroll.style.maxHeight = content.scrollHeight + 'px';
+        } else {
+            scroll.style.maxHeight = '200px';
+        }
+    });
+}
+
+function _hideNearestStopWidget() {
+    const section = document.getElementById('bs-nearest-stop-section');
+    if (section) section.style.display = 'none';
+    window._nearestStopState.currentCluster = null;
+    window._nearestStopState.lastComputedLatLng = null;
+    _nearestStopExpanded = false;
 }
 
 function _refreshBottomSheetFavorites(withAnimation = false) {

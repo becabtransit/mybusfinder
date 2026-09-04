@@ -5,89 +5,27 @@ header("Content-Type: application/json");
 $dbFile = __DIR__ . '/vehicle_service.sqlite';
 $pdo = new PDO('sqlite:' . $dbFile);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$pdo->exec('PRAGMA journal_mode=WAL;');
-$pdo->exec("CREATE TABLE IF NOT EXISTS vehicle_service (
-    vehicle_id          TEXT PRIMARY KEY,
-    service_date        TEXT NOT NULL,
-    first_seen          INTEGER NOT NULL,
-    last_seen           INTEGER NOT NULL,
-    last_out_of_service INTEGER DEFAULT NULL
-)");
-
-$columns = $pdo->query("PRAGMA table_info(vehicle_service)")->fetchAll(PDO::FETCH_ASSOC);
-$hasOutOfService = false;
-foreach ($columns as $column) {
-    if (($column['name'] ?? '') === 'last_out_of_service') {
-        $hasOutOfService = true;
-        break;
-    }
-}
-if (!$hasOutOfService) {
-    $pdo->exec("ALTER TABLE vehicle_service ADD COLUMN last_out_of_service INTEGER DEFAULT NULL");
-}
 
 $input = json_decode(file_get_contents('php://input'), true);
-if (!$input || empty($input['ids']) || !is_array($input['ids'])) {
-    http_response_code(400);
-    echo json_encode(['error' => 'payload invalide']);
-    exit;
+$ids = (!empty($input['ids']) && is_array($input['ids'])) ? $input['ids'] : null;
+
+$sql = "SELECT vehicle_id, first_seen, last_out_of_service, last_route_id FROM vehicle_service";
+if ($ids) {
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $sql .= " WHERE vehicle_id IN ($placeholders)";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($ids);
+} else {
+    $stmt = $pdo->query($sql);
 }
 
-$today = date('Y-m-d');
-$now = time();
-$statuses = [];
-if (!empty($input['statuses']) && is_array($input['statuses'])) {
-    foreach ($input['statuses'] as $id => $status) {
-        $statuses[(string)$id] = (int)$status;
-    }
+$response = ['firstSeen' => [], 'outOfService' => [], 'lastRoute' => []];
+foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $response['firstSeen'][$row['vehicle_id']] = (int)$row['first_seen'];
+    $response['outOfService'][$row['vehicle_id']] = $row['last_out_of_service'] !== null
+        ? (int)$row['last_out_of_service']
+        : null;
+    $response['lastRoute'][$row['vehicle_id']] = $row['last_route_id'];
 }
-
-$ensureVehicle = $pdo->prepare("INSERT INTO vehicle_service (vehicle_id, service_date, first_seen, last_seen, last_out_of_service)
-    VALUES (:id, :date, :now, :now, NULL)
-    ON CONFLICT(vehicle_id) DO NOTHING");
-
-$upsert = $pdo->prepare("INSERT INTO vehicle_service (vehicle_id, service_date, first_seen, last_seen, last_out_of_service)
-    VALUES (:id, :date, :now, :now, NULL)
-    ON CONFLICT(vehicle_id) DO UPDATE SET
-        first_seen = CASE WHEN service_date = :date THEN first_seen ELSE :now END,
-        service_date = :date,
-        last_seen = :now");
-
-$markOutOfService = $pdo->prepare("UPDATE vehicle_service
-    SET last_out_of_service = COALESCE(last_out_of_service, :now),
-        service_date = :date,
-        last_seen = :now
-    WHERE vehicle_id = :id");
-
-$select = $pdo->prepare("SELECT first_seen, last_out_of_service, last_seen FROM vehicle_service WHERE vehicle_id = :id");
-
-$response = [
-    'firstSeen' => [],
-    'outOfService' => []
-];
-
-$pdo->beginTransaction();
-foreach ($input['ids'] as $id) {
-    $id = trim((string)$id);
-    if ($id === '') continue;
-
-    $status = array_key_exists($id, $statuses) ? $statuses[$id] : 2;
-    $isInService = $status !== 0 && $status !== '0';
-
-    $ensureVehicle->execute([':id' => $id, ':date' => $today, ':now' => $now]);
-
-    if ($isInService) {
-        $upsert->execute([':id' => $id, ':date' => $today, ':now' => $now]);
-    } else {
-        $markOutOfService->execute([':id' => $id, ':date' => $today, ':now' => $now]);
-    }
-
-    $select->execute([':id' => $id]);
-    $row = $select->fetch(PDO::FETCH_ASSOC);
-
-    $response['firstSeen'][$id] = $row ? (int)$row['first_seen'] : $now;
-    $response['outOfService'][$id] = $row && $row['last_out_of_service'] !== null ? (int)$row['last_out_of_service'] : null;
-}
-$pdo->commit();
 
 echo json_encode($response);
