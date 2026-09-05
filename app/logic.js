@@ -1104,11 +1104,11 @@ async function changeColorBkg(selectedTheme = null) {
 
     const themes = {
         default: defaultColor,
-        dark: "#121212",
+        dark: "#252525",
         hero: "#2A2A6E",
         corail: "#444444",
-        barbie: "#9A0D5B",
-        palmbus: "#B38F00"
+        barbie: "#860b4f",
+        palmbus: "#836900"
     };
 
     const savedTheme = localStorage.getItem("theme") || "default";
@@ -1122,6 +1122,8 @@ async function changeColorBkg(selectedTheme = null) {
 
     document.getElementById("menubtm").style.backgroundColor = colorWithAlpha;
     document.documentElement.style.backgroundColor = colorWithAlpha;
+
+    document.getElementById("bottom-sheet").style.backgroundColor = colorWithAlpha;
 
     // Bottom-sheet expanded background uses the active network color
     // with a deeper alpha so the glass blur stays readable.
