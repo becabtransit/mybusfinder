@@ -1312,6 +1312,18 @@ let locationCircle = null;
 let isLocating = false;
 let watchId = null;
 
+function _maybeShowNearestStopGpsSkeleton() {
+    if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') return;
+    if (window._nearestStopState?.nearbyStops?.length) return; // on a déjà des résultats, ne pas écraser
+    if (window._nearestStopState?.dismissed) return;
+
+    const hasLineFavs = getFavoriteSchedules().length > 0;
+    const hasStopFavs = _getStopFavorites().length > 0;
+    if (hasLineFavs || hasStopFavs) return; // les favoris priment sur le widget
+
+    _showNearestStopSkeleton();
+}
+
 function locateMe() {
     if (!navigator.geolocation) {
         console.warn('La géolocalisation n\'est pas supportée par ce navigateur.');
@@ -1324,6 +1336,7 @@ function locateMe() {
     }
 
     isLocating = true;
+    _maybeShowNearestStopGpsSkeleton();
 
     watchId = navigator.geolocation.watchPosition(
         (position) => onLocationFound({
@@ -1520,6 +1533,7 @@ async function _updateNearestStopWidget(latlng) {
 function onLocationError(e) {
     console.error('Erreur de géolocalisation :', e.message);
     isLocating = false;
+    _hideNearestStopWidget();
 }
 
 function locateUser() {
@@ -12475,6 +12489,32 @@ const BottomSheet = (() => {
             #bottom-sheet:not(.bs-fullscreen) #bs-stop-view {
                 max-height: 400px;
                 overflow: hidden !important;
+                position: relative;
+            }
+
+            #bottom-sheet:not(.bs-fullscreen) #bs-nearest-stop-scroll::after,
+            #bottom-sheet:not(.bs-fullscreen) #bs-nearest-served-stop-scroll::after,
+            #bottom-sheet:not(.bs-fullscreen) #bs-favorites-list::after,
+            #bottom-sheet:not(.bs-fullscreen) #bs-search-results::after,
+            #bottom-sheet:not(.bs-fullscreen) #bs-stop-view::after {
+                content: "";
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 48px;
+                pointer-events: none;
+                border-radius: 0 0 15px 15px;
+                background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 100%);
+                opacity: 0;
+                transition: opacity 0.35s ease;
+            }
+            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-nearest-stop-scroll::after,
+            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-nearest-served-stop-scroll::after,
+            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-favorites-list::after,
+            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-search-results::after,
+            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-stop-view::after {
+                opacity: 1;
             }
 
             #bottom-sheet.bs-fullscreen #bs-content {
