@@ -1361,6 +1361,9 @@ window._nearestStopState = {
     lastComputedLatLng: null,
     currentCluster: null,
     currentDistance: null,
+    currentServedCluster: null,
+    currentServedDistance: null,
+    currentServedPassages: null,
     updateThresholdMeters: 120 
 };
 let _nearestStopExpanded = false;
@@ -1373,6 +1376,28 @@ function _findNearestStopCluster(latlng) {
         if (d < bestDist) { bestDist = d; best = cluster; }
     }
     return best ? { cluster: best, distance: bestDist } : null;
+}
+
+async function _findNearestStopWithService(latlng, maxCandidates = 15) {
+    if (!window._stopClusters || !window._stopClusters.length) return null;
+
+    const sorted = window._stopClusters
+        .map(cluster => ({ cluster, distance: latlng.distanceTo(L.latLng(cluster.lat, cluster.lon)) }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, maxCandidates);
+
+    for (const { cluster, distance } of sorted) {
+        try {
+            const passages = await _computeStopPassages(cluster.stopIds);
+            const hasService = Object.values(passages).some(g => g.times && g.times.length > 0);
+            if (hasService) {
+                return { cluster, distance, passages };
+            }
+        } catch (e) {
+            console.warn('Erreur vérif desserte arret', e);
+        }
+    }
+    return null;
 }
 
 function onLocationFound(e) {
@@ -1454,6 +1479,21 @@ function _updateNearestStopWidget(latlng) {
     state.currentDistance = result.distance;
 
     _renderNearestStopWidget();
+
+    _findNearestStopWithService(latlng).then(served => {
+        if (state.lastComputedLatLng !== latlng) return;
+
+        if (served) {
+            state.currentServedCluster  = served.cluster;
+            state.currentServedDistance = served.distance;
+            state.currentServedPassages = served.passages;
+        } else {
+            state.currentServedCluster  = null;
+            state.currentServedDistance = null;
+            state.currentServedPassages = null;
+        }
+        _renderNearestStopWidget();
+    }).catch(() => {});
 }
 
 function onLocationError(e) {
@@ -12362,12 +12402,45 @@ const BottomSheet = (() => {
     let collapsedHeight = 0;
     let expandedHeight  = 0;
     let isExpanded = false;
+    let isFullscreen = false;
     let isDragging = false;
     let dragStartY = 0;
     let dragStartTime = 0;
     let lastY = 0;
     let lastTime = 0;
     let velocity = 0;
+
+    function _injectFullscreenStyles() {
+        if (document.getElementById('bs-fullscreen-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'bs-fullscreen-styles';
+        style.textContent = `
+            #bottom-sheet {
+                transition: filter 0.45s ease, height 0.45s cubic-bezier(0.32, 0.72, 0, 1),
+                            border-radius 0.45s ease;
+            }
+            #bottom-sheet.bs-fullscreen {
+                height: 100dvh !important;
+                max-height: 100dvh !important;
+                border-radius: 0 !important;
+                filter: invert(1) hue-rotate(180deg) brightness(1.05) contrast(0.95);
+            }
+            #bottom-sheet.bs-fullscreen #bs-content {
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch;
+            }
+            #bottom-sheet.bs-fullscreen #bs-nearest-stop-scroll,
+            #bottom-sheet.bs-fullscreen #bs-nearest-served-stop-scroll {
+                max-height: none !important;
+                overflow: visible !important;
+            }
+            #bottom-sheet.bs-fullscreen #bs-nearest-stop-hint,
+            #bottom-sheet.bs-fullscreen #bs-nearest-served-stop-hint {
+                display: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
 
     function _measure() {
         if (!sheetEl) return;
@@ -12391,7 +12464,8 @@ const BottomSheet = (() => {
         if (!sheetEl) return;
         _refreshBottomSheetFavorites();
         isExpanded = true;
-        sheetEl.classList.remove('bs-collapsed');
+        isFullscreen = false;
+        sheetEl.classList.remove('bs-collapsed', 'bs-fullscreen');
         sheetEl.classList.add('bs-expanded');
         sheetEl.style.transform = '';
         soundsUX('MBF_Popup');
@@ -12402,11 +12476,34 @@ const BottomSheet = (() => {
     function collapse() {
         if (!sheetEl) return;
         isExpanded = false;
-        sheetEl.classList.remove('bs-expanded');
+        isFullscreen = false;
+        sheetEl.classList.remove('bs-expanded', 'bs-fullscreen');
         sheetEl.classList.add('bs-collapsed');
         sheetEl.style.transform = '';
         safeVibrate?.([15]);
         setMenuBtmVisible(true);
+    }
+
+    function enterFullscreen() {
+        if (!sheetEl) return;
+        _refreshBottomSheetFavorites();
+        isExpanded = true;
+        isFullscreen = true;
+        sheetEl.classList.remove('bs-collapsed', 'bs-expanded');
+        sheetEl.classList.add('bs-fullscreen');
+        sheetEl.style.transform = '';
+        soundsUX('MBF_Popup');
+        safeVibrate?.([25]);
+        setMenuBtmVisible(false);
+    }
+
+    function exitFullscreen() {
+        if (!sheetEl || !isFullscreen) return;
+        isFullscreen = false;
+        sheetEl.classList.remove('bs-fullscreen');
+        sheetEl.classList.add('bs-expanded');
+        sheetEl.style.transform = '';
+        safeVibrate?.([15]);
     }
 
     function toggle() { isExpanded ? collapse() : expand(); }
@@ -12430,16 +12527,18 @@ const BottomSheet = (() => {
         const now = performance.now();
         const dy  = e.clientY - lastY;
         const dt  = Math.max(1, now - lastTime);
-        velocity = dy / dt; // px / ms (positive = downward)
+        velocity = dy / dt;
         lastY = e.clientY;
         lastTime = now;
 
-        const totalDelta = e.clientY - dragStartY; // positive = downward
+        const totalDelta = e.clientY - dragStartY;
         let translateY;
 
-        if (isExpanded) {
+        if (isFullscreen) {
             translateY = Math.max(0, totalDelta);
-            if (totalDelta < 0) translateY = totalDelta / 6;
+            if (totalDelta < 0) translateY = totalDelta / 8;
+        } else if (isExpanded) {
+            translateY = totalDelta;
         } else {
             translateY = Math.min(0, totalDelta);
             if (totalDelta > 0) translateY = totalDelta / 6;
@@ -12457,15 +12556,27 @@ const BottomSheet = (() => {
         const distance = Math.abs(totalDelta);
         const fastSwipe = Math.abs(velocity) > COLLAPSE_VEL;
 
+        if (isFullscreen) {
+            if ((totalDelta > 80) || (fastSwipe && velocity > 0)) {
+                exitFullscreen();
+            } else {
+                enterFullscreen(); // reset
+            }
+            return;
+        }
+
         if (isExpanded) {
-            // Collapse if dragged sufficiently down or fast swipe down
+            // Glissement franc vers le haut -> plein écran
+            if ((totalDelta < -80) || (fastSwipe && velocity < 0 && distance > 40)) {
+                enterFullscreen();
+                return;
+            }
             if ((totalDelta > 80 && distance > 0) || (fastSwipe && velocity > 0)) {
                 collapse();
             } else {
                 expand(); // reset
             }
         } else {
-            // Expand if dragged sufficiently up or fast swipe up
             if ((totalDelta < -60) || (fastSwipe && velocity < 0)) {
                 expand();
             } else {
@@ -12475,13 +12586,14 @@ const BottomSheet = (() => {
     }
 
     function init() {
-        sheetEl     = document.getElementById('bottom-sheet');
-        contentEl   = document.getElementById('bs-content');
+        sheetEl      = document.getElementById('bottom-sheet');
+        contentEl    = document.getElementById('bs-content');
         handleZoneEl = document.getElementById('bs-handle-zone');
-        menubtmEl   = document.getElementById('menubtm');
+        menubtmEl    = document.getElementById('menubtm');
 
         if (!sheetEl || !handleZoneEl) return;
 
+        _injectFullscreenStyles();
         _measure();
         window.addEventListener('resize', () => _measure());
 
@@ -12497,11 +12609,14 @@ const BottomSheet = (() => {
             const dx = Math.abs(e.clientX - downX);
             const dy = Math.abs(e.clientY - downY);
             if (dx < 5 && dy < 5) {
-                // Treat as a tap on the handle
                 isDragging = false;
                 sheetEl.classList.remove('bs-dragging');
                 sheetEl.style.transform = '';
-                toggle();
+                if (isFullscreen) {
+                    exitFullscreen();
+                } else {
+                    toggle();
+                }
                 return;
             }
             _onPointerUp(e);
@@ -12519,7 +12634,7 @@ const BottomSheet = (() => {
         menubtmEl?.addEventListener('pointerup', (e) => {
             if (!rowTracking) return;
             rowTracking = false;
-            const dy = rowStartY - e.clientY; // positive = upward
+            const dy = rowStartY - e.clientY; 
             const dt = performance.now() - rowStartT;
             if (dy > 50 && dt < 350) expand();
         });
@@ -12531,9 +12646,13 @@ const BottomSheet = (() => {
         expand,
         collapse,
         toggle,
-        get expanded() { return isExpanded; }
+        enterFullscreen,
+        exitFullscreen,
+        get expanded() { return isExpanded; },
+        get fullscreen() { return isFullscreen; }
     };
 })();
+
 
 function expandBottomSheet()   { BottomSheet.expand(); }
 function collapseBottomSheet() { BottomSheet.collapse(); }
@@ -12926,40 +13045,47 @@ function _ensureNearestStopSection() {
                  transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 15px;">
                 <div id="bs-nearest-stop-content"></div>
             </div>
-            <button id="bs-nearest-stop-toggle" style="display:none; width:100%; margin-top:-6px;
-                    padding:8px; background:rgba(255, 255, 255, 0); border:none; border-radius:12px;
-                    color:rgba(255,255,255,0.75); font-size:21px; font-weight:600; cursor:pointer;">
-                ˅
-            </button>
+            <div id="bs-nearest-stop-hint" style="display:none; text-align:center; margin-top:4px;
+                    font-size:11px; color:rgba(255,255,255,0.4); pointer-events:none;">
+                ${t('swipe_up_to_see_all') || 'Glissez vers le haut pour tout voir'}
+            </div>
         </div>
     `;
 
     favSection.parentNode.insertBefore(section, favSection);
-    document.getElementById('bs-nearest-stop-toggle')
-        .addEventListener('click', (e) => {
-            e.stopPropagation();
-            _toggleNearestStopExpand();
-        });
-
     return section;
 }
 
-function _toggleNearestStopExpand() {
-    _nearestStopExpanded = !_nearestStopExpanded;
-    const scroll  = document.getElementById('bs-nearest-stop-scroll');
-    const content = document.getElementById('bs-nearest-stop-content');
-    const btn     = document.getElementById('bs-nearest-stop-toggle');
-    if (!scroll || !content) return;
+function _ensureNearestServedStopSection() {
+    let section = document.getElementById('bs-nearest-served-stop-section');
+    if (section) return section;
 
-    safeVibrate?.([20]);
+    const nearestSection = document.getElementById('bs-nearest-stop-section') || _ensureNearestStopSection();
+    if (!nearestSection || !nearestSection.parentNode) return null;
 
-    if (_nearestStopExpanded) {
-        scroll.style.maxHeight = content.scrollHeight + 'px';
-        btn.textContent = '˄';
-    } else {
-        scroll.style.maxHeight = '200px';
-        btn.textContent = '˅';
-    }
+    section = document.createElement('div');
+    section.id = 'bs-nearest-served-stop-section';
+    section.style.cssText = 'margin-right: 37px; margin-left: 37px; display:none; margin-top: 16px;';
+    section.innerHTML = `
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:0 2px;">
+            <span id="bs-nearest-served-stop-label" style="font-size:17px; color:rgba(255,255,255,0.55);">
+                ${t('nearest_served_stop') || 'Arrêt desservi le plus proche'}
+            </span>
+        </div>
+        <div id="bs-nearest-served-stop-wrapper" style="position:relative;">
+            <div id="bs-nearest-served-stop-scroll" style="max-height:200px; overflow:hidden;
+                 transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 15px;">
+                <div id="bs-nearest-served-stop-content"></div>
+            </div>
+            <div id="bs-nearest-served-stop-hint" style="display:none; text-align:center; margin-top:4px;
+                    font-size:11px; color:rgba(255,255,255,0.4); pointer-events:none;">
+                ${t('swipe_up_to_see_all') || 'Glissez vers le haut pour tout voir'}
+            </div>
+        </div>
+    `;
+
+    nearestSection.parentNode.insertBefore(section, nearestSection.nextSibling);
+    return section;
 }
 
 async function _renderNearestStopWidget() {
@@ -12982,6 +13108,7 @@ async function _renderNearestStopWidget() {
     const cluster = state.currentCluster;
     const content = document.getElementById('bs-nearest-stop-content');
     const labelEl = document.getElementById('bs-nearest-stop-label');
+    const hintEl  = document.getElementById('bs-nearest-stop-hint');
     if (!content) return;
 
     const distText = state.currentDistance < 1000
@@ -13005,27 +13132,63 @@ async function _renderNearestStopWidget() {
     content.dataset.loaded = 'true';
 
     requestAnimationFrame(() => {
-        const scroll = document.getElementById('bs-nearest-stop-scroll');
-        const btn    = document.getElementById('bs-nearest-stop-toggle');
-        if (!scroll || !btn) return;
+        if (hintEl) hintEl.style.display = content.scrollHeight > 200 ? 'block' : 'none';
+    });
 
-        const overflow = content.scrollHeight > 200;
-        btn.style.display = overflow ? 'block' : 'none';
+    const servedCluster = state.currentServedCluster;
+    const servedSectionExisting = document.getElementById('bs-nearest-served-stop-section');
+    const isSameStop = servedCluster && cluster.stopIds.some(id => servedCluster.stopIds.includes(id));
 
-        if (_nearestStopExpanded) {
-            scroll.style.maxHeight = content.scrollHeight + 'px';
-        } else {
-            scroll.style.maxHeight = '200px';
-        }
+    if (!servedCluster || isSameStop) {
+        if (servedSectionExisting) servedSectionExisting.style.display = 'none';
+        return;
+    }
+
+    const servedSection = _ensureNearestServedStopSection();
+    if (!servedSection) return;
+    servedSection.style.display = 'block';
+
+    const servedContent = document.getElementById('bs-nearest-served-stop-content');
+    const servedLabelEl = document.getElementById('bs-nearest-served-stop-label');
+    const servedHintEl  = document.getElementById('bs-nearest-served-stop-hint');
+    if (!servedContent) return;
+
+    const servedDistText = state.currentServedDistance < 1000
+        ? `${Math.round(state.currentServedDistance)} m`
+        : `${(state.currentServedDistance / 1000).toFixed(1)} km`;
+    if (servedLabelEl) servedLabelEl.textContent = `${servedCluster.name} · ${servedDistText}`;
+
+    if (!servedContent.dataset.loaded) {
+        servedContent.innerHTML = `
+            <div class="bs-fav-loading" style="padding:10px 2px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <span>Chargement…</span>
+            </div>`;
+    }
+
+    const servedPassages = state.currentServedPassages || await _computeStopPassages(servedCluster.stopIds);
+    _renderStopPassages(servedContent, servedCluster.stopIds, servedCluster.name, servedPassages, !!servedContent.dataset.loaded);
+    servedContent.dataset.loaded = 'true';
+
+    requestAnimationFrame(() => {
+        if (servedHintEl) servedHintEl.style.display = servedContent.scrollHeight > 200 ? 'block' : 'none';
     });
 }
 
 function _hideNearestStopWidget() {
     const section = document.getElementById('bs-nearest-stop-section');
     if (section) section.style.display = 'none';
-    window._nearestStopState.currentCluster = null;
-    window._nearestStopState.lastComputedLatLng = null;
-    _nearestStopExpanded = false;
+    const servedSection = document.getElementById('bs-nearest-served-stop-section');
+    if (servedSection) servedSection.style.display = 'none';
+
+    window._nearestStopState.currentCluster       = null;
+    window._nearestStopState.currentServedCluster  = null;
+    window._nearestStopState.currentServedDistance = null;
+    window._nearestStopState.currentServedPassages = null;
+    window._nearestStopState.lastComputedLatLng    = null;
 }
 
 function _refreshBottomSheetFavorites(withAnimation = false) {
