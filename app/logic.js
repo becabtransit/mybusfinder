@@ -54,6 +54,14 @@
         let applyingRemote = false;
         let unsubscribeSnapshot = null;
 
+        window.MBF_Auth = {
+            get currentUid() { return currentUid; },
+            get isLoggedIn() { return !!currentUid; },
+            get currentUser() {
+                return (window.firebase && firebase.apps.length && firebase.auth().currentUser) || null;
+            }
+        };
+
         function ensureFirebaseApp() {
             if (!window.firebase || !firebase.auth || !firebase.firestore) {
             return false;
@@ -184,15 +192,19 @@
                 stopRealtimeSync();
                 currentUid = user ? user.uid : null;
 
+                window.dispatchEvent(new CustomEvent('mbf-auth-state-changed', {
+                    detail: { uid: currentUid, user }
+                }));
+
                 if (user) {
-                try {
-                    const db = getDb();
-                    const doc = await db.collection('users').doc(user.uid).get();
-                    if (doc.exists) applyRemoteSettings(doc.data().settings);
-                } catch (err) {
-                    console.warn('[SettingsSync] pull initial échoué', err);
-                }
-                startRealtimeSync(user.uid);
+                    try {
+                        const db = getDb();
+                        const doc = await db.collection('users').doc(user.uid).get();
+                        if (doc.exists) applyRemoteSettings(doc.data().settings);
+                    } catch (err) {
+                        console.warn('[SettingsSync] pull initial échoué', err);
+                    }
+                    startRealtimeSync(user.uid);
                 }
                 resolve();
             });
@@ -924,23 +936,35 @@
             FluentSettingsMenu.createSection("general", general);
             FluentSettingsMenu.createSection("about", about);
 
-            if (firebase.auth().currentUser) {
-                FluentSettingsMenu.addSubmenu("myacc", "acct", {
-                    icon: "🚪",
-                    label: t("logout_title") || "Déconnexion",
-                    description: firebase.auth().currentUser.email || "",
-                    onclick: function () { logoutUser(); }
-                });
-            }
+            window.addEventListener('mbf-auth-state-changed', (e) => {
+                if (typeof FluentSettingsMenu === 'undefined') return;
 
-            if (!firebase.auth().currentUser) {
-                FluentSettingsMenu.addSubmenu("myacc", "connacct", {
-                    icon: "✨",
-                    label: t("login_title") || "Login",
-                    description: t("allservices") || "All BecabDev in one account !",
-                    onclick: function () { MyBusFinderWelcome.open(); }
-                });
-            }
+                const aboutSubmenu = FluentSettingsMenu.sections?.['myacc'];
+                if (aboutSubmenu) {
+                    aboutSubmenu.items = aboutSubmenu.items.filter(item => item.id !== 'logout');
+                }
+
+                if (e.detail.uid) {
+                    FluentSettingsMenu.addSubmenu("myacc", "logout", {
+                        icon: "🚪",
+                        label: t("logout_title") || "Déconnexion",
+                        description: e.detail.user?.email || "",
+                        onclick: function () { logoutUser(); }
+                    });
+                }
+
+                if (!e.detail.uid) {
+                    FluentSettingsMenu.addSubmenu("myacc", "connacct", {
+                        icon: "✨",
+                        label: t("login_title") || "Login",
+                        description: t("allservices") || "All BecabDev in one account !",
+                        onclick: function () { MyBusFinderWelcome.open(); }
+                    });
+                }
+
+            });
+
+
 
 
             FluentSettingsMenu.addSubmenu("general", "customization", {
@@ -12085,9 +12109,8 @@ window.addEventListener('message', e => {
 });
 
 async function logoutUser() {
-    const fb = ensureFirebase ? ensureFirebase() : (window.firebase && firebase.apps.length ? firebase : null);
-    if (!fb || !firebase.auth().currentUser) {
-        toastBottomRight?.info?.(t("notloggedin") || "Vous n'êtes pas connecté...");
+    if (!window.MBF_Auth || !window.MBF_Auth.isLoggedIn) {
+        toastBottomRight?.info?.(t("notloggedin") || "Vous n'êtes pas connecté.");
         return;
     }
 
@@ -12095,7 +12118,7 @@ async function logoutUser() {
 
     showFluentPopup({
         title: t("logout_title") || "Déconnexion",
-        message: t("logout_confirm") || "Voulez-vous vraiment vous déconnecter ?",
+        message: t("logout_confirm") || "Voulez-vous vraiment vous déconnecter ? Vos favoris resteront disponibles sur cet appareil, mais ne se synchroniseront plus tant que vous n'êtes pas reconnecté.",
         buttons: {
             primary: t("logout_confirm_btn") || "Se déconnecter",
             primaryAction: async () => {
@@ -12116,13 +12139,7 @@ async function _performLogout() {
 
         safeVibrate?.([30, 40, 30], true);
         soundsUX?.('MBF_Success');
-
         toastBottomRight?.success?.(t("logout_success") || "Vous avez été déconnecté.");
-
-        ['favoriteLines', 'theme', 'colorbkg', 'isStandardView'].forEach(k => localStorage.removeItem(k));
-        Object.keys(localStorage)
-            .filter(k => k.startsWith('favoriteSchedules') || k.startsWith('favoriteStops'))
-            .forEach(k => localStorage.removeItem(k));
 
         if (typeof FluentSettingsMenu !== 'undefined' && FluentSettingsMenu.close) {
             FluentSettingsMenu.close({ stopPropagation: () => {} });
@@ -12130,7 +12147,6 @@ async function _performLogout() {
         if (typeof closeUpdatePopup === 'function') {
             closeUpdatePopup();
         }
-
     } catch (error) {
         console.error('[Logout] Erreur lors de la déconnexion', error);
         toastBottomRight?.error?.(t("logout_error") || "Une erreur est survenue lors de la déconnexion.");
