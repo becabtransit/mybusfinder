@@ -13161,11 +13161,7 @@ async function _renderNearestStopWidget() {
 
     const labelEl = document.getElementById('bs-nearest-stop-label');
     if (labelEl) {
-        const first = state.nearbyStops[0];
-        const distText = first.distance < 1000
-            ? `${Math.round(first.distance)} m`
-            : `${(first.distance / 1000).toFixed(1)} km`;
-        labelEl.textContent = `${first.cluster.name} · ${distText}`;
+        labelEl.textContent = t('nearest_stops') || 'Arrêts à proximité';
     }
 
     const content = document.getElementById('bs-nearest-stop-content');
@@ -13186,34 +13182,26 @@ async function _renderNearestStopWidget() {
     content.innerHTML = '';
 
     state.nearbyStops.forEach((item, idx) => {
-        const distText2 = item.distance < 1000
+        const distText = item.distance < 1000
             ? `${Math.round(item.distance)} m`
             : `${(item.distance / 1000).toFixed(1)} km`;
 
-        const block = document.createElement('div');
-        block.style.cssText = `margin-bottom:${idx < state.nearbyStops.length - 1 ? '14px' : '0'};`;
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = `margin-bottom:${idx < state.nearbyStops.length - 1 ? '18px' : '0'};`;
 
-        const blockLabel = document.createElement('div');
-        blockLabel.style.cssText = `
-            font-size:13px; color:rgba(255,255,255,0.5);
-            margin-bottom:6px; padding:0 2px;
-            display:flex; align-items:center; gap:6px;`;
-        blockLabel.innerHTML = `
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2.5"
-                stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="10" r="3"/>
-                <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
-            </svg>
-            <span>${item.cluster.name} · ${distText2}</span>`;
-        block.appendChild(blockLabel);
+        const label = document.createElement('div');
+        label.style.cssText = `
+            font-size:17px; color:rgba(255,255,255,0.55);
+            margin-bottom:8px; padding:0 2px;`;
+        label.textContent = `${item.cluster.name} · ${distText}`;
+        wrapper.appendChild(label);
 
-        const blockContent = document.createElement('div');
-        block.appendChild(blockContent);
+        const cardsContainer = document.createElement('div');
+        wrapper.appendChild(cardsContainer);
 
-        _renderStopPassages(blockContent, item.cluster.stopIds, item.cluster.name, item.passages, false);
+        content.appendChild(wrapper);
 
-        content.appendChild(block);
+        _renderStopPassages(cardsContainer, item.cluster.stopIds, item.cluster.name, item.passages, true);
     });
 
     content.dataset.loaded = 'true';
