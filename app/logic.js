@@ -13117,12 +13117,6 @@ async function _renderNearestStopWidget() {
         .filter(s => !cluster.stopIds.some(id => s.cluster.stopIds.includes(id)))
         .slice(0, 10);
 
-
-    if (!servedStops.length) {
-        if (servedSectionExisting) servedSectionExisting.style.display = 'none';
-        return;
-    }
-
     const servedContent = document.getElementById('bs-nearest-served-stop-content');
     if (!servedContent) return;
 
