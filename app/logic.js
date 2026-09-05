@@ -12428,7 +12428,7 @@ const BottomSheet = (() => {
                 max-height: 100%;
                 border-radius: 0;
                 background: #252525;
-                margin: 0px 0px -9px 0px;
+                bottom: 0px;
             }
             #bottom-sheet.bs-fullscreen #bs-content {
                 max-height: none;
@@ -13066,38 +13066,6 @@ function _ensureNearestStopSection() {
     return section;
 }
 
-function _ensureNearestServedStopSection() {
-    let section = document.getElementById('bs-nearest-served-stop-section');
-    if (section) return section;
-
-    const nearestSection = document.getElementById('bs-nearest-stop-section') || _ensureNearestStopSection();
-    if (!nearestSection || !nearestSection.parentNode) return null;
-
-    section = document.createElement('div');
-    section.id = 'bs-nearest-served-stop-section';
-    section.style.cssText = 'margin-right: 37px; margin-left: 37px; display:none; margin-top: 16px;';
-    section.innerHTML = `
-        <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:0 2px;">
-            <span id="bs-nearest-served-stop-label" style="font-size:17px; color:rgba(255,255,255,0.55);">
-                ${t('nearest_served_stops') || 'Arrêts desservis les plus proches'}
-            </span>
-        </div>
-        <div id="bs-nearest-served-stop-wrapper" style="position:relative;">
-            <div id="bs-nearest-served-stop-scroll" style="max-height:280px; overflow:hidden;
-                 transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 15px;">
-                <div id="bs-nearest-served-stop-content"></div>
-            </div>
-            <div id="bs-nearest-served-stop-hint" style="text-align:center; margin-top:4px;
-                    font-size:11px; color:rgba(255,255,255,0.4); pointer-events:none;">
-                ${t('swipe_up_to_see_all') || 'Glissez vers le haut pour tout voir'}
-            </div>
-        </div>
-    `;
-
-    nearestSection.parentNode.insertBefore(section, nearestSection.nextSibling);
-    return section;
-}
-
 async function _renderNearestStopWidget() {
     const state = window._nearestStopState;
     if (!state.currentCluster) return;
@@ -13149,16 +13117,11 @@ async function _renderNearestStopWidget() {
         .filter(s => !cluster.stopIds.some(id => s.cluster.stopIds.includes(id)))
         .slice(0, 10);
 
-    const servedSectionExisting = document.getElementById('bs-nearest-served-stop-section');
 
     if (!servedStops.length) {
         if (servedSectionExisting) servedSectionExisting.style.display = 'none';
         return;
     }
-
-    const servedSection = _ensureNearestServedStopSection();
-    if (!servedSection) return;
-    servedSection.style.display = 'block';
 
     const servedContent = document.getElementById('bs-nearest-served-stop-content');
     if (!servedContent) return;
@@ -13200,8 +13163,6 @@ async function _renderNearestStopWidget() {
 function _hideNearestStopWidget() {
     const section = document.getElementById('bs-nearest-stop-section');
     if (section) section.style.display = 'none';
-    const servedSection = document.getElementById('bs-nearest-served-stop-section');
-    if (servedSection) servedSection.style.display = 'none';
 
     window._nearestStopState.currentCluster    = null;
     window._nearestStopState.currentServedStops = [];
