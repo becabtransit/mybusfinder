@@ -264,7 +264,7 @@
         }, 1000);
     });
 
-    VERSION_NAME = '3.7.0';
+    VERSION_NAME = '3.7.1';
 
     document.addEventListener('gesturestart', function (e) {
     e.preventDefault();
@@ -1122,12 +1122,6 @@ async function changeColorBkg(selectedTheme = null) {
 
     document.getElementById("menubtm").style.backgroundColor = colorWithAlpha;
     document.documentElement.style.backgroundColor = colorWithAlpha;
-
-    if (!document.getElementById("bottom-sheet").getElementsByClassName("bs-fullscreen")) {
-        document.getElementById("bottom-sheet").style.backgroundColor = colorWithAlpha;
-    } else {
-        document.getElementById("bottom-sheet").style.backgroundColor = "#252525";
-    }
 
     // Bottom-sheet expanded background uses the active network color
     // with a deeper alpha so the glass blur stays readable.
