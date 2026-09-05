@@ -1457,6 +1457,10 @@ function onLocationFound(e) {
 async function _updateNearestStopWidget(latlng) {
     const state = window._nearestStopState;
 
+    if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') {
+        return;
+    }
+
     if (state.lastComputedLatLng &&
         latlng.distanceTo(state.lastComputedLatLng) < state.updateThresholdMeters &&
         state.nearbyStops && state.nearbyStops.length > 0) {
@@ -1473,6 +1477,10 @@ async function _updateNearestStopWidget(latlng) {
     const served = await _findNearestServedStops(latlng, 10, 40);
 
     if (state.lastComputedLatLng !== latlng) return;
+
+    if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') {
+        return;
+    }
 
     if (!served.length) {
         _hideNearestStopWidget();
@@ -11717,7 +11725,8 @@ function startFetchUpdates({ forceRefresh = false } = {}) {
                 }
             }
 
-            if (window._nearestStopState?.nearbyStops?.length) {
+            if (window._nearestStopState?.nearbyStops?.length &&
+                document.getElementById('bottom-sheet')?.dataset.stopView !== 'true') {
                 _renderNearestStopWidget();
             }
         } catch (error) {
@@ -13138,6 +13147,10 @@ function _ensureNearestStopSection() {
 async function _renderNearestStopWidget() {
     const state = window._nearestStopState;
     if (!state.nearbyStops || !state.nearbyStops.length) return;
+
+    if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') {
+        return;
+    }
 
     const hasLineFavs = getFavoriteSchedules().length > 0;
     const hasStopFavs = _getStopFavorites().length > 0;
