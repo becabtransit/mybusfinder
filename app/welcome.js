@@ -7,21 +7,6 @@
   var OVERLAY_ID = "mbf-welcome-overlay";
   var TRANSITION_MS = 280;
 
-  // =========================================================================
-  // CONFIGURATION FIREBASE
-  // =========================================================================
-  // 1) Ajoute dans ton HTML, AVANT ce script, les SDK Firebase (compat) :
-  //
-  //   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-  //   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
-  //   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-  //
-  // 2) Dans la Console Firebase > Authentication > Sign-in method, active
-  //    les fournisseurs "E-mail/Mot de passe" et "Google".
-  // 3) Dans la Console Firebase > Authentication > Templates, tu peux
-  //    personnaliser l'email de vérification (expéditeur, texte, logo...).
-  // 4) Crée une base Firestore (mode production) si ce n'est pas déjà fait :
-  //    Console Firebase > Firestore Database > Créer une base de données.
   var FIREBASE_CONFIG = {
     apiKey: "AIzaSyCXA5YC8HPnZ-Ws3kvKtngM1kCj-5C6yDY",
     authDomain: "mybusfinder-becabdev.firebaseapp.com",
@@ -34,8 +19,7 @@
   function ensureFirebase() {
     if (!window.firebase || !firebase.auth) {
       console.error(
-        "[MyBusFinderWelcome] Le SDK Firebase (compat) n'est pas chargé. " +
-        "Ajoute firebase-app-compat.js et firebase-auth-compat.js avant ce script."
+        "[MBF] Le SDK Firebase (compat) n'est pas chargé "
       );
       return null;
     }
@@ -45,13 +29,12 @@
     return firebase;
   }
 
-  // Accès à Firestore (stockage prénom / nom / date de naissance).
   function getDb() {
     var fb = ensureFirebase();
     if (!fb) return null;
     if (!firebase.firestore) {
       console.error(
-        "[MyBusFinderWelcome] Le SDK Firestore n'est pas chargé. " +
+        "[MBF] Le SDK Firestore n'est pas chargé. " +
         "Ajoute firebase-firestore-compat.js avant ce script."
       );
       return null;
@@ -80,7 +63,7 @@
       <line x1="9" y1="13" x2="15" y2="13"></line>
       <line x1="9" y1="17" x2="15" y2="17"></line>
     </svg>`,
-    // personne / connexion
+    // connexion
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="8" r="4"></circle>
       <path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"></path>
@@ -216,10 +199,9 @@
     #${OVERLAY_ID} .mbf-rtf ul { margin: 0 0 14px; padding-left: 20px; }
     #${OVERLAY_ID} .mbf-rtf li { line-height: 1.6; font-size: 0.95rem; margin-bottom: 4px; }
 
-    /* ---- Écran de connexion / inscription ---- */
     #${OVERLAY_ID} .mbf-auth { display: flex; flex-direction: column; gap: 18px; padding-top: 12px; height: 100%; }
     #${OVERLAY_ID} .mbf-auth-logo { text-align: center; margin-bottom: 4px; }
-    #${OVERLAY_ID} .mbf-auth-logo img { max-width: 96px; max-height: 96px; margin: 0 auto; display: block; }
+    #${OVERLAY_ID} .mbf-auth-logo img { max-width: 400px;  margin: 0 auto; display: block; }
 
     #${OVERLAY_ID} .mbf-auth-tabs { display: flex; gap: 8px; background-color: #f3f0ef; border-radius: 10px; padding: 4px; }
     #${OVERLAY_ID} .mbf-auth-tab {
@@ -885,7 +867,7 @@
       <div class="mbf-auth">
 
         <div class="mbf-auth-logo">
-          <img src="src/logo.png" alt="My Bus Finder" id="mbf-auth-logo-img">
+          <img src="src/becabconnect.png" alt="My Bus Finder" id="mbf-auth-logo-img">
         </div>
 
         <div class="mbf-auth-tabs" id="mbf-auth-tabs">
@@ -951,11 +933,10 @@
           <button type="button" class="mbf-btn mbf-btn-primary" id="mbf-btn-profile-submit">Continuer</button>
         </div>
 
-        <!-- Panneau : vérification de l'adresse email (lien de confirmation) -->
         <div class="mbf-auth-panel" data-panel="verify">
           <p class="mbf-auth-hint">
             Un email de confirmation a été envoyé à <strong id="mbf-verify-email"></strong>.
-            Cliquez sur le lien qu'il contient, puis revenez ici et cliquez sur « J'ai vérifié mon adresse ».
+            Cliquez sur le bouton "C'est bien moi", puis revenez ici ;)
           </p>
 
           <p class="mbf-auth-error" id="mbf-verify-error" aria-live="polite"></p>
@@ -1081,7 +1062,6 @@
     els.headerIcon = overlay.querySelector("#mbf-header-icon");
     els.headerTitle = overlay.querySelector("#mbf-header-title");
 
-    // Éléments de l'écran d'authentification
     els.authTabs = Array.prototype.slice.call(overlay.querySelectorAll(".mbf-auth-tab"));
     els.authPanels = Array.prototype.slice.call(overlay.querySelectorAll(".mbf-auth-panel"));
     els.signupFields = overlay.querySelector("#mbf-signup-fields");
@@ -1120,7 +1100,6 @@
       window.open("https://buymeacoffee.com/mybusfinder", "_blank", "noopener");
     });
 
-    // --- Auth : bascule Connexion / Inscription ---
     els.authTabs.forEach(function (tab) {
       tab.addEventListener("click", function () {
         authMode = tab.getAttribute("data-tab");
@@ -1131,7 +1110,6 @@
       });
     });
 
-    // --- Auth : Google ---
     els.overlay.querySelector("#mbf-btn-google").addEventListener("click", function () {
       var fb = ensureFirebase();
       if (!fb) return;
@@ -1142,8 +1120,7 @@
           var user = result.user;
           var isNewUser = !!(result.additionalUserInfo && result.additionalUserInfo.isNewUser);
           if (isNewUser) {
-            // Google donne l'email et le nom, mais pas la date de naissance :
-            // on demande le complément de profil avant de continuer.
+
             switchAuthPanel("profile");
             return;
           }
@@ -1152,7 +1129,6 @@
         .catch(function (err) { setAuthError(translateAuthError(err)); });
     });
 
-    // --- Auth : email / mot de passe (connexion ou inscription selon l'onglet actif) ---
     els.authSubmit.addEventListener("click", function () {
       var fb = ensureFirebase();
       if (!fb) return;
@@ -1199,7 +1175,6 @@
       }
     });
 
-    // --- Auth : complément de profil (après une première connexion Google) ---
     els.overlay.querySelector("#mbf-btn-profile-submit").addEventListener("click", function () {
       var fb = ensureFirebase();
       if (!fb) return;
@@ -1234,7 +1209,6 @@
         .catch(function (err) { setProfileError(translateAuthError(err)); });
     });
 
-    // --- Auth : "j'ai vérifié mon adresse" ---
     els.overlay.querySelector("#mbf-btn-verify-check").addEventListener("click", function () {
       var user = firebase.auth().currentUser;
       if (!user) return;
@@ -1244,12 +1218,11 @@
         if (firebase.auth().currentUser.emailVerified) {
           goToStep(3);
         } else {
-          setVerifyError("Votre adresse n'est pas encore confirmée. Vérifiez votre boîte mail (et vos spams), puis réessayez.");
+          setVerifyError("On y est presque... Votre adresse n'est pas encore confirmée. Vérifiez votre boite mail (et vos spams) et réessayez.");
         }
       });
     });
 
-    // --- Auth : renvoyer l'email de confirmation ---
     els.overlay.querySelector("#mbf-btn-verify-resend").addEventListener("click", function () {
       var user = firebase.auth().currentUser;
       if (!user) return;
@@ -1279,8 +1252,7 @@
     });
   }
 
-  // Appelée après une connexion/inscription réussie, ou après le complément de profil.
-  // Envoie (si besoin) l'email de confirmation et bloque la suite tant qu'il n'est pas validé.
+
   function checkEmailVerification(user) {
     setAuthError("");
     if (user.emailVerified) {
@@ -1288,7 +1260,7 @@
       return;
     }
     if (els.verifyEmailLabel) els.verifyEmailLabel.textContent = user.email || "";
-    user.sendEmailVerification().catch(function () { /* déjà envoyé récemment, on ignore */ });
+    user.sendEmailVerification().catch(function () { });
     switchAuthPanel("verify");
   }
 
@@ -1296,8 +1268,8 @@
     var code = err && err.code;
     var map = {
       "auth/invalid-email": "Adresse email invalide.",
-      "auth/user-disabled": "Ce compte a été désactivé.",
-      "auth/user-not-found": "Aucun compte ne correspond à cet email.",
+      "auth/user-disabled": "Ce compte a été désactivé en raison d'une violation des conditions d'utilisation.",
+      "auth/user-not-found": "Aucun compte ne correspond à cet email...",
       "auth/wrong-password": "Mot de passe incorrect.",
       "auth/email-already-in-use": "Un compte existe déjà avec cet email.",
       "auth/weak-password": "Le mot de passe doit contenir au moins 6 caractères.",
