@@ -1,4 +1,6 @@
 
+
+
         // ============================================================
         //  Multi-network bootstrap MBF3X+
         // ------------------------------------------------------------
@@ -7,6 +9,222 @@
         //  persisted in localStorage under "activeNetwork" and may be
         //  overridden via the ?network= URL query parameter.
         // ============================================================
+
+
+        (function () {
+        "use strict";
+
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCXA5YC8HPnZ-Ws3kvKtngM1kCj-5C6yDY",
+            authDomain: "mybusfinder-becabdev.firebaseapp.com",
+            projectId: "mybusfinder-becabdev",
+            storageBucket: "mybusfinder-becabdev.firebasestorage.app",
+            messagingSenderId: "838241151551",
+            appId: "1:838241151551:web:35836e3f314a7967df268a",
+        };
+
+        const SYNCED_KEYS = new Set([
+            'theme', 'colorbkg', 'isStandardView', 'locateonstart',
+            'transparency', 'vibrations', 'soundsux', 'filterlinesonselect',
+            'nepasafficheraccueil', 'preferredLanguage', 'darkmap',
+            'favoriteLines'
+        ]);
+
+        const SYNCED_PREFIXES = [
+            'favoriteSchedules',
+            'favoriteStops'
+        ];
+
+        function isSyncedKey(key) {
+            if (SYNCED_KEYS.has(key)) return true;
+            return SYNCED_PREFIXES.some(prefix => key.startsWith(prefix));
+        }
+
+        function sanitizeKey(key) {
+            return key.replace(/\./g, '__DOT__');
+        }
+        function unsanitizeKey(key) {
+            return key.replace(/__DOT__/g, '.');
+        }
+
+        const DEBOUNCE_MS = 800;
+        let pendingWrites = {};
+        let debounceTimer = null;
+        let currentUid = null;
+        let applyingRemote = false;
+        let unsubscribeSnapshot = null;
+
+        window.MBF_Auth = {
+            get currentUid() { return currentUid; },
+            get isLoggedIn() { return !!currentUid; },
+            get currentUser() {
+                return (window.firebase && firebase.apps.length && firebase.auth().currentUser) || null;
+            }
+        };
+
+        function ensureFirebaseApp() {
+            if (!window.firebase || !firebase.auth || !firebase.firestore) {
+            return false;
+            }
+            if (!firebase.apps.length) {
+            firebase.initializeApp(FIREBASE_CONFIG);
+            }
+            return true;
+        }
+
+        function getDb() {
+            if (!ensureFirebaseApp()) return null;
+            return firebase.firestore();
+        }
+
+        function scheduleUpload(key, value) {
+            if (!currentUid || applyingRemote) return;
+            pendingWrites[sanitizeKey(key)] = value;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(flushWrites, DEBOUNCE_MS);
+        }
+
+        function flushWrites() {
+            const db = getDb();
+            if (!db || !currentUid || Object.keys(pendingWrites).length === 0) return;
+
+            const toSend = pendingWrites;
+            pendingWrites = {};
+
+            const patch = { settings: {} };
+            Object.entries(toSend).forEach(([k, v]) => {
+                patch.settings[k] = v;
+            });
+
+            db.collection('users').doc(currentUid).set(patch, { merge: true })
+                .catch(err => console.warn('[SettingsSync] upload échoué', err));
+        }
+
+        const originalSetItem = localStorage.setItem.bind(localStorage);
+        const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+
+        localStorage.setItem = function (key, value) {
+            originalSetItem(key, value);
+            if (isSyncedKey(key)) scheduleUpload(key, value);
+        };
+
+        localStorage.removeItem = function (key) {
+            originalRemoveItem(key);
+            if (isSyncedKey(key) && currentUid && !applyingRemote) {
+            const db = getDb();
+            if (db) {
+                db.collection('users').doc(currentUid)
+                .update({ [`settings.${sanitizeKey(key)}`]: firebase.firestore.FieldValue.delete() })
+                .catch(() => {});
+            }
+            }
+        };
+
+        function applyRemoteSettings(settings) {
+            if (!settings) return;
+            applyingRemote = true;
+            const changedKeys = new Set();
+            try {
+                Object.entries(settings).forEach(([sanitized, value]) => {
+                    const key = unsanitizeKey(sanitized);
+                    if (value === undefined || value === null) return;
+                    const current = localStorage.getItem(key);
+                    const stringValue = String(value);
+                    if (current !== stringValue) {
+                        originalSetItem(key, stringValue);
+                        changedKeys.add(key);
+                        window.dispatchEvent(new CustomEvent('mbf-remote-setting-changed', { detail: { key, value } }));
+                    }
+                });
+            } finally {
+                applyingRemote = false;
+            }
+            if (changedKeys.size > 0) {
+                setTimeout(() => reapplyVisibleSettings(changedKeys), 0);
+            }
+        }
+
+        function reapplyVisibleSettings(changedKeys) {
+            if (changedKeys.has('theme') && typeof changeColorBkg === 'function') {
+                changeColorBkg();
+            }
+            if (changedKeys.has('isStandardView') && typeof applyMapView === 'function') {
+                window.isStandardView = localStorage.getItem('isStandardView') === 'true';
+                applyMapView();
+            }
+            if ([...changedKeys].some(k => k.startsWith('favoriteSchedules') || k.startsWith('favoriteStops'))) {
+                if (typeof _refreshBottomSheetFavorites === 'function') {
+                    _refreshBottomSheetFavorites(true);
+                }
+            }
+        }
+
+        function startRealtimeSync(uid) {
+            const db = getDb();
+            if (!db) return;
+
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+
+            unsubscribeSnapshot = db.collection('users').doc(uid)
+            .onSnapshot(
+                (doc) => {
+                if (doc.exists) applyRemoteSettings(doc.data().settings);
+                },
+                (err) => console.warn('[SettingsSync] onSnapshot échoué', err)
+            );
+        }
+
+        function stopRealtimeSync() {
+            if (unsubscribeSnapshot) {
+            unsubscribeSnapshot();
+            unsubscribeSnapshot = null;
+            }
+        }
+
+        window.SettingsSyncReady = new Promise((resolve) => {
+            function waitForSdkThenInit() {
+            if (!ensureFirebaseApp()) {
+                setTimeout(waitForSdkThenInit, 100);
+                return;
+            }
+
+            firebase.auth().onAuthStateChanged(async (user) => {
+                stopRealtimeSync();
+                currentUid = user ? user.uid : null;
+
+                window.dispatchEvent(new CustomEvent('mbf-auth-state-changed', {
+                    detail: { uid: currentUid, user }
+                }));
+
+                if (user) {
+                    try {
+                        const db = getDb();
+                        const doc = await db.collection('users').doc(user.uid).get();
+                        if (doc.exists) applyRemoteSettings(doc.data().settings);
+                    } catch (err) {
+                        console.warn('[SettingsSync] pull initial échoué', err);
+                    }
+                    startRealtimeSync(user.uid);
+                }
+                resolve();
+            });
+            }
+            waitForSdkThenInit();
+        });
+        })();
+
+
+        window.addEventListener('mbf-remote-setting-changed', (e) => {
+            if (e.detail.key.startsWith('favoriteSchedules') || e.detail.key.startsWith('favoriteStops')) {
+                _refreshBottomSheetFavorites(true);
+            }
+            if (e.detail.key === 'favoriteLines') {
+                // favoriteLines est un Set en mémoire dans logic.js, il faudrait
+                // le recharger depuis localStorage pour qu'il se mette à jour sans reload
+                updateMenu();
+            }
+        });
+
         (function bootstrapActiveNetwork() {
             try {
                 const params = new URLSearchParams(window.location.search);
@@ -16,7 +234,7 @@
                     const cleanUrl = window.location.pathname + window.location.hash;
                     window.history.replaceState({}, '', cleanUrl);
                 }
-            } catch (_) { /* ignorer */ }
+            } catch (_) {  }
         })();
 
         window.ACTIVE_NETWORK = localStorage.getItem('activeNetwork') || 'palmbus';
@@ -705,6 +923,7 @@
             const nepasafficheraccueiltext = t("nepasafficheraccueiltext");
             const hardwareaccelerationtitle = t("hardwareaccelerationtitle");
             const hardwareaccelerationtext = t("hardwareaccelerationtext");
+            const myacc = t("myacc");
 
                    
 
@@ -713,8 +932,40 @@
                 accentColor: "#0078d7"
             });
 
+            FluentSettingsMenu.createSection("myacc", myacc);
             FluentSettingsMenu.createSection("general", general);
             FluentSettingsMenu.createSection("about", about);
+
+            window.addEventListener('mbf-auth-state-changed', (e) => {
+                if (typeof FluentSettingsMenu === 'undefined') return;
+
+                const aboutSubmenu = FluentSettingsMenu.sections?.['myacc'];
+                if (aboutSubmenu) {
+                    aboutSubmenu.items = aboutSubmenu.items.filter(item => item.id !== 'logout');
+                }
+
+                if (e.detail.uid) {
+                    FluentSettingsMenu.addSubmenu("myacc", "logout", {
+                        icon: "🚪",
+                        label: t("logout_title") || "Déconnexion",
+                        description: e.detail.user?.email || "",
+                        onclick: function () { logoutUser(); }
+                    });
+                }
+
+                if (!e.detail.uid) {
+                    FluentSettingsMenu.addSubmenu("myacc", "connacct", {
+                        icon: "✨",
+                        label: t("login_title") || "Login",
+                        description: t("allservices") || "All BecabDev in one account !",
+                        onclick: function () { MyBusFinderWelcome.open(); }
+                    });
+                }
+
+            });
+
+
+
 
             FluentSettingsMenu.addSubmenu("general", "customization", {
                 icon: "",
@@ -11857,6 +12108,53 @@ window.addEventListener('message', e => {
     }
 });
 
+async function logoutUser() {
+    if (!window.MBF_Auth || !window.MBF_Auth.isLoggedIn) {
+        toastBottomRight?.info?.(t("notloggedin") || "Vous n'êtes pas connecté.");
+        return;
+    }
+
+    safeVibrate?.([30], true);
+
+    showFluentPopup({
+        title: t("logout_title") || "Déconnexion",
+        message: t("logout_confirm") || "Voulez-vous vraiment vous déconnecter ? Vos favoris resteront disponibles sur cet appareil, mais ne se synchroniseront plus tant que vous n'êtes pas reconnecté.",
+        buttons: {
+            primary: t("logout_confirm_btn") || "Se déconnecter",
+            primaryAction: async () => {
+                fluentPopupManager.close();
+                await _performLogout();
+            },
+            secondary: t("cancel") || "Annuler",
+            secondaryAction: () => {
+                fluentPopupManager.close();
+            }
+        }
+    });
+}
+
+async function _performLogout() {
+    try {
+        await firebase.auth().signOut();
+
+        safeVibrate?.([30, 40, 30], true);
+        soundsUX?.('MBF_Success');
+        toastBottomRight?.success?.(t("logout_success") || "Vous avez été déconnecté.");
+
+        if (typeof FluentSettingsMenu !== 'undefined' && FluentSettingsMenu.close) {
+            FluentSettingsMenu.close({ stopPropagation: () => {} });
+        }
+        if (typeof closeUpdatePopup === 'function') {
+            closeUpdatePopup();
+        }
+    } catch (error) {
+        console.error('[Logout] Erreur lors de la déconnexion', error);
+        toastBottomRight?.error?.(t("logout_error") || "Une erreur est survenue lors de la déconnexion.");
+        soundsUX?.('MBF_NotificationError');
+    }
+}
+
+window.logoutUser = logoutUser;
 
 async function main() {
     try {
