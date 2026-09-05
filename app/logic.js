@@ -14417,6 +14417,7 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh =
                 data-stop-ids="${JSON.stringify(stopIdArr).replace(/"/g, '&quot;')}"
                 data-stop-name="${stopName.replace(/"/g, '&quot;')}"
                 style="
+                    background: ${isFavLine ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.18)'};
                     border: none;
                     border-radius: 10px;
                     width: 32px; height: 32px;
