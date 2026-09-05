@@ -1359,10 +1359,9 @@ function stopLocating() {
 
 window._nearestStopState = {
     lastComputedLatLng: null,
-    currentCluster: null,
-    currentDistance: null,
-    currentServedStops: [],
-    updateThresholdMeters: 120 
+    nearbyStops: [],
+    dismissed: false,
+    updateThresholdMeters: 120
 };
 let _nearestStopExpanded = false;
 
@@ -1455,12 +1454,12 @@ function onLocationFound(e) {
     _updateNearestStopWidget(e.latlng);
 }
 
-function _updateNearestStopWidget(latlng) {
+async function _updateNearestStopWidget(latlng) {
     const state = window._nearestStopState;
 
     if (state.lastComputedLatLng &&
         latlng.distanceTo(state.lastComputedLatLng) < state.updateThresholdMeters &&
-        state.currentCluster) {
+        state.nearbyStops && state.nearbyStops.length > 0) {
         return;
     }
 
@@ -1470,25 +1469,21 @@ function _updateNearestStopWidget(latlng) {
     }
 
     state.lastComputedLatLng = latlng;
-    const result = _findNearestStopCluster(latlng);
-    if (!result) return;
 
-    const isNewStop = !state.currentCluster ||
-        state.currentCluster.name !== result.cluster.name;
-    if (isNewStop) state.dismissed = false;
+    const served = await _findNearestServedStops(latlng, 10, 40);
+    if (state.lastComputedLatLng !== latlng) return;
 
-    state.currentCluster  = result.cluster;
-    state.currentDistance = result.distance;
+    if (!served.length) {
+        _hideNearestStopWidget();
+        return;
+    }
 
+    const previousClosest = state.nearbyStops?.[0]?.cluster?.name;
+    const newClosest      = served[0]?.cluster?.name;
+    if (previousClosest !== newClosest) state.dismissed = false;
+
+    state.nearbyStops = served;
     _renderNearestStopWidget();
-
-    _findNearestServedStops(latlng, 11).then(served => {
-        if (state.lastComputedLatLng !== latlng) return;
-        state.currentServedStops = served;
-        _renderNearestStopWidget();
-    }).catch(() => {
-        state.currentServedStops = [];
-    });
 }
 
 function onLocationError(e) {
@@ -11721,7 +11716,7 @@ function startFetchUpdates({ forceRefresh = false } = {}) {
                 }
             }
 
-            if (window._nearestStopState?.currentCluster) {
+            if (window._nearestStopState?.nearbyStops?.length) {
                 _renderNearestStopWidget();
             }
         } catch (error) {
@@ -12391,19 +12386,22 @@ window.selectNetwork        = selectNetwork;
 
 
 const BottomSheet = (() => {
-    const COLLAPSE_VEL = 0.45; 
-    const EXPAND_VEL   = 0.45; 
+    const COLLAPSE_VEL   = 0.45;
+    const EXPAND_VEL     = 0.45;
+    const DRAG_THRESHOLD = 10; 
+
     let sheetEl, contentEl, handleZoneEl, menubtmEl;
     let collapsedHeight = 0;
     let expandedHeight  = 0;
-    let isExpanded = false;
+    let isExpanded   = false;
     let isFullscreen = false;
-    let isDragging = false;
-    let dragStartY = 0;
+
+    let dragMode = null; 
+    let dragStartX = 0, dragStartY = 0;
     let dragStartTime = 0;
-    let lastY = 0;
-    let lastTime = 0;
+    let lastY = 0, lastTime = 0;
     let velocity = 0;
+    let activePointerId = null;
 
     function _injectFullscreenStyles() {
         if (document.getElementById('bs-fullscreen-styles')) return;
@@ -12430,12 +12428,29 @@ const BottomSheet = (() => {
                 background: #252525;
                 bottom: 0px;
             }
+
+            #bottom-sheet:not(.bs-fullscreen) #bs-content {
+                overflow: hidden !important;
+            }
+            #bottom-sheet:not(.bs-fullscreen) #bs-nearest-stop-scroll,
+            #bottom-sheet:not(.bs-fullscreen) #bs-nearest-served-stop-scroll,
+            #bottom-sheet:not(.bs-fullscreen) #bs-favorites-list,
+            #bottom-sheet:not(.bs-fullscreen) #bs-search-results,
+            #bottom-sheet:not(.bs-fullscreen) #bs-stop-view {
+                max-height: 220px;
+                overflow: hidden !important;
+            }
+
             #bottom-sheet.bs-fullscreen #bs-content {
                 max-height: none;
                 flex: 1 1 auto;
+                overflow-y: auto;
             }
             #bottom-sheet.bs-fullscreen #bs-nearest-stop-scroll,
-            #bottom-sheet.bs-fullscreen #bs-nearest-served-stop-scroll {
+            #bottom-sheet.bs-fullscreen #bs-nearest-served-stop-scroll,
+            #bottom-sheet.bs-fullscreen #bs-favorites-list,
+            #bottom-sheet.bs-fullscreen #bs-search-results,
+            #bottom-sheet.bs-fullscreen #bs-stop-view {
                 max-height: none !important;
                 overflow: visible !important;
             }
@@ -12494,11 +12509,9 @@ const BottomSheet = (() => {
         _refreshBottomSheetFavorites();
         isExpanded = true;
         isFullscreen = true;
-        // garde bs-expanded (qui pilote déjà transform translate -50% 0)
-        // et on ajoute seulement bs-fullscreen pour étendre largeur/hauteur/filtre
         sheetEl.classList.remove('bs-collapsed');
         sheetEl.classList.add('bs-expanded', 'bs-fullscreen');
-        sheetEl.style.transform = ''; // laisse la classe piloter le transform
+        sheetEl.style.transform = '';
         if (contentEl) contentEl.style.overflowY = 'auto';
         soundsUX('MBF_Popup');
         safeVibrate?.([25]);
@@ -12515,63 +12528,22 @@ const BottomSheet = (() => {
 
     function toggle() { isExpanded ? collapse() : expand(); }
 
-    function _onPointerDown(e) {
-        if (e.target.closest('button')) return;
-
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
-        isDragging = true;
-        sheetEl.classList.add('bs-dragging');
-        dragStartY = e.clientY;
-        lastY = e.clientY;
-        dragStartTime = lastTime = performance.now();
-        velocity = 0;
-        try { handleZoneEl.setPointerCapture(e.pointerId); } catch (_) {}
+    function _isInteractiveTarget(target) {
+        return !!target.closest(
+            'button, a, input, textarea, select, [contenteditable="true"], ' +
+            '.fluent-select, .lang-option'
+        );
     }
 
-    function _onPointerMove(e) {
-        if (!isDragging) return;
-        e.preventDefault?.();
-        const now = performance.now();
-        const dy  = e.clientY - lastY;
-        const dt  = Math.max(1, now - lastTime);
-        velocity = dy / dt; 
-        lastY = e.clientY;
-        lastTime = now;
-
-        const totalDelta = e.clientY - dragStartY; 
-        let translateY;
-
-        if (isFullscreen) {
-            translateY = Math.max(0, totalDelta);
-            if (totalDelta < 0) translateY = totalDelta / 8;
-            sheetEl.style.transform = `translate(-50%, ${translateY}px)`;
-            return;
-        }
-
-        if (isExpanded) {
-            translateY = totalDelta; 
-        } else {
-            translateY = Math.min(0, totalDelta);
-            if (totalDelta > 0) translateY = totalDelta / 6;
-        }
-        sheetEl.style.transform = `translate(-50%, ${translateY}px)`;
-    }
-
-    function _onPointerUp(e) {
-        if (!isDragging) return;
-        isDragging = false;
-        sheetEl.classList.remove('bs-dragging');
-        try { handleZoneEl.releasePointerCapture?.(e.pointerId); } catch (_) {}
-
-        const totalDelta = e.clientY - dragStartY;
-        const distance = Math.abs(totalDelta);
-        const fastSwipe = Math.abs(velocity) > COLLAPSE_VEL;
+    function _resolveDragEnd(totalDelta) {
+        const distance   = Math.abs(totalDelta);
+        const fastSwipe  = Math.abs(velocity) > COLLAPSE_VEL;
 
         if (isFullscreen) {
             if ((totalDelta > 80) || (fastSwipe && velocity > 0)) {
                 exitFullscreen();
             } else {
-                sheetEl.style.transform = ''; 
+                sheetEl.style.transform = '';
             }
             return;
         }
@@ -12590,9 +12562,130 @@ const BottomSheet = (() => {
             if ((totalDelta < -60) || (fastSwipe && velocity < 0)) {
                 expand();
             } else {
-                collapse(); // reset
+                collapse(); // reset 
             }
         }
+    }
+
+    function _applyDragTransform(totalDelta) {
+        let translateY;
+
+        if (isFullscreen) {
+            translateY = Math.max(0, totalDelta);
+            if (totalDelta < 0) translateY = totalDelta / 8;
+        } else if (isExpanded) {
+            translateY = totalDelta;
+        } else {
+            translateY = Math.min(0, totalDelta);
+            if (totalDelta > 0) translateY = totalDelta / 6;
+        }
+        sheetEl.style.transform = `translate(-50%, ${translateY}px)`;
+    }
+
+    function _onHandlePointerDown(e) {
+        if (e.target.closest('button')) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+        dragMode = 'handle';
+        activePointerId = e.pointerId;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        lastY = e.clientY;
+        dragStartTime = lastTime = performance.now();
+        velocity = 0;
+        sheetEl.classList.add('bs-dragging');
+        try { handleZoneEl.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    function _onHandlePointerMove(e) {
+        if (dragMode !== 'handle') return;
+        e.preventDefault?.();
+        const now = performance.now();
+        const dt  = Math.max(1, now - lastTime);
+        velocity  = (e.clientY - lastY) / dt;
+        lastY = e.clientY;
+        lastTime = now;
+
+        _applyDragTransform(e.clientY - dragStartY);
+    }
+
+    function _onHandlePointerUp(e) {
+        if (dragMode !== 'handle') return;
+        sheetEl.classList.remove('bs-dragging');
+        try { handleZoneEl.releasePointerCapture?.(e.pointerId); } catch (_) {}
+
+        const dx = Math.abs(e.clientX - dragStartX);
+        const dy = Math.abs(e.clientY - dragStartY);
+
+        if (dx < 5 && dy < 5) {
+            sheetEl.style.transform = '';
+            if (isFullscreen) exitFullscreen();
+            else toggle();
+        } else {
+            _resolveDragEnd(e.clientY - dragStartY);
+        }
+        dragMode = null;
+        activePointerId = null;
+    }
+
+    function _onContentPointerDown(e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        if (e.target.closest('#bs-handle-zone')) return; // géré par les handlers dédiés
+        if (dragMode) return; // un drag est déjà en cours
+
+        dragMode = 'content-watch';
+        activePointerId = e.pointerId;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        lastY = e.clientY;
+        dragStartTime = lastTime = performance.now();
+        velocity = 0;
+    }
+
+    function _onContentPointerMove(e) {
+        if (dragMode !== 'content-watch' && dragMode !== 'content-active') return;
+        if (activePointerId !== null && e.pointerId !== activePointerId) return;
+
+        const dy = e.clientY - dragStartY;
+        const dx = e.clientX - dragStartX;
+
+        if (dragMode === 'content-watch') {
+            if (Math.abs(dy) < DRAG_THRESHOLD && Math.abs(dx) < DRAG_THRESHOLD) return;
+
+            if (Math.abs(dx) > Math.abs(dy)) { dragMode = null; return; }
+
+            if (isFullscreen) {
+                const scrollTop = contentEl ? contentEl.scrollTop : 0;
+                if (!(scrollTop <= 0 && dy > 0)) {
+                    dragMode = null;
+                    return;
+                }
+            }
+
+            dragMode = 'content-active';
+            sheetEl.classList.add('bs-dragging');
+            try { sheetEl.setPointerCapture(e.pointerId); } catch (_) {}
+        }
+
+        e.preventDefault?.();
+        const now = performance.now();
+        const dt  = Math.max(1, now - lastTime);
+        velocity  = (e.clientY - lastY) / dt;
+        lastY = e.clientY;
+        lastTime = now;
+
+        _applyDragTransform(dy);
+    }
+
+    function _onContentPointerUp(e) {
+        if (dragMode === 'content-active') {
+            if (activePointerId !== null && e.pointerId !== activePointerId) return;
+            sheetEl.classList.remove('bs-dragging');
+            try { sheetEl.releasePointerCapture?.(e.pointerId); } catch (_) {}
+            _resolveDragEnd(e.clientY - dragStartY);
+        }
+        dragMode = null;
+        activePointerId = null;
     }
 
     function init() {
@@ -12607,32 +12700,15 @@ const BottomSheet = (() => {
         _measure();
         window.addEventListener('resize', () => _measure());
 
-        let downX = 0, downY = 0;
-        handleZoneEl.addEventListener('pointerdown', (e) => {
-            if (e.target.closest('button')) return; 
-            downX = e.clientX; downY = e.clientY;
-            _onPointerDown(e);
-        });
-        handleZoneEl.addEventListener('pointermove', _onPointerMove);
-        const upHandler = (e) => {
-            if (!isDragging) return;
-            const dx = Math.abs(e.clientX - downX);
-            const dy = Math.abs(e.clientY - downY);
-            if (dx < 5 && dy < 5) {
-                isDragging = false;
-                sheetEl.classList.remove('bs-dragging');
-                sheetEl.style.transform = '';
-                if (isFullscreen) {
-                    exitFullscreen();
-                } else {
-                    toggle();
-                }
-                return;
-            }
-            _onPointerUp(e);
-        };
-        handleZoneEl.addEventListener('pointerup', upHandler);
-        handleZoneEl.addEventListener('pointercancel', upHandler);
+        handleZoneEl.addEventListener('pointerdown', _onHandlePointerDown);
+        handleZoneEl.addEventListener('pointermove', _onHandlePointerMove);
+        handleZoneEl.addEventListener('pointerup', _onHandlePointerUp);
+        handleZoneEl.addEventListener('pointercancel', _onHandlePointerUp);
+
+        sheetEl.addEventListener('pointerdown', _onContentPointerDown);
+        window.addEventListener('pointermove', _onContentPointerMove, { passive: false });
+        window.addEventListener('pointerup', _onContentPointerUp);
+        window.addEventListener('pointercancel', _onContentPointerUp);
 
         let rowStartY = 0, rowStartT = 0, rowTracking = false;
         menubtmEl?.addEventListener('pointerdown', (e) => {
@@ -12644,7 +12720,7 @@ const BottomSheet = (() => {
         menubtmEl?.addEventListener('pointerup', (e) => {
             if (!rowTracking) return;
             rowTracking = false;
-            const dy = rowStartY - e.clientY; 
+            const dy = rowStartY - e.clientY;
             const dt = performance.now() - rowStartT;
             if (dy > 50 && dt < 350) expand();
         });
@@ -12662,7 +12738,6 @@ const BottomSheet = (() => {
         get fullscreen() { return isFullscreen; }
     };
 })();
-
 
 function expandBottomSheet()   { BottomSheet.expand(); }
 function collapseBottomSheet() { BottomSheet.collapse(); }
@@ -13047,11 +13122,11 @@ function _ensureNearestStopSection() {
     section.innerHTML = `
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:0 2px;">
             <span id="bs-nearest-stop-label" style="font-size:17px; color:rgba(255,255,255,0.55);">
-                ${t('nearest_stop') || 'Arrêt le plus proche'}
+                ${t('nearest_stops') || 'Arrêts à proximité'}
             </span>
         </div>
         <div id="bs-nearest-stop-wrapper" style="position:relative;">
-            <div id="bs-nearest-stop-scroll" style="max-height:200px; overflow:hidden;
+            <div id="bs-nearest-stop-scroll" style="max-height:220px; overflow:hidden;
                  transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 15px;">
                 <div id="bs-nearest-stop-content"></div>
             </div>
@@ -13068,7 +13143,7 @@ function _ensureNearestStopSection() {
 
 async function _renderNearestStopWidget() {
     const state = window._nearestStopState;
-    if (!state.currentCluster) return;
+    if (!state.nearbyStops || !state.nearbyStops.length) return;
 
     const hasLineFavs = getFavoriteSchedules().length > 0;
     const hasStopFavs = _getStopFavorites().length > 0;
@@ -13083,58 +13158,37 @@ async function _renderNearestStopWidget() {
     if (!section) return;
     section.style.display = 'block';
 
-    const cluster = state.currentCluster;
-    const content = document.getElementById('bs-nearest-stop-content');
+    //nettoie l'ancien bloc correspondances si jms il existe encore dans le dom
+    const servedSection = document.getElementById('bs-nearest-served-stop-section');
+    if (servedSection) servedSection.style.display = 'none';
+
     const labelEl = document.getElementById('bs-nearest-stop-label');
+    if (labelEl) {
+        labelEl.textContent = t('nearest_stops') || 'Arrêts à proximité';
+    }
+
+    const content = document.getElementById('bs-nearest-stop-content');
     const hintEl  = document.getElementById('bs-nearest-stop-hint');
     if (!content) return;
 
-    const distText = state.currentDistance < 1000
-        ? `${Math.round(state.currentDistance)} m`
-        : `${(state.currentDistance / 1000).toFixed(1)} km`;
-    if (labelEl) labelEl.textContent = `${cluster.name} · ${distText}`;
+    content.innerHTML = '';
 
-    if (!content.dataset.loaded) {
-        content.innerHTML = `
-            <div class="bs-fav-loading" style="padding:10px 2px;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5">
-                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                </svg>
-                <span>Chargement…</span>
-            </div>`;
-    }
-
-    const passages = await _computeStopPassages(cluster.stopIds);
-    _renderStopPassages(content, cluster.stopIds, cluster.name, passages, !!content.dataset.loaded);
-    content.dataset.loaded = 'true';
-
-    requestAnimationFrame(() => {
-        if (hintEl) hintEl.style.display = content.scrollHeight > 200 ? 'block' : 'none';
-    });
-
-    const servedStops = (state.currentServedStops || [])
-        .filter(s => !cluster.stopIds.some(id => s.cluster.stopIds.includes(id)))
-        .slice(0, 10);
-
-    const servedContent = document.getElementById('bs-nearest-served-stop-content');
-    if (!servedContent) return;
-
-    servedContent.innerHTML = '';
-
-    servedStops.forEach((item, idx) => {
-        const distText2 = item.distance < 1000
+    state.nearbyStops.forEach((item, idx) => {
+        const distText = item.distance < 1000
             ? `${Math.round(item.distance)} m`
             : `${(item.distance / 1000).toFixed(1)} km`;
 
         const block = document.createElement('div');
-        block.style.cssText = `margin-bottom:${idx < servedStops.length - 1 ? '14px' : '0'};`;
+        block.style.cssText = `margin-bottom:${idx < state.nearbyStops.length - 1 ? '14px' : '0'};`;
 
         const blockLabel = document.createElement('div');
+        blockLabel.className = 'ripple-container';
         blockLabel.style.cssText = `
-            font-size:13px; color:rgba(255,255,255,0.5);
-            margin-bottom:6px; padding:0 2px;
-            display:flex; align-items:center; gap:6px;`;
+            font-size:13px; color:rgba(255,255,255,0.55);
+            margin-bottom:6px; padding:4px 2px;
+            display:flex; align-items:center; gap:6px;
+            cursor:pointer; border-radius:8px;
+            transition: background 0.15s ease;`;
         blockLabel.innerHTML = `
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2.5"
@@ -13142,7 +13196,21 @@ async function _renderNearestStopWidget() {
                 <circle cx="12" cy="10" r="3"/>
                 <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
             </svg>
-            <span>${item.cluster.name} · ${distText2}</span>`;
+            <span>${item.cluster.name} · ${distText}</span>`;
+
+        blockLabel.addEventListener('click', () => {
+            safeVibrate?.([30], true);
+            soundsUX?.('MBF_Popup');
+            smoothFlyTo([item.cluster.lat, item.cluster.lon], 17, { easeLinearity: 0.12 });
+            openStopInBottomSheet(item.cluster.stopIds, item.cluster.name);
+        });
+        blockLabel.addEventListener('pointerenter', () => {
+            blockLabel.style.background = 'rgba(255,255,255,0.06)';
+        });
+        blockLabel.addEventListener('pointerleave', () => {
+            blockLabel.style.background = 'transparent';
+        });
+
         block.appendChild(blockLabel);
 
         const blockContent = document.createElement('div');
@@ -13150,16 +13218,23 @@ async function _renderNearestStopWidget() {
 
         _renderStopPassages(blockContent, item.cluster.stopIds, item.cluster.name, item.passages, false);
 
-        servedContent.appendChild(block);
+        content.appendChild(block);
+    });
+
+    requestAnimationFrame(() => {
+        if (hintEl) hintEl.style.display = content.scrollHeight > 200 ? 'block' : 'none';
     });
 }
 
 function _hideNearestStopWidget() {
     const section = document.getElementById('bs-nearest-stop-section');
     if (section) section.style.display = 'none';
+    const servedSection = document.getElementById('bs-nearest-served-stop-section');
+    if (servedSection) servedSection.style.display = 'none';
+    const servedContent = document.getElementById('bs-nearest-served-stop-content');
+    if (servedContent) servedContent.innerHTML = '';
 
-    window._nearestStopState.currentCluster    = null;
-    window._nearestStopState.currentServedStops = [];
+    window._nearestStopState.nearbyStops        = [];
     window._nearestStopState.lastComputedLatLng = null;
 }
 
@@ -13817,8 +13892,8 @@ function _toggleStopFavorite(stopIdArr, stopName, btn) {
 async function openStopInBottomSheet(stopIds, stopName) {
     safeVibrate?.([30], true);
     soundsUX('MBF_Popup');
+    _hideNearestStopWidget();
 
-    //marquer qu'on est en mode "vue arret"
     document.getElementById('bottom-sheet').dataset.stopView = 'true';
 
     BottomSheet.expand();
@@ -14463,13 +14538,14 @@ function _restoreBottomSheetTitle() {
         if (grid) { grid.style.display = ''; delete grid.dataset.hiddenByStop; }
 
         _refreshBottomSheetGreeting();
-        const section = document.getElementById('bs-favorites-section');
-        const list    = document.getElementById('bs-favorites-list');
     });
 
     setTimeout(() => {
         _refreshBottomSheetFavorites(true);
         if (!BottomSheet.expanded) BottomSheet.expand();
+        if (locationMarker) {
+            _updateNearestStopWidget(locationMarker.getLatLng());
+        }
     }, 400);
 }
 
