@@ -1,4 +1,6 @@
 
+
+
         // ============================================================
         //  Multi-network bootstrap MBF3X+
         // ------------------------------------------------------------
@@ -7,6 +9,170 @@
         //  persisted in localStorage under "activeNetwork" and may be
         //  overridden via the ?network= URL query parameter.
         // ============================================================
+
+
+        (function () {
+        "use strict";
+
+        const SYNCED_KEYS = new Set([
+            'theme', 'colorbkg', 'isStandardView', 'locateonstart',
+            'transparency', 'vibrations', 'soundsux', 'filterlinesonselect',
+            'nepasafficheraccueil', 'preferredLanguage', 'darkmap',
+            'favoriteLines' 
+        ]);
+
+        const SYNCED_PREFIXES = [
+            'favoriteSchedules', 
+            'favoriteStops' 
+        ];
+
+        function isSyncedKey(key) {
+            if (SYNCED_KEYS.has(key)) return true;
+            return SYNCED_PREFIXES.some(prefix => key.startsWith(prefix));
+        }
+
+        function sanitizeKey(key) {
+            return key.replace(/\./g, '__DOT__');
+        }
+        function unsanitizeKey(key) {
+            return key.replace(/__DOT__/g, '.');
+        }
+
+        const DEBOUNCE_MS = 800;
+        let pendingWrites = {}; 
+        let debounceTimer = null;
+        let currentUid = null;
+        let applyingRemote = false;
+        let unsubscribeSnapshot = null;
+
+        function getDb() {
+            if (!window.firebase || !firebase.firestore || !firebase.apps.length) return null;
+            return firebase.firestore();
+        }
+
+        function scheduleUpload(key, value) {
+            if (!currentUid || applyingRemote) return; 
+            pendingWrites[sanitizeKey(key)] = value;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(flushWrites, DEBOUNCE_MS);
+        }
+
+        function flushWrites() {
+            const db = getDb();
+            if (!db || !currentUid || Object.keys(pendingWrites).length === 0) return;
+
+            const toSend = pendingWrites;
+            pendingWrites = {};
+
+            const patch = {};
+            Object.entries(toSend).forEach(([k, v]) => {
+            patch[`settings.${k}`] = v; 
+            });
+
+            db.collection('users').doc(currentUid).set(patch, { merge: true })
+            .catch(err => console.warn('[SettingsSync] upload échoué', err));
+        }
+
+        const originalSetItem = localStorage.setItem.bind(localStorage);
+        const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+
+        localStorage.setItem = function (key, value) {
+            originalSetItem(key, value);
+            if (isSyncedKey(key)) scheduleUpload(key, value);
+        };
+
+        localStorage.removeItem = function (key) {
+            originalRemoveItem(key);
+            if (isSyncedKey(key) && currentUid && !applyingRemote) {
+            const db = getDb();
+            if (db) {
+                db.collection('users').doc(currentUid)
+                .update({ [`settings.${sanitizeKey(key)}`]: firebase.firestore.FieldValue.delete() })
+                .catch(() => {});
+            }
+            }
+        };
+
+        function applyRemoteSettings(settings) {
+            if (!settings) return;
+            applyingRemote = true;
+            try {
+            Object.entries(settings).forEach(([sanitized, value]) => {
+                const key = unsanitizeKey(sanitized);
+                if (value === undefined || value === null) return;
+                const current = localStorage.getItem(key);
+                const stringValue = String(value);
+                if (current !== stringValue) {
+                originalSetItem(key, stringValue);
+                window.dispatchEvent(new CustomEvent('mbf-remote-setting-changed', { detail: { key, value } }));
+                }
+            });
+            } finally {
+            applyingRemote = false;
+            }
+        }
+
+        function startRealtimeSync(uid) {
+            const db = getDb();
+            if (!db) return;
+
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+
+            unsubscribeSnapshot = db.collection('users').doc(uid)
+            .onSnapshot(
+                (doc) => {
+                if (doc.exists) applyRemoteSettings(doc.data().settings);
+                },
+                (err) => console.warn('[SettingsSync] onSnapshot échoué', err)
+            );
+        }
+
+        function stopRealtimeSync() {
+            if (unsubscribeSnapshot) {
+            unsubscribeSnapshot();
+            unsubscribeSnapshot = null;
+            }
+        }
+
+        window.SettingsSyncReady = new Promise((resolve) => {
+            function ensureFirebase() {
+            if (!window.firebase || !firebase.auth) {
+                setTimeout(ensureFirebase, 100);
+                return;
+            }
+            firebase.auth().onAuthStateChanged(async (user) => {
+                stopRealtimeSync();
+                currentUid = user ? user.uid : null;
+
+                if (user) {
+                // premier pull explicite pour ne pas démarrer l'app avec des valeurs obsolètes
+                try {
+                    const db = getDb();
+                    const doc = await db.collection('users').doc(user.uid).get();
+                    if (doc.exists) applyRemoteSettings(doc.data().settings);
+                } catch (err) {
+                    console.warn('[SettingsSync] pull initial échoué', err);
+                }
+                startRealtimeSync(user.uid); 
+                }
+                resolve(); 
+            });
+            }
+            ensureFirebase();
+        });
+        })();
+
+        window.addEventListener('mbf-remote-setting-changed', (e) => {
+            if (e.detail.key.startsWith('favoriteSchedules') || e.detail.key.startsWith('favoriteStops')) {
+                _refreshBottomSheetFavorites(true);
+            }
+            if (e.detail.key === 'favoriteLines') {
+                // favoriteLines est un Set en mémoire dans logic.js, il faudrait
+                // le recharger depuis localStorage pour qu'il se mette à jour sans reload
+                updateMenu();
+            }
+        });
+
         (function bootstrapActiveNetwork() {
             try {
                 const params = new URLSearchParams(window.location.search);
@@ -16,7 +182,7 @@
                     const cleanUrl = window.location.pathname + window.location.hash;
                     window.history.replaceState({}, '', cleanUrl);
                 }
-            } catch (_) { /* ignorer */ }
+            } catch (_) {  }
         })();
 
         window.ACTIVE_NETWORK = localStorage.getItem('activeNetwork') || 'palmbus';

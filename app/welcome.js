@@ -103,7 +103,6 @@
     #${OVERLAY_ID} .mbf-card {
       width: 100%;
       height: 100%;
-      max-width: 600px;
       max-height: 100%;
       background-color: #fff;
       border-radius: 0;
@@ -201,7 +200,7 @@
 
     #${OVERLAY_ID} .mbf-auth { display: flex; flex-direction: column; gap: 18px; padding-top: 12px; height: 100%; }
     #${OVERLAY_ID} .mbf-auth-logo { text-align: center; margin-bottom: 4px; }
-    #${OVERLAY_ID} .mbf-auth-logo img { max-width: 400px;  margin: 0 auto; display: block; }
+    #${OVERLAY_ID} .mbf-auth-logo img { max-width: 400px; width: 100%; margin: 0 auto; display: block; }
 
     #${OVERLAY_ID} .mbf-auth-tabs { display: flex; gap: 8px; background-color: #f3f0ef; border-radius: 10px; padding: 4px; }
     #${OVERLAY_ID} .mbf-auth-tab {
@@ -336,11 +335,6 @@
     #${OVERLAY_ID} .mbf-btn-coffee svg { width: 18px; height: 18px; }
     #${OVERLAY_ID} .mbf-btn-coffee:hover,
     #${OVERLAY_ID} .mbf-btn-coffee:focus-visible { background-color: #e6c700; }
-
-    @media (min-width: 640px) {
-      #${OVERLAY_ID} { padding: 24px; }
-      #${OVERLAY_ID} .mbf-card { height: min(760px, 92vh); border-radius: 20px; }
-    }
 
     @media (prefers-reduced-motion: reduce) {
       #${OVERLAY_ID} { transition: none; }
@@ -914,7 +908,6 @@
           <button type="button" class="mbf-btn mbf-btn-primary mbf-auth-submit" id="mbf-auth-submit">Se connecter</button>
         </div>
 
-        <!-- Panneau : complément de profil (utilisé si Google ne fournit pas la date de naissance) -->
         <div class="mbf-auth-panel" data-panel="profile">
           <p class="mbf-auth-hint">Encore une petite étape : dites-nous en un peu plus sur vous.</p>
 
@@ -1034,8 +1027,8 @@
   var current = 0;
   var isInjected = false;
 
-  // État de l'écran d'authentification
-  var authMode = "login"; // "login" | "signup"
+  // etat de l'écran d'auth
+  var authMode = "login"; 
 
   function injectStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -1267,15 +1260,15 @@
   function translateAuthError(err) {
     var code = err && err.code;
     var map = {
-      "auth/invalid-email": "Adresse email invalide.",
-      "auth/user-disabled": "Ce compte a été désactivé en raison d'une violation des conditions d'utilisation.",
-      "auth/user-not-found": "Aucun compte ne correspond à cet email...",
-      "auth/wrong-password": "Mot de passe incorrect.",
-      "auth/email-already-in-use": "Un compte existe déjà avec cet email.",
-      "auth/weak-password": "Le mot de passe doit contenir au moins 6 caractères.",
-      "auth/popup-closed-by-user": "La fenêtre Google a été fermée avant la fin de la connexion.",
-      "auth/too-many-requests": "Trop de tentatives, merci de réessayer plus tard.",
-      "auth/requires-recent-login": "Merci de vous reconnecter pour effectuer cette action.",
+      "auth/invalid-email": "mbf/auth/invalid-email | On parle pas de Royal Mail mais d'une adresse mail 😅 Adresse email invalide.",
+      "auth/user-disabled": "mbf/auth/user-disabled | Fallait pas faire l'andouille ! Ce compte a été désactivé en raison d'une violation des conditions d'utilisation.",
+      "auth/user-not-found": "mbf/auth/user-not-found | Il semblerait qu'il y ait un petit trou de mémoire 😅 Aucun compte ne correspond à cet email...",
+      "auth/wrong-password": "mbf/auth/wrong-password | Allez ! On va dire que c'est pas ton jour, mais le mot de passe est incorrect.",
+      "auth/email-already-in-use": "mbf/auth/email-already-in-use | Quel hasard ! Un compte existe déjà avec cet email.",
+      "auth/weak-password": "mbf/auth/weak-password | Un peu plus long et ça fera le job ! Le mot de passe doit contenir au moins 6 caractères.",
+      "auth/popup-closed-by-user": "mbf/auth/popup-closed-by-user | On y est allé un peu trop vite... La fenêtre Google a été fermée avant la fin de la connexion.",
+      "auth/too-many-requests": "mbf/auth/too-many-requests | Eyyyy on se calme là 😂 Trop de tentatives, merci de réessayer plus tard.",
+      "auth/requires-recent-login": "mbf/auth/requires-recent-login | Qu'es-ce qui se passe par là... Merci de vous reconnecter pour effectuer cette action.",
     };
     return (code && map[code]) || (err && err.message) || "Une erreur est survenue, merci de réessayer.";
   }
