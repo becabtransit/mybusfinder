@@ -12438,7 +12438,7 @@ const BottomSheet = (() => {
             #bottom-sheet:not(.bs-fullscreen) #bs-favorites-list,
             #bottom-sheet:not(.bs-fullscreen) #bs-search-results,
             #bottom-sheet:not(.bs-fullscreen) #bs-stop-view {
-                max-height: 220px;
+                max-height: 400px;
                 overflow: hidden !important;
             }
 
@@ -13122,18 +13122,11 @@ function _ensureNearestStopSection() {
     section.style.cssText = 'margin-right: 37px; margin-left: 37px; display:none;';
     section.innerHTML = `
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:0 2px;">
-            <span id="bs-nearest-stop-label" style="font-size:17px; color:rgba(255,255,255,0.55);">
-                ${t('nearest_stops') || 'Arrêts à proximité'}
-            </span>
         </div>
         <div id="bs-nearest-stop-wrapper" style="position:relative;">
-            <div id="bs-nearest-stop-scroll" style="max-height:220px; overflow:hidden;
-                 transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 15px;">
+            <div id="bs-nearest-stop-scroll" style="max-height:350px; overflow:hidden;
+                 transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 0px 0px 15px 15px;">
                 <div id="bs-nearest-stop-content"></div>
-            </div>
-            <div id="bs-nearest-stop-hint" style="display:none; text-align:center; margin-top:4px;
-                    font-size:11px; color:rgba(255,255,255,0.4); pointer-events:none;">
-                ${t('swipe_up_to_see_all') || 'Glissez vers le haut pour tout voir'}
             </div>
         </div>
     `;
