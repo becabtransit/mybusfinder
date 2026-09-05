@@ -378,7 +378,7 @@
   `;
 
 
-    var stepTerms = `
+var stepTerms = `
     <section class="mbf-step" data-step="1">
         <div class="mbf-rtf">
 
@@ -387,7 +387,7 @@
 
         <h2>Conditions Générales d'Utilisation</h2>
 
-        <p><strong>Dernière mise à jour : 2 septembre 2026</strong></p>
+        <p><strong>Dernière mise à jour : 6 septembre 2026</strong></p>
 
         <p>
             Bienvenue sur <strong>My Bus Finder</strong>. En utilisant cette application,
@@ -446,6 +446,11 @@
             les données accessibles et les évolutions de l'application.
         </p>
 
+        <p>
+            L'accès à My Bus Finder nécessite la création et la connexion à un compte
+            <strong>BecabConnect</strong>, tel que décrit à l'article 11 des présentes CGU.
+        </p>
+
         <h3>3. Sources des données de transport</h3>
 
         <p>
@@ -459,6 +464,9 @@
             My Bus Finder utilise des formats de données propriétaires (appelés « <strong>MBF Setvars</strong> ») 
             pour certaines fonctionnalités, notamment pour les informations des véhicules, les 
             paramètres personnels ainsi que pour les fonctionnalités liées à l'expérience utilisateur.
+            Ces paramètres personnels sont désormais rattachés à votre compte BecabConnect
+            lorsque vous êtes connecté, afin d'être conservés et synchronisés entre vos usages
+            de l'application.
         </p>
 
         <p>
@@ -543,7 +551,8 @@
             <li>d'une erreur de localisation d'un véhicule ;</li>
             <li>d'une indisponibilité temporaire de l'application ;</li>
             <li>d'un dysfonctionnement d'un réseau de transport ;</li>
-            <li>d'une erreur provenant d'une source de données tierce.</li>
+            <li>d'une erreur provenant d'une source de données tierce ;</li>
+            <li>d'une indisponibilité temporaire du service BecabConnect ou de son fournisseur d'hébergement.</li>
         </ul>
 
         <p>
@@ -584,16 +593,45 @@
         </p>
 
         <p>
-            À ce jour, l'application ne nécessite pas la création d'un compte utilisateur
-            et ne dispose pas d'une base de données destinée à enregistrer des profils
-            utilisateurs.
+            L'utilisation de My Bus Finder nécessite la création d'un compte
+            <strong>BecabConnect</strong>, commun aux différents services édités par
+            Becab Development. Dans ce cadre, les données suivantes sont collectées :
+        </p>
+
+        <ul>
+            <li>votre <strong>nom</strong> et votre <strong>prénom</strong>, notamment afin de personnaliser votre expérience au sein de l'application et des autres services BecabConnect ;</li>
+            <li>votre <strong>âge</strong>, à des fins statistiques et d'amélioration du service ;</li>
+            <li>vos identifiants de connexion, favoris, paramètres et préférences, afin de les conserver et de les synchroniser entre vos appareils et les services BecabConnect.</li>
+        </ul>
+
+        <p>
+            Ces données sont hébergées et traitées via <strong>Firebase</strong>, service
+            proposé par Google, utilisé notamment pour l'authentification et le stockage
+            des données de compte. Ce traitement est susceptible d'entraîner un transfert
+            de données vers des serveurs situés hors de l'Union européenne, encadré par les
+            garanties prévues par Google dans le cadre de Firebase.
         </p>
 
         <p>
-            Toutefois, certains services techniques nécessaires au fonctionnement de
+            Le compte BecabConnect étant commun à plusieurs services édités par Becab
+            Development, les données que vous renseignez peuvent être utilisées pour
+            l'ensemble de ces services, dans les limites décrites par la Politique de
+            confidentialité.
+        </p>
+
+        <p>
+            Par ailleurs, certains services techniques nécessaires au fonctionnement de
             l'application, ainsi que des services de mesure d'audience, peuvent traiter
             certaines données techniques conformément à leurs propres conditions et à la
             réglementation applicable.
+        </p>
+
+        <p>
+            Conformément à la réglementation applicable, vous disposez d'un droit d'accès,
+            de rectification, de suppression et de portabilité de vos données, ainsi que
+            du droit de retirer votre consentement ou de demander la suppression de votre
+            compte BecabConnect à tout moment, en nous contactant à l'adresse indiquée à
+            l'article 19.
         </p>
 
         <p>
@@ -603,7 +641,7 @@
         </p>
 
         <p>
-          <strong>Becab Development ne collecte pas de données personnelles sensibles, ne vend et ne vendra jamais vos informations à des tiers.</strong>
+          <strong>Becab Development ne collecte pas de données personnelles sensibles au-delà de celles nécessaires au fonctionnement de BecabConnect, et ne vend et ne vendra jamais vos informations à des tiers.</strong>
         </p>
 
         <h3>8. Cookies et technologies similaires</h3>
@@ -614,8 +652,8 @@
 
         <p>
             Certains cookies peuvent être nécessaires au bon fonctionnement du service,
-            notamment pour mémoriser certains choix ou assurer des fonctionnalités
-            techniques.
+            notamment pour mémoriser certains choix, assurer votre connexion à votre
+            compte BecabConnect ou garantir des fonctionnalités techniques.
         </p>
 
         <p>
@@ -645,6 +683,7 @@
         <ul>
             <li>Cloudflare ;</li>
             <li>Google Analytics ;</li>
+            <li><strong>Firebase</strong> (Google), pour l'authentification et l'hébergement des données liées au compte BecabConnect ;</li>
             <li>Leaflet ;</li>
             <li>MapLibre ;</li>
             <li>des services CDN ;</li>
@@ -688,21 +727,52 @@
             place effective d'un service publicitaire.
         </p>
 
-        <h3>11. Absence de compte utilisateur</h3>
+        <h3>11. Compte utilisateur BecabConnect</h3>
 
         <p>
-            À ce jour, My Bus Finder ne nécessite pas la création d'un compte utilisateur.
+            L'accès et l'utilisation de My Bus Finder nécessitent la création d'un compte
+            <strong>BecabConnect</strong>. Ce compte est commun aux différents services
+            édités par Becab Development et permet notamment d'enregistrer et de
+            synchroniser vos favoris, vos paramètres et vos préférences d'utilisation.
         </p>
 
         <p>
-            Si un système de compte est ajouté à l'avenir, les utilisateurs seront informés
-            des données collectées et des conditions applicables avant ou lors de la
-            création d'un compte.
+            La création d'un compte BecabConnect est <strong>obligatoire</strong> pour
+            accéder aux fonctionnalités de l'application. Sans compte, l'accès au service
+            n'est pas possible.
         </p>
 
         <p>
-            Les présentes CGU et la Politique de confidentialité pourront alors être mises
-            à jour afin de prendre en compte ces nouvelles fonctionnalités.
+            Lors de la création de votre compte, il vous est demandé de renseigner votre
+            nom, votre prénom ainsi que votre âge. Ces informations sont utilisées afin de
+            personnaliser votre expérience au sein des services BecabConnect et à des fins
+            statistiques, comme précisé à l'article 7.
+        </p>
+
+        <p>
+            Vous vous engagez à fournir des informations exactes lors de la création de
+            votre compte et à les maintenir à jour. Vous êtes responsable de la
+            confidentialité de vos identifiants de connexion et de toute activité réalisée
+            depuis votre compte.
+        </p>
+
+        <p>
+            Vous pouvez demander la suppression de votre compte BecabConnect à tout moment
+            en contactant Becab Development à l'adresse indiquée à l'article 19. La
+            suppression du compte peut entraîner la perte de vos favoris, paramètres et
+            autres données associées.
+        </p>
+
+        <p>
+            Becab Development se réserve le droit de suspendre ou de supprimer un compte
+            BecabConnect en cas d'utilisation non conforme aux présentes CGU, sans préjudice
+            d'éventuelles poursuites judiciaires.
+        </p>
+
+        <p>
+            Les présentes CGU et la Politique de confidentialité pourront être mises à jour
+            afin de prendre en compte l'évolution des fonctionnalités liées au compte
+            BecabConnect.
         </p>
 
         <h3>12. Utilisation raisonnable du service</h3>
@@ -716,12 +786,13 @@
 
         <ul>
             <li>perturber ou tenter de perturber le fonctionnement du service ;</li>
-            <li>tenter d'accéder sans autorisation aux systèmes de l'application ;</li>
+            <li>tenter d'accéder sans autorisation aux systèmes de l'application ou au compte BecabConnect d'un autre utilisateur ;</li>
             <li>contourner les mesures techniques ou de sécurité ;</li>
             <li>effectuer une extraction massive ou abusive des données ;</li>
             <li>utiliser des robots ou scripts susceptibles de surcharger le service afin de nuire à son fonctionnement ;</li>
             <li>utiliser le service à des fins illégales ;</li>
             <li>opérer à l'ingénierie inverse ou à la décompilation du code de la logique métier (back-end) ;</li>
+            <li>créer un compte BecabConnect en usurpant l'identité d'un tiers ou en fournissant des informations volontairement inexactes ;</li>
             <li>porter atteinte aux droits de Becab Development ou de tiers.</li>
         </ul>
 
@@ -771,7 +842,7 @@
             <li>de maintenance ;</li>
             <li>de mise à jour ;</li>
             <li>de problème technique ;</li>
-            <li>de problème chez un fournisseur tiers ;</li>
+            <li>de problème chez un fournisseur tiers, notamment Firebase ;</li>
             <li>d'indisponibilité des données de transport ;</li>
             <li>d'un incident de sécurité ;</li>
             <li>de force majeure.</li>
@@ -779,14 +850,16 @@
 
         <p>
             Becab Development se réserve le droit de modifier, ajouter, supprimer ou
-            faire évoluer tout ou partie des fonctionnalités de My Bus Finder.
+            faire évoluer tout ou partie des fonctionnalités de My Bus Finder, y compris
+            celles liées au compte BecabConnect.
         </p>
 
         <h3>15. Sécurité</h3>
 
         <p>
             Becab Development met en œuvre des mesures techniques et organisationnelles
-            raisonnables afin de contribuer à la sécurité du service.
+            raisonnables afin de contribuer à la sécurité du service et de votre compte
+            BecabConnect, notamment via les mécanismes de sécurité fournis par Firebase.
         </p>
 
         <p>
@@ -817,7 +890,7 @@
         <ul>
             <li>une évolution de My Bus Finder ;</li>
             <li>l'ajout de nouvelles fonctionnalités ;</li>
-            <li>la création éventuelle de comptes utilisateurs ;</li>
+            <li>une évolution du compte BecabConnect ou des services associés ;</li>
             <li>la mise en place de publicités ;</li>
             <li>une évolution technique ;</li>
             <li>une évolution légale ou réglementaire.</li>
@@ -849,8 +922,8 @@
         <h3>19. Contact</h3>
 
         <p>
-            Pour toute question concernant My Bus Finder ou les présentes Conditions
-            Générales d'Utilisation, vous pouvez contacter :
+            Pour toute question concernant My Bus Finder, votre compte BecabConnect ou les
+            présentes Conditions Générales d'Utilisation, vous pouvez contacter :
         </p>
 
         <p>
@@ -864,7 +937,8 @@
 
         <p>
             En utilisant My Bus Finder, vous reconnaissez avoir pris connaissance des
-            présentes Conditions Générales d'Utilisation et acceptez de les respecter.
+            présentes Conditions Générales d'Utilisation et acceptez de les respecter,
+            ainsi que de créer un compte BecabConnect conformément à l'article 11.
             Toute violation de ces conditions peut entraîner la suspension ou l'interruption de l'accès au service, ainsi que des poursuites judiciaires en dernier recours.
         </p>
 
@@ -879,6 +953,7 @@
     </section>
     `;
 
+    
   var stepAuth = `
     <section class="mbf-step" data-step="2">
       <div class="mbf-auth">
