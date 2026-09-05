@@ -14,16 +14,25 @@
         (function () {
         "use strict";
 
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCXA5YC8HPnZ-Ws3kvKtngM1kCj-5C6yDY",
+            authDomain: "mybusfinder-becabdev.firebaseapp.com",
+            projectId: "mybusfinder-becabdev",
+            storageBucket: "mybusfinder-becabdev.firebasestorage.app",
+            messagingSenderId: "838241151551",
+            appId: "1:838241151551:web:35836e3f314a7967df268a",
+        };
+
         const SYNCED_KEYS = new Set([
             'theme', 'colorbkg', 'isStandardView', 'locateonstart',
             'transparency', 'vibrations', 'soundsux', 'filterlinesonselect',
             'nepasafficheraccueil', 'preferredLanguage', 'darkmap',
-            'favoriteLines' 
+            'favoriteLines'
         ]);
 
         const SYNCED_PREFIXES = [
-            'favoriteSchedules', 
-            'favoriteStops' 
+            'favoriteSchedules',
+            'favoriteStops'
         ];
 
         function isSyncedKey(key) {
@@ -39,19 +48,29 @@
         }
 
         const DEBOUNCE_MS = 800;
-        let pendingWrites = {}; 
+        let pendingWrites = {};
         let debounceTimer = null;
         let currentUid = null;
         let applyingRemote = false;
         let unsubscribeSnapshot = null;
 
+        function ensureFirebaseApp() {
+            if (!window.firebase || !firebase.auth || !firebase.firestore) {
+            return false;
+            }
+            if (!firebase.apps.length) {
+            firebase.initializeApp(FIREBASE_CONFIG);
+            }
+            return true;
+        }
+
         function getDb() {
-            if (!window.firebase || !firebase.firestore || !firebase.apps.length) return null;
+            if (!ensureFirebaseApp()) return null;
             return firebase.firestore();
         }
 
         function scheduleUpload(key, value) {
-            if (!currentUid || applyingRemote) return; 
+            if (!currentUid || applyingRemote) return;
             pendingWrites[sanitizeKey(key)] = value;
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(flushWrites, DEBOUNCE_MS);
@@ -66,7 +85,7 @@
 
             const patch = {};
             Object.entries(toSend).forEach(([k, v]) => {
-            patch[`settings.${k}`] = v; 
+            patch[`settings.${k}`] = v;
             });
 
             db.collection('users').doc(currentUid).set(patch, { merge: true })
@@ -135,17 +154,17 @@
         }
 
         window.SettingsSyncReady = new Promise((resolve) => {
-            function ensureFirebase() {
-            if (!window.firebase || !firebase.auth) {
-                setTimeout(ensureFirebase, 100);
+            function waitForSdkThenInit() {
+            if (!ensureFirebaseApp()) {
+                setTimeout(waitForSdkThenInit, 100);
                 return;
             }
+
             firebase.auth().onAuthStateChanged(async (user) => {
                 stopRealtimeSync();
                 currentUid = user ? user.uid : null;
 
                 if (user) {
-                // premier pull explicite pour ne pas démarrer l'app avec des valeurs obsolètes
                 try {
                     const db = getDb();
                     const doc = await db.collection('users').doc(user.uid).get();
@@ -153,14 +172,15 @@
                 } catch (err) {
                     console.warn('[SettingsSync] pull initial échoué', err);
                 }
-                startRealtimeSync(user.uid); 
+                startRealtimeSync(user.uid);
                 }
-                resolve(); 
+                resolve();
             });
             }
-            ensureFirebase();
+            waitForSdkThenInit();
         });
         })();
+
 
         window.addEventListener('mbf-remote-setting-changed', (e) => {
             if (e.detail.key.startsWith('favoriteSchedules') || e.detail.key.startsWith('favoriteStops')) {

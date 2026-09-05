@@ -1264,6 +1264,7 @@
       "auth/user-disabled": "mbf/auth/user-disabled | Fallait pas faire l'andouille ! Ce compte a été désactivé en raison d'une violation des conditions d'utilisation.",
       "auth/user-not-found": "mbf/auth/user-not-found | Il semblerait qu'il y ait un petit trou de mémoire 😅 Aucun compte ne correspond à cet email...",
       "auth/wrong-password": "mbf/auth/wrong-password | Allez ! On va dire que c'est pas ton jour, mais le mot de passe est incorrect.",
+      "auth/invalid-credential": "mbf/auth/invalid-credential | Oups ! Les identifiants fournis sont invalides.",
       "auth/email-already-in-use": "mbf/auth/email-already-in-use | Quel hasard ! Un compte existe déjà avec cet email.",
       "auth/weak-password": "mbf/auth/weak-password | Un peu plus long et ça fera le job ! Le mot de passe doit contenir au moins 6 caractères.",
       "auth/popup-closed-by-user": "mbf/auth/popup-closed-by-user | On y est allé un peu trop vite... La fenêtre Google a été fermée avant la fin de la connexion.",
