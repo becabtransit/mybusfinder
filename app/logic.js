@@ -115,19 +115,39 @@
         function applyRemoteSettings(settings) {
             if (!settings) return;
             applyingRemote = true;
+            const changedKeys = new Set();
             try {
-            Object.entries(settings).forEach(([sanitized, value]) => {
-                const key = unsanitizeKey(sanitized);
-                if (value === undefined || value === null) return;
-                const current = localStorage.getItem(key);
-                const stringValue = String(value);
-                if (current !== stringValue) {
-                originalSetItem(key, stringValue);
-                window.dispatchEvent(new CustomEvent('mbf-remote-setting-changed', { detail: { key, value } }));
-                }
-            });
+                Object.entries(settings).forEach(([sanitized, value]) => {
+                    const key = unsanitizeKey(sanitized);
+                    if (value === undefined || value === null) return;
+                    const current = localStorage.getItem(key);
+                    const stringValue = String(value);
+                    if (current !== stringValue) {
+                        originalSetItem(key, stringValue);
+                        changedKeys.add(key);
+                        window.dispatchEvent(new CustomEvent('mbf-remote-setting-changed', { detail: { key, value } }));
+                    }
+                });
             } finally {
-            applyingRemote = false;
+                applyingRemote = false;
+            }
+            if (changedKeys.size > 0) {
+                setTimeout(() => reapplyVisibleSettings(changedKeys), 0);
+            }
+        }
+
+        function reapplyVisibleSettings(changedKeys) {
+            if (changedKeys.has('theme') && typeof changeColorBkg === 'function') {
+                changeColorBkg();
+            }
+            if (changedKeys.has('isStandardView') && typeof applyMapView === 'function') {
+                window.isStandardView = localStorage.getItem('isStandardView') === 'true';
+                applyMapView();
+            }
+            if ([...changedKeys].some(k => k.startsWith('favoriteSchedules') || k.startsWith('favoriteStops'))) {
+                if (typeof _refreshBottomSheetFavorites === 'function') {
+                    _refreshBottomSheetFavorites(true);
+                }
             }
         }
 
