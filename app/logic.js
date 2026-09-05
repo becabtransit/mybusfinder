@@ -1361,9 +1361,7 @@ window._nearestStopState = {
     lastComputedLatLng: null,
     currentCluster: null,
     currentDistance: null,
-    currentServedCluster: null,
-    currentServedDistance: null,
-    currentServedPassages: null,
+    currentServedStops: [],
     updateThresholdMeters: 120 
 };
 let _nearestStopExpanded = false;
@@ -1378,26 +1376,30 @@ function _findNearestStopCluster(latlng) {
     return best ? { cluster: best, distance: bestDist } : null;
 }
 
-async function _findNearestStopWithService(latlng, maxCandidates = 15) {
-    if (!window._stopClusters || !window._stopClusters.length) return null;
+async function _findNearestServedStops(latlng, maxResults = 10, maxCandidates = 40) {
+    if (!window._stopClusters || !window._stopClusters.length) return [];
 
     const sorted = window._stopClusters
         .map(cluster => ({ cluster, distance: latlng.distanceTo(L.latLng(cluster.lat, cluster.lon)) }))
         .sort((a, b) => a.distance - b.distance)
         .slice(0, maxCandidates);
 
+    const results = [];
+
     for (const { cluster, distance } of sorted) {
+        if (results.length >= maxResults) break;
         try {
             const passages = await _computeStopPassages(cluster.stopIds);
             const hasService = Object.values(passages).some(g => g.times && g.times.length > 0);
             if (hasService) {
-                return { cluster, distance, passages };
+                results.push({ cluster, distance, passages });
             }
         } catch (e) {
             console.warn('Erreur vérif desserte arret', e);
         }
     }
-    return null;
+
+    return results;
 }
 
 function onLocationFound(e) {
@@ -1480,20 +1482,13 @@ function _updateNearestStopWidget(latlng) {
 
     _renderNearestStopWidget();
 
-    _findNearestStopWithService(latlng).then(served => {
+    _findNearestServedStops(latlng, 11).then(served => {
         if (state.lastComputedLatLng !== latlng) return;
-
-        if (served) {
-            state.currentServedCluster  = served.cluster;
-            state.currentServedDistance = served.distance;
-            state.currentServedPassages = served.passages;
-        } else {
-            state.currentServedCluster  = null;
-            state.currentServedDistance = null;
-            state.currentServedPassages = null;
-        }
+        state.currentServedStops = served;
         _renderNearestStopWidget();
-    }).catch(() => {});
+    }).catch(() => {
+        state.currentServedStops = [];
+    });
 }
 
 function onLocationError(e) {
@@ -12398,6 +12393,9 @@ window.selectNetwork        = selectNetwork;
 const BottomSheet = (() => {
     const COLLAPSE_VEL = 0.45; 
     const EXPAND_VEL   = 0.45; 
+    const FORCED_PROPS = ['position','left','right','top','bottom','width','height',
+        'max-height','max-width','margin','transform','border-radius','z-index','filter'];
+
     let sheetEl, contentEl, handleZoneEl, menubtmEl;
     let collapsedHeight = 0;
     let expandedHeight  = 0;
@@ -12409,38 +12407,8 @@ const BottomSheet = (() => {
     let lastY = 0;
     let lastTime = 0;
     let velocity = 0;
-
-    function _injectFullscreenStyles() {
-        if (document.getElementById('bs-fullscreen-styles')) return;
-        const style = document.createElement('style');
-        style.id = 'bs-fullscreen-styles';
-        style.textContent = `
-            #bottom-sheet {
-                transition: filter 0.45s ease, height 0.45s cubic-bezier(0.32, 0.72, 0, 1),
-                            border-radius 0.45s ease;
-            }
-            #bottom-sheet.bs-fullscreen {
-                height: 100dvh !important;
-                max-height: 100dvh !important;
-                border-radius: 0 !important;
-                filter: invert(1) hue-rotate(180deg) brightness(1.05) contrast(0.95);
-            }
-            #bottom-sheet.bs-fullscreen #bs-content {
-                overflow-y: auto !important;
-                -webkit-overflow-scrolling: touch;
-            }
-            #bottom-sheet.bs-fullscreen #bs-nearest-stop-scroll,
-            #bottom-sheet.bs-fullscreen #bs-nearest-served-stop-scroll {
-                max-height: none !important;
-                overflow: visible !important;
-            }
-            #bottom-sheet.bs-fullscreen #bs-nearest-stop-hint,
-            #bottom-sheet.bs-fullscreen #bs-nearest-served-stop-hint {
-                display: none !important;
-            }
-        `;
-        document.head.appendChild(style);
-    }
+    let _sheetOriginalStyle = null;
+    let _restoreCleanupTimeout = null;
 
     function _measure() {
         if (!sheetEl) return;
@@ -12484,14 +12452,54 @@ const BottomSheet = (() => {
         setMenuBtmVisible(true);
     }
 
+    function _captureOriginal(el) {
+        const original = {};
+        FORCED_PROPS.forEach(prop => {
+            original[prop] = el.style.getPropertyValue(prop) || '';
+        });
+        return original;
+    }
+
     function enterFullscreen() {
         if (!sheetEl) return;
+        if (_restoreCleanupTimeout) { clearTimeout(_restoreCleanupTimeout); _restoreCleanupTimeout = null; }
+
         _refreshBottomSheetFavorites();
         isExpanded = true;
         isFullscreen = true;
+
+        _sheetOriginalStyle = _captureOriginal(sheetEl);
+
         sheetEl.classList.remove('bs-collapsed', 'bs-expanded');
         sheetEl.classList.add('bs-fullscreen');
-        sheetEl.style.transform = '';
+
+        sheetEl.style.setProperty('transition',
+            'top 0.42s cubic-bezier(0.32,0.72,0,1), height 0.42s cubic-bezier(0.32,0.72,0,1), ' +
+            'border-radius 0.42s ease, filter 0.45s ease, transform 0.42s cubic-bezier(0.32,0.72,0,1)',
+            'important');
+
+        sheetEl.style.setProperty('position', 'fixed', 'important');
+        sheetEl.style.setProperty('left', '0', 'important');
+        sheetEl.style.setProperty('right', '0', 'important');
+        sheetEl.style.setProperty('top', '0', 'important');
+        sheetEl.style.setProperty('bottom', '0', 'important');
+        sheetEl.style.setProperty('width', '100%', 'important');
+        sheetEl.style.setProperty('height', '100dvh', 'important');
+        sheetEl.style.setProperty('max-height', '100dvh', 'important');
+        sheetEl.style.setProperty('max-width', 'none', 'important');
+        sheetEl.style.setProperty('margin', '0', 'important');
+        sheetEl.style.setProperty('transform', 'none', 'important');
+        sheetEl.style.setProperty('border-radius', '0', 'important');
+        sheetEl.style.setProperty('z-index', '999999', 'important');
+        sheetEl.style.setProperty('filter', 'invert(1) hue-rotate(180deg) brightness(1.05) contrast(0.95)', 'important');
+
+        if (contentEl) {
+            contentEl.style.setProperty('transition', 'max-height 0.42s ease', 'important');
+            contentEl.style.setProperty('overflow-y', 'auto', 'important');
+            contentEl.style.setProperty('max-height', 'none', 'important');
+            contentEl.style.setProperty('height', '100%', 'important');
+        }
+
         soundsUX('MBF_Popup');
         safeVibrate?.([25]);
         setMenuBtmVisible(false);
@@ -12502,7 +12510,27 @@ const BottomSheet = (() => {
         isFullscreen = false;
         sheetEl.classList.remove('bs-fullscreen');
         sheetEl.classList.add('bs-expanded');
-        sheetEl.style.transform = '';
+
+        if (_sheetOriginalStyle) {
+            FORCED_PROPS.forEach(prop => {
+                const val = _sheetOriginalStyle[prop];
+                if (val) sheetEl.style.setProperty(prop, val);
+                else sheetEl.style.removeProperty(prop);
+            });
+        }
+        if (contentEl) {
+            contentEl.style.removeProperty('overflow-y');
+            contentEl.style.removeProperty('max-height');
+            contentEl.style.removeProperty('height');
+        }
+
+        _restoreCleanupTimeout = setTimeout(() => {
+            sheetEl.style.removeProperty('transition');
+            if (contentEl) contentEl.style.removeProperty('transition');
+            _sheetOriginalStyle = null;
+            _restoreCleanupTimeout = null;
+        }, 450);
+
         safeVibrate?.([15]);
     }
 
@@ -12527,7 +12555,7 @@ const BottomSheet = (() => {
         const now = performance.now();
         const dy  = e.clientY - lastY;
         const dt  = Math.max(1, now - lastTime);
-        velocity = dy / dt;
+        velocity = dy / dt; 
         lastY = e.clientY;
         lastTime = now;
 
@@ -12537,8 +12565,12 @@ const BottomSheet = (() => {
         if (isFullscreen) {
             translateY = Math.max(0, totalDelta);
             if (totalDelta < 0) translateY = totalDelta / 8;
-        } else if (isExpanded) {
-            translateY = totalDelta;
+            sheetEl.style.setProperty('transform', `translateY(${translateY}px)`, 'important');
+            return;
+        }
+
+        if (isExpanded) {
+            translateY = totalDelta; 
         } else {
             translateY = Math.min(0, totalDelta);
             if (totalDelta > 0) translateY = totalDelta / 6;
@@ -12560,13 +12592,12 @@ const BottomSheet = (() => {
             if ((totalDelta > 80) || (fastSwipe && velocity > 0)) {
                 exitFullscreen();
             } else {
-                enterFullscreen(); // reset
+                sheetEl.style.setProperty('transform', 'none', 'important'); // reset
             }
             return;
         }
 
         if (isExpanded) {
-            // Glissement franc vers le haut -> plein écran
             if ((totalDelta < -80) || (fastSwipe && velocity < 0 && distance > 40)) {
                 enterFullscreen();
                 return;
@@ -12593,7 +12624,6 @@ const BottomSheet = (() => {
 
         if (!sheetEl || !handleZoneEl) return;
 
-        _injectFullscreenStyles();
         _measure();
         window.addEventListener('resize', () => _measure());
 
@@ -12611,10 +12641,11 @@ const BottomSheet = (() => {
             if (dx < 5 && dy < 5) {
                 isDragging = false;
                 sheetEl.classList.remove('bs-dragging');
-                sheetEl.style.transform = '';
                 if (isFullscreen) {
+                    sheetEl.style.setProperty('transform', 'none', 'important');
                     exitFullscreen();
                 } else {
+                    sheetEl.style.transform = '';
                     toggle();
                 }
                 return;
@@ -12634,7 +12665,7 @@ const BottomSheet = (() => {
         menubtmEl?.addEventListener('pointerup', (e) => {
             if (!rowTracking) return;
             rowTracking = false;
-            const dy = rowStartY - e.clientY; 
+            const dy = rowStartY - e.clientY;
             const dt = performance.now() - rowStartT;
             if (dy > 50 && dt < 350) expand();
         });
@@ -12652,7 +12683,6 @@ const BottomSheet = (() => {
         get fullscreen() { return isFullscreen; }
     };
 })();
-
 
 function expandBottomSheet()   { BottomSheet.expand(); }
 function collapseBottomSheet() { BottomSheet.collapse(); }
@@ -13069,15 +13099,15 @@ function _ensureNearestServedStopSection() {
     section.innerHTML = `
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:0 2px;">
             <span id="bs-nearest-served-stop-label" style="font-size:17px; color:rgba(255,255,255,0.55);">
-                ${t('nearest_served_stop') || 'Arrêt desservi le plus proche'}
+                ${t('nearest_served_stops') || 'Arrêts desservis les plus proches'}
             </span>
         </div>
         <div id="bs-nearest-served-stop-wrapper" style="position:relative;">
-            <div id="bs-nearest-served-stop-scroll" style="max-height:200px; overflow:hidden;
+            <div id="bs-nearest-served-stop-scroll" style="max-height:280px; overflow:hidden;
                  transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 15px;">
                 <div id="bs-nearest-served-stop-content"></div>
             </div>
-            <div id="bs-nearest-served-stop-hint" style="display:none; text-align:center; margin-top:4px;
+            <div id="bs-nearest-served-stop-hint" style="text-align:center; margin-top:4px;
                     font-size:11px; color:rgba(255,255,255,0.4); pointer-events:none;">
                 ${t('swipe_up_to_see_all') || 'Glissez vers le haut pour tout voir'}
             </div>
@@ -13135,11 +13165,13 @@ async function _renderNearestStopWidget() {
         if (hintEl) hintEl.style.display = content.scrollHeight > 200 ? 'block' : 'none';
     });
 
-    const servedCluster = state.currentServedCluster;
-    const servedSectionExisting = document.getElementById('bs-nearest-served-stop-section');
-    const isSameStop = servedCluster && cluster.stopIds.some(id => servedCluster.stopIds.includes(id));
+    const servedStops = (state.currentServedStops || [])
+        .filter(s => !cluster.stopIds.some(id => s.cluster.stopIds.includes(id)))
+        .slice(0, 10);
 
-    if (!servedCluster || isSameStop) {
+    const servedSectionExisting = document.getElementById('bs-nearest-served-stop-section');
+
+    if (!servedStops.length) {
         if (servedSectionExisting) servedSectionExisting.style.display = 'none';
         return;
     }
@@ -13149,32 +13181,39 @@ async function _renderNearestStopWidget() {
     servedSection.style.display = 'block';
 
     const servedContent = document.getElementById('bs-nearest-served-stop-content');
-    const servedLabelEl = document.getElementById('bs-nearest-served-stop-label');
-    const servedHintEl  = document.getElementById('bs-nearest-served-stop-hint');
     if (!servedContent) return;
 
-    const servedDistText = state.currentServedDistance < 1000
-        ? `${Math.round(state.currentServedDistance)} m`
-        : `${(state.currentServedDistance / 1000).toFixed(1)} km`;
-    if (servedLabelEl) servedLabelEl.textContent = `${servedCluster.name} · ${servedDistText}`;
+    servedContent.innerHTML = '';
 
-    if (!servedContent.dataset.loaded) {
-        servedContent.innerHTML = `
-            <div class="bs-fav-loading" style="padding:10px 2px;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5">
-                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                </svg>
-                <span>Chargement…</span>
-            </div>`;
-    }
+    servedStops.forEach((item, idx) => {
+        const distText2 = item.distance < 1000
+            ? `${Math.round(item.distance)} m`
+            : `${(item.distance / 1000).toFixed(1)} km`;
 
-    const servedPassages = state.currentServedPassages || await _computeStopPassages(servedCluster.stopIds);
-    _renderStopPassages(servedContent, servedCluster.stopIds, servedCluster.name, servedPassages, !!servedContent.dataset.loaded);
-    servedContent.dataset.loaded = 'true';
+        const block = document.createElement('div');
+        block.style.cssText = `margin-bottom:${idx < servedStops.length - 1 ? '14px' : '0'};`;
 
-    requestAnimationFrame(() => {
-        if (servedHintEl) servedHintEl.style.display = servedContent.scrollHeight > 200 ? 'block' : 'none';
+        const blockLabel = document.createElement('div');
+        blockLabel.style.cssText = `
+            font-size:13px; color:rgba(255,255,255,0.5);
+            margin-bottom:6px; padding:0 2px;
+            display:flex; align-items:center; gap:6px;`;
+        blockLabel.innerHTML = `
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="10" r="3"/>
+                <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+            </svg>
+            <span>${item.cluster.name} · ${distText2}</span>`;
+        block.appendChild(blockLabel);
+
+        const blockContent = document.createElement('div');
+        block.appendChild(blockContent);
+
+        _renderStopPassages(blockContent, item.cluster.stopIds, item.cluster.name, item.passages, false);
+
+        servedContent.appendChild(block);
     });
 }
 
@@ -13184,11 +13223,9 @@ function _hideNearestStopWidget() {
     const servedSection = document.getElementById('bs-nearest-served-stop-section');
     if (servedSection) servedSection.style.display = 'none';
 
-    window._nearestStopState.currentCluster       = null;
-    window._nearestStopState.currentServedCluster  = null;
-    window._nearestStopState.currentServedDistance = null;
-    window._nearestStopState.currentServedPassages = null;
-    window._nearestStopState.lastComputedLatLng    = null;
+    window._nearestStopState.currentCluster    = null;
+    window._nearestStopState.currentServedStops = [];
+    window._nearestStopState.lastComputedLatLng = null;
 }
 
 function _refreshBottomSheetFavorites(withAnimation = false) {
