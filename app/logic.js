@@ -1471,6 +1471,7 @@ async function _updateNearestStopWidget(latlng) {
     state.lastComputedLatLng = latlng;
 
     const served = await _findNearestServedStops(latlng, 10, 40);
+
     if (state.lastComputedLatLng !== latlng) return;
 
     if (!served.length) {
@@ -13158,18 +13159,14 @@ async function _renderNearestStopWidget() {
     if (!section) return;
     section.style.display = 'block';
 
-    //nettoie l'ancien bloc correspondances si jms il existe encore dans le dom
-    const servedSection = document.getElementById('bs-nearest-served-stop-section');
-    if (servedSection) servedSection.style.display = 'none';
-
     const labelEl = document.getElementById('bs-nearest-stop-label');
+    const hintEl  = document.getElementById('bs-nearest-stop-hint');
+    const content = document.getElementById('bs-nearest-stop-content');
+    if (!content) return;
+
     if (labelEl) {
         labelEl.textContent = t('nearest_stops') || 'Arrêts à proximité';
     }
-
-    const content = document.getElementById('bs-nearest-stop-content');
-    const hintEl  = document.getElementById('bs-nearest-stop-hint');
-    if (!content) return;
 
     content.innerHTML = '';
 
@@ -13182,13 +13179,10 @@ async function _renderNearestStopWidget() {
         block.style.cssText = `margin-bottom:${idx < state.nearbyStops.length - 1 ? '14px' : '0'};`;
 
         const blockLabel = document.createElement('div');
-        blockLabel.className = 'ripple-container';
         blockLabel.style.cssText = `
-            font-size:13px; color:rgba(255,255,255,0.55);
-            margin-bottom:6px; padding:4px 2px;
-            display:flex; align-items:center; gap:6px;
-            cursor:pointer; border-radius:8px;
-            transition: background 0.15s ease;`;
+            font-size:13px; color:rgba(255,255,255,0.5);
+            margin-bottom:6px; padding:0 2px;
+            display:flex; align-items:center; gap:6px;`;
         blockLabel.innerHTML = `
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2.5"
@@ -13197,20 +13191,6 @@ async function _renderNearestStopWidget() {
                 <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
             </svg>
             <span>${item.cluster.name} · ${distText}</span>`;
-
-        blockLabel.addEventListener('click', () => {
-            safeVibrate?.([30], true);
-            soundsUX?.('MBF_Popup');
-            smoothFlyTo([item.cluster.lat, item.cluster.lon], 17, { easeLinearity: 0.12 });
-            openStopInBottomSheet(item.cluster.stopIds, item.cluster.name);
-        });
-        blockLabel.addEventListener('pointerenter', () => {
-            blockLabel.style.background = 'rgba(255,255,255,0.06)';
-        });
-        blockLabel.addEventListener('pointerleave', () => {
-            blockLabel.style.background = 'transparent';
-        });
-
         block.appendChild(blockLabel);
 
         const blockContent = document.createElement('div');
@@ -13229,10 +13209,6 @@ async function _renderNearestStopWidget() {
 function _hideNearestStopWidget() {
     const section = document.getElementById('bs-nearest-stop-section');
     if (section) section.style.display = 'none';
-    const servedSection = document.getElementById('bs-nearest-served-stop-section');
-    if (servedSection) servedSection.style.display = 'none';
-    const servedContent = document.getElementById('bs-nearest-served-stop-content');
-    if (servedContent) servedContent.innerHTML = '';
 
     window._nearestStopState.nearbyStops        = [];
     window._nearestStopState.lastComputedLatLng = null;
