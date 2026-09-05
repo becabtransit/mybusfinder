@@ -911,6 +911,7 @@
             const nepasafficheraccueiltext = t("nepasafficheraccueiltext");
             const hardwareaccelerationtitle = t("hardwareaccelerationtitle");
             const hardwareaccelerationtext = t("hardwareaccelerationtext");
+            const myacc = t("myacc");
 
                    
 
@@ -919,8 +920,28 @@
                 accentColor: "#0078d7"
             });
 
+            FluentSettingsMenu.createSection("myacc", myacc);
             FluentSettingsMenu.createSection("general", general);
             FluentSettingsMenu.createSection("about", about);
+
+            if (firebase.auth().currentUser) {
+                FluentSettingsMenu.addSubmenu("myacc", "acct", {
+                    icon: "🚪",
+                    label: t("logout_title") || "Déconnexion",
+                    description: firebase.auth().currentUser.email || "",
+                    onclick: function () { logoutUser(); }
+                });
+            }
+
+            if (!firebase.auth().currentUser) {
+                FluentSettingsMenu.addSubmenu("myacc", "connacct", {
+                    icon: "✨",
+                    label: t("login_title") || "Login",
+                    description: t("allservices") || "All BecabDev in one account !",
+                    onclick: function () { MyBusFinderWelcome.open(); }
+                });
+            }
+
 
             FluentSettingsMenu.addSubmenu("general", "customization", {
                 icon: "",
@@ -12063,6 +12084,61 @@ window.addEventListener('message', e => {
     }
 });
 
+async function logoutUser() {
+    const fb = ensureFirebase ? ensureFirebase() : (window.firebase && firebase.apps.length ? firebase : null);
+    if (!fb || !firebase.auth().currentUser) {
+        toastBottomRight?.info?.(t("notloggedin") || "Vous n'êtes pas connecté...");
+        return;
+    }
+
+    safeVibrate?.([30], true);
+
+    showFluentPopup({
+        title: t("logout_title") || "Déconnexion",
+        message: t("logout_confirm") || "Voulez-vous vraiment vous déconnecter ?",
+        buttons: {
+            primary: t("logout_confirm_btn") || "Se déconnecter",
+            primaryAction: async () => {
+                fluentPopupManager.close();
+                await _performLogout();
+            },
+            secondary: t("cancel") || "Annuler",
+            secondaryAction: () => {
+                fluentPopupManager.close();
+            }
+        }
+    });
+}
+
+async function _performLogout() {
+    try {
+        await firebase.auth().signOut();
+
+        safeVibrate?.([30, 40, 30], true);
+        soundsUX?.('MBF_Success');
+
+        toastBottomRight?.success?.(t("logout_success") || "Vous avez été déconnecté.");
+
+        ['favoriteLines', 'theme', 'colorbkg', 'isStandardView'].forEach(k => localStorage.removeItem(k));
+        Object.keys(localStorage)
+            .filter(k => k.startsWith('favoriteSchedules') || k.startsWith('favoriteStops'))
+            .forEach(k => localStorage.removeItem(k));
+
+        if (typeof FluentSettingsMenu !== 'undefined' && FluentSettingsMenu.close) {
+            FluentSettingsMenu.close({ stopPropagation: () => {} });
+        }
+        if (typeof closeUpdatePopup === 'function') {
+            closeUpdatePopup();
+        }
+
+    } catch (error) {
+        console.error('[Logout] Erreur lors de la déconnexion', error);
+        toastBottomRight?.error?.(t("logout_error") || "Une erreur est survenue lors de la déconnexion.");
+        soundsUX?.('MBF_NotificationError');
+    }
+}
+
+window.logoutUser = logoutUser;
 
 async function main() {
     try {
