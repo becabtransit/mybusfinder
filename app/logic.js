@@ -164,6 +164,15 @@
                 },
                 (err) => console.warn('[SettingsSync] onSnapshot échoué', err)
             );
+
+            unsubscribeSnapshot = db.collection('users').doc(uid)
+            .onSnapshot(
+                (doc) => {
+                console.log('[SettingsSync] snapshot reçu, exists:', doc.exists, 'data:', doc.data());
+                if (doc.exists) applyRemoteSettings(doc.data().settings);
+                },
+                (err) => console.error('[SettingsSync] onSnapshot ERREUR:', err.code, err.message)
+            );
         }
 
         function stopRealtimeSync() {
