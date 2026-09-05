@@ -305,6 +305,29 @@
     }
     #${OVERLAY_ID} .mbf-footer.is-active { display: flex; }
 
+    #${OVERLAY_ID} .mbf-footer[data-footer="2"] {
+      justify-content: space-between;
+    }
+
+    #${OVERLAY_ID} .mbf-btn-link {
+      display: none;
+      background-color: transparent;
+      border: 0;
+      padding: 12px 0;
+      color: #750550;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    #${OVERLAY_ID} .mbf-btn-link.is-visible {
+      display: inline-block;
+    }
+    #${OVERLAY_ID} .mbf-btn-link:hover,
+    #${OVERLAY_ID} .mbf-btn-link:focus-visible {
+      color: #4a0433;
+    }
+
     #${OVERLAY_ID} .mbf-btn {
       padding: 12px 22px;
       border-radius: 8px;
@@ -970,6 +993,7 @@
 
   var footerAuth = `
     <div class="mbf-footer" data-footer="2">
+      <button class="mbf-btn mbf-btn-link" id="mbf-btn-forgot-password" type="button">Mot de passe oublié ?</button>
       <button class="mbf-btn mbf-btn-ghost" id="mbf-btn-auth-back" type="button">Retour</button>
     </div>
   `;
@@ -1065,6 +1089,7 @@
     els.authPassword = overlay.querySelector("#mbf-auth-password");
     els.authError = overlay.querySelector("#mbf-auth-error");
     els.authSubmit = overlay.querySelector("#mbf-auth-submit");
+    els.forgotPasswordBtn = overlay.querySelector("#mbf-btn-forgot-password");
 
     els.profileFirstName = overlay.querySelector("#mbf-profile-firstname");
     els.profileLastName = overlay.querySelector("#mbf-profile-lastname");
@@ -1088,6 +1113,27 @@
     els.overlay.querySelector("#mbf-btn-auth-back").addEventListener("click", function () {
       goToStep(1);
     });
+
+    els.overlay.querySelector("#mbf-btn-forgot-password").addEventListener("click", function () {
+      var fb = ensureFirebase();
+      if (!fb) return;
+
+      var email = (els.authEmail.value || "").trim();
+      setAuthError("");
+
+      if (!email) {
+        setAuthError("Merci de renseigner votre email pour réinitialiser le mot de passe.");
+        return;
+      }
+
+      firebase.auth().sendPasswordResetEmail(email)
+        .then(function () {
+          setAuthError("Un email de réinitialisation a été envoyé à " + email + ".");
+        })
+        .catch(function (err) {
+          setAuthError(translateAuthError(err));
+        });
+    });
     els.overlay.querySelector("#mbf-btn-skip").addEventListener("click", close);
     els.overlay.querySelector("#mbf-btn-donate").addEventListener("click", function () {
       window.open("https://buymeacoffee.com/mybusfinder", "_blank", "noopener");
@@ -1100,6 +1146,7 @@
         els.signupFields.classList.toggle("is-visible", authMode === "signup");
         els.authSubmit.textContent = authMode === "signup" ? "Créer mon compte" : "Se connecter";
         setAuthError("");
+        updateForgotPasswordVisibility();
       });
     });
 
@@ -1243,8 +1290,16 @@
     els.authPanels.forEach(function (panel) {
       panel.classList.toggle("is-active", panel.getAttribute("data-panel") === name);
     });
+    updateForgotPasswordVisibility();
   }
 
+  function updateForgotPasswordVisibility() {
+    var credentialsPanelActive = els.authPanels.some(function (panel) {
+      return panel.getAttribute("data-panel") === "credentials" && panel.classList.contains("is-active");
+    });
+    var shouldShow = credentialsPanelActive && authMode === "login";
+    els.forgotPasswordBtn.classList.toggle("is-visible", shouldShow);
+  }
 
   function checkEmailVerification(user) {
     setAuthError("");
@@ -1290,6 +1345,7 @@
     els.headerTitle.textContent = HEADER_TITLES[index];
     if (els.body) els.body.scrollTop = 0;
     current = index;
+    updateForgotPasswordVisibility();
   }
 
   function goToStep(index) {
@@ -1316,6 +1372,8 @@
       els.headerTitle.textContent = HEADER_TITLES[index];
       els.headerIcon.style.opacity = 1;
       els.headerTitle.style.opacity = 1;
+
+      updateForgotPasswordVisibility();
 
       var firstButton = incomingFooter.querySelector("button");
       if (firstButton) firstButton.focus();
