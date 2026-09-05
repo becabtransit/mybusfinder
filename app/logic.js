@@ -12486,7 +12486,8 @@ const BottomSheet = (() => {
             }
 
             #bottom-sheet:not(.bs-fullscreen) .bs-icon-btn {
-                transform: translateX(25px) opacity(0);
+                transform: translateX(25px);
+                opacity: 0;
                 filter: blur(8px);
                 pointer-events: none;
                 transition: all cubic-bezier(0.25, 1.5, 0.5, 1) 0.45s;
