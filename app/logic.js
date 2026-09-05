@@ -12393,9 +12393,6 @@ window.selectNetwork        = selectNetwork;
 const BottomSheet = (() => {
     const COLLAPSE_VEL = 0.45; 
     const EXPAND_VEL   = 0.45; 
-    const FORCED_PROPS = ['position','left','right','top','bottom','width','height',
-        'max-height','max-width','margin','transform','border-radius','z-index','filter'];
-
     let sheetEl, contentEl, handleZoneEl, menubtmEl;
     let collapsedHeight = 0;
     let expandedHeight  = 0;
@@ -12407,8 +12404,48 @@ const BottomSheet = (() => {
     let lastY = 0;
     let lastTime = 0;
     let velocity = 0;
-    let _sheetOriginalStyle = null;
-    let _restoreCleanupTimeout = null;
+
+    function _injectFullscreenStyles() {
+        if (document.getElementById('bs-fullscreen-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'bs-fullscreen-styles';
+        style.textContent = `
+            #bottom-sheet {
+                transition: transform 0.6s cubic-bezier(0.25, 1.5, 0.5, 1),
+                            opacity 0.4s ease,
+                            filter 0.45s ease,
+                            background 0.5s ease,
+                            max-height 0.6s cubic-bezier(0.25, 1.5, 0.5, 1),
+                            width 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+                            max-width 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+                            height 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+                            border-radius 0.45s ease;
+            }
+            #bottom-sheet.bs-fullscreen {
+                width: 100vw;
+                max-width: 100vw;
+                height: 100vh;
+                max-height: 100vh;
+                border-top-left-radius: 0;
+                border-top-right-radius: 0;
+                filter: invert(1) hue-rotate(180deg) brightness(1.05) contrast(0.95);
+            }
+            #bottom-sheet.bs-fullscreen #bs-content {
+                max-height: none;
+                flex: 1 1 auto;
+            }
+            #bottom-sheet.bs-fullscreen #bs-nearest-stop-scroll,
+            #bottom-sheet.bs-fullscreen #bs-nearest-served-stop-scroll {
+                max-height: none !important;
+                overflow: visible !important;
+            }
+            #bottom-sheet.bs-fullscreen #bs-nearest-stop-hint,
+            #bottom-sheet.bs-fullscreen #bs-nearest-served-stop-hint {
+                display: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
 
     function _measure() {
         if (!sheetEl) return;
@@ -12452,54 +12489,17 @@ const BottomSheet = (() => {
         setMenuBtmVisible(true);
     }
 
-    function _captureOriginal(el) {
-        const original = {};
-        FORCED_PROPS.forEach(prop => {
-            original[prop] = el.style.getPropertyValue(prop) || '';
-        });
-        return original;
-    }
-
     function enterFullscreen() {
         if (!sheetEl) return;
-        if (_restoreCleanupTimeout) { clearTimeout(_restoreCleanupTimeout); _restoreCleanupTimeout = null; }
-
         _refreshBottomSheetFavorites();
         isExpanded = true;
         isFullscreen = true;
-
-        _sheetOriginalStyle = _captureOriginal(sheetEl);
-
-        sheetEl.classList.remove('bs-collapsed', 'bs-expanded');
-        sheetEl.classList.add('bs-fullscreen');
-
-        sheetEl.style.setProperty('transition',
-            'top 0.42s cubic-bezier(0.32,0.72,0,1), height 0.42s cubic-bezier(0.32,0.72,0,1), ' +
-            'border-radius 0.42s ease, filter 0.45s ease, transform 0.42s cubic-bezier(0.32,0.72,0,1)',
-            'important');
-
-        sheetEl.style.setProperty('position', 'fixed', 'important');
-        sheetEl.style.setProperty('left', '0', 'important');
-        sheetEl.style.setProperty('right', '0', 'important');
-        sheetEl.style.setProperty('top', '0', 'important');
-        sheetEl.style.setProperty('bottom', '0', 'important');
-        sheetEl.style.setProperty('width', '100%', 'important');
-        sheetEl.style.setProperty('height', '100dvh', 'important');
-        sheetEl.style.setProperty('max-height', '100dvh', 'important');
-        sheetEl.style.setProperty('max-width', 'none', 'important');
-        sheetEl.style.setProperty('margin', '0', 'important');
-        sheetEl.style.setProperty('transform', 'none', 'important');
-        sheetEl.style.setProperty('border-radius', '0', 'important');
-        sheetEl.style.setProperty('z-index', '999999', 'important');
-        sheetEl.style.setProperty('filter', 'invert(1) hue-rotate(180deg) brightness(1.05) contrast(0.95)', 'important');
-
-        if (contentEl) {
-            contentEl.style.setProperty('transition', 'max-height 0.42s ease', 'important');
-            contentEl.style.setProperty('overflow-y', 'auto', 'important');
-            contentEl.style.setProperty('max-height', 'none', 'important');
-            contentEl.style.setProperty('height', '100%', 'important');
-        }
-
+        // garde bs-expanded (qui pilote déjà transform translate -50% 0)
+        // et on ajoute seulement bs-fullscreen pour étendre largeur/hauteur/filtre
+        sheetEl.classList.remove('bs-collapsed');
+        sheetEl.classList.add('bs-expanded', 'bs-fullscreen');
+        sheetEl.style.transform = ''; // laisse la classe piloter le transform
+        if (contentEl) contentEl.style.overflowY = 'auto';
         soundsUX('MBF_Popup');
         safeVibrate?.([25]);
         setMenuBtmVisible(false);
@@ -12509,28 +12509,7 @@ const BottomSheet = (() => {
         if (!sheetEl || !isFullscreen) return;
         isFullscreen = false;
         sheetEl.classList.remove('bs-fullscreen');
-        sheetEl.classList.add('bs-expanded');
-
-        if (_sheetOriginalStyle) {
-            FORCED_PROPS.forEach(prop => {
-                const val = _sheetOriginalStyle[prop];
-                if (val) sheetEl.style.setProperty(prop, val);
-                else sheetEl.style.removeProperty(prop);
-            });
-        }
-        if (contentEl) {
-            contentEl.style.removeProperty('overflow-y');
-            contentEl.style.removeProperty('max-height');
-            contentEl.style.removeProperty('height');
-        }
-
-        _restoreCleanupTimeout = setTimeout(() => {
-            sheetEl.style.removeProperty('transition');
-            if (contentEl) contentEl.style.removeProperty('transition');
-            _sheetOriginalStyle = null;
-            _restoreCleanupTimeout = null;
-        }, 450);
-
+        sheetEl.style.transform = '';
         safeVibrate?.([15]);
     }
 
@@ -12559,13 +12538,13 @@ const BottomSheet = (() => {
         lastY = e.clientY;
         lastTime = now;
 
-        const totalDelta = e.clientY - dragStartY;
+        const totalDelta = e.clientY - dragStartY; 
         let translateY;
 
         if (isFullscreen) {
             translateY = Math.max(0, totalDelta);
             if (totalDelta < 0) translateY = totalDelta / 8;
-            sheetEl.style.setProperty('transform', `translateY(${translateY}px)`, 'important');
+            sheetEl.style.transform = `translate(-50%, ${translateY}px)`;
             return;
         }
 
@@ -12592,7 +12571,7 @@ const BottomSheet = (() => {
             if ((totalDelta > 80) || (fastSwipe && velocity > 0)) {
                 exitFullscreen();
             } else {
-                sheetEl.style.setProperty('transform', 'none', 'important'); // reset
+                sheetEl.style.transform = ''; 
             }
             return;
         }
@@ -12624,6 +12603,7 @@ const BottomSheet = (() => {
 
         if (!sheetEl || !handleZoneEl) return;
 
+        _injectFullscreenStyles();
         _measure();
         window.addEventListener('resize', () => _measure());
 
@@ -12641,11 +12621,10 @@ const BottomSheet = (() => {
             if (dx < 5 && dy < 5) {
                 isDragging = false;
                 sheetEl.classList.remove('bs-dragging');
+                sheetEl.style.transform = '';
                 if (isFullscreen) {
-                    sheetEl.style.setProperty('transform', 'none', 'important');
                     exitFullscreen();
                 } else {
-                    sheetEl.style.transform = '';
                     toggle();
                 }
                 return;
@@ -12665,7 +12644,7 @@ const BottomSheet = (() => {
         menubtmEl?.addEventListener('pointerup', (e) => {
             if (!rowTracking) return;
             rowTracking = false;
-            const dy = rowStartY - e.clientY;
+            const dy = rowStartY - e.clientY; 
             const dt = performance.now() - rowStartT;
             if (dy > 50 && dt < 350) expand();
         });
@@ -12683,6 +12662,7 @@ const BottomSheet = (() => {
         get fullscreen() { return isFullscreen; }
     };
 })();
+
 
 function expandBottomSheet()   { BottomSheet.expand(); }
 function collapseBottomSheet() { BottomSheet.collapse(); }
