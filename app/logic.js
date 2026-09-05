@@ -13350,7 +13350,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
             const card = document.createElement('div');
             card.className = 'bs-fav-card ripple-container';
             card.innerHTML = `
-                <div class="bs-fav-card-header">
+                <div class="bs-fav-card-header" style="background: rgba(255,255,255,0.12);">
                     <div class="bs-fav-beam bs-fav-beam1"></div>
                     <div class="bs-fav-beam bs-fav-beam2"></div>
                     <div class="bs-fav-line-badge" style="color:white;">
@@ -13928,6 +13928,7 @@ function _toggleStopFavorite(stopIdArr, stopName, btn) {
     if (idx !== -1) {
         favs.splice(idx, 1);
         btn.textContent = '☆';
+        btn.style.background = 'rgba(255,255,255,0.12)';
         if (typeof soundsUX === 'function') soundsUX('MBF_SettingOff');
     } else {
         favs.push({ stopIds: stopIdArr, stopName, addedAt: Date.now() });
@@ -13969,12 +13970,12 @@ async function openStopInBottomSheet(stopIds, stopName) {
         titleEl.innerHTML = `
             <div style="display:flex; align-items:center; gap:10px; width:100%;">
                 <button id="bs-stop-back"
-                    style="border:none; border-radius:10px;
+                    style="background:rgba(255,255,255,0.15); border:none; border-radius:10px;
                         width:32px; height:32px; display:flex; align-items:center;
                         justify-content:center; cursor:pointer; color:white;
                         font-size:20px; flex-shrink:0; line-height:1;">‹</button>
                 <button id="bs-stop-fav-btn"
-                    style="border:none; border-radius:10px;
+                    style="background:rgba(255,255,255,0.12); border:none; border-radius:10px;
                         width:32px; height:32px; display:flex; align-items:center;
                         justify-content:center; cursor:pointer; color:white;
                         font-size:18px; flex-shrink:0; transition:transform 0.2s ease,background 0.2s ease;">
