@@ -14,11 +14,14 @@
   //
   //   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   //   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+  //   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
   //
-  // 2) Remplace les valeurs ci-dessous par la config de ton projet Firebase
-  //    (Console Firebase > Paramètres du projet > Général > Vos applications).
-  // 3) Dans la Console Firebase > Authentication > Sign-in method, active
-  //    les fournisseurs "E-mail/Mot de passe", "Google" et "Téléphone".
+  // 2) Dans la Console Firebase > Authentication > Sign-in method, active
+  //    les fournisseurs "E-mail/Mot de passe" et "Google".
+  // 3) Dans la Console Firebase > Authentication > Templates, tu peux
+  //    personnaliser l'email de vérification (expéditeur, texte, logo...).
+  // 4) Crée une base Firestore (mode production) si ce n'est pas déjà fait :
+  //    Console Firebase > Firestore Database > Créer une base de données.
   var FIREBASE_CONFIG = {
     apiKey: "AIzaSyCXA5YC8HPnZ-Ws3kvKtngM1kCj-5C6yDY",
     authDomain: "mybusfinder-becabdev.firebaseapp.com",
@@ -40,6 +43,26 @@
       firebase.initializeApp(FIREBASE_CONFIG);
     }
     return firebase;
+  }
+
+  // Accès à Firestore (stockage prénom / nom / date de naissance).
+  function getDb() {
+    var fb = ensureFirebase();
+    if (!fb) return null;
+    if (!firebase.firestore) {
+      console.error(
+        "[MyBusFinderWelcome] Le SDK Firestore n'est pas chargé. " +
+        "Ajoute firebase-firestore-compat.js avant ce script."
+      );
+      return null;
+    }
+    return firebase.firestore();
+  }
+
+  function saveUserProfile(uid, data) {
+    var db = getDb();
+    if (!db) return Promise.resolve();
+    return db.collection("users").doc(uid).set(data, { merge: true });
   }
 
   var HEADER_ICONS = [
@@ -235,6 +258,9 @@
       transition: border-color 0.15s ease;
     }
     #${OVERLAY_ID} .mbf-auth input:focus { border-color: #750550; }
+
+    #${OVERLAY_ID} .mbf-auth-signup-fields { display: none; flex-direction: column; gap: 14px; }
+    #${OVERLAY_ID} .mbf-auth-signup-fields.is-visible { display: flex; }
 
     #${OVERLAY_ID} .mbf-auth-divider { display: flex; align-items: center; gap: 10px; color: #a89ea1; font-size: 0.8rem; }
     #${OVERLAY_ID} .mbf-auth-divider:before,
@@ -867,8 +893,20 @@
           <button type="button" class="mbf-auth-tab" data-tab="signup">Inscription</button>
         </div>
 
-        <!-- Panneau : email / mot de passe / Google -->
+        <!-- Panneau : email / mot de passe / Google (+ champs d'inscription) -->
         <div class="mbf-auth-panel is-active" data-panel="credentials">
+
+          <div class="mbf-auth-signup-fields" id="mbf-signup-fields">
+            <label>Prénom
+              <input type="text" id="mbf-signup-firstname" autocomplete="given-name">
+            </label>
+            <label>Nom
+              <input type="text" id="mbf-signup-lastname" autocomplete="family-name">
+            </label>
+            <label>Date de naissance
+              <input type="date" id="mbf-signup-birthdate" autocomplete="bday">
+            </label>
+          </div>
 
           <button type="button" class="mbf-btn mbf-btn-google" id="mbf-btn-google">
             <svg viewBox="0 0 48 48" aria-hidden="true">
@@ -894,26 +932,36 @@
           <button type="button" class="mbf-btn mbf-btn-primary mbf-auth-submit" id="mbf-auth-submit">Se connecter</button>
         </div>
 
-        <!-- Panneau : vérification du numéro de téléphone -->
-        <div class="mbf-auth-panel" data-panel="phone">
-          <p class="mbf-auth-hint">Dernière étape : confirmez votre numéro de téléphone pour sécuriser votre compte.</p>
+        <!-- Panneau : complément de profil (utilisé si Google ne fournit pas la date de naissance) -->
+        <div class="mbf-auth-panel" data-panel="profile">
+          <p class="mbf-auth-hint">Encore une petite étape : dites-nous en un peu plus sur vous.</p>
 
-          <label>Numéro de téléphone
-            <input type="tel" id="mbf-auth-phone" placeholder="+33 6 12 34 56 78">
+          <label>Prénom
+            <input type="text" id="mbf-profile-firstname" autocomplete="given-name">
+          </label>
+          <label>Nom
+            <input type="text" id="mbf-profile-lastname" autocomplete="family-name">
+          </label>
+          <label>Date de naissance
+            <input type="date" id="mbf-profile-birthdate" autocomplete="bday">
           </label>
 
-          <div id="mbf-recaptcha-container"></div>
+          <p class="mbf-auth-error" id="mbf-profile-error" aria-live="polite"></p>
 
-          <p class="mbf-auth-error" id="mbf-phone-error" aria-live="polite"></p>
+          <button type="button" class="mbf-btn mbf-btn-primary" id="mbf-btn-profile-submit">Continuer</button>
+        </div>
 
-          <button type="button" class="mbf-btn mbf-btn-primary" id="mbf-btn-send-code">Envoyer le code</button>
+        <!-- Panneau : vérification de l'adresse email (lien de confirmation) -->
+        <div class="mbf-auth-panel" data-panel="verify">
+          <p class="mbf-auth-hint">
+            Un email de confirmation a été envoyé à <strong id="mbf-verify-email"></strong>.
+            Cliquez sur le lien qu'il contient, puis revenez ici et cliquez sur « J'ai vérifié mon adresse ».
+          </p>
 
-          <div id="mbf-phone-code-wrap" style="display:none; flex-direction: column; gap: 14px;">
-            <label>Code reçu par SMS
-              <input type="text" inputmode="numeric" autocomplete="one-time-code" id="mbf-auth-code" placeholder="123456">
-            </label>
-            <button type="button" class="mbf-btn mbf-btn-primary" id="mbf-btn-confirm-code">Valider le code</button>
-          </div>
+          <p class="mbf-auth-error" id="mbf-verify-error" aria-live="polite"></p>
+
+          <button type="button" class="mbf-btn mbf-btn-primary" id="mbf-btn-verify-check">J'ai vérifié mon adresse</button>
+          <button type="button" class="mbf-btn mbf-btn-ghost" id="mbf-btn-verify-resend">Renvoyer l'email</button>
         </div>
 
       </div>
@@ -949,7 +997,6 @@
   var footerAuth = `
     <div class="mbf-footer" data-footer="2">
       <button class="mbf-btn mbf-btn-ghost" id="mbf-btn-auth-back" type="button">Retour</button>
-      <button class="mbf-btn mbf-btn-ghost" id="mbf-btn-skip-phone" type="button" style="display:none;">Plus tard</button>
     </div>
   `;
 
@@ -1008,8 +1055,6 @@
 
   // État de l'écran d'authentification
   var authMode = "login"; // "login" | "signup"
-  var recaptchaVerifier = null;
-  var phoneVerificationId = null;
 
   function injectStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -1039,15 +1084,22 @@
     // Éléments de l'écran d'authentification
     els.authTabs = Array.prototype.slice.call(overlay.querySelectorAll(".mbf-auth-tab"));
     els.authPanels = Array.prototype.slice.call(overlay.querySelectorAll(".mbf-auth-panel"));
+    els.signupFields = overlay.querySelector("#mbf-signup-fields");
+    els.signupFirstName = overlay.querySelector("#mbf-signup-firstname");
+    els.signupLastName = overlay.querySelector("#mbf-signup-lastname");
+    els.signupBirthDate = overlay.querySelector("#mbf-signup-birthdate");
     els.authEmail = overlay.querySelector("#mbf-auth-email");
     els.authPassword = overlay.querySelector("#mbf-auth-password");
     els.authError = overlay.querySelector("#mbf-auth-error");
     els.authSubmit = overlay.querySelector("#mbf-auth-submit");
-    els.authPhone = overlay.querySelector("#mbf-auth-phone");
-    els.phoneError = overlay.querySelector("#mbf-phone-error");
-    els.phoneCodeWrap = overlay.querySelector("#mbf-phone-code-wrap");
-    els.authCode = overlay.querySelector("#mbf-auth-code");
-    els.skipPhoneBtn = overlay.querySelector("#mbf-btn-skip-phone");
+
+    els.profileFirstName = overlay.querySelector("#mbf-profile-firstname");
+    els.profileLastName = overlay.querySelector("#mbf-profile-lastname");
+    els.profileBirthDate = overlay.querySelector("#mbf-profile-birthdate");
+    els.profileError = overlay.querySelector("#mbf-profile-error");
+
+    els.verifyEmailLabel = overlay.querySelector("#mbf-verify-email");
+    els.verifyError = overlay.querySelector("#mbf-verify-error");
   }
 
   function bindEvents() {
@@ -1073,6 +1125,7 @@
       tab.addEventListener("click", function () {
         authMode = tab.getAttribute("data-tab");
         els.authTabs.forEach(function (t) { t.classList.toggle("is-active", t === tab); });
+        els.signupFields.classList.toggle("is-visible", authMode === "signup");
         els.authSubmit.textContent = authMode === "signup" ? "Créer mon compte" : "Se connecter";
         setAuthError("");
       });
@@ -1085,7 +1138,17 @@
       setAuthError("");
       var provider = new firebase.auth.GoogleAuthProvider();
       firebase.auth().signInWithPopup(provider)
-        .then(function (result) { onAuthSuccess(result.user); })
+        .then(function (result) {
+          var user = result.user;
+          var isNewUser = !!(result.additionalUserInfo && result.additionalUserInfo.isNewUser);
+          if (isNewUser) {
+            // Google donne l'email et le nom, mais pas la date de naissance :
+            // on demande le complément de profil avant de continuer.
+            switchAuthPanel("profile");
+            return;
+          }
+          checkEmailVerification(user);
+        })
         .catch(function (err) { setAuthError(translateAuthError(err)); });
     });
 
@@ -1103,76 +1166,98 @@
         return;
       }
 
-      var action = authMode === "signup"
-        ? firebase.auth().createUserWithEmailAndPassword(email, password)
-        : firebase.auth().signInWithEmailAndPassword(email, password);
+      if (authMode === "signup") {
+        var firstName = (els.signupFirstName.value || "").trim();
+        var lastName = (els.signupLastName.value || "").trim();
+        var birthDate = els.signupBirthDate.value || "";
 
-      action
-        .then(function (result) { onAuthSuccess(result.user); })
-        .catch(function (err) { setAuthError(translateAuthError(err)); });
+        if (!firstName || !lastName || !birthDate) {
+          setAuthError("Merci de renseigner votre prénom, votre nom et votre date de naissance.");
+          return;
+        }
+
+        firebase.auth().createUserWithEmailAndPassword(email, password)
+          .then(function (result) {
+            var user = result.user;
+            return user.updateProfile({ displayName: firstName + " " + lastName })
+              .then(function () {
+                return saveUserProfile(user.uid, {
+                  firstName: firstName,
+                  lastName: lastName,
+                  birthDate: birthDate,
+                  email: email,
+                  createdAt: new Date().toISOString(),
+                });
+              })
+              .then(function () { checkEmailVerification(user); });
+          })
+          .catch(function (err) { setAuthError(translateAuthError(err)); });
+      } else {
+        firebase.auth().signInWithEmailAndPassword(email, password)
+          .then(function (result) { checkEmailVerification(result.user); })
+          .catch(function (err) { setAuthError(translateAuthError(err)); });
+      }
     });
 
-    // --- Auth : envoi du code SMS ---
-    els.overlay.querySelector("#mbf-btn-send-code").addEventListener("click", function () {
+    // --- Auth : complément de profil (après une première connexion Google) ---
+    els.overlay.querySelector("#mbf-btn-profile-submit").addEventListener("click", function () {
       var fb = ensureFirebase();
       if (!fb) return;
-      setPhoneError("");
+      setProfileError("");
 
-      var phoneNumber = (els.authPhone.value || "").trim();
-      if (!phoneNumber) {
-        setPhoneError("Merci de renseigner un numéro de téléphone au format international (ex : +33612345678).");
+      var user = firebase.auth().currentUser;
+      if (!user) {
+        setProfileError("Session expirée, merci de vous reconnecter.");
         return;
       }
 
-      if (!recaptchaVerifier) {
-        recaptchaVerifier = new firebase.auth.RecaptchaVerifier("mbf-recaptcha-container", {
-          size: "normal",
-        });
+      var firstName = (els.profileFirstName.value || "").trim();
+      var lastName = (els.profileLastName.value || "").trim();
+      var birthDate = els.profileBirthDate.value || "";
+
+      if (!firstName || !lastName || !birthDate) {
+        setProfileError("Merci de renseigner votre prénom, votre nom et votre date de naissance.");
+        return;
       }
 
-      new firebase.auth.PhoneAuthProvider(firebase.auth())
-        .verifyPhoneNumber(phoneNumber, recaptchaVerifier)
-        .then(function (verificationId) {
-          phoneVerificationId = verificationId;
-          els.phoneCodeWrap.style.display = "flex";
+      user.updateProfile({ displayName: firstName + " " + lastName })
+        .then(function () {
+          return saveUserProfile(user.uid, {
+            firstName: firstName,
+            lastName: lastName,
+            birthDate: birthDate,
+            email: user.email,
+            createdAt: new Date().toISOString(),
+          });
         })
-        .catch(function (err) { setPhoneError(translateAuthError(err)); });
+        .then(function () { checkEmailVerification(user); })
+        .catch(function (err) { setProfileError(translateAuthError(err)); });
     });
 
-    // --- Auth : confirmation du code SMS et rattachement au compte ---
-    els.overlay.querySelector("#mbf-btn-confirm-code").addEventListener("click", function () {
-      var fb = ensureFirebase();
-      if (!fb || !phoneVerificationId) return;
-      setPhoneError("");
+    // --- Auth : "j'ai vérifié mon adresse" ---
+    els.overlay.querySelector("#mbf-btn-verify-check").addEventListener("click", function () {
+      var user = firebase.auth().currentUser;
+      if (!user) return;
+      setVerifyError("");
 
-      var code = (els.authCode.value || "").trim();
-      if (!code) {
-        setPhoneError("Merci de saisir le code reçu par SMS.");
-        return;
-      }
-
-      var credential = firebase.auth.PhoneAuthProvider.credential(phoneVerificationId, code);
-      var currentUser = firebase.auth().currentUser;
-
-      var linkPromise = currentUser
-        ? currentUser.linkWithCredential(credential)
-        : firebase.auth().signInWithCredential(credential);
-
-      linkPromise
-        .then(function () { goToStep(3); })
-        .catch(function (err) {
-          // Un numéro déjà lié à un autre compte n'empêche pas de continuer.
-          if (err && err.code === "auth/credential-already-in-use") {
-            goToStep(3);
-            return;
-          }
-          setPhoneError(translateAuthError(err));
-        });
+      user.reload().then(function () {
+        if (firebase.auth().currentUser.emailVerified) {
+          goToStep(3);
+        } else {
+          setVerifyError("Votre adresse n'est pas encore confirmée. Vérifiez votre boîte mail (et vos spams), puis réessayez.");
+        }
+      });
     });
 
-    // --- Auth : passer la vérification téléphone pour l'instant ---
-    els.skipPhoneBtn.addEventListener("click", function () {
-      goToStep(3);
+    // --- Auth : renvoyer l'email de confirmation ---
+    els.overlay.querySelector("#mbf-btn-verify-resend").addEventListener("click", function () {
+      var user = firebase.auth().currentUser;
+      if (!user) return;
+      setVerifyError("");
+
+      user.sendEmailVerification()
+        .then(function () { setVerifyError("Email renvoyé !"); })
+        .catch(function (err) { setVerifyError(translateAuthError(err)); });
     });
   }
 
@@ -1180,27 +1265,31 @@
     if (els.authError) els.authError.textContent = message || "";
   }
 
-  function setPhoneError(message) {
-    if (els.phoneError) els.phoneError.textContent = message || "";
+  function setProfileError(message) {
+    if (els.profileError) els.profileError.textContent = message || "";
+  }
+
+  function setVerifyError(message) {
+    if (els.verifyError) els.verifyError.textContent = message || "";
   }
 
   function switchAuthPanel(name) {
     els.authPanels.forEach(function (panel) {
       panel.classList.toggle("is-active", panel.getAttribute("data-panel") === name);
     });
-    els.skipPhoneBtn.style.display = name === "phone" ? "inline-flex" : "none";
   }
 
-  // Appelée après une connexion/inscription réussie (email/mot de passe ou Google).
-  function onAuthSuccess(user) {
+  // Appelée après une connexion/inscription réussie, ou après le complément de profil.
+  // Envoie (si besoin) l'email de confirmation et bloque la suite tant qu'il n'est pas validé.
+  function checkEmailVerification(user) {
     setAuthError("");
-    if (user && user.phoneNumber) {
-      // Le numéro est déjà vérifié sur ce compte : on passe directement aux dons.
+    if (user.emailVerified) {
       goToStep(3);
       return;
     }
-    // Sinon, on demande la vérification du numéro de téléphone.
-    switchAuthPanel("phone");
+    if (els.verifyEmailLabel) els.verifyEmailLabel.textContent = user.email || "";
+    user.sendEmailVerification().catch(function () { /* déjà envoyé récemment, on ignore */ });
+    switchAuthPanel("verify");
   }
 
   function translateAuthError(err) {
@@ -1213,10 +1302,8 @@
       "auth/email-already-in-use": "Un compte existe déjà avec cet email.",
       "auth/weak-password": "Le mot de passe doit contenir au moins 6 caractères.",
       "auth/popup-closed-by-user": "La fenêtre Google a été fermée avant la fin de la connexion.",
-      "auth/invalid-phone-number": "Numéro de téléphone invalide (utilisez le format international, ex : +33612345678).",
-      "auth/invalid-verification-code": "Le code saisi est incorrect.",
-      "auth/code-expired": "Le code a expiré, merci de renvoyer un SMS.",
       "auth/too-many-requests": "Trop de tentatives, merci de réessayer plus tard.",
+      "auth/requires-recent-login": "Merci de vous reconnecter pour effectuer cette action.",
     };
     return (code && map[code]) || (err && err.message) || "Une erreur est survenue, merci de réessayer.";
   }
