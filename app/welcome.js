@@ -369,7 +369,7 @@
 
   var stepWelcome = `
     <section class="mbf-step is-active" data-step="0">
-    <img src="src/iphone-screen-welcome.png" alt="MBF Screenshot Welcome" style="width: 100%; height: auto; margin-bottom: 24px;">
+    <img src="src/iphone-screen-welcome.png" alt="MBF Screenshot Welcome" style="width: 100%; max-width: 600px; align-self: anchor-center; height: auto; margin-bottom: 24px;">
       <div class="mbf-hero">
         <h1>Le bus arrive à quelle heure ?</h1>
         <p>Cette question, vous ne la poserez même plus. My Bus Finder redéfinit la façon dont vous naviguez avec les transports en commun. Plus simple, plus rapide, plus efficace.</p>
@@ -995,7 +995,7 @@ var stepTerms = `
           <div class="mbf-auth-divider"><span>ou</span></div>
 
           <label>Email
-            <input type="email" id="mbf-auth-email" autocomplete="email" placeholder="vous@exemple.com">
+            <input type="email" id="mbf-auth-email" autocomplete="email" placeholder="citaro.gc2@exemple.com">
           </label>
           <label>Mot de passe
             <input type="password" id="mbf-auth-password" autocomplete="current-password" placeholder="••••••••">
