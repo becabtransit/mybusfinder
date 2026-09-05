@@ -6177,7 +6177,7 @@ const MenuManager = {
             cursor: pointer;
             z-index: 10;
         `;
-        favoriteButton.innerHTML = favoriteLines.has(line) ? '★' : '☆';
+        favoriteButton.innerHTML = favoriteLines.has(line) ? '🌟' : '☆';
         favoriteButton.onclick = async (e) => {
             e.stopPropagation();
             const isFavorite = favoriteLines.has(line);
@@ -8126,7 +8126,7 @@ async function animateAddFavorite(button, lineSection, sections, positions, curr
     await new Promise(r => setTimeout(r, ANIMATION_CONFIG.DURATION - 150));
     lineSection.style.transform = `translateY(${deltaY}px) scale(1)`;
     
-    button.innerHTML = '★';
+    button.innerHTML = '🌟';
     button.style.transform = 'scale(1.2)';
     await new Promise(r => setTimeout(r, 100));
     button.style.transform = 'scale(1)';
@@ -8209,7 +8209,7 @@ function updateFavoriteState(button, line, isFavorite) {
         button.innerHTML = '☆';
     } else {
         favoriteLines.add(line);
-        button.innerHTML = '★';
+        button.innerHTML = '🌟';
     }
     
     try {
@@ -13350,7 +13350,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
             const card = document.createElement('div');
             card.className = 'bs-fav-card ripple-container';
             card.innerHTML = `
-                <div class="bs-fav-card-header" style="background: rgba(255,255,255,0.12);">
+                <div class="bs-fav-card-header">
                     <div class="bs-fav-beam bs-fav-beam1"></div>
                     <div class="bs-fav-beam bs-fav-beam2"></div>
                     <div class="bs-fav-line-badge" style="color:white;">
@@ -13673,7 +13673,6 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                 <button class="bs-stop-line-fav-btn"
                     style="
                         visibility: hidden;
-                        background: ${isFavLine ? 'rgba(255,215,0,0.3)' : 'rgba(255,255,255,0.18)'};
                         border: none; border-radius: 10px;
                         width: 32px; height: 32px;
                         display: flex; align-items: center; justify-content: center;
@@ -13682,7 +13681,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                         position: relative; z-index: 1;
                         transition: transform 0.2s ease, background 0.2s ease;
                     ">
-                    ${isFavLine ? '★' : '☆'}
+                    ${isFavLine ? '🌟' : '☆'}
                 </button>`;
 
             card.appendChild(header);
@@ -13929,12 +13928,10 @@ function _toggleStopFavorite(stopIdArr, stopName, btn) {
     if (idx !== -1) {
         favs.splice(idx, 1);
         btn.textContent = '☆';
-        btn.style.background = 'rgba(255,255,255,0.12)';
         if (typeof soundsUX === 'function') soundsUX('MBF_SettingOff');
     } else {
         favs.push({ stopIds: stopIdArr, stopName, addedAt: Date.now() });
-        btn.textContent = '★';
-        btn.style.background = 'rgba(255,215,0,0.25)';
+        btn.textContent = '🌟';
         btn.style.transform = 'scale(1.3)';
         setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
         if (typeof soundsUX === 'function') soundsUX('MBF_SettingOn');
@@ -13972,16 +13969,16 @@ async function openStopInBottomSheet(stopIds, stopName) {
         titleEl.innerHTML = `
             <div style="display:flex; align-items:center; gap:10px; width:100%;">
                 <button id="bs-stop-back"
-                    style="background:rgba(255,255,255,0.15); border:none; border-radius:10px;
+                    style="border:none; border-radius:10px;
                         width:32px; height:32px; display:flex; align-items:center;
                         justify-content:center; cursor:pointer; color:white;
                         font-size:20px; flex-shrink:0; line-height:1;">‹</button>
                 <button id="bs-stop-fav-btn"
-                    style="background:rgba(255,255,255,0.12); border:none; border-radius:10px;
+                    style="border:none; border-radius:10px;
                         width:32px; height:32px; display:flex; align-items:center;
                         justify-content:center; cursor:pointer; color:white;
                         font-size:18px; flex-shrink:0; transition:transform 0.2s ease,background 0.2s ease;">
-                    ${_isStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds]) ? '★' : '☆'}
+                    ${_isStopFavorite(Array.isArray(stopIds) ? stopIds : [stopIds]) ? '🌟' : '☆'}
                 </button>
                 <div style="overflow:hidden; flex:1;">
                     <div style="font-size:20px; font-weight:600;
@@ -14275,9 +14272,6 @@ function _toggleLineFavoriteFromStop(routeId, stopIdArr, stopName, btn, textColo
         btn.textContent = '☆';
         btn.style.background = 'rgba(255,255,255,0.18)';
         if (typeof soundsUX === 'function') soundsUX('MBF_SettingOff');
-        if (typeof toastBottomRight !== 'undefined') {
-            toastBottomRight.info?.(`${t('line')} ${lineName[routeId] || routeId} retiré des favoris`);
-        }
     } else {
         const bestStop = _findBestStopForRoute(routeId, stopIdArr);
         favs.push({
@@ -14290,14 +14284,10 @@ function _toggleLineFavoriteFromStop(routeId, stopIdArr, stopName, btn, textColo
             addedAt:         Date.now(),
             addedFromStop:   true
         });
-        btn.textContent = '★';
-        btn.style.background = 'rgba(255,215,0,0.3)';
+        btn.textContent = '🌟';
         btn.style.transform = 'scale(1.3)';
         setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
         if (typeof soundsUX === 'function') soundsUX('MBF_SettingOn');
-        if (typeof toastBottomRight !== 'undefined') {
-            toastBottomRight.success?.(`${t('line')} ${lineName[routeId] || routeId} ajouté aux favoris`);
-        }
     }
 
     const key = `favoriteSchedules_${window.ACTIVE_NETWORK || 'palmbus'}`;
@@ -14423,7 +14413,6 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh =
                 data-stop-ids="${JSON.stringify(stopIdArr).replace(/"/g, '&quot;')}"
                 data-stop-name="${stopName.replace(/"/g, '&quot;')}"
                 style="
-                    background: ${isFavLine ? 'rgba(255,215,0,0.3)' : 'rgba(255,255,255,0.18)'};
                     border: none;
                     border-radius: 10px;
                     width: 32px; height: 32px;
@@ -14435,7 +14424,7 @@ function _renderStopPassages(container, stopIdArr, stopName, byLine, isRefresh =
                     position: relative; z-index: 1;
                     transition: transform 0.2s ease, background 0.2s ease;
                 ">
-                ${isFavLine ? '★' : '☆'}
+                ${isFavLine ? '🌟' : '☆'}
             </button>`;
         card.appendChild(header);
 
@@ -14658,7 +14647,6 @@ function _renderRoutePassageCard(routeId, destinations, stopIdArr, stopName, isR
         <button class="bs-stop-line-fav-btn"
             data-route-id="${routeId}"
             style="
-                background: ${isFavLine ? 'rgba(255,215,0,0.3)' : 'rgba(255,255,255,0.18)'};
                 border: none;
                 border-radius: 10px;
                 width: 32px; height: 32px;
@@ -14670,7 +14658,7 @@ function _renderRoutePassageCard(routeId, destinations, stopIdArr, stopName, isR
                 position: relative; z-index: 1;
                 transition: transform 0.2s ease, background 0.2s ease;
             ">
-            ${isFavLine ? '★' : '☆'}
+            ${isFavLine ? '🌟' : '☆'}
         </button>`;
     card.appendChild(header);
 
