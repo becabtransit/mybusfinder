@@ -1314,12 +1314,8 @@ let watchId = null;
 
 function _maybeShowNearestStopGpsSkeleton() {
     if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') return;
-    if (window._nearestStopState?.nearbyStops?.length) return; // on a déjà des résultats, ne pas écraser
+    if (window._nearestStopState?.nearbyStops?.length) return; 
     if (window._nearestStopState?.dismissed) return;
-
-    const hasLineFavs = getFavoriteSchedules().length > 0;
-    const hasStopFavs = _getStopFavorites().length > 0;
-    if (hasLineFavs || hasStopFavs) return; // les favoris priment sur le widget
 
     _showNearestStopSkeleton();
 }
@@ -1502,9 +1498,7 @@ async function _updateNearestStopWidget(latlng) {
     state.lastComputedLatLng = latlng;
 
     if (!state.nearbyStops || !state.nearbyStops.length) {
-        const hasLineFavs = getFavoriteSchedules().length > 0;
-        const hasStopFavs = _getStopFavorites().length > 0;
-        if (!hasLineFavs && !hasStopFavs && !state.dismissed) {
+        if (!state.dismissed) {
             _showNearestStopSkeleton();
         }
     }
@@ -12498,29 +12492,13 @@ const BottomSheet = (() => {
                 transition: all cubic-bezier(0.25, 1.5, 0.5, 1) 0.45s;
             }
 
-            #bottom-sheet:not(.bs-fullscreen) #bs-nearest-stop-scroll::after,
-            #bottom-sheet:not(.bs-fullscreen) #bs-nearest-served-stop-scroll::after,
-            #bottom-sheet:not(.bs-fullscreen) #bs-favorites-list::after,
-            #bottom-sheet:not(.bs-fullscreen) #bs-search-results::after,
-            #bottom-sheet:not(.bs-fullscreen) #bs-stop-view::after {
-                content: "";
-                position: absolute;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                height: 48px;
-                pointer-events: none;
-                border-radius: 0 0 15px 15px;
-                background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 100%);
-                opacity: 0;
-                transition: opacity 0.35s ease;
-            }
-            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-nearest-stop-scroll::after,
-            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-nearest-served-stop-scroll::after,
-            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-favorites-list::after,
-            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-search-results::after,
-            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-stop-view::after {
-                opacity: 1;
+            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-nearest-stop-scroll,
+            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-nearest-served-stop-scroll,
+            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-favorites-list,
+            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-search-results,
+            #bottom-sheet.bs-expanded:not(.bs-fullscreen) #bs-stop-view {
+                -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 34px), transparent 100%);
+                mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 34px), transparent 100%);
             }
 
             #bottom-sheet.bs-fullscreen #bs-content {
@@ -13207,7 +13185,7 @@ function _ensureNearestStopSection() {
 
     section = document.createElement('div');
     section.id = 'bs-nearest-stop-section';
-    section.style.cssText = 'margin-right: 37px; margin-left: 37px; display:none;';
+    section.style.cssText = 'margin-right: 37px; margin-left: 37px; margin-top: 18px; display:none;';
     section.innerHTML = `
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:0 2px;">
         </div>
@@ -13219,7 +13197,11 @@ function _ensureNearestStopSection() {
         </div>
     `;
 
-    favSection.parentNode.insertBefore(section, favSection);
+    if (favSection.nextSibling) {
+        favSection.parentNode.insertBefore(section, favSection.nextSibling);
+    } else {
+        favSection.parentNode.appendChild(section);
+    }
     return section;
 }
 
@@ -13228,13 +13210,6 @@ async function _renderNearestStopWidget() {
     if (!state.nearbyStops || !state.nearbyStops.length) return;
 
     if (document.getElementById('bottom-sheet')?.dataset.stopView === 'true') {
-        return;
-    }
-
-    const hasLineFavs = getFavoriteSchedules().length > 0;
-    const hasStopFavs = _getStopFavorites().length > 0;
-    if (hasLineFavs || hasStopFavs) {
-        _hideNearestStopWidget();
         return;
     }
 
