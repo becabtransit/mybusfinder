@@ -7,6 +7,41 @@
   var OVERLAY_ID = "mbf-welcome-overlay";
   var TRANSITION_MS = 280;
 
+  // =========================================================================
+  // CONFIGURATION FIREBASE
+  // =========================================================================
+  // 1) Ajoute dans ton HTML, AVANT ce script, les SDK Firebase (compat) :
+  //
+  //   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  //   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+  //
+  // 2) Remplace les valeurs ci-dessous par la config de ton projet Firebase
+  //    (Console Firebase > Paramètres du projet > Général > Vos applications).
+  // 3) Dans la Console Firebase > Authentication > Sign-in method, active
+  //    les fournisseurs "E-mail/Mot de passe", "Google" et "Téléphone".
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCXA5YC8HPnZ-Ws3kvKtngM1kCj-5C6yDY",
+    authDomain: "mybusfinder-becabdev.firebaseapp.com",
+    projectId: "mybusfinder-becabdev",
+    storageBucket: "mybusfinder-becabdev.firebasestorage.app",
+    messagingSenderId: "838241151551",
+    appId: "1:838241151551:web:35836e3f314a7967df268a",
+  };
+
+  function ensureFirebase() {
+    if (!window.firebase || !firebase.auth) {
+      console.error(
+        "[MyBusFinderWelcome] Le SDK Firebase (compat) n'est pas chargé. " +
+        "Ajoute firebase-app-compat.js et firebase-auth-compat.js avant ce script."
+      );
+      return null;
+    }
+    if (!firebase.apps.length) {
+      firebase.initializeApp(FIREBASE_CONFIG);
+    }
+    return firebase;
+  }
+
   var HEADER_ICONS = [
     // bus
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -22,6 +57,11 @@
       <line x1="9" y1="13" x2="15" y2="13"></line>
       <line x1="9" y1="17" x2="15" y2="17"></line>
     </svg>`,
+    // personne / connexion
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="8" r="4"></circle>
+      <path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"></path>
+    </svg>`,
     // cafe
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4 9h13v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4Z"></path>
@@ -30,7 +70,7 @@
       <path d="M12 2c0 1-1 1-1 2s1 1 1 2"></path>
     </svg>`,
   ];
-  var HEADER_TITLES = ["Bienvenue", "Conditions d'Utilisation", "Soutenir le projet"];
+  var HEADER_TITLES = ["Bienvenue", "Conditions d'Utilisation", "Connexion", "Soutenir le projet"];
 
   var CSS = `
     @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap");
@@ -153,6 +193,84 @@
     #${OVERLAY_ID} .mbf-rtf ul { margin: 0 0 14px; padding-left: 20px; }
     #${OVERLAY_ID} .mbf-rtf li { line-height: 1.6; font-size: 0.95rem; margin-bottom: 4px; }
 
+    /* ---- Écran de connexion / inscription ---- */
+    #${OVERLAY_ID} .mbf-auth { display: flex; flex-direction: column; gap: 18px; padding-top: 12px; height: 100%; }
+    #${OVERLAY_ID} .mbf-auth-logo { text-align: center; margin-bottom: 4px; }
+    #${OVERLAY_ID} .mbf-auth-logo img { max-width: 96px; max-height: 96px; margin: 0 auto; display: block; }
+
+    #${OVERLAY_ID} .mbf-auth-tabs { display: flex; gap: 8px; background-color: #f3f0ef; border-radius: 10px; padding: 4px; }
+    #${OVERLAY_ID} .mbf-auth-tab {
+      flex: 1;
+      border: 0;
+      background: transparent;
+      padding: 10px;
+      border-radius: 8px;
+      font-family: "Outfit", sans-serif;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #6b5f63;
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+    #${OVERLAY_ID} .mbf-auth-tab.is-active { background-color: #fff; color: #750550; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+
+    #${OVERLAY_ID} .mbf-auth-panel { display: none; flex-direction: column; gap: 14px; }
+    #${OVERLAY_ID} .mbf-auth-panel.is-active { display: flex; }
+
+    #${OVERLAY_ID} .mbf-auth label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #2d232e;
+    }
+    #${OVERLAY_ID} .mbf-auth input {
+      font-family: "Outfit", sans-serif;
+      font-size: 0.95rem;
+      padding: 11px 12px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    #${OVERLAY_ID} .mbf-auth input:focus { border-color: #750550; }
+
+    #${OVERLAY_ID} .mbf-auth-divider { display: flex; align-items: center; gap: 10px; color: #a89ea1; font-size: 0.8rem; }
+    #${OVERLAY_ID} .mbf-auth-divider:before,
+    #${OVERLAY_ID} .mbf-auth-divider:after { content: ""; flex: 1; height: 1px; background-color: #ddd; }
+
+    #${OVERLAY_ID} .mbf-btn-google {
+      background-color: #fff;
+      border: 1px solid #ddd;
+      color: #2d232e;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+    }
+    #${OVERLAY_ID} .mbf-btn-google svg { width: 18px; height: 18px; }
+    #${OVERLAY_ID} .mbf-btn-google:hover,
+    #${OVERLAY_ID} .mbf-btn-google:focus-visible { background-color: #f7f5f4; }
+
+    #${OVERLAY_ID} .mbf-auth-submit { width: 100%; }
+
+    #${OVERLAY_ID} .mbf-auth-error {
+      color: #b3261e;
+      font-size: 0.85rem;
+      margin: -6px 0 0;
+      min-height: 1.1em;
+    }
+
+    #${OVERLAY_ID} .mbf-auth-hint {
+      color: #6b5f63;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    /* ---- Page de dons ---- */
     #${OVERLAY_ID} .mbf-thanks { text-align: center; margin: auto 0; padding: 24px 0; }
     #${OVERLAY_ID} .mbf-thanks h2 { font-size: 1.4rem; font-weight: 800; margin: 0 0 12px; }
     #${OVERLAY_ID} .mbf-thanks p { color: #6b5f63; font-size: 0.95rem; line-height: 1.65; max-width: 36ch; margin: 0 auto; }
@@ -210,8 +328,6 @@
     #${OVERLAY_ID} .mbf-btn-coffee svg { width: 18px; height: 18px; }
     #${OVERLAY_ID} .mbf-btn-coffee:hover,
     #${OVERLAY_ID} .mbf-btn-coffee:focus-visible { background-color: #e6c700; }
-
-    #${OVERLAY_ID} .mbf-btn:focus-visible,
 
     @media (min-width: 640px) {
       #${OVERLAY_ID} { padding: 24px; }
@@ -738,10 +854,74 @@
     </section>
     `;
 
+  var stepAuth = `
+    <section class="mbf-step" data-step="2">
+      <div class="mbf-auth">
 
+        <div class="mbf-auth-logo">
+          <img src="src/logo.png" alt="My Bus Finder" id="mbf-auth-logo-img">
+        </div>
+
+        <div class="mbf-auth-tabs" id="mbf-auth-tabs">
+          <button type="button" class="mbf-auth-tab is-active" data-tab="login">Connexion</button>
+          <button type="button" class="mbf-auth-tab" data-tab="signup">Inscription</button>
+        </div>
+
+        <!-- Panneau : email / mot de passe / Google -->
+        <div class="mbf-auth-panel is-active" data-panel="credentials">
+
+          <button type="button" class="mbf-btn mbf-btn-google" id="mbf-btn-google">
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z"/>
+              <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.9 19 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.6 8.3 6.3 14.7z"/>
+              <path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.2-5.1l-6.5-5.5C29.6 35.4 26.9 36 24 36c-5.3 0-9.7-3.1-11.3-7.5l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/>
+              <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.5 5.5C41.5 36 44 30.4 44 24c0-1.2-.1-2.4-.4-3.5z"/>
+            </svg>
+            Continuer avec Google
+          </button>
+
+          <div class="mbf-auth-divider"><span>ou</span></div>
+
+          <label>Email
+            <input type="email" id="mbf-auth-email" autocomplete="email" placeholder="vous@exemple.com">
+          </label>
+          <label>Mot de passe
+            <input type="password" id="mbf-auth-password" autocomplete="current-password" placeholder="••••••••">
+          </label>
+
+          <p class="mbf-auth-error" id="mbf-auth-error" aria-live="polite"></p>
+
+          <button type="button" class="mbf-btn mbf-btn-primary mbf-auth-submit" id="mbf-auth-submit">Se connecter</button>
+        </div>
+
+        <!-- Panneau : vérification du numéro de téléphone -->
+        <div class="mbf-auth-panel" data-panel="phone">
+          <p class="mbf-auth-hint">Dernière étape : confirmez votre numéro de téléphone pour sécuriser votre compte.</p>
+
+          <label>Numéro de téléphone
+            <input type="tel" id="mbf-auth-phone" placeholder="+33 6 12 34 56 78">
+          </label>
+
+          <div id="mbf-recaptcha-container"></div>
+
+          <p class="mbf-auth-error" id="mbf-phone-error" aria-live="polite"></p>
+
+          <button type="button" class="mbf-btn mbf-btn-primary" id="mbf-btn-send-code">Envoyer le code</button>
+
+          <div id="mbf-phone-code-wrap" style="display:none; flex-direction: column; gap: 14px;">
+            <label>Code reçu par SMS
+              <input type="text" inputmode="numeric" autocomplete="one-time-code" id="mbf-auth-code" placeholder="123456">
+            </label>
+            <button type="button" class="mbf-btn mbf-btn-primary" id="mbf-btn-confirm-code">Valider le code</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  `;
 
     var stepDonate = `
-    <section class="mbf-step" data-step="2">
+    <section class="mbf-step" data-step="3">
         <div class="mbf-thanks">
         <h2>☕ Un petit café pour faire avancer My Bus Finder</h2>
         <p>My Bus Finder est un projet indépendant, développé par un étudiant en développement informatique sur mon temps libre pour vous aider à trouver votre bus ou votre tram, sans prise de tête.</p>
@@ -766,8 +946,15 @@
     </div>
   `;
 
-  var footerDonate = `
+  var footerAuth = `
     <div class="mbf-footer" data-footer="2">
+      <button class="mbf-btn mbf-btn-ghost" id="mbf-btn-auth-back" type="button">Retour</button>
+      <button class="mbf-btn mbf-btn-ghost" id="mbf-btn-skip-phone" type="button" style="display:none;">Plus tard</button>
+    </div>
+  `;
+
+  var footerDonate = `
+    <div class="mbf-footer" data-footer="3">
       <button class="mbf-btn mbf-btn-ghost" id="mbf-btn-skip" type="button">Plus tard</button>
       <button class="mbf-btn mbf-btn-coffee" id="mbf-btn-donate" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -789,6 +976,7 @@
           <span class="mbf-dot is-active" data-dot="0"></span>
           <span class="mbf-dot" data-dot="1"></span>
           <span class="mbf-dot" data-dot="2"></span>
+          <span class="mbf-dot" data-dot="3"></span>
         </div>
 
         <div class="mbf-header">
@@ -799,12 +987,14 @@
         <div class="mbf-body" id="mbf-body">
           ${stepWelcome}
           ${stepTerms}
+          ${stepAuth}
           ${stepDonate}
         </div>
 
         <div class="mbf-footer-wrap">
           ${footerWelcome}
           ${footerTerms}
+          ${footerAuth}
           ${footerDonate}
         </div>
 
@@ -815,6 +1005,11 @@
   var els = {};
   var current = 0;
   var isInjected = false;
+
+  // État de l'écran d'authentification
+  var authMode = "login"; // "login" | "signup"
+  var recaptchaVerifier = null;
+  var phoneVerificationId = null;
 
   function injectStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -840,6 +1035,19 @@
     els.body = overlay.querySelector("#mbf-body");
     els.headerIcon = overlay.querySelector("#mbf-header-icon");
     els.headerTitle = overlay.querySelector("#mbf-header-title");
+
+    // Éléments de l'écran d'authentification
+    els.authTabs = Array.prototype.slice.call(overlay.querySelectorAll(".mbf-auth-tab"));
+    els.authPanels = Array.prototype.slice.call(overlay.querySelectorAll(".mbf-auth-panel"));
+    els.authEmail = overlay.querySelector("#mbf-auth-email");
+    els.authPassword = overlay.querySelector("#mbf-auth-password");
+    els.authError = overlay.querySelector("#mbf-auth-error");
+    els.authSubmit = overlay.querySelector("#mbf-auth-submit");
+    els.authPhone = overlay.querySelector("#mbf-auth-phone");
+    els.phoneError = overlay.querySelector("#mbf-phone-error");
+    els.phoneCodeWrap = overlay.querySelector("#mbf-phone-code-wrap");
+    els.authCode = overlay.querySelector("#mbf-auth-code");
+    els.skipPhoneBtn = overlay.querySelector("#mbf-btn-skip-phone");
   }
 
   function bindEvents() {
@@ -852,12 +1060,166 @@
     els.overlay.querySelector("#mbf-btn-accept").addEventListener("click", function () {
       goToStep(2);
     });
+    els.overlay.querySelector("#mbf-btn-auth-back").addEventListener("click", function () {
+      goToStep(1);
+    });
     els.overlay.querySelector("#mbf-btn-skip").addEventListener("click", close);
     els.overlay.querySelector("#mbf-btn-donate").addEventListener("click", function () {
       window.open("https://buymeacoffee.com/mybusfinder", "_blank", "noopener");
     });
+
+    // --- Auth : bascule Connexion / Inscription ---
+    els.authTabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        authMode = tab.getAttribute("data-tab");
+        els.authTabs.forEach(function (t) { t.classList.toggle("is-active", t === tab); });
+        els.authSubmit.textContent = authMode === "signup" ? "Créer mon compte" : "Se connecter";
+        setAuthError("");
+      });
+    });
+
+    // --- Auth : Google ---
+    els.overlay.querySelector("#mbf-btn-google").addEventListener("click", function () {
+      var fb = ensureFirebase();
+      if (!fb) return;
+      setAuthError("");
+      var provider = new firebase.auth.GoogleAuthProvider();
+      firebase.auth().signInWithPopup(provider)
+        .then(function (result) { onAuthSuccess(result.user); })
+        .catch(function (err) { setAuthError(translateAuthError(err)); });
+    });
+
+    // --- Auth : email / mot de passe (connexion ou inscription selon l'onglet actif) ---
+    els.authSubmit.addEventListener("click", function () {
+      var fb = ensureFirebase();
+      if (!fb) return;
+      setAuthError("");
+
+      var email = (els.authEmail.value || "").trim();
+      var password = els.authPassword.value || "";
+
+      if (!email || !password) {
+        setAuthError("Merci de renseigner un email et un mot de passe.");
+        return;
+      }
+
+      var action = authMode === "signup"
+        ? firebase.auth().createUserWithEmailAndPassword(email, password)
+        : firebase.auth().signInWithEmailAndPassword(email, password);
+
+      action
+        .then(function (result) { onAuthSuccess(result.user); })
+        .catch(function (err) { setAuthError(translateAuthError(err)); });
+    });
+
+    // --- Auth : envoi du code SMS ---
+    els.overlay.querySelector("#mbf-btn-send-code").addEventListener("click", function () {
+      var fb = ensureFirebase();
+      if (!fb) return;
+      setPhoneError("");
+
+      var phoneNumber = (els.authPhone.value || "").trim();
+      if (!phoneNumber) {
+        setPhoneError("Merci de renseigner un numéro de téléphone au format international (ex : +33612345678).");
+        return;
+      }
+
+      if (!recaptchaVerifier) {
+        recaptchaVerifier = new firebase.auth.RecaptchaVerifier("mbf-recaptcha-container", {
+          size: "normal",
+        });
+      }
+
+      new firebase.auth.PhoneAuthProvider(firebase.auth())
+        .verifyPhoneNumber(phoneNumber, recaptchaVerifier)
+        .then(function (verificationId) {
+          phoneVerificationId = verificationId;
+          els.phoneCodeWrap.style.display = "flex";
+        })
+        .catch(function (err) { setPhoneError(translateAuthError(err)); });
+    });
+
+    // --- Auth : confirmation du code SMS et rattachement au compte ---
+    els.overlay.querySelector("#mbf-btn-confirm-code").addEventListener("click", function () {
+      var fb = ensureFirebase();
+      if (!fb || !phoneVerificationId) return;
+      setPhoneError("");
+
+      var code = (els.authCode.value || "").trim();
+      if (!code) {
+        setPhoneError("Merci de saisir le code reçu par SMS.");
+        return;
+      }
+
+      var credential = firebase.auth.PhoneAuthProvider.credential(phoneVerificationId, code);
+      var currentUser = firebase.auth().currentUser;
+
+      var linkPromise = currentUser
+        ? currentUser.linkWithCredential(credential)
+        : firebase.auth().signInWithCredential(credential);
+
+      linkPromise
+        .then(function () { goToStep(3); })
+        .catch(function (err) {
+          // Un numéro déjà lié à un autre compte n'empêche pas de continuer.
+          if (err && err.code === "auth/credential-already-in-use") {
+            goToStep(3);
+            return;
+          }
+          setPhoneError(translateAuthError(err));
+        });
+    });
+
+    // --- Auth : passer la vérification téléphone pour l'instant ---
+    els.skipPhoneBtn.addEventListener("click", function () {
+      goToStep(3);
+    });
   }
 
+  function setAuthError(message) {
+    if (els.authError) els.authError.textContent = message || "";
+  }
+
+  function setPhoneError(message) {
+    if (els.phoneError) els.phoneError.textContent = message || "";
+  }
+
+  function switchAuthPanel(name) {
+    els.authPanels.forEach(function (panel) {
+      panel.classList.toggle("is-active", panel.getAttribute("data-panel") === name);
+    });
+    els.skipPhoneBtn.style.display = name === "phone" ? "inline-flex" : "none";
+  }
+
+  // Appelée après une connexion/inscription réussie (email/mot de passe ou Google).
+  function onAuthSuccess(user) {
+    setAuthError("");
+    if (user && user.phoneNumber) {
+      // Le numéro est déjà vérifié sur ce compte : on passe directement aux dons.
+      goToStep(3);
+      return;
+    }
+    // Sinon, on demande la vérification du numéro de téléphone.
+    switchAuthPanel("phone");
+  }
+
+  function translateAuthError(err) {
+    var code = err && err.code;
+    var map = {
+      "auth/invalid-email": "Adresse email invalide.",
+      "auth/user-disabled": "Ce compte a été désactivé.",
+      "auth/user-not-found": "Aucun compte ne correspond à cet email.",
+      "auth/wrong-password": "Mot de passe incorrect.",
+      "auth/email-already-in-use": "Un compte existe déjà avec cet email.",
+      "auth/weak-password": "Le mot de passe doit contenir au moins 6 caractères.",
+      "auth/popup-closed-by-user": "La fenêtre Google a été fermée avant la fin de la connexion.",
+      "auth/invalid-phone-number": "Numéro de téléphone invalide (utilisez le format international, ex : +33612345678).",
+      "auth/invalid-verification-code": "Le code saisi est incorrect.",
+      "auth/code-expired": "Le code a expiré, merci de renvoyer un SMS.",
+      "auth/too-many-requests": "Trop de tentatives, merci de réessayer plus tard.",
+    };
+    return (code && map[code]) || (err && err.message) || "Une erreur est survenue, merci de réessayer.";
+  }
 
   function setStepInstant(index) {
     els.steps.forEach(function (step, i) {
