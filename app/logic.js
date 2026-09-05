@@ -12427,6 +12427,7 @@ const BottomSheet = (() => {
                             width 0.5s cubic-bezier(0.32, 0.72, 0, 1),
                             max-width 0.5s cubic-bezier(0.32, 0.72, 0, 1),
                             height 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+                            left 0.5s cubic-bezier(0.32, 0.72, 0, 1),
                             border-radius 0.45s ease;
             }
             #bottom-sheet.bs-fullscreen {
@@ -12437,6 +12438,7 @@ const BottomSheet = (() => {
                 border-radius: 0;
                 background: #252525;
                 bottom: 0px;
+                left: 50%;
             }
 
             #bottom-sheet:not(.bs-fullscreen) #bs-content {
