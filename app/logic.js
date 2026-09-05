@@ -83,13 +83,13 @@
             const toSend = pendingWrites;
             pendingWrites = {};
 
-            const patch = {};
+            const patch = { settings: {} };
             Object.entries(toSend).forEach(([k, v]) => {
-            patch[`settings.${k}`] = v;
+                patch.settings[k] = v;
             });
 
             db.collection('users').doc(currentUid).set(patch, { merge: true })
-            .catch(err => console.warn('[SettingsSync] upload échoué', err));
+                .catch(err => console.warn('[SettingsSync] upload échoué', err));
         }
 
         const originalSetItem = localStorage.setItem.bind(localStorage);
@@ -163,15 +163,6 @@
                 if (doc.exists) applyRemoteSettings(doc.data().settings);
                 },
                 (err) => console.warn('[SettingsSync] onSnapshot échoué', err)
-            );
-
-            unsubscribeSnapshot = db.collection('users').doc(uid)
-            .onSnapshot(
-                (doc) => {
-                console.log('[SettingsSync] snapshot reçu, exists:', doc.exists, 'data:', doc.data());
-                if (doc.exists) applyRemoteSettings(doc.data().settings);
-                },
-                (err) => console.error('[SettingsSync] onSnapshot ERREUR:', err.code, err.message)
             );
         }
 
