@@ -12422,13 +12422,13 @@ const BottomSheet = (() => {
                             border-radius 0.45s ease;
             }
             #bottom-sheet.bs-fullscreen {
-                width: 100vw;
-                max-width: 100vw;
-                height: 100vh;
-                max-height: 100vh;
-                border-top-left-radius: 0;
-                border-top-right-radius: 0;
-                filter: invert(1) hue-rotate(180deg) brightness(1.05) contrast(0.95);
+                width: 100%;
+                max-width: 100%;
+                height: 100%;
+                max-height: 100%;
+                border-radius: 0;
+                background: #252525;
+                margin: 0px 0px -9px 0px;
             }
             #bottom-sheet.bs-fullscreen #bs-content {
                 max-height: none;
