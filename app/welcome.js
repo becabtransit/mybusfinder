@@ -995,10 +995,10 @@ var stepTerms = `
           <div class="mbf-auth-divider"><span>ou</span></div>
 
           <label>Email
-            <input type="email" id="mbf-auth-email" autocomplete="email" placeholder="citaro.gc2@exemple.com">
+            <input type="email" id="mbf-auth-email" autocomplete="email" placeholder="citarogc2@exemple.com">
           </label>
           <label>Mot de passe
-            <input type="password" id="mbf-auth-password" autocomplete="current-password" placeholder="••••••••">
+            <input type="password" id="mbf-auth-password" autocomplete="current-password" placeholder="••••••••••">
           </label>
 
           <p class="mbf-auth-error" id="mbf-auth-error" aria-live="polite"></p>
