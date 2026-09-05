@@ -13160,18 +13160,33 @@ async function _renderNearestStopWidget() {
     section.style.display = 'block';
 
     const labelEl = document.getElementById('bs-nearest-stop-label');
-    const hintEl  = document.getElementById('bs-nearest-stop-hint');
+    if (labelEl) {
+        const first = state.nearbyStops[0];
+        const distText = first.distance < 1000
+            ? `${Math.round(first.distance)} m`
+            : `${(first.distance / 1000).toFixed(1)} km`;
+        labelEl.textContent = `${first.cluster.name} · ${distText}`;
+    }
+
     const content = document.getElementById('bs-nearest-stop-content');
+    const hintEl  = document.getElementById('bs-nearest-stop-hint');
     if (!content) return;
 
-    if (labelEl) {
-        labelEl.textContent = t('nearest_stops') || 'Arrêts à proximité';
+    if (!content.dataset.loaded) {
+        content.innerHTML = `
+            <div class="bs-fav-loading" style="padding:10px 2px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <span>Chargement…</span>
+            </div>`;
     }
 
     content.innerHTML = '';
 
     state.nearbyStops.forEach((item, idx) => {
-        const distText = item.distance < 1000
+        const distText2 = item.distance < 1000
             ? `${Math.round(item.distance)} m`
             : `${(item.distance / 1000).toFixed(1)} km`;
 
@@ -13190,7 +13205,7 @@ async function _renderNearestStopWidget() {
                 <circle cx="12" cy="10" r="3"/>
                 <path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
             </svg>
-            <span>${item.cluster.name} · ${distText}</span>`;
+            <span>${item.cluster.name} · ${distText2}</span>`;
         block.appendChild(blockLabel);
 
         const blockContent = document.createElement('div');
@@ -13200,6 +13215,8 @@ async function _renderNearestStopWidget() {
 
         content.appendChild(block);
     });
+
+    content.dataset.loaded = 'true';
 
     requestAnimationFrame(() => {
         if (hintEl) hintEl.style.display = content.scrollHeight > 200 ? 'block' : 'none';
