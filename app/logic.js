@@ -13933,6 +13933,7 @@ function _toggleStopFavorite(stopIdArr, stopName, btn) {
     } else {
         favs.push({ stopIds: stopIdArr, stopName, addedAt: Date.now() });
         btn.textContent = '🌟';
+        btn.style.background = 'rgba(255,215,0,0.25)';
         btn.style.transform = 'scale(1.3)';
         setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
         if (typeof soundsUX === 'function') soundsUX('MBF_SettingOn');
@@ -14286,9 +14287,11 @@ function _toggleLineFavoriteFromStop(routeId, stopIdArr, stopName, btn, textColo
             addedFromStop:   true
         });
         btn.textContent = '🌟';
+        btn.style.background = 'rgba(255,255,255,0.18)';
         btn.style.transform = 'scale(1.3)';
         setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
         if (typeof soundsUX === 'function') soundsUX('MBF_SettingOn');
+
     }
 
     const key = `favoriteSchedules_${window.ACTIVE_NETWORK || 'palmbus'}`;
