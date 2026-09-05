@@ -13186,9 +13186,9 @@ function _ensureNearestStopSection() {
 
     section = document.createElement('div');
     section.id = 'bs-nearest-stop-section';
-    section.style.cssText = 'margin-right: 37px; margin-left: 37px; margin-top: 18px; display:none;';
+    section.style.cssText = 'margin-right: 37px; margin-left: 37px; margin-top: 0px; display:none;';
     section.innerHTML = `
-        <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:0 2px;">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:0px; padding:0 2px;">
         </div>
         <div id="bs-nearest-stop-wrapper" style="position:relative;">
             <div id="bs-nearest-stop-scroll" style="max-height:350px; overflow:hidden;
