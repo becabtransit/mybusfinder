@@ -12464,7 +12464,6 @@ const BottomSheet = (() => {
                             max-width 0.5s cubic-bezier(0.32, 0.72, 0, 1),
                             height 0.5s cubic-bezier(0.32, 0.72, 0, 1),
                             left 0.5s cubic-bezier(0.32, 0.72, 0, 1),
-                            transform 0.5s cubic-bezier(0.32, 0.72, 0, 1),
                             border-radius 0.45s ease;
             }
             #bottom-sheet.bs-fullscreen {
@@ -12490,6 +12489,13 @@ const BottomSheet = (() => {
                 max-height: 400px;
                 overflow: hidden !important;
                 position: relative;
+            }
+
+            #bottom-sheet:not(.bs-fullscreen) .bs-icon-btn {
+                transform: translateX(25px) opacity(0);
+                filter: blur(8px);
+                pointer-events: none;
+                transition: all cubic-bezier(0.25, 1.5, 0.5, 1) 0.45s;
             }
 
             #bottom-sheet:not(.bs-fullscreen) #bs-nearest-stop-scroll::after,
