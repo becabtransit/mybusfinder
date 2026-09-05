@@ -1375,6 +1375,15 @@ function _findNearestStopCluster(latlng) {
     return best ? { cluster: best, distance: bestDist } : null;
 }
 
+function _stopPassageSignature(passages) {
+    if (!passages) return '';
+    return Object.values(passages)
+        .filter(g => g.times && g.times.length > 0)
+        .map(g => `${g.routeId}|||${g.dest}`)
+        .sort()
+        .join('~~');
+}
+
 async function _findNearestServedStops(latlng, maxResults = 10, maxCandidates = 40) {
     if (!window._stopClusters || !window._stopClusters.length) return [];
 
@@ -1384,15 +1393,20 @@ async function _findNearestServedStops(latlng, maxResults = 10, maxCandidates = 
         .slice(0, maxCandidates);
 
     const results = [];
+    const seenSignatures = new Set();
 
     for (const { cluster, distance } of sorted) {
         if (results.length >= maxResults) break;
         try {
             const passages = await _computeStopPassages(cluster.stopIds);
             const hasService = Object.values(passages).some(g => g.times && g.times.length > 0);
-            if (hasService) {
-                results.push({ cluster, distance, passages });
-            }
+            if (!hasService) continue;
+
+            const signature = _stopPassageSignature(passages);
+            if (signature && seenSignatures.has(signature)) continue;
+            if (signature) seenSignatures.add(signature);
+
+            results.push({ cluster, distance, passages });
         } catch (e) {
             console.warn('Erreur vérif desserte arret', e);
         }
@@ -1473,6 +1487,14 @@ async function _updateNearestStopWidget(latlng) {
     }
 
     state.lastComputedLatLng = latlng;
+
+    if (!state.nearbyStops || !state.nearbyStops.length) {
+        const hasLineFavs = getFavoriteSchedules().length > 0;
+        const hasStopFavs = _getStopFavorites().length > 0;
+        if (!hasLineFavs && !hasStopFavs && !state.dismissed) {
+            _showNearestStopSkeleton();
+        }
+    }
 
     const served = await _findNearestServedStops(latlng, 10, 40);
 
@@ -12660,25 +12682,32 @@ const BottomSheet = (() => {
         if (dragMode !== 'content-watch' && dragMode !== 'content-active') return;
         if (activePointerId !== null && e.pointerId !== activePointerId) return;
 
-        const dy = e.clientY - dragStartY;
-        const dx = e.clientX - dragStartX;
-
         if (dragMode === 'content-watch') {
+            const dy = e.clientY - dragStartY;
+            const dx = e.clientX - dragStartX;
+
             if (Math.abs(dy) < DRAG_THRESHOLD && Math.abs(dx) < DRAG_THRESHOLD) return;
 
             if (Math.abs(dx) > Math.abs(dy)) { dragMode = null; return; }
 
             if (isFullscreen) {
                 const scrollTop = contentEl ? contentEl.scrollTop : 0;
-                if (!(scrollTop <= 0 && dy > 0)) {
-                    dragMode = null;
+                if (!(scrollTop <= 2 && dy > 0)) {
                     return;
                 }
             }
 
             dragMode = 'content-active';
+            dragStartY = e.clientY;
+            lastY = e.clientY;
+            lastTime = performance.now();
+            velocity = 0;
             sheetEl.classList.add('bs-dragging');
             try { sheetEl.setPointerCapture(e.pointerId); } catch (_) {}
+
+            e.preventDefault?.();
+            _applyDragTransform(0);
+            return;
         }
 
         e.preventDefault?.();
@@ -12688,7 +12717,7 @@ const BottomSheet = (() => {
         lastY = e.clientY;
         lastTime = now;
 
-        _applyDragTransform(dy);
+        _applyDragTransform(e.clientY - dragStartY);
     }
 
     function _onContentPointerUp(e) {
@@ -13178,17 +13207,6 @@ async function _renderNearestStopWidget() {
     const hintEl  = document.getElementById('bs-nearest-stop-hint');
     if (!content) return;
 
-    if (!content.dataset.loaded) {
-        content.innerHTML = `
-            <div class="bs-fav-loading" style="padding:10px 2px;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5">
-                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                </svg>
-                <span>Chargement…</span>
-            </div>`;
-    }
-
     content.innerHTML = '';
 
     state.nearbyStops.forEach((item, idx) => {
@@ -13227,6 +13245,58 @@ function _hideNearestStopWidget() {
 
     window._nearestStopState.nearbyStops        = [];
     window._nearestStopState.lastComputedLatLng = null;
+}
+
+function _bsSkeletonTimesRow(pillCount = 3) {
+    let pills = '';
+    for (let i = 0; i < pillCount; i++) {
+        const w = 46 + Math.round(Math.random() * 24);
+        pills += `<div class="bs-skel bs-skel-pill" style="width:${w}px;"></div>`;
+    }
+    return `<div class="bs-skel-row">${pills}</div>`;
+}
+
+function _bsSkeletonDestRows(rows = 2) {
+    let html = '';
+    for (let i = 0; i < rows; i++) {
+        html += `
+            <div style="margin-bottom:${i < rows - 1 ? '10px' : '0'};">
+                <div class="bs-skel bs-skel-line" style="width:45%; margin-bottom:6px;"></div>
+                ${_bsSkeletonTimesRow()}
+            </div>`;
+    }
+    return html;
+}
+
+function _bsSkeletonFavCard() {
+    return `
+        <div class="bs-skel-card">
+            <div class="bs-skel-card-header">
+                <div class="bs-skel bs-skel-dot"></div>
+                <div class="bs-skel bs-skel-line" style="width:96px;"></div>
+            </div>
+            <div class="bs-skel-card-body">
+                <div class="bs-skel bs-skel-line" style="width:60%;"></div>
+                ${_bsSkeletonTimesRow()}
+            </div>
+        </div>`;
+}
+
+function _bsSkeletonCards(count = 3) {
+    let html = '';
+    for (let i = 0; i < count; i++) html += _bsSkeletonFavCard();
+    return html;
+}
+
+function _showNearestStopSkeleton() {
+    const section = _ensureNearestStopSection();
+    if (!section) return;
+    section.style.display = 'block';
+    const content = document.getElementById('bs-nearest-stop-content');
+    if (content) {
+        content.innerHTML = _bsSkeletonCards(2);
+        content.dataset.loaded = '';
+    }
 }
 
 function _refreshBottomSheetFavorites(withAnimation = false) {
@@ -13273,16 +13343,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                 </div>
                 <div class="bs-fav-card-body">
                     <div class="bs-fav-times" id="bs-stopfav-times-${fav.stopIds[0]}">
-                        <div class="bs-fav-loading">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                                 stroke="currentColor" stroke-width="2"
-                                 stroke-linecap="round" stroke-linejoin="round"
-                                 style="opacity:.5">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polyline points="12 6 12 12 16 14"/>
-                            </svg>
-                            <span>Chargement…</span>
-                        </div>
+                        ${_bsSkeletonTimesRow()}
                     </div>
                 </div>`;
 
@@ -13606,16 +13667,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
 
             const body = document.createElement('div');
             body.style.cssText = 'padding: 12px 14px;';
-            body.innerHTML = `
-                <div class="bs-fav-loading">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round" style="opacity:.5">
-                        <circle cx="12" cy="12" r="10"/>
-                        <polyline points="12 6 12 12 16 14"/>
-                    </svg>
-                    <span>Chargement…</span>
-                </div>`;
+            body.innerHTML = _bsSkeletonDestRows(2);
             card.appendChild(body);
 
             setTimeout(() => {
@@ -13807,16 +13859,7 @@ function _refreshBottomSheetFavorites(withAnimation = false) {
                     <span class="bs-fav-stop-name">${stopName}</span>
                 </div>
                 <div class="bs-fav-times" id="bs-fav-times-${idx}">
-                    <div class="bs-fav-loading">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round"
-                            style="opacity:.5">
-                            <circle cx="12" cy="12" r="10"/>
-                            <polyline points="12 6 12 12 16 14"/>
-                        </svg>
-                        <span>Chargement…</span>
-                    </div>
+                    ${_bsSkeletonTimesRow()}
                 </div>
             </div>`;
 
@@ -13948,12 +13991,7 @@ async function openStopInBottomSheet(stopIds, stopName) {
     }
     stopView.style.display = 'block';
     _withBsHeightAnimation(() => {
-    stopView.innerHTML = `
-        <div style="display:flex; flex-direction:column; align-items:center;
-                    gap:10px; padding:28px 0; opacity:0.6;">
-            <div class="bs-spinner"></div>
-            <div style="font-size:13px;">Chargement des passages…</div>
-        </div>`;
+        stopView.innerHTML = _bsSkeletonCards(3);
     });
 
     if (content) content.scrollTop = 0;
