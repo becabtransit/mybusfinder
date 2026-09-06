@@ -125,23 +125,42 @@
 
         window.addEventListener('pagehide', _flushWritesIfPending);
 
-        const originalSetItem = localStorage.setItem.bind(localStorage);
-        const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+        const originalSetItem = Storage.prototype.setItem;
+        const originalRemoveItem = Storage.prototype.removeItem;
 
-        localStorage.setItem = function (key, value) {
-            originalSetItem(key, value);
-            if (isSyncedKey(key)) scheduleUpload(key, value);
+        Storage.prototype.setItem = function (key, value) {
+
+            originalSetItem.call(this, key, value);
+
+            if (
+                this === localStorage &&
+                isSyncedKey(key)
+            ) {
+                scheduleUpload(key, value);
+            }
         };
 
-        localStorage.removeItem = function (key) {
-            originalRemoveItem(key);
-            if (isSyncedKey(key) && currentUid && !applyingRemote) {
-            const db = getDb();
-            if (db) {
-                db.collection('users').doc(currentUid)
-                .update({ [`settings.${sanitizeKey(key)}`]: firebase.firestore.FieldValue.delete() })
-                .catch(() => {});
-            }
+        Storage.prototype.removeItem = function (key) {
+
+            originalRemoveItem.call(this, key);
+
+            if (
+                this === localStorage &&
+                isSyncedKey(key) &&
+                currentUid &&
+                !applyingRemote
+            ) {
+                const db = getDb();
+
+                if (db) {
+                    db.collection('users')
+                        .doc(currentUid)
+                        .update({
+                            [`settings.${sanitizeKey(key)}`]:
+                                firebase.firestore.FieldValue.delete()
+                        })
+                        .catch(() => {});
+                }
             }
         };
 
@@ -156,7 +175,7 @@
                     const current = localStorage.getItem(key);
                     const stringValue = String(value);
                     if (current !== stringValue) {
-                        originalSetItem(key, stringValue);
+                        originalSetItem.call(localStorage, key, stringValue);
                         changedKeys.add(key);
                         window.dispatchEvent(new CustomEvent('mbf-remote-setting-changed', { detail: { key, value } }));
                     }
@@ -12217,6 +12236,11 @@ async function main() {
         await loadGeoJsonLines();
         loadBusStopMarkers();
         startFetchUpdates();
+        console.log('UID ', window.MBF_Auth.currentUid);
+        console.log('is logged in? ', window.MBF_Auth.isLoggedIn);
+        console.log(localStorage.setItem.toString());
+        console.log('MBF_Auth:', typeof window.MBF_Auth);
+        console.log('SettingsSyncReady:', typeof window.SettingsSyncReady);
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
