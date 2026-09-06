@@ -125,25 +125,37 @@
 
         window.addEventListener('pagehide', _flushWritesIfPending);
 
-        const originalSetItem = localStorage.setItem.bind(localStorage);
-        const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+        const originalSetItem = Storage.prototype.setItem;
+        const originalRemoveItem = Storage.prototype.removeItem;
 
-        localStorage.setItem = function (key, value) {
-            originalSetItem(key, value);
-            if (isSyncedKey(key)) scheduleUpload(key, value);
-        };
+        Object.defineProperty(Storage.prototype, 'setItem', {
+            value: function (key, value) {
+                originalSetItem.call(this, key, value);
+                if (this === window.localStorage && isSyncedKey(key)) {
+                    scheduleUpload(key, value);
+                }
+            },
+            writable: true,
+            configurable: true,
+            enumerable: false
+        });
 
-        localStorage.removeItem = function (key) {
-            originalRemoveItem(key);
-            if (isSyncedKey(key) && currentUid && !applyingRemote) {
-            const db = getDb();
-            if (db) {
-                db.collection('users').doc(currentUid)
-                .update({ [`settings.${sanitizeKey(key)}`]: firebase.firestore.FieldValue.delete() })
-                .catch(() => {});
-            }
-            }
-        };
+        Object.defineProperty(Storage.prototype, 'removeItem', {
+            value: function (key) {
+                originalRemoveItem.call(this, key);
+                if (this === window.localStorage && isSyncedKey(key) && currentUid && !applyingRemote) {
+                    const db = getDb();
+                    if (db) {
+                        db.collection('users').doc(currentUid)
+                        .update({ [`settings.${sanitizeKey(key)}`]: firebase.firestore.FieldValue.delete() })
+                        .catch(() => {});
+                    }
+                }
+            },
+            writable: true,
+            configurable: true,
+            enumerable: false
+        });
 
         function applyRemoteSettings(settings) {
             if (!settings) return;
