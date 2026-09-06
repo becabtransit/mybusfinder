@@ -129,7 +129,7 @@
         const originalRemoveItem = Storage.prototype.removeItem;
 
         Storage.prototype.setItem = function (key, value) {
-            originalSetItem.call(this, key, value);
+            originalSetItem.call(localStorage, key, value);
 
             if (this === localStorage && isSyncedKey(key)) {
                 scheduleUpload(key, value);
