@@ -77,8 +77,17 @@
             return firebase.firestore();
         }
 
+        let authReady = false;
+        let preAuthQueue = {};
+
         function scheduleUpload(key, value) {
-            if (!currentUid || applyingRemote) return;
+            if (applyingRemote) return;
+
+            if (!currentUid) {
+                preAuthQueue[sanitizeKey(key)] = value;
+                return;
+            }
+
             pendingWrites[sanitizeKey(key)] = value;
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(flushWrites, DEBOUNCE_MS);
@@ -99,6 +108,22 @@
             db.collection('users').doc(currentUid).set(patch, { merge: true })
                 .catch(err => console.warn('[SettingsSync] upload échoué', err));
         }
+
+        function _flushWritesIfPending() {
+            if (Object.keys(pendingWrites).length > 0) {
+                clearTimeout(debounceTimer);
+                debounceTimer = null;
+                flushWrites();
+            }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                _flushWritesIfPending();
+            }
+        });
+
+        window.addEventListener('pagehide', _flushWritesIfPending);
 
         const originalSetItem = localStorage.setItem.bind(localStorage);
         const originalRemoveItem = localStorage.removeItem.bind(localStorage);
@@ -205,7 +230,18 @@
                         console.warn('[SettingsSync] pull initial échoué', err);
                     }
                     startRealtimeSync(user.uid);
+
+                    if (Object.keys(preAuthQueue).length > 0) {
+                        Object.assign(pendingWrites, preAuthQueue);
+                        preAuthQueue = {};
+                        clearTimeout(debounceTimer);
+                        debounceTimer = setTimeout(flushWrites, DEBOUNCE_MS);
+                    }
+                } else {
+                    preAuthQueue = {};
                 }
+
+                authReady = true;
                 resolve();
             });
             }
@@ -12043,17 +12079,6 @@ function startFetchUpdates({ forceRefresh = false } = {}) {
 
     fetchTimerId = setTimeout(scheduleFetch, getFetchDelay());
 }
-
-document.addEventListener('visibilitychange', () => {
-    cancelFetchTimer();
-
-    if (document.visibilityState === 'visible') {
-        FetchManager.reset();
-        startFetchUpdates({ forceRefresh: true });
-    } else {
-        startFetchUpdates({ forceRefresh: false });
-    }
-});
 
 let navWindow = null;
 let navVehicleId = null;
