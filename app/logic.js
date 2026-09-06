@@ -12217,8 +12217,10 @@ async function main() {
         await loadGeoJsonLines();
         loadBusStopMarkers();
         startFetchUpdates();
-        console.log('UID ', window.MBF_Auth.currentUid);
-        console.log('is logged in? ', window.MBF_Auth.isLoggedIn);
+        firebase.firestore().collection('users').doc(window.MBF_Auth.currentUid)
+            .set({ settings: { test: 'debug123' } }, { merge: true })
+            .then(() => console.log('✅ Write OK'))
+            .catch(err => console.error('❌ Write failed:', err.code, err.message));
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
