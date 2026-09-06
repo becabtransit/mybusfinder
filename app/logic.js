@@ -81,21 +81,20 @@
         let preAuthQueue = {};
 
         function scheduleUpload(key, value) {
-            if (applyingRemote) return;
-
-            if (!currentUid) {
-                preAuthQueue[sanitizeKey(key)] = value;
-                return;
-            }
-
+            console.log('[DEBUG] scheduleUpload appelé:', key, '=', value, '| currentUid:', currentUid, '| applyingRemote:', applyingRemote);
+            if (!currentUid || applyingRemote) return;
             pendingWrites[sanitizeKey(key)] = value;
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(flushWrites, DEBOUNCE_MS);
         }
 
         function flushWrites() {
+            console.log('[DEBUG] flushWrites déclenché, pendingWrites:', JSON.stringify(pendingWrites));
             const db = getDb();
-            if (!db || !currentUid || Object.keys(pendingWrites).length === 0) return;
+            if (!db || !currentUid || Object.keys(pendingWrites).length === 0) {
+                console.log('[DEBUG] flushWrites annulé — db:', !!db, 'currentUid:', currentUid, 'pendingWrites vide:', Object.keys(pendingWrites).length === 0);
+                return;
+            }
 
             const toSend = pendingWrites;
             pendingWrites = {};
@@ -12217,10 +12216,8 @@ async function main() {
         await loadGeoJsonLines();
         loadBusStopMarkers();
         startFetchUpdates();
-        firebase.firestore().collection('users').doc(window.MBF_Auth.currentUid)
-            .set({ settings: { test: 'debug123' } }, { merge: true })
-            .then(() => console.log('✅ Write OK'))
-            .catch(err => console.error('❌ Write failed:', err.code, err.message));
+        console.log('UID ', window.MBF_Auth.currentUid);
+        console.log('is logged in? ', window.MBF_Auth.isLoggedIn);
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
