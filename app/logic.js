@@ -128,34 +128,36 @@
         const originalSetItem = Storage.prototype.setItem;
         const originalRemoveItem = Storage.prototype.removeItem;
 
-        Object.defineProperty(Storage.prototype, 'setItem', {
-            value: function (key, value) {
-                originalSetItem.call(this, key, value);
-                if (this === window.localStorage && isSyncedKey(key)) {
-                    scheduleUpload(key, value);
-                }
-            },
-            writable: true,
-            configurable: true,
-            enumerable: false
-        });
+        Storage.prototype.setItem = function (key, value) {
+            originalSetItem.call(this, key, value);
 
-        Object.defineProperty(Storage.prototype, 'removeItem', {
-            value: function (key) {
-                originalRemoveItem.call(this, key);
-                if (this === window.localStorage && isSyncedKey(key) && currentUid && !applyingRemote) {
-                    const db = getDb();
-                    if (db) {
-                        db.collection('users').doc(currentUid)
-                        .update({ [`settings.${sanitizeKey(key)}`]: firebase.firestore.FieldValue.delete() })
+            if (this === localStorage && isSyncedKey(key)) {
+                scheduleUpload(key, value);
+            }
+        };
+
+        Storage.prototype.removeItem = function (key) {
+            originalRemoveItem.call(this, key);
+
+            if (
+                this === localStorage &&
+                isSyncedKey(key) &&
+                currentUid &&
+                !applyingRemote
+            ) {
+                const db = getDb();
+
+                if (db) {
+                    db.collection('users')
+                        .doc(currentUid)
+                        .update({
+                            [`settings.${sanitizeKey(key)}`]:
+                                firebase.firestore.FieldValue.delete()
+                        })
                         .catch(() => {});
-                    }
                 }
-            },
-            writable: true,
-            configurable: true,
-            enumerable: false
-        });
+            }
+        };
 
         function applyRemoteSettings(settings) {
             if (!settings) return;
