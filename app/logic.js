@@ -81,20 +81,21 @@
         let preAuthQueue = {};
 
         function scheduleUpload(key, value) {
-            console.log('[DEBUG] scheduleUpload appelé:', key, '=', value, '| currentUid:', currentUid, '| applyingRemote:', applyingRemote);
-            if (!currentUid || applyingRemote) return;
+            if (applyingRemote) return;
+
+            if (!currentUid) {
+                preAuthQueue[sanitizeKey(key)] = value;
+                return;
+            }
+
             pendingWrites[sanitizeKey(key)] = value;
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(flushWrites, DEBOUNCE_MS);
         }
 
         function flushWrites() {
-            console.log('[DEBUG] flushWrites déclenché, pendingWrites:', JSON.stringify(pendingWrites));
             const db = getDb();
-            if (!db || !currentUid || Object.keys(pendingWrites).length === 0) {
-                console.log('[DEBUG] flushWrites annulé — db:', !!db, 'currentUid:', currentUid, 'pendingWrites vide:', Object.keys(pendingWrites).length === 0);
-                return;
-            }
+            if (!db || !currentUid || Object.keys(pendingWrites).length === 0) return;
 
             const toSend = pendingWrites;
             pendingWrites = {};
@@ -12218,6 +12219,7 @@ async function main() {
         startFetchUpdates();
         console.log('UID ', window.MBF_Auth.currentUid);
         console.log('is logged in? ', window.MBF_Auth.isLoggedIn);
+        console.log(localStorage.setItem.toString());
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
