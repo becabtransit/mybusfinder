@@ -12217,6 +12217,8 @@ async function main() {
         await loadGeoJsonLines();
         loadBusStopMarkers();
         startFetchUpdates();
+        console.log('UID ', window.MBF_Auth.currentUid);
+        console.log('is logged in? ', window.MBF_Auth.isLoggedIn);
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
