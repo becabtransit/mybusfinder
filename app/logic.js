@@ -129,14 +129,19 @@
         const originalRemoveItem = Storage.prototype.removeItem;
 
         Storage.prototype.setItem = function (key, value) {
-            originalSetItem.call(localStorage, key, value);
 
-            if (this === localStorage && isSyncedKey(key)) {
+            originalSetItem.call(this, key, value);
+
+            if (
+                this === localStorage &&
+                isSyncedKey(key)
+            ) {
                 scheduleUpload(key, value);
             }
         };
 
         Storage.prototype.removeItem = function (key) {
+
             originalRemoveItem.call(this, key);
 
             if (
@@ -170,7 +175,7 @@
                     const current = localStorage.getItem(key);
                     const stringValue = String(value);
                     if (current !== stringValue) {
-                        originalSetItem(key, stringValue);
+                        originalSetItem.call(localStorage, key, stringValue);
                         changedKeys.add(key);
                         window.dispatchEvent(new CustomEvent('mbf-remote-setting-changed', { detail: { key, value } }));
                     }
