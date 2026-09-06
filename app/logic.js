@@ -13513,7 +13513,7 @@ function _ensureNearestStopSection() {
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:0px; padding:0 2px;">
         </div>
         <div id="bs-nearest-stop-wrapper" style="position:relative;">
-            <div id="bs-nearest-stop-scroll" style="max-height:350px; overflow:hidden;
+            <div id="bs-nearest-stop-scroll" style="max-height:200px; overflow:hidden;
                  transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 0px 0px 15px 15px;">
                 <div id="bs-nearest-stop-content"></div>
             </div>
