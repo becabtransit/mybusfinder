@@ -12220,10 +12220,8 @@ async function main() {
         console.log('UID ', window.MBF_Auth.currentUid);
         console.log('is logged in? ', window.MBF_Auth.isLoggedIn);
         console.log(localStorage.setItem.toString());
-        navigator.serviceWorker.getRegistrations().then(regs => {
-            console.log('SW count:', regs.length);
-            regs.forEach(r => console.log('scope:', r.scope, '| script:', r.active?.scriptURL));
-        });
+        console.log('MBF_Auth:', typeof window.MBF_Auth);
+        console.log('SettingsSyncReady:', typeof window.SettingsSyncReady);
         
     } catch (error) {
         console.error("Erreur critique dans main():", error);
