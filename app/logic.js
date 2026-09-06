@@ -2347,6 +2347,17 @@ document.getElementById('close-popup').addEventListener('click', closeUpdatePopu
 document.getElementById('close-popup1').addEventListener('click', closeUpdatePopup);
 
 
+function setStatusBarColor(color) {
+  let meta = document.querySelector('meta[name="theme-color"]');
+
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    document.head.appendChild(meta);
+  }
+
+  meta.content = color;
+}
 
 
 
@@ -2391,6 +2402,13 @@ function hideLoadingScreen() {
 
         if (localStorage.getItem(`termsconds${window.BUILD_VERSION}`) !== 'true') {
             MyBusFinderWelcome.open();
+        }
+
+
+        if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+            setStatusBarColor('#ffffff');
+        } else {
+            setStatusBarColor('#000000');
         }
 
         if (localStorage.getItem('nepasafficheraccueil') === 'true') {
@@ -12778,7 +12796,7 @@ const BottomSheet = (() => {
             #bottom-sheet:not(.bs-fullscreen) #bs-favorites-list,
             #bottom-sheet:not(.bs-fullscreen) #bs-search-results,
             #bottom-sheet:not(.bs-fullscreen) #bs-stop-view {
-                max-height: 400px;
+                max-height: 200px;
                 overflow: hidden !important;
                 position: relative;
             }
@@ -12875,6 +12893,7 @@ const BottomSheet = (() => {
         soundsUX('MBF_Popup');
         safeVibrate?.([25]);
         setMenuBtmVisible(false);
+        setStatusBarColor('#252525');
     }
 
     function exitFullscreen() {
@@ -12883,6 +12902,11 @@ const BottomSheet = (() => {
         sheetEl.classList.remove('bs-fullscreen');
         sheetEl.style.transform = '';
         safeVibrate?.([15]);
+        if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+            setStatusBarColor('#ffffff');
+        } else {
+            setStatusBarColor('#000000');
+        }
     }
 
     function toggle() { isExpanded ? collapse() : expand(); }
@@ -13489,7 +13513,7 @@ function _ensureNearestStopSection() {
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:0px; padding:0 2px;">
         </div>
         <div id="bs-nearest-stop-wrapper" style="position:relative;">
-            <div id="bs-nearest-stop-scroll" style="max-height:350px; overflow:hidden;
+            <div id="bs-nearest-stop-scroll" style="max-height:200px; overflow:hidden;
                  transition:max-height 0.4s cubic-bezier(0.4,0,0.2,1); border-radius: 0px 0px 15px 15px;">
                 <div id="bs-nearest-stop-content"></div>
             </div>
@@ -14256,8 +14280,6 @@ async function openStopInBottomSheet(stopIds, stopName) {
         const el = document.getElementById(id);
         if (el) { el.style.display = 'none'; el.dataset.hiddenByStop = 'true'; }
     });
-    const grid = document.querySelector('.bs-grid');
-    if (grid) { grid.style.display = 'none'; grid.dataset.hiddenByStop = 'true'; }
     const btns = document.getElementById('bs-handle-buttons');
     if (btns) btns.style.display = 'none';
 
@@ -14877,8 +14899,6 @@ function _restoreBottomSheetTitle() {
             const el = document.getElementById(id);
             if (el) { el.style.display = ''; delete el.dataset.hiddenByStop; }
         });
-        const grid = document.querySelector('.bs-grid');
-        if (grid) { grid.style.display = ''; delete grid.dataset.hiddenByStop; }
 
         _refreshBottomSheetGreeting();
     });
